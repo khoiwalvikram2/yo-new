@@ -1,0 +1,61 @@
+/* BEYOND-MOCKUP: settlement tabs, scheme-specific finance and disclosure rows reuse kit surfaces/tokens. */
+.page { display: grid; gap: 20px; min-width: 0; color: var(--ink); font-family: var(--font-ui); }
+.stack { display: grid; gap: 16px; min-width: 0; container-type: inline-size; container-name: settlement-center; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.agentMetrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
+.triple { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.row, .tools, .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; }
+.row { justify-content: space-between; }
+.tools { justify-content: flex-end; }
+.filters { align-items: end; }
+.dashboardFilters { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; min-width: 0; }
+.dashboardFilters > * { min-width: 0; }
+.agentSelect { width: min(100%, 300px); }
+.cellStack { display: grid; justify-items: start; gap: 6px; min-width: 0; }
+.inline { display: inline-flex; align-items: center; gap: 6px; }
+.sectionTitle { margin: 0 0 10px; color: var(--ink); font-size: 13px; font-weight: 650; }
+.periodScroll { overflow-x: auto; min-width: 0; max-width: 100%; padding: 3px; }
+.tabPanel { min-width: 0; }
+.tabPanel:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: var(--ui-radius); }
+.muted { color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.emphasis { color: var(--acc-ink); font-weight: 650; }
+.positive { color: var(--pos-ink); }
+.negative { color: var(--neg-ink); }
+.warning { color: var(--warn); }
+.strong { font-weight: 650; }
+.item { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); min-width: 0; }
+.item:last-child { border-bottom: 0; }
+.item > *, .row > *, .metrics > *, .split > *, .triple > * { min-width: 0; overflow-wrap: anywhere; }
+.details { border: 1px solid var(--line); border-radius: var(--ui-radius); min-width: 0; padding: 12px; }
+.summary { cursor: pointer; color: var(--ink); font-size: 13px; font-weight: 650; }
+.summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: var(--ui-radius); }
+.details[open] .summary { margin-bottom: 12px; }
+.note { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chart { min-width: 0; color: var(--ink-2); }
+.chartBlue { --series-color: var(--h-blu); }
+.chartViolet { --series-color: var(--h-vio); }
+.chartPositive { --series-color: var(--h-grn); }
+.chartWarning { --series-color: var(--h-amb); }
+.chartIndigo { --series-color: var(--h-ind); }
+.chart :global(.recharts-cartesian-grid line) { stroke: var(--grid); }
+.chart :global(.recharts-cartesian-axis-line), .chart :global(.recharts-cartesian-axis-tick-line) { stroke: var(--axis); }
+.chart :global(.recharts-cartesian-axis-tick-value), .chart :global(.recharts-pie-label-text) { fill: var(--tick); }
+.chart :global(.recharts-pie-sector) path, .chart :global(.recharts-bar-rectangle) path { fill: var(--series-color); stroke: var(--surf); }
+.chart :global(.recharts-line-curve) { stroke: var(--series-color); }
+.chart :global(.recharts-line-dot) { fill: var(--series-color); stroke: var(--series-color); }
+.chart :global(.recharts-tooltip-cursor) { stroke: var(--cross); fill: var(--acc-soft); }
+.chartTip { background: var(--surf); border: 1px solid var(--line); border-radius: var(--ui-radius); box-shadow: var(--sh-tip); color: var(--ink); padding: 10px 12px; display: grid; gap: 6px; font-size: 12px; }
+.legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; padding-top: 10px; margin: 0; list-style: none; font-size: 12px; }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.marker { width: 9px; height: 9px; border-radius: var(--ui-radius); background: var(--series-color); }
+@container settlement-center (max-width: 1000px) { .agentMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container settlement-center (max-width: 760px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split, .triple { grid-template-columns: minmax(0, 1fr); } }
+@container settlement-center (max-width: 440px) { .metrics { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 767px) { .split, .triple { grid-template-columns: minmax(0, 1fr); } }
+
+/* An agent's name links to their profile in the kit's link blue, as every profile link in admin does.
+   After .emphasis, so it wins at the same weight. */
+.profileLink { color: var(--link, var(--acc-ink)); text-decoration: none; }
+.profileLink:hover { text-decoration: underline; text-underline-offset: 3px; }
+.profileLink:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--ui-radius); }

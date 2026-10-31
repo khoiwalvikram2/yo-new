@@ -1,0 +1,62 @@
+/* The shell notification placeholder promoted to a general, decorative loading primitive.
+   Dimensions arrive through numeric-only CSS variables; callers cannot inject arbitrary styles. */
+.skeleton {
+  --skeleton-width: 100%;
+  --skeleton-height: 12px;
+
+  display: inline-grid;
+  width: var(--skeleton-width);
+  max-width: 100%;
+  gap: 8px;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+.line {
+  display: block;
+  width: 100%;
+  height: var(--skeleton-height);
+  border-radius: inherit;
+  background: var(--surf-3);
+  animation: pulse 2s cubic-bezier(.4, 0, .6, 1) infinite;
+}
+
+.row {
+  border-radius: var(--ui-radius);
+}
+
+.ctl {
+  border-radius: var(--ui-radius);
+}
+
+.card {
+  border-radius: var(--ui-radius);
+}
+
+.pill {
+  border-radius: var(--ui-radius);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: .5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line {
+    animation: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .skel: the --surf-3 fill already matches; the default row shape takes the 3px control radius
+   (--r-row is 2px in the skin) and the pulse runs at the kit's 1.6s. Reduced motion still sets
+   animation: none, so the duration below has nothing to run. */
+:global(html:not([data-skin='classic'])) .row {
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .line {
+  animation-duration: 1.6s;
+}

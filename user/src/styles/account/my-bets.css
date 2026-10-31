@@ -1,0 +1,201 @@
+/* My Bets (/my-bets) in the matchbook theme: open bets grouped by market. Each market is a section with a
+   charcoal bar (event name, bet count, red View Event) over dense bet rows: a Back / Lay tag and edge stripe
+   in the exchange blue / pink, bold odds and stake, liability in red, payout in green and a status chip.
+   Phones stack each bet into a small card with labelled figures. */
+
+.nova-acct .nova-mb-groups { display: grid; gap: 12px; }
+.nova-acct .nova-mb { min-width: 0; }
+.nova-acct .nova-mb-toolbar { display: flex; align-items: stretch; justify-content: space-between; gap: 12px; }
+.nova-acct .nova-mb-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 420px); border: 1px solid var(--mb-line); background: var(--mb-panel); }
+.nova-acct .nova-mb-tabs button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 16px; border: 0; color: var(--mb-ink); background: transparent; font-weight: 700; cursor: pointer; }
+.nova-acct .nova-mb-tabs button + button { border-left: 1px solid var(--mb-line); }
+.nova-acct .nova-mb-tabs button[aria-pressed="true"] { color: #fff; background: #c51a1b; }
+.nova-acct .nova-mb-tabs button:focus-visible { outline: 2px solid var(--mb-ink); outline-offset: -4px; }
+.nova-acct .nova-mb-refresh { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--mb-line); color: var(--mb-ink); background: var(--mb-panel); cursor: pointer; }
+.nova-acct .nova-mb-refresh:disabled, .nova-acct .nova-mb-retry:disabled { opacity: .55; cursor: wait; }
+.nova-acct .nova-mb-summary, .nova-acct .nova-mb-note { margin: 0 0 12px; color: var(--mb-muted); font-size: 13px; }
+.nova-acct .nova-mb-note { margin-top: 12px; }
+.nova-acct .nova-mb-group { min-width: 0; border: 1px solid var(--mb-line); background: var(--mb-panel); }
+.nova-acct .nova-mb-group-bar { display: flex; align-items: center; padding-right: 12px; color: #fff; background: var(--mb-bar); }
+.nova-acct .nova-mb-group-bar .nova-mb-group-head { flex: 1; min-width: 0; }
+.nova-acct .nova-mb-group-name { color: #fff; font-size: 18px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.nova-acct .nova-mb-group-meta { color: #c9cbd1; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.nova-acct .nova-mb-group-body[hidden] { display: none; }
+
+/* Event bar (the whole bar toggles; View Event sits inside it). */
+.nova-acct .nova-mb-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px 8px 12px;
+  border: 0;
+  color: #FFFFFF;
+  background: var(--mb-bar);
+  font-family: var(--font-inter);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .15s;
+}
+.nova-acct .nova-mb-group-head:hover { background: #4C4D54; }
+.nova-acct .nova-mb-group-head:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -3px; }
+.nova-acct .nova-mb-chevron { flex: none; width: 18px; height: 18px; color: #C9CBD1; transition: transform .2s; }
+.nova-acct .nova-mb-chevron.is-closed { transform: rotate(-90deg); }
+.nova-acct .nova-mb-group-title { display: grid; flex: 1 1 auto; gap: 2px; min-width: 0; }
+.nova-acct .nova-mb-group-title h3 { margin: 0; overflow: hidden; color: #FFFFFF; font-size: 18px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.nova-acct .nova-mb-group-title p { margin: 0; color: #C9CBD1; font-size: 13px; line-height: 1.2; }
+.nova-acct .nova-mb-view {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: #C51A1B;
+  font-family: var(--font-inter);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s;
+}
+.nova-acct .nova-mb-view:hover { background: #A81516; }
+.nova-acct .nova-mb-view:focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
+.nova-acct .nova-mb-view svg { width: 14px; height: 14px; }
+.nova-acct .nova-mb :is(.nova-mb-market, .nova-mb-side, .nova-mb-retry, .nova-mb-empty-icon, .nova-acct-chip) { border-radius: var(--ui-radius); }
+
+/* ------------------------------------------------------------------ bets */
+.nova-acct .nova-mb-table-wrap { min-width: 0; overflow-x: auto; }
+.nova-acct .nova-mb-table { width: 100%; border-collapse: separate; border-spacing: 0; color: var(--mb-text); font-size: 14px; font-variant-numeric: tabular-nums; }
+.nova-acct .nova-mb-table th {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--mb-line);
+  color: var(--mb-muted);
+  background: var(--mb-soft);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.2;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.nova-acct .nova-mb-table td { padding: 10px 12px; border-bottom: 1px solid var(--mb-line); line-height: 1.3; vertical-align: middle; }
+.nova-acct .nova-mb-table tbody tr:last-child td { border-bottom: 0; }
+.nova-acct .nova-mb-table tbody tr { transition: background-color .12s; }
+.nova-acct .nova-mb-table tbody tr:hover { background: var(--mb-soft); }
+.nova-acct .nova-mb-table :is(th, td).is-num { text-align: right; white-space: nowrap; }
+.nova-acct .nova-mb-table :is(th, td).is-center { text-align: center; }
+.nova-acct .nova-mb-table tr.is-back > td:first-child { box-shadow: inset 3px 0 0 #8DCDF3; }
+.nova-acct .nova-mb-table tr.is-lay > td:first-child { box-shadow: inset 3px 0 0 #F6AABA; }
+
+.nova-acct .nova-mb-date { display: grid; gap: 2px; line-height: 1.15; white-space: nowrap; }
+.nova-acct .nova-mb-date-day { color: var(--mb-ink); font-size: 14px; font-weight: 600; }
+.nova-acct .nova-mb-date-time { color: var(--mb-muted); font-size: 12px; }
+.nova-acct .nova-mb-sel { color: var(--mb-ink); font-size: 15px; font-weight: 700; line-height: 1.25; }
+.nova-acct .nova-mb-sub { margin-top: 4px; }
+.nova-acct .nova-mb-market-name { margin-top: 3px; color: var(--mb-muted); font-size: 12px; }
+.nova-acct .nova-mb-market { display: inline-block; padding: 1px 6px; border: 1px solid #BCDDF2; border-radius: var(--ui-radius); color: var(--mb-blue-ink); background: var(--mb-blue-bg); font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
+.nova-acct .nova-mb-market.is-fancy { border-color: rgb(109 63 192 / 30%); color: var(--mb-fancy-ink); background: rgb(109 63 192 / 12%); }
+.nova-acct .nova-mb-market.is-bookmaker { border-color: var(--mb-amber-line); color: var(--mb-amber-ink); background: var(--mb-amber-bg); }
+.nova-acct .nova-mb-side { display: inline-block; min-width: 42px; padding: 3px 7px; border-radius: var(--ui-radius); color: var(--mb-odds-ink); font-size: 11px; font-weight: 700; letter-spacing: .05em; line-height: 1.2; text-align: center; }
+.nova-acct .nova-mb-side.is-back { background: #8DCDF3; }
+.nova-acct .nova-mb-side.is-lay { background: #F6AABA; }
+.nova-acct .nova-mb-table td.c-odds { color: var(--mb-ink); font-weight: 700; }
+.nova-acct .nova-mb-odds-size { color: var(--mb-muted); font-weight: 600; }
+.nova-acct .nova-mb-table td.c-stake { color: var(--mb-ink); font-weight: 700; }
+.nova-acct .nova-mb-table td.c-liab { color: var(--mb-error); font-weight: 700; }
+.nova-acct .nova-mb-table td.c-payout { color: var(--mb-green); font-weight: 700; }
+.nova-acct .nova-acct-chip.nova-mb-status.is-info { color: var(--mb-blue-ink); background: var(--mb-blue-bg); }
+
+/* -------------------------------------------------- loading, error, empty */
+.nova-acct .nova-mb-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 56px 16px; border: 1px solid var(--mb-line); color: var(--mb-muted); background: var(--mb-panel); font-size: 15px; }
+.nova-acct .nova-mb-loading svg { width: 22px; height: 22px; color: var(--mb-red-text); }
+.nova-acct .nova-mb-error { display: grid; justify-items: center; gap: 10px; padding: 22px 16px; border: 1px solid var(--mb-red-line); background: var(--mb-panel); text-align: center; }
+.nova-acct .nova-mb-error p { margin: 0; color: var(--mb-red-ink); font-size: 15px; font-weight: 600; }
+.nova-acct .nova-mb-retry { min-height: 36px; padding: 0 18px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: #C51A1B; font-family: var(--font-inter); font-size: 15px; font-weight: 700; cursor: pointer; }
+.nova-acct .nova-mb-retry:hover { background: #A81516; }
+.nova-acct .nova-mb-empty { display: grid; justify-items: center; gap: 6px; padding: 52px 16px 48px; border: 1px solid var(--mb-line); background: var(--mb-panel); text-align: center; }
+.nova-acct .nova-mb-empty-icon { display: grid; width: 56px; height: 56px; place-items: center; margin-bottom: 6px; border-radius: var(--ui-radius); color: var(--mb-faint); background: var(--mb-soft); }
+.nova-acct .nova-mb-empty-icon svg { width: 26px; height: 26px; }
+.nova-acct .nova-mb-empty-title { margin: 0; color: var(--mb-ink); font-size: 19px; font-weight: 700; }
+.nova-acct .nova-mb-empty-text { margin: 0; color: var(--mb-muted); font-size: 15px; }
+
+/* ----------------------------------------------------------------- phones */
+/* Every event group is its own table; fixed column widths line the groups up under one another. The Market
+   column is hidden below 768px, and the other columns share its room there. */
+@media (min-width: 640px) {
+  .nova-acct .nova-mb-table { table-layout: fixed; }
+  .nova-acct .nova-mb-table th.c-date { width: 13%; }
+  .nova-acct .nova-mb-table th.c-sel { width: 16%; }
+  .nova-acct .nova-mb-table th.c-market { width: 17%; }
+  .nova-acct .nova-mb-table th.c-type { width: 8%; }
+  .nova-acct .nova-mb-table th:is(.c-odds, .c-stake, .c-liab, .c-payout) { width: 9%; }
+  .nova-acct .nova-mb-table th.c-status { width: 10%; }
+  .nova-acct .nova-mb-table td { overflow-wrap: anywhere; }
+  .nova-acct .nova-mb-matka th.c-date { width: 16%; }
+  .nova-acct .nova-mb-matka th.c-sel { width: 18%; }
+  .nova-acct .nova-mb-matka th.c-session { width: 10%; }
+  .nova-acct .nova-mb-matka th.c-wallet { width: 10%; }
+  .nova-acct .nova-mb-matka th.c-rate { width: 8%; }
+  .nova-acct .nova-mb-matka th.c-stake { width: 12%; }
+  .nova-acct .nova-mb-matka th.c-payout { width: 16%; }
+  .nova-acct .nova-mb-matka th.c-status { width: 10%; }
+}
+@media (min-width: 640px) and (max-width: 1100px) {
+  .nova-acct .nova-mb-table { min-width: 850px; }
+}
+@media (max-width: 639.98px) {
+  .nova-acct .nova-mb-group-head { gap: 8px; min-height: 52px; padding: 8px 8px 8px 10px; }
+  .nova-acct .nova-mb-group-title h3 { font-size: 16px; white-space: normal; }
+  .nova-acct .nova-mb-view { min-height: 32px; padding: 0 10px; font-size: 13px; }
+  .nova-acct .nova-mb-group-bar { padding-right: 8px; align-items: flex-start; }
+  .nova-acct .nova-mb-group-bar .nova-mb-view { margin-top: 10px; }
+  .nova-acct .nova-mb-group-name { font-size: 16px; }
+  .nova-acct .nova-mb-toolbar { flex-wrap: wrap; gap: 8px; }
+  .nova-acct .nova-mb-tabs { width: 100%; }
+  .nova-acct .nova-mb-refresh { margin-left: auto; }
+
+  .nova-acct .nova-mb-table-wrap { overflow: visible; }
+  .nova-acct .nova-mb-table,
+  .nova-acct .nova-mb-table tbody { display: block; width: 100%; }
+  .nova-acct .nova-mb-table thead { display: none; }
+  .nova-acct .nova-mb-table tbody tr {
+    display: grid;
+    grid-template-areas: 'sel sel sel status' 'type date date date' 'odds stake liab payout';
+    grid-template-columns: minmax(0, .85fr) repeat(3, minmax(0, 1.1fr));
+    align-items: center;
+    gap: 8px 6px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--mb-line);
+  }
+  .nova-acct .nova-mb-table tbody tr:last-child { border-bottom: 0; }
+  .nova-acct .nova-mb-table td { min-width: 0; padding: 0; border: 0; }
+  .nova-acct .nova-mb-table tr:is(.is-back, .is-lay) > td:first-child { box-shadow: none; }
+  .nova-acct .nova-mb-table tr.is-back { box-shadow: inset 3px 0 0 #8DCDF3; }
+  .nova-acct .nova-mb-table tr.is-lay { box-shadow: inset 3px 0 0 #F6AABA; }
+  .nova-acct .nova-mb-table .c-sel { grid-area: sel; }
+  .nova-acct .nova-mb-table .c-status { grid-area: status; justify-self: end; align-self: start; }
+  .nova-acct .nova-mb-table .c-type { grid-area: type; justify-self: start; }
+  .nova-acct .nova-mb-table .c-date { grid-area: date; }
+  .nova-acct .nova-mb-table .c-date .nova-mb-date { display: flex; flex-wrap: wrap; gap: 0 6px; }
+  .nova-acct .nova-mb-table .c-date .nova-mb-date-day { color: var(--mb-muted); font-size: 12px; font-weight: 400; }
+  .nova-acct .nova-mb-table .c-odds { grid-area: odds; }
+  .nova-acct .nova-mb-table .c-stake { grid-area: stake; }
+  .nova-acct .nova-mb-table .c-liab { grid-area: liab; }
+  .nova-acct .nova-mb-table .c-payout { grid-area: payout; }
+  .nova-acct .nova-mb-table td[data-label] { padding: 6px 7px; border-radius: var(--ui-radius); background: var(--mb-soft); font-size: 13px; text-align: left; overflow-wrap: anywhere; white-space: normal; }
+  .nova-acct .nova-mb-table td.c-odds { overflow-wrap: normal; white-space: nowrap; }
+  .nova-acct .nova-mb-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 1px; color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+  .nova-acct .nova-mb-matka tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'sel status' 'date date' 'session wallet' 'rate rate' 'stake payout'; align-items: stretch; }
+  .nova-acct .nova-mb-matka .c-session { grid-area: session; }
+  .nova-acct .nova-mb-matka .c-wallet { grid-area: wallet; }
+  .nova-acct .nova-mb-matka .c-rate { grid-area: rate; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-acct .nova-mb-chevron { transition: none; }
+}

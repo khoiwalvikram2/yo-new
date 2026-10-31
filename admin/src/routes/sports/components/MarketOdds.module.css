@@ -1,0 +1,361 @@
+/* Event detail price rows (admin UI kit, "Event detail" screen), read-only.
+   - The match odds ladder: Selection | P/L | back −2, −1, best | best, +1, +2 lay (the best prices meet in
+     the middle).
+   - Bookmaker and fancy lines: Selection | P/L | Back | Lay, and a fancy line No | Yes | Limits.
+   The P/L column is sized by its figures; the price columns are fixed at the right, so they line up row to
+   row. Kit-only tokens (--back*, --lay*, --odds-*, --panel-2) carry classic-skin fallbacks.
+   Narrow: the kit drops to the best back / lay with the P/L under the name below a 900px workspace. Here the
+   container is the market panel itself, so the switch sits where the full ladder stops fitting (about
+   680px with a P/L figure). */
+.layout {
+  container: odds / inline-size;
+  min-width: 0;
+  background: var(--surf);
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- rows and their columns */
+.head,
+.row {
+  display: grid;
+  align-items: center;
+  column-gap: 4px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 6px 14px;
+}
+
+.ladder {
+  grid-template-columns: minmax(120px, 1fr) auto 182px 182px;
+}
+
+.lines {
+  grid-template-columns: minmax(120px, 1fr) auto 58px 58px;
+}
+
+.lines.withLimits {
+  grid-template-columns: minmax(120px, 1fr) auto 58px 58px 92px;
+}
+
+/* kit .ev-lhead */
+.head {
+  min-height: 34px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2, var(--surf-3));
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.headPl,
+.headLimits,
+.headBack {
+  text-align: right;
+}
+
+.headPrice {
+  text-align: center;
+}
+
+.backHead {
+  color: var(--back-text, var(--blue));
+}
+
+.layHead {
+  color: var(--lay-text, var(--neg-ink));
+}
+
+.runner {
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.runner:last-of-type {
+  border-bottom: 0;
+}
+
+.row {
+  min-height: 56px;
+}
+
+/* ---------------------------------------------------------------- selection */
+.identity {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.details {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.name {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+/* ---------------------------------------------------------------- P/L (kit .ev-pl) */
+.pl {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pl:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: var(--ui-radius);
+}
+
+.plLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plLabel {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.plFigure {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.plCut {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.positive {
+  color: var(--pos-ink);
+}
+
+.negative {
+  color: var(--neg-ink);
+}
+
+/* ---------------------------------------------------------------- prices (kit .odds) */
+.prices {
+  grid-column: 3 / 5;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+
+.priceGroup {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+
+.oddsTile {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+  min-width: 0;
+  height: 42px;
+  padding: 0 2px;
+  box-sizing: border-box;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+  line-height: 1.1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The best price is the solid player-panel cell; the depth cells step lighter. Constant in both themes. */
+.back.filled {
+  background: var(--back, var(--blue-bg));
+  color: var(--odds-ink, var(--blue));
+}
+
+.lay.filled {
+  background: var(--lay, var(--neg-bg));
+  color: var(--odds-ink, var(--neg-ink));
+}
+
+.back.depth2.filled {
+  background: var(--back-2, var(--blue-bg));
+}
+
+.back.depth3.filled {
+  background: var(--back-3, var(--blue-bg));
+}
+
+.lay.depth2.filled {
+  background: var(--lay-2, var(--neg-bg));
+}
+
+.lay.depth3.filled {
+  background: var(--lay-3, var(--neg-bg));
+}
+
+.priceValue {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.priceVolume {
+  font-size: 11px;
+}
+
+.filled .priceVolume {
+  color: var(--odds-muted, currentColor);
+}
+
+/* ---------------------------------------------------------------- a row that is not pricing (kit .ev-hold) */
+.hold {
+  grid-column: 3 / 5;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  height: 42px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-radius: var(--ui-radius);
+  background: repeating-linear-gradient(-45deg, var(--surf-3) 0 8px, var(--panel-2, var(--surf)) 8px 16px);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.hold svg {
+  flex: none;
+}
+
+/* ball running: the amber hold */
+.holdWarn {
+  background: var(--warn-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 25%, transparent);
+  color: var(--warn);
+}
+
+/* ---------------------------------------------------------------- fancy limits and the position book */
+.limits {
+  grid-column: 5;
+  grid-row: 1;
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* FancyBookTable draws the strip itself; this only parts it from the line above. */
+.analytics {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+}
+
+.empty {
+  display: block;
+  padding: 10px 14px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------- narrow (kit @container evws max 899px) */
+@container odds (max-width: 699px) {
+  .head,
+  .row {
+    padding-inline: 12px;
+  }
+
+  .ladder,
+  .lines,
+  .lines.withLimits {
+    grid-template-columns: minmax(0, 1fr) 62px 62px;
+  }
+
+  .row {
+    align-content: center;
+  }
+
+  .headPl,
+  .headLimits,
+  .extraDepth {
+    display: none;
+  }
+
+  .headBack,
+  .headLay {
+    text-align: center;
+  }
+
+  /* the P/L and the limits move under the name, the prices span the rows beside them */
+  .pl {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    justify-self: start;
+    gap: 2px 12px;
+    margin-top: 4px;
+  }
+
+  .limits {
+    grid-column: 1;
+    grid-row: 3;
+    margin-top: 2px;
+    text-align: left;
+  }
+
+  .hasAvatar > .pl,
+  .hasAvatar > .limits {
+    padding-inline-start: 44px;
+  }
+
+  .prices,
+  .hold {
+    grid-column: 2 / 4;
+    grid-row: 1 / span 3;
+  }
+
+  .priceGroup {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

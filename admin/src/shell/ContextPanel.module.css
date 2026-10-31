@@ -1,0 +1,278 @@
+.panel {
+  width: var(--panel-w);
+  flex: none;
+  height: 100%;
+  background: var(--panel);
+  border-right: 1px solid var(--panel-line);
+  overflow: hidden;
+  visibility: visible;
+  transition: width var(--t-3) var(--ease), visibility 0s linear 0s;
+}
+
+.panel.collapsed {
+  width: 0;
+  border-right-width: 0;
+  visibility: hidden;
+  transition: width var(--t-3) var(--ease), visibility 0s linear var(--t-3);
+}
+
+.inner {
+  width: var(--panel-w);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 20px 20px 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.024em;
+  color: var(--ink);
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 4px 12px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.row {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 8px 0 12px;
+  margin-bottom: 2px;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+.row:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.row:active {
+  background: var(--press);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.row[data-current='true'] {
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-weight: 600;
+}
+
+.row[data-current='true']:hover {
+  background: var(--acc-soft-h);
+  color: var(--acc-ink);
+}
+
+.row.quiet {
+  color: var(--ink-3);
+}
+
+.row.quiet:hover {
+  color: var(--ink);
+}
+
+.rowIcon {
+  flex: none;
+  display: flex;
+  color: var(--ink-3);
+  transition: color var(--t-1) ease;
+}
+
+.row:hover .rowIcon {
+  color: var(--ink-2);
+}
+
+.row[data-current='true'] .rowIcon,
+.row[data-current='true']:hover .rowIcon {
+  color: var(--acc-ink);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowBadge {
+  flex: none;
+}
+
+.row[data-current='true'] .rowBadge {
+  background: var(--acc);
+  color: var(--acc-on);
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 6px 12px;
+}
+
+.groupTitle {
+  flex: 1;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.divider {
+  height: 1px;
+  background: var(--panel-line);
+  margin: 18px 8px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .panel.collapsed,
+  .row,
+  .rowIcon {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Player skin (admin UI kit; off under <html data-skin="classic">). The section title sits in a
+   charcoal bar as tall as the topbar, so the two read as one band. Group labels are red caps; the
+   current page is a solid red row; rows run edge to edge.
+   --------------------------------------------------------------------------------------------- */
+:global(html:not([data-skin='classic'])) .header {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  height: 60px;
+  padding: 0 16px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--chrome-edge);
+}
+
+:global(html:not([data-skin='classic'])) .title {
+  overflow: hidden;
+  color: #FFFFFF;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(html:not([data-skin='classic'])) .subtitle {
+  margin-top: 1px;
+  overflow: hidden;
+  color: var(--chrome-muted);
+  font-size: 13px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(html:not([data-skin='classic'])) .nav {
+  padding: 6px 0 12px;
+}
+
+:global(html:not([data-skin='classic'])) .row {
+  min-height: 38px;
+  margin-bottom: 0;
+  padding: 0 12px 0 16px;
+  border-radius: var(--ui-radius);
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .row[data-current='true'],
+:global(html:not([data-skin='classic'])) .row[data-current='true']:hover {
+  background: var(--acc);
+  color: var(--acc-on);
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .row[data-current='true']:hover {
+  background: var(--acc-h);
+}
+
+:global(html:not([data-skin='classic'])) .row[data-current='true'] .rowIcon,
+:global(html:not([data-skin='classic'])) .row[data-current='true']:hover .rowIcon {
+  color: var(--acc-on);
+}
+
+:global(html:not([data-skin='classic'])) .row[data-current='true'] .rowBadge {
+  background: rgba(255, 255, 255, .24);
+  color: #FFFFFF;
+}
+
+:global(html:not([data-skin='classic'])) .row:focus-visible {
+  outline-offset: -2px;
+}
+
+:global(html:not([data-skin='classic'])) .group {
+  padding: 12px 12px 6px 16px;
+}
+
+:global(html:not([data-skin='classic'])) .groupTitle {
+  color: var(--acc-ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+:global(html:not([data-skin='classic'])) .divider {
+  margin: 10px 0;
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 7: the focus ring inside the red current row is white (the blue ring is 1.1:1 on red) */
+:global(html:not([data-skin='classic'])) .row[data-current='true']:focus-visible {
+  outline-color: var(--acc-on);
+}

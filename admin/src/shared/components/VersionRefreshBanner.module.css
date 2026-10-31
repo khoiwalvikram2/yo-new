@@ -1,0 +1,14 @@
+/* The banner that says a newer build is on the server. It is the kit Notice in its strip layout, made
+   sticky so it stays at the top of the content column while the page scrolls, and it sits under the
+   shell's own layers (--z-shell) because it belongs to the page, not to the chrome. */
+.sticky {
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--z-shell) - 1);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

@@ -1,0 +1,114 @@
+/* Detail rows promoted from the mockup's .dl/.dr-sec rules (M:1151-1157). */
+.list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.label96 {
+  --description-label-width: 96px;
+}
+
+.label116 {
+  --description-label-width: 116px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--description-label-width) minmax(0, 1fr);
+  min-width: 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.term,
+.value {
+  box-sizing: border-box;
+  min-width: 0;
+  padding-block: 10px;
+  line-height: 1.45;
+}
+
+.term {
+  padding-inline-end: 14px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.value {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  color: var(--ink-2);
+}
+
+.section {
+  min-width: 0;
+}
+
+.section + .section {
+  margin-block-start: 18px;
+}
+
+.sectionTitle {
+  margin: 0 0 6px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The mockup narrows the drawer's term column at the phone step (M:1626). */
+@media (max-width: 767px) {
+  .label116 {
+    --description-label-width: 96px;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .dl (kit p2): 14px rows on a --line hairline, a muted regular term and a 600 value. Only the hairline's
+   colour moves, so .row:last-child (0,2,0) still drops the last one. .value.note (0,3,1) keeps the note's
+   quieter treatment over the value rule (0,2,1), which would otherwise outrank the base .note (0,1,0). */
+:global(html:not([data-skin='classic'])) .row {
+  border-bottom-color: var(--line);
+}
+
+:global(html:not([data-skin='classic'])) .term,
+:global(html:not([data-skin='classic'])) .value {
+  padding-block: 9px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+:global(html:not([data-skin='classic'])) .term {
+  padding-inline-end: 10px;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+:global(html:not([data-skin='classic'])) .value {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .value.note {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+/* .sheet-sec */
+:global(html:not([data-skin='classic'])) .sectionTitle {
+  font-size: 12px;
+  letter-spacing: .06em;
+}

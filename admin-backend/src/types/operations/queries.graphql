@@ -1,0 +1,492 @@
+type Query {
+  health: String!
+  markets(state: MarketState, sport: String, from: String, to: String, marketId: ID): [Market!]!
+  marketsByIds(marketIds: [ID!]!): [ProviderMarket!]!
+  # Running markets (event-centric)
+  runningEvents(sport: String, from: String, to: String): [SportsEvent!]!
+  eventDetail(eventId: ID!): EventDetail!
+  sports: [Sport!]!
+  leagues(sportId: ID!): [League!]!
+  events(leagueId: ID!): [Event!]!
+  # Provider-proxied endpoints for Manual builder (do not hit DB)
+  providerLeagues(sportCode: String!): [League!]!
+  providerEvents(leagueId: ID!): [Event!]!
+  marketsByEvent(eventId: ID!): [ProviderMarket!]!
+  # Declare-result: only entities that have open bets (matched/unmatched)
+  leaguesWithOpenBets(sportId: ID!): [League!]!
+  eventsWithOpenBets(leagueId: ID!): [Event!]!
+  marketsWithOpenBets(eventId: ID!): [ProviderMarket!]!
+  runnersByMarket(marketId: ID!): [Runner!]!
+  existingLeagueCodes(sportId: ID!): [String!]!
+  existingEventCodes(leagueCode: String!): [String!]!
+  overviewKPIs(dateRange: DashboardDateRange): OverviewKPIs!
+  dashboardTrends(dateRange: DashboardDateRange): [DashboardTrendPoint!]!
+  """
+  What is happening right now. Takes no arguments on purpose: it ignores the
+  dashboard period presets. activePlayers is betting activity in a short
+  trailing window (activityWindowMins), not presence. An agent sees only its
+  own players.
+  """
+  realtimeSnapshot: RealtimeSnapshot!
+  """
+  The dashboard's operations sections (money in and out, pending actions, player activity,
+  registrations, balances and agents, chips and the credit pool). Admins only; an agent is refused.
+  """
+  dashboardOperations(dateRange: DashboardDateRange): DashboardOperations!
+  """
+  The Overview's insight cards: the top open events and draws by exposure (empty without
+  reporting.exposure:view), the period's biggest bets and winners, and credit agents near their limit.
+  Admins only; an agent is refused.
+  """
+  dashboardInsights(dateRange: DashboardDateRange): DashboardInsights!
+  """
+  The Players tab's retention and conversion: active bettors by day, week and month, returning and
+  lapsing players, and first-deposit conversion. Admins only; an agent is refused.
+  """
+  dashboardPlayerRetention(dateRange: DashboardDateRange): DashboardPlayerRetention!
+  """
+  The Financial tab's casino providers P&L and bonus analysis. Admins only; an agent is refused.
+  """
+  dashboardFinancialInsights(dateRange: DashboardDateRange): DashboardFinancialInsights!
+  """
+  The dashboard's Players tab: the player base as a funnel, its status and type split, daily sign-ups
+  and first deposits, play by product, top stakers and depositors, and the period against the one
+  before. Admins only; an agent is refused.
+  """
+  dashboardPlayersTab(dateRange: DashboardDateRange): DashboardPlayersTab!
+  """
+  The dashboard's Agents tab: the network, commission and settlement, a leaderboard on each agent's own
+  players, and the credit agents. Admins only; an agent is refused.
+  """
+  dashboardAgentsTab(dateRange: DashboardDateRange): DashboardAgentsTab!
+  """
+  The dashboard's Time tab: bets by IST weekday and hour, the hourly and weekday profiles, and this
+  month's run rate. Admins only; an agent is refused.
+  """
+  dashboardTimeTab(dateRange: DashboardDateRange): DashboardTimeTab!
+  """
+  The rows behind a dashboard figure, for its pop-up: kind names the list (pending_deposits, bettors,
+  bets, players, ...), arg narrows it (a status, a scheme, an event, mins:N), and the period, a search
+  and a page apply. Admins only; an agent is refused.
+  """
+  dashboardDrilldown(kind: String!, arg: String, dateRange: DashboardDateRange, search: String, limit: Int, offset: Int): DashboardDrilldown!
+  """
+  The open book split by market (per sport, plus one matka row). For an admin
+  it adds up to the Exposure figure of overviewKPIs for any range ending today.
+  Takes no arguments on purpose, as it is what is open now and ignores the
+  dashboard period presets. Casino is not included. An agent sees only its own
+  players, a subset of that figure, since overviewKPIs does not scope agents.
+  """
+  exposureByMarket: ExposureByMarket!
+  # Enhanced Dashboard Analytics
+  paymentAnalytics(dateRange: DashboardDateRange): PaymentAnalytics!
+  topPerformers(dateRange: DashboardDateRange, limit: Int): TopPerformers!
+  agentDeepDive(dateRange: DashboardDateRange): AgentDeepDive!
+  timeAnalysis(dateRange: DashboardDateRange): TimeAnalysis!
+  financialForecast(dateRange: DashboardDateRange): FinancialForecast!
+  # Whitelabel
+  whitelabelCurrent: Whitelabel!
+  whitelabels: [Whitelabel!]!
+  whitelabel(id: ID!): Whitelabel
+  myWhitelabelCredit: WhitelabelCreditInfo!
+  myWhitelabelCreditHistory(limit: Int, offset: Int): [WhitelabelCreditTransaction!]!
+  myWhitelabelSettlements(limit: Int, offset: Int, agentOffset: Int, whitelabelOffset: Int): WhitelabelSettlementSummary!
+  myWhitelabelSharing: WhitelabelSharingInfo!
+  myAgentCredit: AgentCreditInfo!
+  myAgentCreditHistory(limit: Int, offset: Int): [CreditTransaction!]!
+  myAgentSettlements(limit: Int, offset: Int): AgentSettlementSummary!
+  myAgentSharing: AgentSharingInfo!
+  myAgentCommission: AgentCommissionInfo!
+  exposures(sport: String, competition: String): [ExposurePoint!]!
+  riskLimits(segment: String, userId: ID): [RiskLimit!]!
+  games(provider: String, category: String, enabled: Boolean): [Game!]!
+  providers: [ProviderMeta!]!
+  rtp(provider: String, range: String, gameId: ID): [RTPPoint!]!
+  incidents(provider: String, from: String, to: String, level: String): [Incident!]!
+  casinoCategories: [CategoryTree!]!
+  limits(scope: String): [Limit!]!
+  jackpots: [Jackpot!]!
+  content: [Content!]!
+  users(query: String, status: PlayerStatus, balanceMin: Float, balanceMax: Float, registeredFrom: String, registeredTo: String): [User!]!
+  usersPage(query: String, status: PlayerStatus, balanceMin: Float, balanceMax: Float, registeredFrom: String, registeredTo: String, offset: Int, limit: Int, parentType: String, agentId: ID, onlyDirect: Boolean, includeDownline: Boolean, playerType: String, sortBy: String, sortOrder: String): UsersPage!
+  playersListStats(parentType: String): PlayersListStats!
+  playersStatsByIds(ids: [ID!]!): [PlayerStatsRow!]!
+  playerActivityDepositWithdrawalStats(ids: [ID!]!, dateFrom: String, dateTo: String): [PlayerActivityDepositWithdrawalRow!]!
+  user(id: ID!): User
+  usersByIds(ids: [ID!]!): [ExcludedPlayerInfo!]!
+  userIdsByPhones(phones: [String!]!): [ID!]!
+  agentsByIds(ids: [ID!]!): [ExcludedAgentInfo!]!
+  agentExclusionImpact(agentId: ID!): AgentExclusionImpact!
+  agentIdsByUsernames(usernames: [String!]!): [ID!]!
+  wallet(userId: ID!): Wallet
+  playerLimits(userId: ID!): PlayerLimits
+  movePlayerToAgentPreCheck(playerId: ID!, targetAgentId: ID!): MovePlayerPreCheckResult!
+  playerAgentTransferHistory(playerId: ID!, limit: Int): [PlayerAgentTransfer!]!
+  checkPhoneAvailable(phone: String!, excludeUserId: Int): CheckAvailabilityResult!
+  roles: [Role!]!
+  role(id: ID!): Role
+  # full permissions catalog (domain-action pairs)
+  permissions: [Permission!]!
+  adminRoles(userId: ID!): [Role!]!
+  supportAdmins: [AdminUser!]!
+  ipAllowlist(userId: ID!): [IpEntry!]!
+  myAdminPreferences: AdminPreferences!
+  agentsHierarchy: [AgentTree!]!
+  bonusCampaigns(status: BonusStatus, domain: BonusDomain, type: String, search: String): [BonusCampaign!]!
+  bonusCampaign(id: ID!): BonusCampaign
+  activeSpecialBonusCampaigns: [BonusCampaign!]!
+  bonusAwardsPage(filters: BonusAwardsPageFilters, offset: Int, limit: Int): BonusAwardsPageResult!
+  bonusAwardsPageStats(filters: BonusAwardsPageFilters): BonusAwardsPageStats!
+  previewBonusDistribution(campaignId: ID!): BonusDistributionPreview!
+  casinoGameBundles(search: String, domain: BonusDomain): [CasinoGameBundle!]!
+  casinoGameBundle(id: ID!): CasinoGameBundle
+  promotions(status: PromotionStatus, search: String): [Promotion!]!
+  # Matka queries
+  draws(status: String, from: String, to: String): [Draw!]!
+  rates(current: Boolean): [RateVersion!]!
+  results(drawId: ID!): [Result!]!
+  settlements(drawId: ID!): [SettlementBatch!]!
+  resultApprovals(drawId: ID): [ResultApproval!]!
+  # Matka entity management
+  matkaCatalog(filters: MatkaFilters): MatkasPage!
+  matkas(filters: MatkaFilters): MatkasPage!
+  matka(id: ID!): Matka
+  matkasByIds(matkaIds: [ID!]!): [Matka!]!
+  matkaRateVersions(matkaId: ID!): [MatkaRateVersion!]!
+  matkasExportCSV(filters: MatkaFilters): String!
+  matkaDefaultRates: MatkaDefaultRates!
+  liquidity(range: String): [ReportRow!]!
+  exposure(range: String, domain: String, dateFrom: String, dateTo: String, currency: String): [ReportRow!]!
+  pnl(range: String, domain: String, dateFrom: String, dateTo: String, currency: String): [ReportRow!]!
+  # Enterprise Reporting Queries
+  sportsKPIs(filter: SportsReportingFilter): SportsKPIs!
+  sportsTrends(filter: SportsReportingFilter): [SportsTrendPoint!]!
+  sportsBreakdown(filter: SportsReportingFilter, dimension: String!): [SportsBreakdown!]!
+  topSportsEvents(filter: SportsReportingFilter, limit: Int): [TopSportsEvent!]!
+  casinoKPIs(filter: CasinoReportingFilter): CasinoKPIs!
+  casinoTrends(filter: CasinoReportingFilter): [CasinoTrendPoint!]!
+  matkaKPIs(filter: MatkaReportingFilter): MatkaKPIs!
+  matkaTrends(filter: MatkaReportingFilter): [MatkaTrendPoint!]!
+  agentKPIs(filter: AgentReportingFilter): AgentKPIs!
+  agentPerformance(filter: AgentReportingFilter, limit: Int): AgentPerformanceResult!
+  agentTrends(filter: AgentReportingFilter): [AgentTrendPoint!]!
+  bonusKPIs(filter: BonusReportingFilter): BonusKPIs!
+  savedReports: [SavedReport!]!
+  exportJobsPage(status: String, limit: Int, offset: Int): ExportJobsPage!
+  exportJobs(status: String, limit: Int): [ExportJob!]!
+  exportJobDownloadUrl(jobId: ID!): String!
+  # Rows an agent's export of reportType would hold (its own subtree, capped like the file); null for non-agents.
+  agentExportRowCount(reportType: String!, filtersJson: JSON): Int
+  # Reporting snapshot pipeline observability (reporting.snapshot-health:view)
+  snapshotHealthSummary: SnapshotHealthSummary!
+  snapshotRuns(limit: Int, offset: Int, trigger: String): [SnapshotRun!]!
+  snapshotEvents(
+    limit: Int
+    offset: Int
+    runId: ID
+    tenant: String
+    whitelabelId: String
+    errorsOnly: Boolean
+    eventType: String
+  ): [SnapshotEvent!]!
+  snapshotMissingDays(lookbackDays: Int, tenant: String, whitelabelId: String, currency: String): [SnapshotMissingDay!]!
+  snapshotStaleDays(lookbackDays: Int, tenant: String, whitelabelId: String): [SnapshotStaleDay!]!
+  snapshotRunsConnection(first: Int, after: String, trigger: String): SnapshotRunConnection!
+  snapshotEventsConnection(
+    first: Int
+    after: String
+    runId: ID
+    tenant: String
+    whitelabelId: String
+    errorsOnly: Boolean
+    eventType: String
+  ): SnapshotEventConnection!
+  snapshotPgBossOverview: SnapshotPgBossOverview!
+  # Reporting query group for agent-specific reporting
+  reporting: ReportingQuery!
+  # Sports drill-down queries
+  sportsLeagueBreakdown(filter: SportsDrillDownFilter!): [SportsLeagueBreakdown!]!
+  sportsEventBreakdown(filter: SportsDrillDownFilter!): [SportsEventBreakdown!]!
+  sportsMarketBreakdown(filter: SportsDrillDownFilter!): [SportsMarketBreakdown!]!
+  sportsAgentBreakdown(filter: SportsDrillDownFilter!): [AgentBreakdown!]!
+  sportsPlayerBreakdown(filter: SportsDrillDownFilter!): [PlayerBreakdown!]!
+  # Casino drill-down queries
+  casinoProviderBreakdown(filter: CasinoDrillDownFilter!): [CasinoProviderBreakdown!]!
+  casinoVendorBreakdown(filter: CasinoDrillDownFilter!): [CasinoVendorBreakdown!]!
+  casinoGameBreakdown(filter: CasinoDrillDownFilter!): [CasinoGameBreakdown!]!
+  casinoAgentBreakdown(filter: CasinoDrillDownFilter!): [AgentBreakdown!]!
+  casinoPlayerBreakdown(filter: CasinoDrillDownFilter!): [PlayerBreakdown!]!
+  # Matka drill-down queries
+  matkaTypeBreakdown(filter: MatkaDrillDownFilter!): [MatkaTypeBreakdown!]!
+  matkaMarketBreakdown(filter: MatkaDrillDownFilter!): [MatkaMarketBreakdown!]!
+  matkaSessionBreakdown(filter: MatkaDrillDownFilter!): [MatkaSessionBreakdown!]!
+  matkaAgentBreakdown(filter: MatkaDrillDownFilter!): [AgentBreakdown!]!
+  matkaPlayerBreakdown(filter: MatkaDrillDownFilter!): [PlayerBreakdown!]!
+  # Agent drill-down queries
+  agentPlayerBreakdown(filter: AgentDrillDownFilter!): [AgentPlayerBreakdown!]!
+  # Audit queries (legacy - deprecated, use auditEvents instead)
+  audit(domain: String, action: String, actor: ID, from: String, to: String, limit: Int): [AuditEvent!]!
+  auditEvents(filters: AuditListFilter): AuditEventPage!
+  auditStats(filters: AuditListFilter): AuditStats!
+  auditExportCSV(domain: String, action: String, actor: ID, from: String, to: String, filters: AuditListFilter): String!
+  auditExportJobsPage(status: String, limit: Int, offset: Int): AuditExportJobsPage!
+  auditExportJobs(status: String, limit: Int): [AuditExportJob!]!
+  auditAnnotations(auditEventId: ID!): [AuditAnnotation!]!
+  # VIP queries
+  vipTiers: [VIPTier!]!
+  vipTier(id: ID!): VIPTier
+  vipMembers(tierId: ID, status: String, query: String): [VIPMember!]!
+  vipMember(id: ID!): VIPMember
+  vipMemberByUserId(userId: ID!): VIPMember
+  vipTransactions(memberId: ID!, limit: Int): [VIPTransaction!]!
+  vipHistory(memberId: ID!): [VIPHistory!]!
+  vipStats: VIPStats!
+  vipNearNextTier(threshold: Float, limit: Int): [VIPMember!]!
+  vipTierSchedules: [VIPTierSchedule!]!
+  vipTierAudit(limit: Int): [VIPAuditEvent!]!
+  vipTierValidate: [VIPValidationIssue!]!
+  vipTierVersions(tierId: ID!): [VIPTierVersion!]!
+  # Settlements per tenant
+  partnerSettlements: [Settlement!]!
+
+  # Sports auto-ingestion
+  autoSportsConfigs: [AutoSportsConfig!]!
+  autoSportsConfig(sportId: ID!): AutoSportsConfig
+  availableAutoFrequencies: [Int!]!
+  autoRunsPage(sportId: ID!, limit: Int, offset: Int): AutoRunsPage!
+  autoRuns(sportId: ID!, limit: Int): [AutoRun!]!
+
+  # Sports settings
+  sportSettings(sportId: ID!, tierId: ID): SportSettings
+  # `tierId` was String here and ID on sportSettings above — the same argument,
+  # for the same concept, typed two ways, which made every caller declare one or
+  # the other and fail validation on the sibling query. ID serialises as a
+  # string, so a caller that already sent one is unaffected.
+  leagueSettings(leagueId: ID!, tierId: ID): LeagueSettings
+  eventSettings(eventId: ID!, tierId: String): EventSettings
+  eventRiskConfig(eventId: ID!): RiskConfig
+  matkaBidRules(filters: MatkaBidRuleFilters): MatkaBidRulePage!
+
+  # Matka Results queries
+  matkaResults(filters: MatkaResultListFilter): MatkaResultPage!
+  # Fast existence check for a specific result
+  matkaResultExists(matkaId: ID!, date: String!, type: MatkaResultType!): Boolean!
+  matkaRunningMarkets(filters: MatkaRunningFilter): MatkaRunningPage!
+  matkaRunningBets(filters: MatkaRunningFilter!): MatkaRunningBetsPage!
+
+  # Bets queries
+  sportsBets(query: SportsBetsQuery): [SportsBet!]!
+  casinoBets(query: CasinoBetsQuery): [CasinoBet!]!
+  matkaBets(query: MatkaBetsQuery): [MatkaBet!]!
+  betsPage(domain: BetDomain!, filters: BetsPageFilters, offset: Int, limit: Int): BetsPageResult!
+  betsFilterOptions(domain: BetDomain!, filters: BetsPageFilters): BetsFilterOptions!
+  betsPageTotals(filters: BetsPageFilters): BetsPageTotals!
+
+  # Sports Results queries
+  sportsResults(query: SportsResultsQuery): SportsResultsPage!
+
+  # Sports Auto Results Settings
+  sportsAutoResultsSettings(filters: SportsAutoResultsSettingsQuery): [SportsAutoResultsSettings!]!
+  sportsAutoResultsSetting(id: ID!): SportsAutoResultsSettings
+
+  # Sports hierarchy search
+  searchSportsHierarchy(input: SportsSearchInput!): [SportsSearchResult!]!
+
+  # Casino management hierarchy
+  casinoApiProviders: [CasinoApiProvider!]!
+  casinoVendors(providerId: ID, category: CasinoMainCategory): [CasinoVendor!]!
+  casinoVendorsWithSettings(providerId: ID, category: CasinoMainCategory): [CasinoVendorWithSettings!]!
+  casinoGames(input: GamesQueryInput!): GamesPage!
+  gamesInCategory(categoryId: ID!): [ID!]!
+  casinoLoungeGameImages(categoryId: ID!): [CasinoLoungeGameImage!]!
+  gamesByIds(gameIds: [ID!]!, skipVendorFilter: Boolean): [CasinoGame!]!
+  providersWithVendors: [ProviderWithVendors!]!
+  whitelabelCasinoProviderSettings(tenantId: String!): [WhitelabelCasinoProviderSetting!]!
+  whitelabelCasinoVendorOverrideSettings(tenantId: String!): [WhitelabelCasinoVendorOverrideSetting!]!
+  whitelabelCasinoGameOverrideSettings(tenantId: String!, providerId: ID, vendorId: ID, search: String, page: Int, pageSize: Int): WhitelabelCasinoGameOverrideSettingsPage!
+  providerVendorShares(providerId: ID!): [CasinoProviderVendorShare!]!
+  providerAnalytics(providerId: ID!, start: String, end: String): ProviderAnalytics!
+  providersAnalytics(providerIds: [ID!]!, start: String, end: String): [ProviderAnalytics!]!
+  vendorAnalytics(providerId: ID!, vendorId: ID!, start: String, end: String): VendorAnalytics!
+  vendorGamesStats(vendorId: ID!): VendorStats!
+  # VIP tier casino games
+  vipTierGames(tierId: ID!): [VIPTierGameSetting!]!
+  gameVipTiers(gameId: ID!): [GameVIPTierSetting!]!
+
+  # Casino game bet settings
+  casinoGameBetSettings(gameId: ID!): [CasinoGameBetSettings!]!
+  casinoGameBetSettingByPlayer(gameId: ID!, playerId: String): CasinoGameBetSettings
+
+  # Custom casino categories
+  casinoCustomCategories(mainCategory: CasinoMainCategory): [CasinoCategory!]!
+  casinoCategory(id: ID!): CasinoCategory
+  categoriesForGame(gameId: ID!, mainCategory: CasinoMainCategory): [CasinoCategory!]!
+  # App configuration (per whitelabel)
+  appConfig: AppConfig!
+  appDisplayConfig: AppDisplayConfig!
+  cmsPages(locale: String, status: CMSStatus): [CMSPage!]!
+  cmsPage(id: ID, slug: String, locale: String): CMSPage
+  advertisements(status: AdvertisementStatus): [Advertisement!]!
+  # Referrals
+  referralProgramByTenant: ReferralProgram
+  referralRules(programId: ID): [ReferralRule!]!
+  referralLink(userId: ID, code: String, agentId: ID): ReferralLink
+  agentReferralLink(agentId: ID!): ReferralLink
+  referralClicks(linkId: ID!, limit: Int): [ReferralClick!]!
+  referralAttribution(refereeId: ID!): ReferralAttribution
+  referralReferees(referrerId: ID!, query: String): [User!]!
+  batchReferralAttributions(refereeIds: [String!]!): [ReferralAttribution!]!
+  referralTree(userId: ID!): ReferralTree!
+  referralEarnings(referrerId: ID, refereeId: ID, ruleType: String, tier: Int, fromDate: String, toDate: String): [ReferralEarning!]!
+  referralSettlements(referrerId: ID!, status: String, fromDate: String, toDate: String): [ReferralSettlement!]!
+  referralStats(fromDate: String, toDate: String): ReferralStats!
+  topReferrers(limit: Int, sortBy: String, fromDate: String, toDate: String): [TopReferrer!]!
+  referrerStats(referrerId: ID!, fromDate: String, toDate: String): ReferrerStats!
+  # Deposits
+  myDepositMethods: WhitelabelPaymentMethods!
+  adminDepositRequests(input: ListDepositRequestsInput): DepositRequestListResult!
+  whitelabelPaymentMethods: WhitelabelPaymentMethods
+  # Player Profile queries
+  playerProfile(id: ID!): PlayerProfile!
+  playerOverview(input: PlayerOverviewInput!): PlayerOverview!
+  playerBets(playerId: ID!, filter: PlayerBetsFilter): PlayerBetsPage!
+  playerTransactions(playerId: ID!, filter: PlayerTransactionsFilter): PlayerTransactionsPage!
+  playerCreditTransactions(playerId: ID!, limit: Int, offset: Int): [CreditTransaction!]!
+  playerCreditStatement(playerId: ID!, dateFrom: String!, dateTo: String!, limit: Int, offset: Int): PlayerCreditStatement
+  playerBonuses(playerId: ID!): [PlayerBonus!]!
+  playerVip(playerId: ID!): PlayerVipInfo
+  playerDevices(playerId: ID!): [PlayerDevice!]!
+  playerSessions(playerId: ID!): [PlayerSession!]!
+  playerSecurityAuditPage(playerId: ID!, limit: Int, offset: Int, type: String, success: Boolean, ascending: Boolean): PlayerSecurityAuditPage!
+  playerSecurityAudit(playerId: ID!, limit: Int): [PlayerSecurityEvent!]!
+  playerNotes(playerId: ID!): [PlayerNote!]!
+  playerCommLog(playerId: ID!, limit: Int): [PlayerCommLog!]!
+  playerReferralProfile(playerId: ID!): PlayerReferralProfile!
+  # Global search (unified resolver, all categories)
+  globalSearch(query: String!, limit: Int, categories: [String!]): GlobalSearchResult!
+
+  """Whether the AI assistant is configured and usable."""
+  aiAvailability: AiAvailability!
+  """One conversation with its transcript and any changes awaiting confirmation."""
+  aiConversation(id: ID!): AiConversation
+
+  """Assistant settings for every whitelabel. Super Admin only."""
+  aiWhitelabelSettings: [AiWhitelabelSettings!]!
+  """What the caller's own whitelabel is allowed to do with the assistant."""
+  aiEntitlement: AiEntitlement!
+
+  # ---------------------------------------------------------------------------
+  # CRM — crm.<whitelabel-domain>
+  #
+  # Every field below is scoped to the tenant on the caller's token. None takes
+  # a tenant argument.
+  # ---------------------------------------------------------------------------
+
+  """The signed-in CRM user, their permissions, and their books."""
+  crmMe: CrmMe
+  """Every permission a whitelabel may put on a role."""
+  crmPermissionCatalog: [CrmPermissionGroup!]!
+  crmUsers: [CrmUser!]!
+  crmRoles: [CrmRole!]!
+  crmBooks: [CrmBook!]!
+  crmBookMembers(bookId: ID!): [CrmBookMember!]!
+  """Players this caller may see: their books, or all of them with crm.players:view_all."""
+  crmPlayers(filter: CrmPlayerFilterInput, limit: Int, offset: Int): CrmPlayerPage!
+  crmPlayer(id: ID!): CrmPlayerProfile
+  """
+  The same list, as a CSV. A separate permission from reading it on screen, and
+  recorded in the personal-data access log as an export rather than a view.
+  """
+  crmExportPlayers(filter: CrmPlayerFilterInput): CrmPlayerExport!
+  """A player's activity, newest first. Paged by cursor; `nextCursor` is absent at the end."""
+  crmPlayerTimeline(playerId: ID!, limit: Int, cursor: String, sources: [String!]): CrmTimelinePage!
+  crmLoginAttempts(limit: Int, crmUserId: ID): [CrmLoginAttempt!]!
+  """Who opened which player. Reads of personal data are recorded, not just writes."""
+  crmPiiAccessLog(limit: Int, resourceId: String, crmUserId: ID): [CrmPiiAccessEntry!]!
+  crmIpAllowlist(crmUserId: ID!): [CrmIpAllowlistEntry!]!
+
+  """
+  What is falling through on the desk right now. Scoped like every other CRM
+  read: their books, or the whole whitelabel with crm.players:view_all.
+  """
+  crmDeskHealth: CrmDeskHealth!
+
+  """Every whitelabel and the state of its CRM. Super Admin only."""
+  crmWhitelabels: [CrmWhitelabelRow!]!
+
+  """
+  CRM users of one whitelabel, for the admin panel.
+
+  A Super Admin names the whitelabel; a whitelabel administrator's `tenant` is
+  ignored and their own is used, so the argument cannot reach anyone else's CRM.
+  Named outside the `crm` prefix on purpose: that prefix is exempt from the
+  guard that refuses CRM sessions on admin-panel fields.
+  """
+  whitelabelCrmUsers(tenant: ID): WhitelabelCrmUserPage!
+  """Roles that can be given to a CRM user, for the admin panel's picker."""
+  whitelabelCrmRoles(tenant: ID): [CrmRole!]!
+
+  """Notes on a player, pinned first. Empty for a player outside the caller's books."""
+  crmPlayerNotes(playerId: ID!): [CrmPlayerNote!]!
+
+  """The whitelabel's tag vocabulary. Archived tags are excluded unless asked for."""
+  crmTags(includeArchived: Boolean): [CrmTag!]!
+  """How much of the tag allowance is used."""
+  crmTagLimit: CrmTagLimit!
+
+  """A player's responsible-gambling episodes, newest first."""
+  crmPlayerRgFlags(playerId: ID!): [CrmRgFlag!]!
+  """The flag types, and which of them stop play."""
+  crmRgFlagTypes: [CrmRgFlagType!]!
+  """What a player has agreed to. An absent row means never asked."""
+  crmPlayerConsents(playerId: ID!): [CrmConsent!]!
+  """Every consent change for a player, newest first."""
+  crmPlayerConsentHistory(playerId: ID!, limit: Int): [CrmConsentEvent!]!
+
+  """The queue: tasks in the books this caller works, breaching first."""
+  crmTasks(filter: CrmTaskFilterInput): [CrmTask!]!
+  """Everything that happened to one task."""
+  crmTaskEvents(taskId: ID!): [CrmTaskEvent!]!
+  """The caller's own inbox. Takes no user argument by design."""
+  crmMyNotifications(unreadOnly: Boolean): [CrmNotification!]!
+
+  """Every attempt to reach a player, newest first."""
+  crmContactAttempts(playerId: ID!): [CrmContactAttempt!]!
+
+  """
+  The hours this desk works, which every task deadline is measured against.
+
+  Readable by a supervisor as well as an administrator: the breach numbers on
+  Desk health mean nothing without the calendar they were computed from.
+  """
+  crmDeskCalendar: CrmDeskCalendar!
+
+  """
+  Saved player filters: the caller's own, plus any shared with the whitelabel.
+
+  A segment is a filter, so opening a shared one still shows each reader only
+  the players in their own books.
+  """
+  crmSegments: [CrmSegment!]!
+
+  """
+  How the desk performed between two dates, at most 92 days apart.
+
+  Its own permission, `crm.reports:view`: the queue shows a person their own
+  work, a report shows them everybody's, and a whitelabel should be able to
+  grant one without the other. Scoped to the reader's books like desk health.
+  """
+  crmDeskReport(from: String!, to: String!): CrmDeskReport!
+
+  """
+  Everything the CRM holds on one player, for a data subject request.
+
+  Tenant-scoped rather than book-scoped on purpose: a DSAR is the whitelabel's
+  legal duty and must reach any of its players. Excludes notes the admin panel
+  marked admin_only — this surface may not read them, and a DSAR must not
+  become the way around that wall. Every export is recorded.
+  """
+  crmDsarExport(playerId: ID!): CrmDsarExport!
+}
+
+type AutoRunsPage { items: [AutoRun!]! total: Int! }

@@ -1,0 +1,20 @@
+/* Live badge pieces shared by the exchange rows/cards, the event header and the auth showcase. */
+
+/* Heart-monitor trace: a bright beam runs along a faint line (the beam path has pathLength 100). */
+.nova-ex-live-pulse { display: block; flex: none; overflow: visible; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.nova-ex-live-pulse path { stroke: rgb(255 255 255 / 38%); stroke-width: 1.4; }
+.nova-ex-live-pulse .is-beam {
+  stroke: var(--ex-live-glow, #6BF5A8);
+  stroke-width: 1.9;
+  stroke-dasharray: 26 100;
+  stroke-dashoffset: 26;
+  filter: drop-shadow(0 0 2px var(--ex-live-glow, #6BF5A8));
+  animation: nova-ex-trace 1.5s linear infinite;
+}
+@keyframes nova-ex-trace { to { stroke-dashoffset: -100; } }
+/* Beacon ring around a live dot. */
+@keyframes nova-ex-ping { 0% { opacity: .9; transform: scale(1); } 80%, 100% { opacity: 0; transform: scale(2.8); } }
+@media (prefers-reduced-motion: reduce) {
+  .nova-ex-live-pulse .is-beam { display: none; }
+  .nova-ex-live-pulse path { stroke: rgb(255 255 255 / 85%); }
+}

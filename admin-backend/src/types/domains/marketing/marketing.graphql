@@ -1,0 +1,407 @@
+enum BonusDomain {
+  sports
+  casino
+  matka
+  global
+}
+
+enum BonusType {
+  deposit
+  signup
+  direct_freebet
+  direct_free_spin
+  direct_amount
+  referral_deposit
+  losing_bonus
+  special
+  daily_first_deposit
+  # Legacy types for backward compatibility
+  deposit_match
+  cashback_loss
+  direct_event
+  free_bet
+  free_spins
+  casino_credit
+  loyalty
+  reload
+}
+
+enum DistributionType {
+  instant_otp
+  instant_cash
+  roll_over
+}
+
+enum AmountType {
+  fixed
+  percentage
+}
+
+enum DepositConditionType {
+  greater_than
+  equal_to
+  less_than
+  greater_equal
+  less_equal
+}
+
+enum BonusStatus {
+  draft
+  active
+  paused
+  ended
+}
+
+enum BonusCodeMode {
+  auto
+  claim
+  code
+}
+
+enum BonusCodeStatus {
+  active
+  disabled
+  expired
+}
+
+enum BonusAwardStatus {
+  pending
+  active
+  completed
+  expired
+  cancelled
+}
+
+enum BonusCreditType {
+  free_bet
+  free_spins
+  casino_credit
+}
+
+enum BonusCreditStatus {
+  active
+  redeemed
+  expired
+  cancelled
+}
+
+enum ReleaseType {
+  bonus_amount_only
+  total_bonus_wallet
+}
+
+type BonusCampaign {
+  id: ID!
+  tenant: String
+  name: String!
+  domain: BonusDomain!
+  type: BonusType!
+  status: BonusStatus!
+  budgetNumeric: Float!
+  currency: String!
+  rulesJson: JSON
+  codeMode: BonusCodeMode!
+  validFrom: String
+  validTo: String
+  limitsJson: JSON
+  directSubType: String
+  depositConditionType: DepositConditionType
+  depositConditionAmount: Float
+  distributionType: DistributionType
+  amountType: AmountType
+  amount: Float
+  percentage: Float
+  numberOfPlayers: Int
+  usagePerPlayer: Int
+  startDate: String
+  endDate: String
+  wagering: Float
+  expiryBonusDays: Int
+  depositRequired: Boolean
+  releaseType: ReleaseType
+  casinoGameIds: [ID!]
+  matkaGameIds: [ID!]
+  casinoGameWeights: JSON
+  matkaBidTypeWeights: JSON
+  distributedAt: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+type BonusDistributionPreview {
+  eligibleCount: Int!
+  campaignName: String!
+  campaignType: String!
+  alreadyDistributed: Boolean!
+  distributedAt: String
+}
+
+type BonusDistributionResult {
+  success: Boolean!
+  message: String!
+  distributedCount: Int
+}
+
+type BonusCode {
+  id: ID!
+  campaignId: Int!
+  code: String!
+  status: BonusCodeStatus!
+  maxUses: Int!
+  usedCount: Int!
+  perUserLimit: Int!
+  expiresAt: String
+  createdAt: String!
+}
+
+type BonusAward {
+  id: ID!
+  campaignId: Int!
+  userId: Int!
+  domain: BonusDomain!
+  type: BonusType!
+  amount: Float!
+  currency: String!
+  wageringReq: Float!
+  currentWagering: Float!
+  status: BonusAwardStatus!
+  awardedAt: String!
+  completedAt: String
+}
+
+"""Bonus award row for admin Bonus Cards list (player grants / cards)."""
+type BonusAwardAdminRow {
+  id: ID!
+  campaignId: Int!
+  campaignName: String!
+  userId: Int!
+  userName: String
+  userPhone: String
+  domain: BonusDomain!
+  type: BonusType!
+  amount: Float!
+  currency: String!
+  wageringReq: Float!
+  currentWagering: Float!
+  status: BonusAwardStatus!
+  awardedAt: String!
+  completedAt: String
+  triggerAmount: Float
+  firstDepositRequired: Boolean
+  firstDepositUnlocked: Boolean
+  distributionType: DistributionType
+  """When an admin/agent last changed this card’s status (set status / activate / switch)."""
+  statusUpdatedAt: String
+  statusUpdatedByName: String
+  statusUpdatedByPhone: String
+  statusUpdatedByRemark: String
+  """Computed from campaign expiry bonus days + awarded at (ISO), when configured."""
+  expiresAt: String
+}
+
+input BonusAwardsPageFilters {
+  dateFrom: String
+  dateTo: String
+  status: [BonusAwardStatus!]
+  domain: BonusDomain
+  playerSearch: String
+  campaignId: Int
+  agentUsername: String
+}
+
+type BonusAwardsPageResult {
+  items: [BonusAwardAdminRow!]!
+  total: Int!
+}
+
+"""Aggregated counts for Bonus cards — same filters as bonusAwardsPage (full result set, not current page)."""
+type BonusAwardsPageStats {
+  total: Int!
+  pending: Int!
+  active: Int!
+  completed: Int!
+  expired: Int!
+  cancelled: Int!
+  """Sum of award amounts where status is active or completed (same filters)."""
+  totalBonusPaid: Float!
+  """Sum of wallets.bonus for users in this list scope (all players’ bonus wallet balance together)."""
+  bonusWalletTotal: Float!
+  """Sum of remaining turnover: active awards only, max(0, wageringReq - currentWagering), same card filters."""
+  wageringRemaining: Float!
+  """Count of active + completed cards (issued / in play or finished)."""
+  bonusUses: Int!
+  """Cash credited from bonus → cash (ledger), in selected date range and list user scope."""
+  bonusToCashTransferred: Float!
+}
+
+type BonusCredit {
+  id: ID!
+  campaignId: Int!
+  userId: Int!
+  domain: BonusDomain!
+  creditType: BonusCreditType!
+  payloadJson: JSON
+  expiresAt: String
+  status: BonusCreditStatus!
+  createdAt: String!
+  updatedAt: String!
+}
+
+input BonusCampaignCreateInput {
+  name: String!
+  domain: BonusDomain!
+  type: BonusType!
+  status: BonusStatus
+  budgetNumeric: Float
+  currency: String!
+  rulesJson: JSON
+  codeMode: BonusCodeMode
+  validFrom: String
+  validTo: String
+  limitsJson: JSON
+  directSubType: String
+  depositConditionType: DepositConditionType
+  depositConditionAmount: Float
+  distributionType: DistributionType
+  amountType: AmountType
+  amount: Float
+  percentage: Float
+  numberOfPlayers: Int
+  usagePerPlayer: Int
+  startDate: String
+  endDate: String
+  wagering: Float
+  expiryBonusDays: Int
+  depositRequired: Boolean
+  releaseType: ReleaseType
+}
+
+input BonusCampaignUpdateInput {
+  id: ID!
+  name: String
+  domain: BonusDomain
+  type: BonusType
+  status: BonusStatus
+  budgetNumeric: Float
+  currency: String
+  rulesJson: JSON
+  codeMode: BonusCodeMode
+  validFrom: String
+  validTo: String
+  limitsJson: JSON
+  directSubType: String
+  depositConditionType: DepositConditionType
+  depositConditionAmount: Float
+  distributionType: DistributionType
+  amountType: AmountType
+  amount: Float
+  percentage: Float
+  numberOfPlayers: Int
+  usagePerPlayer: Int
+  startDate: String
+  endDate: String
+  wagering: Float
+  expiryBonusDays: Int
+  depositRequired: Boolean
+  releaseType: ReleaseType
+}
+
+input CasinoGameBundleInput {
+  name: String!
+  description: String
+  domain: String! # 'casino' | 'sports' | 'matka'
+  gameIds: [ID!]!
+  gameWeights: JSON
+}
+
+input CasinoGameBundleUpdateInput {
+  name: String
+  description: String
+  domain: String
+  gameIds: [ID!]
+  gameWeights: JSON
+}
+
+type BonusCampaignPayload {
+  success: Boolean!
+  message: String!
+  campaign: BonusCampaign
+}
+
+type BonusCodePayload {
+  success: Boolean!
+  message: String!
+  codes: [BonusCode!]
+}
+
+type BonusAwardPayload {
+  success: Boolean!
+  message: String!
+  award: BonusAward
+}
+
+type CasinoGameBundlePayload {
+  success: Boolean!
+  message: String!
+  bundle: CasinoGameBundle
+}
+
+enum PromotionStatus {
+  draft
+  active
+  paused
+  ended
+}
+
+type Promotion {
+  id: ID!
+  tenant: String
+  name: String!
+  status: PromotionStatus!
+  targetingJson: JSON
+  scheduleStart: String
+  scheduleEnd: String
+  contentJson: JSON
+  createdAt: String!
+  updatedAt: String!
+}
+
+input PromotionCreateInput {
+  name: String!
+  status: PromotionStatus
+  targetingJson: JSON
+  scheduleStart: String
+  scheduleEnd: String
+  contentJson: JSON
+}
+
+input PromotionUpdateInput {
+  id: ID!
+  name: String
+  status: PromotionStatus
+  targetingJson: JSON
+  scheduleStart: String
+  scheduleEnd: String
+  contentJson: JSON
+}
+
+type PromotionPayload {
+  success: Boolean!
+  message: String!
+  promotion: Promotion
+}
+
+# Game Bundles (Casino, Sports, Matka)
+type CasinoGameBundle {
+  id: ID!
+  tenant: String
+  name: String!
+  description: String
+  domain: String!
+  gameIds: [ID!]!
+  gameWeights: JSON
+  gameCount: Int!
+  createdBy: String
+  createdAt: String!
+  updatedAt: String!
+}

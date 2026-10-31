@@ -1,0 +1,78 @@
+/* The pill trigger is the mockup's `.pill-btn` (M:765-775), supplied by Button. The wrapper
+   participates as one filter control; the panel width is BEYOND-MOCKUP and follows the promoted
+   DateRangePanel's measured compact layout. */
+.field {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.trigger {
+  max-width: 100%;
+}
+
+.panel {
+  width: min(340px, calc(100vw - 18px));
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* The panel's presets sit in the kit's grey .segc trough (DateRangePanel's skin block), which adds a 1px
+   border and 3px of inner padding on each side; the panel grows 12px so four 73px columns still fit. The
+   trigger is Button's pill and the popup surface is Popover's. The trigger only gains the kit's dropdown
+   chevron (15px --ink-3, as the fields' chevrons), turned over while the panel is open; margin-left auto
+   puts it at the right edge when a FilterBar cell stretches the trigger. */
+:global(html:not([data-skin='classic'])) .panel {
+  width: min(352px, calc(100vw - 18px));
+}
+
+:global(html:not([data-skin='classic'])) .trigger::after {
+  content: '';
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-left: auto;
+  background: var(--ink-3);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6l6 -6'/%3E%3C/svg%3E") center / 15px 15px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6l6 -6'/%3E%3C/svg%3E") center / 15px 15px no-repeat;
+  transition: transform var(--t-1) ease;
+}
+
+:global(html:not([data-skin='classic'])) .trigger[aria-expanded='true']::after {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-skin='classic'])) .trigger::after {
+    transition: none;
+  }
+}
+
+/* In the FilterBar's folded Filters sheet: the field's name as a caption over a full-width face, square on
+   the player skin like the sheet's other fields (the pill belongs to a filter row). */
+:global([data-filter-popover]) .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+:global([data-filter-popover]) .field::before {
+  content: attr(data-caption);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+:global([data-filter-popover]) .trigger {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+:global(html:not([data-skin='classic'])) :global([data-filter-popover]) .trigger.trigger[type='button'] {
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field, var(--surf));
+}

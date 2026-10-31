@@ -1,0 +1,499 @@
+type Mutation {
+  login(input: LoginInput!): AuthPayload!
+  logout: BooleanPayload!
+  changeAdminPassword(currentPassword: String!, newPassword: String!): MessageResponse!
+  # Users / Players
+  createPlayer(input: CreatePlayerInput!): CreatePlayerPayload!
+  # Role Management (Legacy)
+  # RBAC Management (ID-based)
+  createRBACRole(input: CreateRoleInput!): RolePayload!
+  updateRBACRole(input: UpdateRoleInput!): RolePayload!
+  deleteRBACRole(id: ID!): RolePayload!
+  setRBACRolePermissions(roleId: ID!, permissions: [PermissionInput!]!): RolePayload!
+  assignRoleToAdmin(input: AssignRoleInput!): AssignRolePayload!
+  revokeRoleFromAdmin(input: AssignRoleInput!): AssignRolePayload!
+  createSupportAdmin(input: CreateSupportAdminInput!): CreateSupportAdminPayload!
+  """Removes a support admin and their role assignments. Refuses self-deletion."""
+  deleteSupportAdmin(id: ID!): MutationResult!
+  addIpToAllowlist(userId: ID!, cidr: String!): BooleanPayload!
+  removeIpFromAllowlist(id: ID!): BooleanPayload!
+  upsertRiskLimit(input: RiskLimitInput!, reason: String): RiskLimit!
+  createCategory(input: CategoryCreateInput!): CategoryNode!
+  reorderCategory(input: CategoryReorderInput!): CategoryNode!
+  renameCategory(input: CategoryRenameInput!): CategoryNode!
+  deleteCategory(id: ID!): Boolean!
+  upsertLimit(input: LimitInput!): Limit!
+  pauseJackpot(id: ID!, pause: Boolean!): Jackpot!
+  payoutJackpot(id: ID!, amount: Float): Jackpot!
+  publishPromotion(id: ID!): PromotionPayload!
+  pausePromotion(id: ID!): PromotionPayload!
+  createContent(input: ContentCreateInput!): Content!
+  updateContent(input: ContentUpdateInput!): Content!
+  publishContent(id: ID!): Content!
+  setUserDomainBets(id: ID!, sports: Boolean, casino: Boolean, matka: Boolean, sportsVisible: Boolean, casinoVisible: Boolean, matkaVisible: Boolean): UserPayload!
+  setUserBonusAllowed(id: ID!, allow: Boolean!): UserPayload!
+  setUserVipTier(id: ID!, vipTierId: ID): User!
+  setUserStatus(id: ID!, status: PlayerStatus!): UserPayload!
+  setRequirePasswordReset(id: ID!, require: Boolean!): UserPayload!
+  setWithdrawalLock(id: ID!, lock: Boolean!): UserPayload!
+  updatePlayerRemark(userId: ID!, remark: String): UserPayload!
+  forceLogoutUser(id: ID!): BooleanPayload!
+  adjustWallet(userId: ID!, amount: Float!, applyBonus: Boolean): Wallet!
+  upsertPlayerLimits(input: PlayerLimitsInput!): PlayerLimitsPayload!
+  upsertRole(input: RoleInput!): Role!
+  assignRole(userId: ID!, role: String!): [Role!]!
+  removeRole(userId: ID!, role: String!): [Role!]!
+  createBonusCampaignV2(input: BonusCampaignCreateInput!): BonusCampaignPayload!
+  updateBonusCampaign(input: BonusCampaignUpdateInput!): BonusCampaignPayload!
+  deleteBonusCampaign(id: ID!): BooleanPayload!
+  saveBonusCampaignGames(campaignId: ID!, gameIds: [ID!]!, gameWeights: JSON): BonusCampaignPayload!
+  saveBonusCampaignMatkas(campaignId: ID!, matkaIds: [ID!]!, matkaBidTypeWeights: JSON): BonusCampaignPayload!
+  distributeBonusCampaign(campaignId: ID!): BonusDistributionResult!
+  createPromotion(input: PromotionCreateInput!): PromotionPayload!
+  createCasinoGameBundle(input: CasinoGameBundleInput!): CasinoGameBundlePayload!
+  updateCasinoGameBundle(id: ID!, input: CasinoGameBundleUpdateInput!): CasinoGameBundlePayload!
+  deleteCasinoGameBundle(id: ID!): BooleanPayload!
+  # Whitelabel / Partnership
+  createWhitelabel(input: CreateWhitelabelInput!): WhitelabelPayload!
+  updateWhitelabel(input: UpdateWhitelabelInput!): WhitelabelPayload!
+  # Settlements
+  generateSettlement(input: GenerateSettlementInput!): SettlementPayload!
+  markSettlementSettled(id: ID!): SettlementPayload!
+  exportSettlementsCSV(start: String, end: String): String!
+  # Matka mutations
+  createDraw(type: String!, openAt: String!, cutoffAt: String!, timezone: String!): Draw!
+  updateDraw(id: ID!, openAt: String, cutoffAt: String, status: String): Draw!
+  createRateDraft(baseOnId: ID): RateVersion!
+  submitRatesForReview(id: ID!): RateVersion!
+  publishRates(id: ID!): RateVersion!
+  postResult(drawId: ID!, value: String!): Result!
+  createSettlementBatch(drawId: ID!, mode: String!): SettlementBatch!
+  submitResultForApproval(drawId: ID!, value: String!, reason: String): ResultApproval!
+  approveResult(approvalId: ID!): ResultApproval!
+  rejectResult(approvalId: ID!): ResultApproval!
+  # Matka entity management
+  createMatka(input: MatkaCreateInput!): MatkaPayload!
+  updateMatka(input: MatkaUpdateInput!): MatkaPayload!
+  deleteMatka(id: ID!, reason: String!): Boolean!
+  setMatkaStatus(id: ID!, toStatus: MatkaStatus!, reason: String): MatkaPayload!
+  updateMatkaSettings(id: ID!, settings: JSON!, tierId: ID, reason: String): MatkaPayload!
+  reorderMatkas(input: [MatkaReorderInput!]!): MatkaMutationPayload!
+  cloneMatka(id: ID!, name: String!, code: String!): MatkaPayload!
+  createMatkaRateVersion(input: MatkaRateVersionInput!): MatkaRateVersion!
+  importMatkasCSV(csv: String!, dryRun: Boolean): MatkaImportResult!
+  updateMatkaDefaultRates(entries: [MatkaDefaultRatesInputEntry!]!): MatkaDefaultRates!
+  # Matka bid rules
+  createMatkaBidRule(input: MatkaBidRuleInput!): MatkaBidRule!
+  updateMatkaBidRule(id: ID!, patch: MatkaBidRulePatch!): MatkaBidRule!
+  deleteMatkaBidRule(id: ID!): Boolean!
+  # Matka Results mutations
+  createMatkaResult(input: MatkaResultCreateInput!, idempotencyKey: String): MatkaResultPayload!
+  rollbackMatkaResult(input: MatkaResultRollbackInput!): MatkaResultPayload!
+  importMatkaResults(rows: [MatkaResultBulkRow!]!, dryRun: Boolean!): MatkaResultBulkDryRun!
+  scheduleMatkaResult(input: MatkaResultScheduleInput!): MatkaResultPayload!
+  # VIP mutations
+  createVIPTier(input: VIPTierInput!): VIPTierPayload!
+  updateVIPTier(id: ID!, input: VIPTierInput!): VIPTierPayload!
+  deleteVIPTier(id: ID!): VIPTierPayload!
+  createVIPMember(input: CreateVIPMemberInput!): VIPMemberPayload!
+  updateVIPMember(input: UpdateVIPMemberInput!): VIPMemberPayload!
+  addVIPPoints(input: AddVIPPointsInput!): VIPPointsPayload!
+  removeVIPPoints(input: RemoveVIPPointsInput!): VIPPointsPayload!
+  setVIPTierStatus(id: ID!, status: String!): VIPTierPayload!
+  scheduleVIPTierStatus(tierId: ID!, toStatus: String!, effectiveAt: String!): VIPTierSchedule!
+  publishScheduledVIPTier(id: ID!): VIPTier!
+  revertVIPTierVersion(id: ID!): VIPTier!
+  importVIPTiers(json: String!): Boolean!
+  exportVIPTiers: String!
+  # Sports seeding and status
+  seedSportsFromProvider(provider: String!): SeedPayload!
+  setSportStatus(key: String!, status: SportStatus!): Boolean!
+  persistSportsSelections(events: [PersistEventSelectionInput!]!): PersistResult!
+  upsertAutoSportsConfig(sportId: ID!, leagueCodes: [String!], frequencyHours: Int!, active: Boolean): SportsMutationPayload!
+  runAutoSportsIngestion(sportId: ID!, leagueCodes: [String!]): PersistResult!
+  deleteAutoSportsConfig(sportId: ID!): SportsMutationPayload!
+  deleteAutoRuns(sportId: ID!): SportsMutationPayload!
+
+  # Sports settings
+  upsertSportSettings(input: UpsertSportSettingsInput!): SportsMutationPayload!
+
+  # Sports ordering
+  reorderSports(inputs: [ReorderSportsInput!]!): SportsMutationPayload!
+
+  # League settings
+  upsertLeagueSettings(leagueIds: [ID!]!, input: UpsertLeagueSettingsInput!): SportsMutationPayload!
+  setLeagueStatus(id: ID!, status: SportStatus!): Boolean!
+  reorderLeagues(inputs: [ReorderLeaguesInput!]!): SportsMutationPayload!
+
+  # Event settings
+  upsertEventSettings(eventIds: [ID!]!, input: UpsertEventSettingsInput!): SportsMutationPayload!
+  upsertEventRiskConfig(input: UpsertRiskConfigInput!): RiskConfig!
+  setEventStatus(id: ID!, status: SportStatus!): Boolean!
+
+  # Market settings
+  setMarketStatus(id: ID!, status: SportStatus!): SportsMutationPayload!
+
+  # Sports Results
+  createSportsResult(input: SportsResultInput!): SportsMutationPayload!
+  rollbackSportsResult(input: RollbackSportsResultInput!): SportsMutationPayload!
+
+  # Sports Auto Results Settings
+  upsertSportsAutoResultsSettings(input: SportsAutoResultsSettingsInput!): SportsMutationPayload!
+  toggleAutoResultMarketType(input: ToggleAutoResultMarketTypeInput!): SportsMutationPayload!
+  deleteSportsAutoResultsSettings(id: ID!): SportsMutationPayload!
+
+  # Casino management
+  toggleCasinoGameEnabled(gameId: ID!, enabled: Boolean!): MutationResult!
+  toggleCasinoVendorEnabled(vendorId: ID!, enabled: Boolean!): MutationResult!
+  bulkUpdateVendorSettings(vendorIds: [ID!]!, enabled: Boolean!): MutationResult!
+  updateVendorDisplayOrder(vendorOrders: [VendorOrderInput!]!): MutationResult!
+  reorderVendorGames(vendorId: ID!, category: CasinoMainCategory!, gameIds: [ID!]!): MutationResult!
+  updateCasinoGameSettings(gameId: ID!, enabled: Boolean, premiumOnly: Boolean, limits: CasinoGameLimitsInput): MutationResult!
+  bulkUpdateCasinoGameSettings(gameIds: [ID!]!, enabled: Boolean, premiumOnly: Boolean, limits: CasinoGameLimitsInput): MutationResult!
+  toggleCasinoGameMasterActive(gameId: ID!, isActive: Boolean!): MutationResult!
+  toggleWhitelabelCasinoProvider(tenantId: String!, providerId: ID!, enabled: Boolean!): MutationResult!
+  setWhitelabelCasinoVendorSuperAdminOverride(tenantId: String!, vendorId: ID!, disabled: Boolean!): MutationResult!
+  setWhitelabelCasinoGameSuperAdminOverride(tenantId: String!, gameId: ID!, disabled: Boolean!): MutationResult!
+  createCasinoProvider(input: ProviderInput!): CasinoApiProvider!
+  updateCasinoProvider(id: ID!, input: ProviderInput!): CasinoApiProvider
+  deleteCasinoProvider(id: ID!): Boolean!
+  upsertProviderVendorShare(providerId: ID!, vendorId: ID!, sharePercentage: Float!): CasinoProviderVendorShare!
+  # VIP tier casino games
+  toggleVipTierGameEnabled(tierId: ID!, gameId: ID!, enabled: Boolean!): MutationResult!
+  bulkUpdateVipTierGames(tierId: ID!, gameIds: [ID!]!, enabled: Boolean!): MutationResult!
+  
+  # Casino game bet settings
+  upsertCasinoGameBetSettings(gameId: ID!, settings: CasinoGameBetSettingsInput!): CasinoGameBetSettings!
+  deleteCasinoGameBetSettings(gameId: ID!, playerId: String): MutationResult!
+
+  # Custom casino categories
+  createCasinoCategory(input: CreateCasinoCategoryInput!): CasinoCategory!
+  updateCasinoCategory(id: ID!, input: UpdateCasinoCategoryInput!): CasinoCategory
+  deleteCasinoCategory(id: ID!): Boolean!
+  reorderCasinoCategories(inputs: [ReorderCasinoCategoriesInput!]!): MutationResult!
+  assignGamesToCategory(categoryId: ID!, gameIds: [ID!]!): MutationResult!
+  saveCasinoLoungeGames(categoryId: ID!, gameIds: [ID!]!, images: [CasinoLoungeGameImageInput!]): MutationResult!
+  removeGamesFromCategory(categoryId: ID!, gameIds: [ID!]!): MutationResult!
+  reorderCategoryGames(categoryId: ID!, gameIds: [ID!]!): MutationResult!
+  # App configuration (per whitelabel)
+  updateAppConfig(input: UpdateAppConfigInput!): MutationResult!
+  upsertCMSPage(input: UpsertCMSPageInput!): MutationResult!
+  publishCMSPage(id: ID!): MutationResult!
+  deleteCMSPage(id: ID!): MutationResult!
+  createAdvertisement(input: CreateAdvertisementInput!): MutationResult!
+  updateAdvertisement(input: UpdateAdvertisementInput!): MutationResult!
+  deleteAdvertisement(id: ID!): MutationResult!
+  reorderAdvertisements(orders: [ReorderAdvertisementInput!]!): MutationResult!
+  # Referrals
+  upsertReferralProgram(input: ReferralProgramInput!): ReferralProgramPayload!
+  upsertReferralRules(input: ReferralRuleInput!): ReferralRulePayload!
+  generateReferralLink(userId: ID, agentId: ID, code: String, utmParams: JSON): ReferralLinkPayload!
+  recordReferralClick(input: RecordReferralClickInput!): ReferralClickPayload!
+  attributeSignup(input: AttributeSignupInput!): ReferralAttributionPayload!
+  triggerSettlement(referrerId: ID, ruleType: String): BooleanPayload!
+  grantManualPayout(earningId: ID!): BooleanPayload!
+  issueReferralCoupon(input: IssueReferralCouponInput!): ReferralCouponPayload!
+  createRaffleDraw(input: CreateRaffleDrawInput!): ReferralRaffleDrawPayload!
+  runRaffleDraw(input: RunRaffleDrawInput!): ReferralRaffleDrawPayload!
+  setBudgetCaps(input: SetBudgetCapsInput!): ReferralBudgetPayload!
+  setLadderTiers(input: SetLadderTiersInput!): BooleanPayload!
+  setCashbackShare(input: SetCashbackShareInput!): BooleanPayload!
+  releaseEscrow(settlementId: ID!): BooleanPayload!
+  # Deposits
+  createDepositRequest(input: CreateDepositRequestInput!): DepositRequestPayload!
+  approveDepositRequest(input: ApproveDepositRequestInput!): DepositRequestPayload!
+  rejectDepositRequest(input: RejectDepositRequestInput!): DepositRequestPayload!
+  upsertWhitelabelPaymentMethods(input: UpsertWhitelabelPaymentMethodsInput!): WhitelabelPaymentMethodsPayload!
+  # Player Profile mutations
+  changePlayerPassword(playerId: ID!, newPassword: String!, adminPassword: String!): MessageResponse!
+  setPlayerLimits(input: SetPlayerLimitsInput!): PlayerLimitsPayload!
+  grantPlayerBonus(input: GrantBonusInput!): PlayerBonusPayload!
+  grantSpecialBonus(input: GrantSpecialBonusInput!): PlayerBonusPayload!
+  revokePlayerBonus(bonusId: ID!, reason: String): PlayerBonusPayload!
+  """Set status for a pending bonus award (e.g. cancel or expire). Does not credit wallet."""
+  setBonusAwardStatus(awardId: ID!, status: BonusAwardStatus!, remark: String!): SetBonusAwardStatusPayload!
+  """Activate a pending bonus card for the player (wallet credit / active status per campaign)."""
+  activateBonusAwardAdmin(awardId: ID!, remark: String!): ActivateBonusAwardAdminPayload!
+  """Cancel current active bonus and activate this pending card (same as user app Switch bonus)."""
+  switchBonusAwardAdmin(awardId: ID!, remark: String!): ActivateBonusAwardAdminPayload!
+  """Forfeit an active bonus card: zero bonus wallet, mark award cancelled (same effect as player app Forfeit)."""
+  forfeitBonusAwardAdmin(awardId: ID!, remark: String!): ActivateBonusAwardAdminPayload!
+  adjustPlayerVipTier(input: AdjustVipTierInput!): PlayerVipPayload!
+  addPlayerNote(input: AddPlayerNoteInput!): PlayerNotePayload!
+  terminatePlayerSessions(input: TerminateSessionsInput!): TerminateSessionsPayload!
+  lockPlayerAccount(playerId: ID!, reason: String): PlayerProfilePayload!
+  # Agent-specific player mutations
+  createPlayerForAgent(input: CreatePlayerForAgentInput!): CreatePlayerForAgentPayload!
+  suspendPlayer(playerId: ID!, reason: String): PlayerActionPayload!
+  blockPlayer(playerId: ID!, reason: String): PlayerActionPayload!
+  unblockPlayer(playerId: ID!, reason: String): PlayerActionPayload!
+  movePlayerToAgent(input: MovePlayerToAgentInput!): MovePlayerToAgentPayload!
+  # Reporting mutations
+  createSavedReport(input: SavedReportInput!): SavedReport!
+  updateSavedReport(id: ID!, input: SavedReportInput!): SavedReport!
+  deleteSavedReport(id: ID!): BooleanPayload!
+  createExportJob(input: ExportJobInput!): ExportJob!
+  refreshReportingSnapshots(domain: ReportingDomain, dateFrom: String, dateTo: String): BooleanPayload!
+  enqueueSnapshotForReportingDay(
+    tenant: String
+    whitelabelId: String
+    reportingDay: String!
+    currency: String!
+  ): BooleanPayload!
+  enqueueSnapshotBackfillRange(
+    tenant: String
+    whitelabelId: String
+    dateFrom: String!
+    dateTo: String!
+    currency: String!
+  ): BooleanPayload!
+  """Delete sports+global rows for the reporting day and regenerate full global snapshot (same as post-rollback)."""
+  regenerateStaleSnapshot(
+    tenant: String!
+    whitelabelId: String!
+    reportingDay: String!
+    currency: String!
+  ): BooleanPayload!
+  # Audit mutations
+  createAuditExportJob(input: AuditExportJobInput!): AuditExportJob!
+  createAuditAnnotation(input: CreateAuditAnnotationInput!): AuditAnnotation!
+  updateAuditAnnotation(input: UpdateAuditAnnotationInput!): AuditAnnotation!
+  deleteAuditAnnotation(id: ID!): DeleteAuditAnnotationResult!
+
+  """Send a message to the assistant. Returns its reply and any queued changes."""
+  aiChat(message: String!, conversationId: ID): AiTurn!
+  """Apply a queued change, under the confirming operator's own permissions."""
+  aiConfirmAction(proposalId: ID!): AiActionResult!
+  """Discard a queued change."""
+  aiRejectAction(proposalId: ID!): AiActionResult!
+
+  """Enable or disable the assistant for a whitelabel and set its allowance. Super Admin only."""
+  setAiWhitelabelSettings(
+    tenant: String!
+    enabled: Boolean!
+    chatLimit: Int!
+    limitPeriod: String
+  ): AiWhitelabelSettings!
+
+  # ---------------------------------------------------------------------------
+  # CRM
+  # ---------------------------------------------------------------------------
+
+  """Signs a CRM user in. Resolves the whitelabel from the request host."""
+  crmLogin(username: String!, password: String!): CrmLoginResult!
+  """
+  Changes the caller's own password.
+
+  Ends every session the account has, this one included: the token version is
+  bumped, so the caller is signed out and must sign in again with the new
+  password. Re-authenticates against the current password first.
+  """
+  crmChangeOwnPassword(currentPassword: String!, newPassword: String!): CrmMutationResult!
+
+  crmCreateUser(input: CrmCreateUserInput!): CrmMutationResult!
+  crmUpdateUser(input: CrmUpdateUserInput!): CrmMutationResult!
+  crmSetUserStatus(id: ID!, status: String!): CrmMutationResult!
+  """Sets a new password and requires the user to change it on next sign-in."""
+  crmResetUserPassword(id: ID!, newPassword: String!): CrmMutationResult!
+  crmSetUserRoles(id: ID!, roleIds: [ID!]!): CrmMutationResult!
+  crmDeleteUser(id: ID!): CrmMutationResult!
+
+  crmCreateRole(name: String!, description: String, permissions: [CrmPermissionInput!]!): CrmMutationResult!
+  crmUpdateRole(id: ID!, name: String, description: String, permissions: [CrmPermissionInput!]): CrmMutationResult!
+  crmDeleteRole(id: ID!): CrmMutationResult!
+
+  crmCreateBook(name: String!, description: String): CrmMutationResult!
+  crmUpdateBook(id: ID!, name: String, description: String): CrmMutationResult!
+  crmDeleteBook(id: ID!): CrmMutationResult!
+  crmSetBookMembers(bookId: ID!, crmUserIds: [ID!]!): CrmMutationResult!
+
+  """Moves players into a book. A player belongs to exactly one."""
+  crmAssignPlayers(playerIds: [ID!]!, bookId: ID!, ownerId: ID): CrmMutationResult!
+  crmUnassignPlayers(playerIds: [ID!]!): CrmMutationResult!
+
+  crmAddIpAllowlistEntry(crmUserId: ID!, cidr: String!, label: String): CrmMutationResult!
+  crmRemoveIpAllowlistEntry(id: ID!): CrmMutationResult!
+
+  """
+  CRM user management from the admin panel, for whoever owns the whitelabel
+  rather than the desk.
+
+  These exist because the CRM's own user management needs a working CRM login
+  to reach, which is no help when there isn't one. A Super Admin names the
+  whitelabel; a whitelabel administrator's `tenant` argument is overridden with
+  their own. Deliberately outside the `crm` prefix, which is exempt from the
+  guard that refuses CRM sessions on admin-panel fields.
+  """
+  whitelabelCrmCreateUser(tenant: ID, input: CrmCreateUserInput!): CrmMutationResult!
+  whitelabelCrmUpdateUser(tenant: ID, input: CrmUpdateUserInput!): CrmMutationResult!
+  whitelabelCrmSetUserStatus(tenant: ID, id: ID!, status: String!): CrmMutationResult!
+  """Sets a new password and forces the holder to change it at next sign-in."""
+  whitelabelCrmResetPassword(tenant: ID, id: ID!, newPassword: String!): CrmMutationResult!
+  whitelabelCrmSetUserRoles(tenant: ID, id: ID!, roleIds: [ID!]!): CrmMutationResult!
+  """Removes the account. The personal-data access trail loses their name with it."""
+  whitelabelCrmDeleteUser(tenant: ID, id: ID!): CrmMutationResult!
+
+  """Turns a whitelabel's CRM on or off and sets its seat limit. Super Admin only."""
+  setCrmWhitelabelSettings(
+    tenant: String!
+    enabled: Boolean!
+    seatLimit: Int!
+    sessionIdleMinutes: Int
+    enforceIpAllowlist: Boolean
+  ): CrmSettings!
+  """Creates the whitelabel's first CRM administrator. Run from the admin panel."""
+  crmCreateFirstAdmin(
+    tenant: String!
+    name: String!
+    username: String!
+    password: String!
+    email: String
+  ): CrmMutationResult!
+
+  crmAddPlayerNote(input: CrmAddPlayerNoteInput!): CrmPlayerNotePayload!
+  crmSetNotePinned(id: ID!, isPinned: Boolean!): CrmMutationResult!
+  crmDeletePlayerNote(id: ID!): CrmMutationResult!
+
+  crmCreateTag(name: String!, colour: String, description: String): CrmMutationResult!
+  crmUpdateTag(id: ID!, name: String, colour: String, description: String): CrmMutationResult!
+  crmArchiveTag(id: ID!, archived: Boolean!): CrmMutationResult!
+  """Folds one tag into another, moving every player across."""
+  crmMergeTags(fromId: ID!, intoId: ID!): CrmMutationResult!
+  crmApplyTags(playerIds: [ID!]!, tagIds: [ID!]!): CrmMutationResult!
+  crmRemoveTags(playerIds: [ID!]!, tagIds: [ID!]!): CrmMutationResult!
+
+  """Records a responsible-gambling flag. Blocking types stop staking and deposits at once."""
+  crmRaiseRgFlag(
+    playerId: ID!
+    flagType: String!
+    "player | operator"
+    initiatedBy: String!
+    reason: String
+    "Required for COOLING_OFF."
+    endsAt: String
+    "For SELF_EXCLUSION. Defaults to six months."
+    minTermMonths: Int
+  ): CrmMutationResult!
+  """Ends a block. Cannot be done by whoever raised it, nor before the minimum term."""
+  crmLiftRgFlag(flagId: ID!, reason: String!): CrmMutationResult!
+  """Records a consent change. Withdrawal is never refused."""
+  crmRecordConsent(
+    playerId: ID!
+    channel: String!
+    purpose: String!
+    state: String!
+    source: String!
+    evidenceRef: String
+    consentTextVersion: String
+    reason: String
+  ): CrmMutationResult!
+
+  crmCreateTask(
+    bookId: ID!
+    title: String!
+    slaMinutes: Int!
+    playerId: ID
+    assigneeId: ID
+    body: String
+    priority: String
+  ): CrmMutationResult!
+  """
+  Raises the same task for a set of players.
+
+  Takes the players that were selected, not a filter: "everyone matching this
+  segment" is one click from forty thousand tasks, and what a re-run filter
+  returns is not what the caller saw. Capped at 200.
+
+  Every task carries a dedupe key, so a double-clicked batch creates its tasks
+  once and reports the rest as already open. The same work can be raised again
+  for a player once the previous one is closed.
+  """
+  crmCreateTasksForPlayers(
+    playerIds: [ID!]!
+    bookId: ID!
+    title: String!
+    slaMinutes: Int!
+    assigneeId: ID
+    body: String
+    priority: String
+  ): CrmBulkTaskResult!
+
+  """Closing a task requires an outcome — a task closed with none tells the next person nothing."""
+  crmSetTaskStatus(taskId: ID!, status: String!, outcome: String): CrmMutationResult!
+  crmAssignTask(taskId: ID!, assigneeId: ID): CrmMutationResult!
+  """Stops the escalation ladder. Whoever acknowledges is saying they have it."""
+  crmAcknowledgeTask(taskId: ID!): CrmMutationResult!
+  crmMarkNotificationsRead(ids: [ID!]): CrmMutationResult!
+
+  """Records that someone tried to reach a player, and what came of it."""
+  crmRecordContactAttempt(
+    playerId: ID!
+    channel: String!
+    outcome: String!
+    taskId: ID
+    notes: String
+    direction: String
+  ): CrmMutationResult!
+
+  """Marks yourself away. Escalations skip you and follow your delegate, one hop."""
+  crmSetMyAvailability(outOfOfficeUntil: String, delegateTo: ID): CrmMutationResult!
+
+  """
+  Sets the hours this desk works.
+
+  Refuses rather than clamps: a time zone this server does not recognise would
+  throw inside task creation, and hours that are empty or inverted describe a
+  desk that is never open, which stops every escalation and says nothing.
+
+  Applies to deadlines computed after it. Tasks already open keep the deadline
+  they were given, because moving them would create or clear breaches that
+  nobody acted on.
+  """
+  crmSetDeskCalendar(
+    "An IANA zone, e.g. Asia/Kolkata."
+    timezone: String!
+    "Minutes past midnight. Must be before closeMinute."
+    openMinute: Int!
+    "Minutes past midnight, up to 1440 for midnight."
+    closeMinute: Int!
+    "ISO weekdays, 1 = Monday. At least one."
+    days: [Int!]!
+  ): CrmMutationResult!
+
+  """
+  Saves the current player filter under a name.
+
+  Takes `crm.players:view` — saving a filter you can already run confers
+  nothing, and running it still resolves through your own books. Sharing one
+  with the whole desk additionally takes `crm.players:view_all`: that is an
+  authorship control, not a scope one, so a single agent cannot put work
+  definitions in front of the whitelabel.
+  """
+  crmCreateSegment(
+    name: String!
+    description: String
+    filter: CrmPlayerFilterInput
+    isShared: Boolean
+  ): CrmMutationResult!
+  """Only its author may change a segment, shared or not."""
+  crmUpdateSegment(
+    id: ID!
+    name: String
+    description: String
+    filter: CrmPlayerFilterInput
+    isShared: Boolean
+  ): CrmMutationResult!
+  crmDeleteSegment(id: ID!): CrmMutationResult!
+
+  """
+  Redacts the free text staff wrote about a player — note bodies, contact
+  notes, task text. The rows stay: that work happened is a processing record,
+  what was written about the person is the personal data.
+
+  Never touches the exclusion register (its hashes are what keep a
+  self-excluded player excluded), responsible-gambling episodes, or consent
+  records — the law requires those kept. `reason` is the request reference and
+  is mandatory; the erasure itself is audited.
+  """
+  crmDsarErase(playerId: ID!, reason: String!): CrmDsarEraseResult!
+}

@@ -1,0 +1,70 @@
+/* The kit dashboard's revenue chart (kit .chart): 11px semibold axis text in the muted ink, hairline grid
+   rows, green gain and rose loss bars with the latest one strongest, and the latest figure over it in the ink. The skin's
+   tokens carry the kit's chart colours: --ink-3 is its --chart-1, --hair its --chart-grid, --line-3 its zero
+   rule, --acc its red. */
+.chart {
+  position: relative;
+  min-width: 0;
+  min-height: 220px;
+}
+
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.chart text {
+  fill: var(--ink-3);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.grid {
+  stroke: var(--hair);
+  stroke-width: 1;
+}
+
+.zero {
+  stroke: var(--line-3);
+  stroke-width: 1;
+}
+
+/* The fill is the gain or loss gradient (the rect's fill attribute); the earlier bars sit back a little so
+   the latest reads first. Without the skin's --viz tokens the bars fall back to the muted ink. */
+.bar {
+  opacity: .72;
+}
+
+.barNow {
+  opacity: 1;
+}
+
+.bar:hover,
+.barNow:hover {
+  opacity: .9;
+}
+
+.stopUp {
+  stop-color: var(--viz-green, var(--ink-3));
+}
+
+.stopDown {
+  stop-color: var(--viz-rose, var(--ink-3));
+}
+
+.stopFade {
+  stop-opacity: .45;
+}
+
+.chart .value {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.error {
+  margin: 0;
+  color: var(--neg-ink);
+  font-size: 13px;
+}

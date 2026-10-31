@@ -1,0 +1,432 @@
+/* Support Admins (/security/support-admins, mockup M:2555-2562). The mockup draws it with the generic table
+   template (page head M:753-763, one table card M:1845-1853 filled by M:3361-3409). Its Last Login column has
+   no data here, so the cells keep the legacy content and take the table metrics (M:979-1007); a person cell is
+   the .who-cell idiom (M:1008-1017) and row actions the .acts / .rowdots idiom (M:1034-1049). The four drawers
+   are not drawn for this page: they follow the approved drawer (M:1136-1167) and are BEYOND-MOCKUP where
+   noted. No colour is set outside tokens.css. */
+
+/* The legacy 16px stack between the load-error notice and the card. One track, so a wide table scrolls inside
+   its card instead of sizing the page. */
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The legacy 288px (w-72) search, now in the card tools beside Export (.card-tools M:867). It takes the row
+   when the tools wrap on a narrow card. BEYOND-MOCKUP: the mockup has no in-page search. */
+.search {
+  flex: 1 1 220px;
+  width: 288px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* ---------- table cells ---------- */
+
+/* .who-cell M:1008 with the 22px .av (M:1009-1017), top-aligned beside the legacy three-line block. */
+.who {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.whoText {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* td.k M:996: the key cell's ink and weight. */
+.name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* BEYOND-MOCKUP: the legacy Email / ID lines under the name, in the drawer list's term and value colours
+   (.dl dt / dd M:1155-1156) at table size. */
+.meta {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.metaRow {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.metaTerm {
+  flex: none;
+  width: 40px;
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.metaValue {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+/* Role names wrap inside their column, as the legacy wrapped tag list did; the pills keep .pill (M:1018). */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 160px;
+  max-width: 280px;
+  white-space: normal;
+}
+
+/* td.dim M:997. */
+.dim {
+  color: var(--ink-3);
+}
+
+/* Two-line cells (recent activity, created): the second line takes the dim colour. */
+.stack {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+}
+
+.secondary {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* .acts M:1034: the gear and the .rowdots menu trigger (M:1043-1049, the kit IconButton sm). */
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---------- access denied and the delete warning ---------- */
+
+.line {
+  display: block;
+}
+
+.line + .line {
+  margin-top: 6px;
+}
+
+.code {
+  padding: 1px 6px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* The legacy red second paragraph of the delete confirmation, on the negative ink (.dr-flag b M:1162). */
+.warning {
+  display: block;
+  margin-top: 8px;
+  color: var(--neg-ink);
+}
+
+/* ---------- drawers (BEYOND-MOCKUP, from the approved drawer M:1136-1167) ---------- */
+
+.drawerBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The legacy header card at the top of each drawer: a glyph tile, the admin and a tag. */
+.intro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+/* .ftile M:1064 on the info pair the legacy blue glyph used. */
+.introIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ui-radius);
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+.introCopy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.introTitle {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.introSub {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.introTag {
+  flex: none;
+}
+
+.section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* .dr-sec M:1151: the drawer's uppercase section label, as a real h3 inside the drawer's h2. */
+.sectionTitle {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+/* The legacy bordered box around each drawer table. The table keeps its own outer gutter (M:979-983), so the
+   box needs only the head's top room (.card-head's 16px less the row rhythm). */
+.tableBox {
+  min-width: 0;
+  padding-top: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+/* The legacy Effective Permissions panel: one pill per permission domain. */
+.permissions {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tabPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The legacy Timeline, on the feed row (.fitem M:1062-1073): a tone dot, the action, its time and domain. */
+.timeline {
+  display: grid;
+  margin: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  list-style: none;
+}
+
+.timelineItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.timelineItem:last-child {
+  border-bottom: 0;
+}
+
+/* The status dot (.live i M:869), coloured from the pill pairs; the action text carries the meaning. */
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: var(--ui-radius-circle);
+  background: var(--blue);
+}
+
+.dotOk {
+  background: var(--ok);
+}
+
+.dotNeg {
+  background: var(--neg-ink);
+}
+
+.timelineBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.timelineAction {
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.timelineMeta {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* The Add IP box: the field and its submit, stacked as the legacy vertical form was. */
+.ipBox {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.ipForm {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ipField {
+  justify-self: stretch;
+}
+
+/* The two-column create form (legacy md:grid-cols-2), decided by the drawer's own width: a phone drawer and
+   a narrow one keep one column. */
+.createForm {
+  container: support-admin-create / inline-size;
+  min-width: 0;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px 16px;
+  min-width: 0;
+}
+
+.formWide {
+  grid-column: 1 / -1;
+}
+
+@container support-admin-create (min-width: 480px) {
+  .formGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Activity Log cells: the before/after previews wrap inside their column instead of widening the table. */
+.details {
+  display: grid;
+  gap: 2px;
+  min-width: 280px;
+  max-width: 420px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.before {
+  color: var(--neg-ink);
+  font-weight: 600;
+}
+
+.after {
+  color: var(--pos-ink);
+  font-weight: 600;
+}
+
+/* The drawer footer: the legacy info hint on the left, the actions on the right (.dr-foot M:1165-1167). */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.footerHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.footerHint svg {
+  flex: none;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+@media (max-width: 767px) {
+  .footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .footerActions > * {
+    flex: 1 1 auto;
+  }
+}

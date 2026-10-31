@@ -1,0 +1,8 @@
+/* BEYOND-MOCKUP: commission adjustments reuse kit cards, tables, dialogs, notices and token colours. */
+.stack { display: grid; gap: 16px; min-width: 0; }
+.actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.rowActions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.amount { display: inline-grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.positive { color: var(--pos-ink); font-weight: 650; }
+.negative { color: var(--neg-ink); font-weight: 650; }
+.muted { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }

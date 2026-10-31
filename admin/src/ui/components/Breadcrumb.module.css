@@ -1,0 +1,104 @@
+/* No mockup breadcrumb. Type follows the topbar stack (13px, --ink / --ink-3, M:717-719);
+   link states follow .linkbtn (M:878-885). margin, padding, list-style and font-weight are explicit because
+   antd's unlayered `ol { margin-bottom: 1em }` (reset.css:70-75) is beaten only by a class that sets them. */
+.breadcrumb {
+  min-width: 0;
+  font-family: var(--font-ui);
+}
+
+.list {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 400;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.separator {
+  flex: none;
+  display: flex;
+  margin: 0 6px;
+  color: var(--ink-3);
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 220px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.home {
+  flex: none;
+  display: flex;
+}
+
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link {
+  border-radius: var(--ui-radius);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: color var(--t-1) var(--ease), text-decoration-color var(--t-1) var(--ease);
+}
+
+.link:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.current {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .crumbs (kit p2): 13px --ink-3 links on a 4px rhythm, the current item --ink at 700. Colours stay on
+   tokens, so the Topbar's on-charcoal re-declaration still repaints it there. .crumb.current (0,3,1) keeps
+   the current weight over the skin's .crumb (0,2,1), which would otherwise outrank the base .current
+   (0,1,0) on the same element. */
+:global(html:not([data-skin='classic'])) .separator {
+  margin: 0 4px;
+}
+
+:global(html:not([data-skin='classic'])) .crumb {
+  font-weight: 400;
+}
+
+:global(html:not([data-skin='classic'])) .crumb.current {
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .link {
+  border-radius: var(--ui-radius);
+}

@@ -1,0 +1,164 @@
+/* Top Referrers (/referrals/top-referrers, W6 Task 179; mockup M:2366-2373, drawn with the generic table
+   template M:3361-3409). The page keeps its own filters, totals and columns, so the rules below compose the
+   kit and are BEYOND-MOCKUP unless a mockup rule is cited. */
+
+/* The filters, the notice, the totals and the table card stack in the legacy order with the mockup's
+   card rhythm: 20px (.grid M:897), 16px on phones (M:1604). The filter bar has no surface of its own, as
+   on the sibling list pages (Exposure, Vendors). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+}
+
+/* ---------- totals ---------- */
+
+/* The three totals follow the width of their own column (the context panel changes it by 269px), so the
+   grid is decided by a container query on this stretching wrapper. A ₹12,48,76,540.00 figure at the
+   Stat's 24px/700 (.kpi-val M:833-836) needs about a 268px card: one per row until three fit, from 844px
+   (3 x 268 + two 20px gaps). Gap: .kpis M:808, 14px on phones (M:1603). */
+.statsRegion {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+@container (min-width: 844px) {
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+/* The legacy card head's right-hand total, in the card subtitle's metrics (.card-sub M:866). */
+.total {
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- table cells ---------- */
+
+/* Rank is the mockup's right-aligned key cell (`>Rank` with td.k, M:2368, M:997); the top three keep the
+   legacy trophy, coloured from the decorative ramp, never the only signal (the text carries the rank). */
+.rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.trophy {
+  flex: none;
+}
+
+.gold {
+  color: var(--h-amb);
+}
+
+.silver {
+  color: var(--ink-3);
+}
+
+.bronze {
+  color: var(--h-red);
+}
+
+/* The referrer cell's three lines: name, phone, then the stats link. */
+.referrer {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.referrerName {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.secondary {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The mockup's text link (.linkbtn M:879-886), at the secondary line's size. */
+.statsLink {
+  border-radius: var(--ui-radius);
+  color: var(--acc-ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.statsLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.statsLink:active {
+  color: var(--acc-h);
+  text-decoration-color: currentColor;
+}
+
+.statsLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Active referrals: the green count pill (.pill.active M:1025) then "/ total". */
+.active {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Conversion: the figure, emphasised at 10% (positive ink) and 5% (warning ink) as the legacy cell was,
+   with the legacy hover hint beside it. */
+.rate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.rateHigh {
+  color: var(--pos-ink);
+  font-weight: 600;
+}
+
+.rateMid {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.rateHint {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-3);
+  cursor: help;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statsLink {
+    transition: none;
+  }
+}

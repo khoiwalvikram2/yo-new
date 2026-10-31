@@ -1,0 +1,230 @@
+/* Add / edit payment method (/payments/methods/create, /payments/methods/edit/:type/:id). The mockup has
+   no form design and no drawing of this page (the design's O8); the page composes the form idiom the
+   Create Bonus pilot set (Task 027): kit Card, Form, FormSection, fields and the sticky FormActions inside
+   Page's 1280px form frame. Everything below keeps the legacy wizard's grouping and is BEYOND-MOCKUP
+   unless a mockup rule is cited. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- type choice ---------- */
+
+.typeFrame {
+  container-type: inline-size;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  max-width: 576px;
+}
+
+@container (min-width: 520px) {
+  .typeGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A large choice button, built from the card surface and the .ghost control's hover and press
+   (M:871-878). */
+.typeOption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.typeOption:hover {
+  border-color: var(--acc-soft-h);
+  background: var(--hover);
+}
+
+.typeOption:active {
+  background: var(--press);
+}
+
+.typeOption:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The decorative tile: the avatar shape (.av M:1009-1017) at 40px on the hue ramp, as on the list. */
+.typeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ui-radius);
+}
+
+.bankIcon {
+  color: var(--h-blu);
+  background: var(--h-blu-bg);
+}
+
+.upiIcon {
+  color: var(--h-vio);
+  background: var(--h-vio-bg);
+}
+
+.typeText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.typeTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.typeSub {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The step indicator is the kit Steps strip, which brings its own border, so it sits outside a card. */
+
+/* ---------- the form card ---------- */
+
+/* As on Create Bonus: the card's body is flush and the form owns the --card-pad gutter, so FormActions'
+   edge-to-edge bleed stays inside the form's box; the card clips to its corners for that sticky footer
+   (`clip` creates no scroll container). */
+.card {
+  overflow: clip;
+}
+
+.form {
+  padding: var(--card-pad);
+}
+
+/* A control that spans the field grid, as the legacy 24-column rows did. */
+.fullRow {
+  grid-column: 1 / -1;
+}
+
+/* The QR row's thumbnail when there is no image to show: a short note inside FileField's tile. */
+.qrPlaceholder {
+  padding: 2px;
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.statusRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.statusText {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* ---------- review ---------- */
+
+.review {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* The step heading takes FormSection's legend metrics, so the three steps read alike. */
+.reviewHeading {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.reviewIntro {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+@container (min-width: 560px) {
+  .reviewGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* The two summaries sit side by side, so the kit's stacked-section gap (.section + .section) does not
+   apply here. */
+.reviewGrid > .reviewPanel {
+  margin: 0;
+}
+
+/* Each summary is the drawer's section and detail rows (.dr-sec, .dl M:1151-1157) on a quiet tile. */
+.reviewPanel {
+  min-width: 0;
+  padding: 12px 14px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+/* ---------- footer ---------- */
+
+/* The step hint sits on the left and the two actions keep their own width on the right, as the legacy
+   footer did; a phone stacks all three in reading order. */
+.footer {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.footerHint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.requiredMark {
+  color: var(--neg-ink);
+}
+
+@media (max-width: 767px) {
+  .footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typeOption {
+    transition: none;
+  }
+}

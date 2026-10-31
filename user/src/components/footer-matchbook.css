@@ -1,0 +1,92 @@
+/* Site footer in the matchbook shell (Footer.tsx): charcoal in both app themes, like the header, sidebar and
+   rail, so the white parts of the logo stay visible. Four bands: support contacts, brand + link columns,
+   responsible play + socials, legal line. The inner parts use their own nova-ftr-* classes, so nova.css and
+   panel-refresh.css (the older .nova-footer-* styles) do not reach them; :root lifts the root rule above
+   nova.css's html.dark .nova-site-footer. */
+:root .nova-shell-matchbook .nova-site-footer {
+  --ftr-bg: #2B2F35;
+  --ftr-band: #33373D;
+  --ftr-deep: #23262B;
+  --ftr-line: #3E4248;
+  --ftr-tile: #3A3E44;
+  --ftr-text: #FFFFFF;
+  --ftr-soft: #C9CBD1;
+  --ftr-muted: #A3A6AD;
+  --ftr-red: #C51A1B;
+  margin-top: 32px;
+  border-top: 3px solid var(--ftr-red);
+  color: var(--ftr-text);
+  background: var(--ftr-bg);
+  font-family: var(--font-inter);
+}
+.nova-shell-matchbook .nova-site-footer :is(h2, p, ul, address) { margin: 0; }
+.nova-shell-matchbook .nova-site-footer :is(a, button):focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
+
+/* -------------------------------------------------------------- support */
+.nova-shell-matchbook .nova-ftr-support { display: flex; align-items: center; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; padding: 16px 32px; border-bottom: 1px solid var(--ftr-line); background: var(--ftr-band); }
+.nova-shell-matchbook .nova-ftr-support-copy { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.nova-shell-matchbook .nova-ftr-support-icon { display: grid; flex: none; width: 42px; height: 42px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--ftr-red); }
+.nova-shell-matchbook .nova-ftr-support-icon svg { width: 20px; height: 20px; }
+.nova-shell-matchbook .nova-ftr-kicker { color: var(--ftr-muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.nova-shell-matchbook .nova-ftr-support h2 { margin-top: 2px; color: var(--ftr-text); font-size: 18px; font-weight: 700; line-height: 1.25; }
+.nova-shell-matchbook .nova-ftr-support-actions { display: flex; flex-wrap: wrap; gap: 8px; font-style: normal; }
+.nova-shell-matchbook .nova-ftr-support-actions a { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 16px; border: 1px solid #4F5258; border-radius: var(--ui-radius); color: var(--ftr-text); background: var(--ftr-bg); font-size: 14px; font-weight: 700; text-decoration: none; }
+.nova-shell-matchbook .nova-ftr-support-actions a svg { width: 17px; height: 17px; color: var(--ftr-soft); }
+.nova-shell-matchbook .nova-ftr-support-actions a.is-whatsapp svg { color: #25D366; }
+.nova-shell-matchbook .nova-ftr-support-actions a:hover { border-color: #6A6D73; background: #3A3E44; }
+
+/* ------------------------------------------------------ brand + columns */
+.nova-shell-matchbook .nova-ftr-main { display: grid; grid-template-columns: minmax(240px, 1.5fr) repeat(3, minmax(0, 1fr)); gap: 32px; padding: 30px 32px 28px; }
+.nova-shell-matchbook .nova-ftr-logo { display: inline-flex; align-items: center; max-width: 190px; text-decoration: none; }
+.nova-shell-matchbook .nova-ftr-logo img { display: block; width: auto; max-width: 100%; height: 42px; object-fit: contain; }
+.nova-shell-matchbook .nova-ftr-logo span { color: var(--ftr-text); font-size: 22px; font-weight: 800; }
+.nova-shell-matchbook .nova-ftr-summary { max-width: 380px; margin-top: 14px; color: var(--ftr-muted); font-size: 13px; line-height: 1.65; }
+.nova-shell-matchbook .nova-ftr-context { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.nova-shell-matchbook .nova-ftr-context span { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border: 1px solid #4F5258; border-radius: var(--ui-radius); color: var(--ftr-soft); font-size: 12px; font-weight: 700; }
+.nova-shell-matchbook .nova-ftr-context span.is-age { border-color: var(--ftr-red); color: #FFFFFF; background: var(--ftr-red); }
+.nova-shell-matchbook .nova-ftr-group h2 { color: var(--ftr-text); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.nova-shell-matchbook .nova-ftr-group h2::after { content: ""; display: block; width: 24px; height: 2px; margin-top: 8px; background: var(--ftr-red); }
+.nova-shell-matchbook .nova-ftr-group ul { display: grid; gap: 2px; margin-top: 12px; padding: 0; list-style: none; }
+.nova-shell-matchbook .nova-ftr-group a { display: inline-flex; align-items: center; min-height: 32px; color: var(--ftr-soft); font-size: 14px; font-weight: 500; text-decoration: none; transition: color .15s; }
+/* A short red tick slides in before the hovered link. */
+.nova-shell-matchbook .nova-ftr-group a::before { content: ""; width: 0; height: 2px; margin-right: 0; background: var(--ftr-red); transition: width .15s, margin-right .15s; }
+.nova-shell-matchbook .nova-ftr-group a:hover { color: #FFFFFF; }
+.nova-shell-matchbook .nova-ftr-group a:hover::before { width: 10px; margin-right: 8px; }
+
+/* ----------------------------------------------- responsible play + socials */
+.nova-shell-matchbook .nova-ftr-play { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 0 32px; padding: 18px 0; border-top: 1px solid var(--ftr-line); }
+.nova-shell-matchbook .nova-ftr-play-copy { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.nova-shell-matchbook .nova-ftr-age { display: grid; flex: none; width: 44px; height: 44px; place-items: center; border: 2px solid var(--ftr-red); border-radius: 50%; color: #FFFFFF; font-size: 14px; font-weight: 800; }
+.nova-shell-matchbook .nova-ftr-play-copy > span:last-child { display: grid; gap: 2px; }
+.nova-shell-matchbook .nova-ftr-play strong { display: inline-flex; align-items: center; gap: 6px; color: var(--ftr-text); font-size: 15px; font-weight: 700; }
+.nova-shell-matchbook .nova-ftr-play strong svg { width: 16px; height: 16px; color: #3FD08A; }
+.nova-shell-matchbook .nova-ftr-play small { color: var(--ftr-muted); font-size: 13px; }
+.nova-shell-matchbook .nova-ftr-socials { display: flex; flex-wrap: wrap; gap: 8px; }
+.nova-shell-matchbook .nova-ftr-socials a { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid #4F5258; border-radius: var(--ui-radius); color: var(--ftr-soft); background: var(--ftr-tile); }
+.nova-shell-matchbook .nova-ftr-socials a:hover { border-color: var(--ftr-red); color: #FFFFFF; background: var(--ftr-red); }
+
+/* ----------------------------------------------------------- legal line */
+.nova-shell-matchbook .nova-ftr-legal { display: flex; align-items: center; justify-content: space-between; gap: 10px 20px; flex-wrap: wrap; padding: 14px 32px; background: var(--ftr-deep); }
+.nova-shell-matchbook .nova-ftr-legal p { color: var(--ftr-muted); font-size: 12px; }
+.nova-shell-matchbook .nova-ftr-legal nav { display: flex; align-items: center; gap: 18px; }
+.nova-shell-matchbook .nova-ftr-legal nav a { color: var(--ftr-soft); font-size: 12px; font-weight: 700; text-decoration: none; }
+.nova-shell-matchbook .nova-ftr-legal nav a:hover { color: #FFFFFF; }
+
+/* ---------------------------------------------------------------- sizes */
+@media (max-width: 1100px) {
+  .nova-shell-matchbook .nova-ftr-main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .nova-shell-matchbook .nova-ftr-brand { grid-column: 1 / -1; }
+}
+@media (max-width: 800px) {
+  .nova-shell-matchbook .nova-ftr-support { padding: 16px; }
+  .nova-shell-matchbook .nova-ftr-support-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); width: 100%; }
+  .nova-shell-matchbook .nova-ftr-support-actions a { justify-content: center; }
+  .nova-shell-matchbook .nova-ftr-main { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; padding: 24px 16px; }
+  .nova-shell-matchbook .nova-ftr-group a { min-height: 40px; }
+  .nova-shell-matchbook .nova-ftr-play { margin: 0 16px; }
+  /* The phone tab bar is fixed over the bottom of the page: the last band clears it. */
+  .nova-shell-matchbook .nova-ftr-legal { flex-direction: column; align-items: flex-start; padding: 14px 16px calc(104px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-shell-matchbook .nova-ftr-group :is(a, a::before) { transition: none; }
+}

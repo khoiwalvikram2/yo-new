@@ -1,0 +1,433 @@
+/* Sources: .primary (M:1117-1126), .ghost (M:870-877, ported as `secondary`), .iconbtn states (M:720-727,
+   ported as `ghost`), .pill-btn .pbi icon colour (M:773), button:disabled (M:479-483).
+   Colours are tokens only (contracts §3.2). The reduced-motion block below is required by verify.sh gate 7. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px solid transparent;
+  font-family: var(--font-ui);
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--t-1) ease, border-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* sizes */
+.md {
+  height: 36px;
+  padding: 0 14px;
+  gap: 8px;
+  border-radius: var(--ui-radius);
+  font-size: 13px;
+}
+
+.sm {
+  height: 30px;
+  padding: 0 12px;
+  gap: 6px;
+  border-radius: var(--ui-radius);
+  font-size: 12.5px;
+}
+
+.icon {
+  flex: none;
+  display: flex;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* .button sets line-height: 1, so the label box is 1em tall while Chromium lays Inter's glyphs out about
+     3px taller, and the clip took ~1px off descenders ("Days", "Export"). The 2px pad moves the clip edge
+     out; the equal negative margin keeps the box, and so every button's size and text position, as before. */
+  padding-block: 2px;
+  margin-block: -2px;
+}
+
+/* primary — .primary */
+.primary {
+  background: var(--acc);
+  color: var(--acc-on);
+  font-weight: 600;
+}
+
+.primary:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--acc-h);
+}
+
+.primary:not(:disabled, [aria-disabled='true']):active {
+  background: var(--acc-a);
+}
+
+/* secondary — .ghost */
+.secondary {
+  background: var(--surf);
+  border-color: var(--line);
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.secondary .icon {
+  color: var(--ink-3);
+}
+
+.secondary:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--hover);
+  border-color: var(--acc-soft-h);
+  color: var(--ink);
+}
+
+.secondary:not(:disabled, [aria-disabled='true']):active {
+  background: var(--press);
+  border-color: var(--acc-soft-h);
+  color: var(--ink);
+}
+
+/* ghost — .iconbtn's states with a label; --surf-3 because --hover is invisible on the --app topbar */
+.ghost {
+  background: none;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.ghost .icon {
+  color: var(--ink-3);
+}
+
+.ghost:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+.ghost:not(:disabled, [aria-disabled='true']):active {
+  background: var(--press);
+  color: var(--ink);
+}
+
+.secondary:not(:disabled, [aria-disabled='true']):hover .icon,
+.ghost:not(:disabled, [aria-disabled='true']):hover .icon {
+  color: inherit;
+}
+
+/* disabled — button:disabled. A loading button is aria-disabled but keeps its variant colours. */
+.button:disabled,
+.button[aria-disabled='true']:not([aria-busy='true']) {
+  cursor: not-allowed;
+  color: var(--ink-3);
+  background: var(--surf-3);
+  border-color: var(--hair);
+  box-shadow: none;
+}
+
+.button:disabled .icon,
+.button[aria-disabled='true']:not([aria-busy='true']) .icon {
+  color: inherit;
+}
+
+.button[aria-busy='true'] {
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}
+
+/* ===================== PAGE MIGRATION (C) — W0 additions ===================== */
+
+/* xs — a table row action (.act M:1036-1042) */
+.xs {
+  height: 26px;
+  padding: 0 10px;
+  gap: 6px;
+  border-radius: var(--ui-radius);
+  font-size: 12px;
+}
+
+/* lg — a banner call to action (.primary M:1118-1119) */
+.lg {
+  height: 42px;
+  padding: 0 18px;
+  gap: 8px;
+  border-radius: var(--ui-radius);
+  font-size: 13.5px;
+}
+
+/* a control that fills its row: the phone call to action (M:1618) and a form's submit */
+.block {
+  width: 100%;
+}
+
+/* pill — the header control (.pill-btn M:765-775). It carries the surface shadow the others do not. */
+.pill {
+  background: var(--surf);
+  border-color: var(--line);
+  box-shadow: var(--sh);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.pill .icon {
+  color: var(--ink-3);
+}
+
+.pill:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--hover);
+  border-color: var(--acc-soft-h);
+}
+
+.pill:not(:disabled, [aria-disabled='true']):active {
+  background: var(--press);
+  border-color: var(--acc-soft-h);
+}
+
+/* link — a text action in a card head (.linkbtn M:879-886). The underline appears on hover, which is
+   why the rule below re-states it: the shared .button transition does not cover it. */
+.link {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--ui-radius);
+  color: var(--acc-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.link:not(:disabled, [aria-disabled='true']):hover {
+  text-decoration-color: currentColor;
+}
+
+.link:not(:disabled, [aria-disabled='true']):active {
+  color: var(--acc-h);
+  text-decoration-color: currentColor;
+}
+
+/* BEYOND-MOCKUP: the mockup draws no destructive control. `danger` is `secondary` with the negative
+   ink, so a destructive action sits quietly in a row of actions until it is hovered; `dangerSolid` is
+   `primary` on the negative tokens, for the confirming button of a destructive dialog. */
+.danger {
+  background: var(--surf);
+  border-color: var(--line);
+  color: var(--neg-ink);
+  font-weight: 500;
+}
+
+.danger .icon {
+  color: inherit;
+}
+
+.danger:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--neg-bg);
+  border-color: var(--neg-bg);
+  color: var(--neg-h);
+}
+
+.danger:not(:disabled, [aria-disabled='true']):active {
+  background: var(--neg-bg);
+  border-color: var(--neg-ink);
+  color: var(--neg-h);
+}
+
+.dangerSolid {
+  background: var(--neg-ink);
+  color: var(--neg-on);
+  font-weight: 600;
+}
+
+.dangerSolid .icon {
+  color: inherit;
+}
+
+.dangerSolid:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--neg-h);
+}
+
+.dangerSolid:not(:disabled, [aria-disabled='true']):active {
+  background: var(--neg-h);
+}
+
+/* the link variant sets a transition of its own, so it needs its own answer */
+@media (prefers-reduced-motion: reduce) {
+  .link {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .btn. Sizes are the kit's, so a Button lines up with the kit's 44px / 36px fields as it does in the
+   kit (owner, 2026-10-17): md 40, sm 34, xs 28, lg 48 tall, 15 / 14 / 13 / 16px, 16 / 12 / 10 / 22px sides.
+   The size rules sit under :where() at the base rules' (0,1,0) and later, so they replace the base sizes
+   while callers that size a Button through className (Builder .disclosure height:auto, a phone
+   .mobileSelectedButton display:none) still win as they did over the base; the link variant (height auto,
+   no padding) is left out. Weight, radius and colours change at (0,2,1): the prefix is (0,1,1), so a plain
+   variant rule here beats the base's (0,1,0), while the base hover/active rules (0,3,0) still win over it;
+   every state the skin changes is re-stated at (0,4,1). The base ghost colour is left alone:
+   AppConfiguration's .active menu item (0,1,0) colours a ghost Button red, and a (0,2,1) ghost colour here
+   would take that away. */
+:where(html:not([data-skin='classic'])) .md:where(:not(.link)) {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 15px;
+}
+
+:where(html:not([data-skin='classic'])) .sm:where(:not(.link)) {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+:where(html:not([data-skin='classic'])) .xs:where(:not(.link)) {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+:where(html:not([data-skin='classic'])) .lg:where(:not(.link)) {
+  height: 48px;
+  padding: 0 22px;
+  font-size: 16px;
+}
+
+:global(html:not([data-skin='classic'])) .button {
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .sm,
+:global(html:not([data-skin='classic'])) .xs {
+  border-radius: var(--ui-radius);
+}
+
+/* Icons take the label colour, as the kit's .btn .i does. (0,3,1) beats the (0,2,0) muted icon rules. */
+:global(html:not([data-skin='classic'])) .secondary .icon,
+:global(html:not([data-skin='classic'])) .ghost .icon,
+:global(html:not([data-skin='classic'])) .pill .icon {
+  color: inherit;
+}
+
+/* primary: the kit gradient over a solid base colour, so a hover never fades through transparent. */
+:global(html:not([data-skin='classic'])) .primary {
+  border-color: #B21718;
+  background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%) #C51A1B;
+}
+
+:global(html:not([data-skin='classic'])) .primary:not(:disabled, [aria-disabled='true']):hover {
+  border-color: var(--acc-h);
+  background: var(--acc-h);
+}
+
+/* Same specificity as the hover above and later, so a press still darkens while the pointer is over it. */
+:global(html:not([data-skin='classic'])) .primary:not(:disabled, [aria-disabled='true']):active {
+  border-color: var(--acc-a);
+  background: var(--acc-a);
+}
+
+/* secondary */
+:global(html:not([data-skin='classic'])) .secondary {
+  border-color: var(--line-2);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .secondary:not(:disabled, [aria-disabled='true']):hover {
+  border-color: var(--line-3);
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .secondary:not(:disabled, [aria-disabled='true']):active {
+  border-color: var(--line-3);
+  background: var(--press);
+  color: var(--ink);
+}
+
+/* pill: round, hairline, no shadow; pressed is the charcoal bar. After .sm/.xs so its radius wins. */
+:global(html:not([data-skin='classic'])) .pill {
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  box-shadow: none;
+}
+
+:global(html:not([data-skin='classic'])) .pill:not(:disabled, [aria-disabled='true']):hover {
+  border-color: var(--line-3);
+  background: var(--surf);
+}
+
+:global(html:not([data-skin='classic'])) .pill:not(:disabled, [aria-disabled='true']):active {
+  border-color: var(--line-3);
+  background: var(--press);
+}
+
+/* (0,4,1) like the hover/active above and after them, so a pressed pill stays charcoal under the pointer. */
+:global(html:not([data-skin='classic'])) .pill[aria-pressed='true']:not(:disabled, [aria-disabled='true']) {
+  border-color: var(--bar);
+  background: var(--bar);
+  color: #FFFFFF;
+}
+
+/* link: the kit's blue text action (red is kept for the primary action and the current place). A charcoal
+   head that holds one should remap --link to --chrome-link. After .sm/.xs so it keeps no radius. */
+:global(html:not([data-skin='classic'])) .link {
+  border-radius: var(--ui-radius);
+  color: var(--link);
+}
+
+:global(html:not([data-skin='classic'])) .link:not(:disabled, [aria-disabled='true']):active {
+  color: var(--link);
+}
+
+/* danger: a red-tint hairline (the kit's --red-line; color-mix where supported, --neg-bg otherwise). */
+:global(html:not([data-skin='classic'])) .danger {
+  border-color: var(--neg-bg);
+  border-color: color-mix(in srgb, var(--neg-ink) 30%, transparent);
+}
+
+:global(html:not([data-skin='classic'])) .danger:not(:disabled, [aria-disabled='true']):hover,
+:global(html:not([data-skin='classic'])) .danger:not(:disabled, [aria-disabled='true']):active {
+  border-color: var(--neg-ink);
+  background: var(--neg-bg);
+}
+
+/* dangerSolid: the kit's constant deep red with white, darker than primary, in both themes. */
+:global(html:not([data-skin='classic'])) .dangerSolid {
+  border-color: #7E0F10;
+  background: #8E1213;
+  color: #FFFFFF;
+}
+
+:global(html:not([data-skin='classic'])) .dangerSolid:not(:disabled, [aria-disabled='true']):hover,
+:global(html:not([data-skin='classic'])) .dangerSolid:not(:disabled, [aria-disabled='true']):active {
+  background: #730E0F;
+}
+
+/* Loading on a red fill: white arc on a faint white ring (kit .btn--primary .spin). The Spinner carries
+   this module's .icon; (0,4,1) beats the Spinner skin's (0,2,1) red-arc ring. */
+:global(html:not([data-skin='classic'])) .primary[aria-busy='true'] > .icon,
+:global(html:not([data-skin='classic'])) .dangerSolid[aria-busy='true'] > .icon {
+  border-color: rgba(255, 255, 255, .35);
+  border-top-color: #FFFFFF;
+}
+
+/* disabled: (0,3,1) and (0,4,1) beat every variant rule above (0,2,1); the hover, active and pressed rules
+   exclude disabled buttons. A loading button keeps its variant colours, as in the base. */
+:global(html:not([data-skin='classic'])) .button:disabled,
+:global(html:not([data-skin='classic'])) .button[aria-disabled='true']:not([aria-busy='true']) {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+}

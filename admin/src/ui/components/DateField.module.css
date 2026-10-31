@@ -1,0 +1,294 @@
+/* A date field wearing the mockup's control face: the search field's surface, border, radius and
+   metrics (.searchfield M:694-701) with the focus ring the mockup gives its own inputs
+   (.ai-comp:focus-within M:1476). The mockup draws no form field, so the label, help and error rows
+   are BEYOND-MOCKUP, on the label metrics its card heads use.
+
+   The control itself is the browser's own `<input type="date">`, so typing and forms are native; its
+   picker button is hidden and a calendar icon button sits inside the field's right edge, opening the
+   kit's themed Calendar (Calendar.module.css) in its place (page migration C, D1 reversed). */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 12.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.required {
+  margin-left: 2px;
+  color: var(--neg-ink);
+}
+
+.hiddenLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease;
+}
+
+.sm {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  border-radius: var(--ui-radius);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--acc-soft-h);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.invalid {
+  border-color: var(--neg-ink);
+}
+
+/* The input and its calendar button. The button is laid over the input's right edge, so the input keeps
+   its own border, states and width; its text stops short of the button. */
+.control {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.control .input {
+  padding-right: 36px;
+}
+
+.control .sm {
+  padding-right: 30px;
+}
+
+/* the browser's own picker is replaced by the button below (Chromium; Safari draws none) */
+.input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.pick {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.sm + .pick {
+  right: 4px;
+  width: 22px;
+  height: 22px;
+}
+
+.pick:hover:not(:disabled),
+.pick[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.pick:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 0;
+}
+
+.pick:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* while the calendar is open the field reads as the active one */
+.control:has(.pick[aria-expanded='true']) .input:not(.invalid) {
+  border-color: var(--acc);
+}
+
+.help {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.error {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--neg-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input,
+  .pick {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* The kit .fld/.ctl faces on the native date input: 44px (sm 36px), 1px --line-2, 3px, --field, 15px ink;
+   hover --line-3; focus --focus-border plus the 3px --focus-ring (a transparent outline stays for
+   forced-colours mode); invalid --neg-ink through hover and focus, with the label turning --neg-ink;
+   read-only dashed on --panel-2; disabled --disabled-bg/--disabled-fg on --line. Note .error here is
+   the message row and .invalid the input state. The calendar button is the kit .ctl__clear square
+   (26px, 3px, --ink-3, --surf-3 under the pointer), and while its calendar is open the field wears the
+   focus face (kit .ctl.is-open). */
+:global(html:not([data-skin='classic'])) .field {
+  gap: 6px;
+}
+
+:global(html:not([data-skin='classic'])) .label {
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+:global(html:not([data-skin='classic'])) .required {
+  margin-left: 3px;
+  color: var(--acc-ink);
+}
+
+:global(html:not([data-skin='classic'])) .field:has(.invalid) .label {
+  color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .input {
+  height: 44px;
+  padding: 0 12px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+  color: var(--ink);
+  font-size: 15px;
+}
+
+:global(html:not([data-skin='classic'])) .sm {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius);
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .input:hover:not(:disabled) {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .input:focus:not(:disabled) {
+  border-color: var(--focus-border);
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .input.invalid,
+:global(html:not([data-skin='classic'])) .input.invalid:hover:not(:disabled),
+:global(html:not([data-skin='classic'])) .input.invalid:focus:not(:disabled) {
+  border-color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .input:read-only:not(:disabled) {
+  border-style: dashed;
+  background: var(--panel-2);
+}
+
+:global(html:not([data-skin='classic'])) .input:disabled {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .control .input {
+  padding-right: 38px;
+}
+
+:global(html:not([data-skin='classic'])) .control .sm {
+  padding-right: 32px;
+}
+
+:global(html:not([data-skin='classic'])) .pick {
+  right: 5px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .pick:hover:not(:disabled),
+:global(html:not([data-skin='classic'])) .pick[aria-expanded='true'] {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .pick:disabled {
+  color: var(--disabled-fg);
+  opacity: 1;
+}
+
+:global(html:not([data-skin='classic'])) .control:has(.pick[aria-expanded='true']) .input:not(.invalid) {
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .help {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+:global(html:not([data-skin='classic'])) .error {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  color: var(--neg-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .error::before {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  background: currentColor;
+  content: '';
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+}

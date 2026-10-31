@@ -1,0 +1,176 @@
+enum DepositMethod {
+  BANK_TRANSFER
+  UPI
+}
+
+enum DepositStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+type DepositRequest {
+  id: ID!
+  tenant: String!
+  userId: ID!
+  amount: Float!
+  currency: String!
+  method: DepositMethod!
+  utr: String
+  referenceId: String
+  proofKey: String!
+  proofUrl: String # Presigned URL for viewing proof
+  status: DepositStatus!
+  reviewerId: ID
+  reviewedAt: String
+  note: String
+  walletTxnId: ID
+  createdAt: String!
+  updatedAt: String!
+  user: User # Resolved user info
+}
+
+type WhitelabelPaymentMethods {
+  id: ID!
+  tenant: String!
+  enabledMethods: [String!]!
+  banks: [BankDetails!]!
+  upis: [UpiDetails!]!
+  limits: DepositLimits!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type BankDetails {
+  vipTierIds: [ID!]
+  id: String! # Unique identifier for this bank
+  accountName: String!
+  accountNumber: String!
+  ifsc: String!
+  bankName: String!
+  branch: String!
+  notes: String
+  minAmount: Float # Minimum deposit amount for this bank (null = no limit)
+  maxAmount: Float # Maximum deposit amount for this bank (null = no limit)
+  weight: Int! # Priority/weight (higher = shown first, default: 0)
+  enabled: Boolean! # Whether this bank account is enabled (default: true)
+}
+
+type UpiDetails {
+  vipTierIds: [ID!]
+  id: String! # Unique identifier for this UPI
+  upiId: String!
+  displayName: String
+  qrKey: String
+  qrUrl: String # Presigned URL for QR code image
+  minAmount: Float # Minimum deposit amount for this UPI (null = no limit)
+  maxAmount: Float # Maximum deposit amount for this UPI (null = no limit)
+  weight: Int! # Priority/weight (higher = shown first, default: 0)
+  enabled: Boolean! # Whether this UPI account is enabled (default: true)
+}
+
+type DepositLimits {
+  min: Float!
+  max: Float!
+}
+
+type DepositRequestListResult {
+  items: [DepositRequest!]!
+  total: Int!
+}
+
+# Inputs
+input CreateDepositRequestInput {
+  accountId: String
+  amount: Float!
+  currency: String!
+  method: DepositMethod!
+  utr: String # Required for UPI
+  referenceId: String # Optional for BANK_TRANSFER
+  proofKey: String! # S3 key after upload
+}
+
+input ApproveDepositRequestInput {
+  id: ID!
+  note: String
+}
+
+input RejectDepositRequestInput {
+  id: ID!
+  note: String
+}
+
+input ListDepositRequestsInput {
+  status: DepositStatus
+  userId: ID
+  method: DepositMethod
+  fromDate: String
+  toDate: String
+  query: String
+  offset: Int
+  limit: Int
+}
+
+input UpsertWhitelabelPaymentMethodsInput {
+  enabledMethods: [String!]
+  banks: [BankDetailsInput!]
+  upis: [UpiDetailsInput!]
+  limits: DepositLimitsInput
+}
+
+input BankDetailsInput {
+  vipTierIds: [ID!]
+  id: String # Optional: for updates, omit for new entries
+  accountName: String!
+  accountNumber: String!
+  ifsc: String!
+  bankName: String!
+  branch: String!
+  notes: String
+  minAmount: Float
+  maxAmount: Float
+  weight: Int
+  enabled: Boolean
+}
+
+input UpiDetailsInput {
+  vipTierIds: [ID!]
+  id: String # Optional: for updates, omit for new entries
+  upiId: String!
+  displayName: String
+  qrKey: String
+  minAmount: Float
+  maxAmount: Float
+  weight: Int
+  enabled: Boolean
+}
+
+input DepositLimitsInput {
+  min: Float!
+  max: Float!
+}
+
+# Payloads
+type DepositRequestPayload {
+  success: Boolean!
+  message: String!
+  depositRequest: DepositRequest
+}
+
+type WhitelabelPaymentMethodsPayload {
+  success: Boolean!
+  message: String!
+  paymentMethods: WhitelabelPaymentMethods
+}
+
+type DepositRequestStats {
+  totalRequests: Int!
+  pending: Int!
+  approved: Int!
+  rejected: Int!
+  totalAmount: Float!
+  approvalRate: Int!
+  rejectionRate: Int!
+}
+extend type Query { adminDepositRequestStats: DepositRequestStats! }

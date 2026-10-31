@@ -1,0 +1,197 @@
+/* Account and info pages (Deposit, Withdrawal, Statements, My Bets, Bonus, Referral, VIP, Settings, Terms,
+   Privacy, 404/error) in the matchbook theme. MainLayout marks their content with .nova-acct; the palette
+   itself comes from the shell (panel-refresh.css). This file adds the shared page parts (header bar,
+   tab strip) and evens out the older utility styling inside .nova-acct: near-square corners, quiet shadows,
+   white hairline fields and status colours dark enough for white panels. */
+
+html .nova-shell-matchbook {
+  --brand-primary-dark: #A01516;
+  --brand-primary-shadow-light: rgb(197 26 27 / 18%);
+}
+.nova-acct {
+  --acct-red: #C51A1B;
+  --acct-red-hover: #A81516;
+  --acct-ink: var(--mb-ink);
+  --acct-text: var(--mb-text);
+  --acct-muted: var(--mb-muted);
+  --acct-line: var(--mb-line);
+  --acct-field: var(--mb-line-2);
+  --acct-soft: var(--mb-soft);
+  --acct-bar: var(--mb-bar);
+  --acct-dark: var(--mb-focus-border);
+  --acct-link: var(--mb-link);
+  --acct-green: var(--mb-green);
+  --acct-amber: var(--mb-amber);
+  --acct-error: var(--mb-error);
+  color: var(--acct-text);
+}
+.nova-acct :is(button, a, select, input, textarea):focus-visible { outline: 2px solid var(--acct-link); outline-offset: 2px; }
+
+/* ------------------------------------------------------------ page header */
+/* StakePageHeader: the dark matchbook bar with back, title and help. */
+.nova-shell-matchbook .user-account-header { margin: 0 0 12px; padding: 0; border: 0; }
+.nova-shell-matchbook .user-account-header-row { display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 8px 12px 8px 8px; color: #FFFFFF; background: var(--acct-bar, #43444A); }
+.nova-shell-matchbook .user-account-back {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: transparent;
+  cursor: pointer;
+}
+.nova-shell-matchbook .user-account-back:hover { color: #FFFFFF; background: rgb(255 255 255 / 10%); }
+.nova-shell-matchbook .user-account-title { flex: 1 1 auto; min-width: 0; overflow: hidden; color: #FFFFFF; font: 700 24px/1.15 var(--font-inter); letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
+.nova-shell-matchbook .user-account-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: transparent;
+  cursor: pointer;
+}
+.nova-shell-matchbook .user-account-help:hover { border-color: rgb(255 255 255 / 60%); background: rgb(255 255 255 / 8%); }
+
+/* PageHeader (Settings): the same bar, with the page icon in a tile. */
+.nova-shell-matchbook .user-page-header { gap: 10px; margin: 0 0 12px; }
+.nova-shell-matchbook .user-page-heading { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px; color: #FFFFFF; background: var(--acct-bar, #43444A); }
+.nova-shell-matchbook .user-page-icon { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: rgb(255 255 255 / 10%); }
+.nova-shell-matchbook .user-page-icon svg { width: 20px; height: 20px; }
+.nova-shell-matchbook .user-page-title { color: #FFFFFF; font: 700 24px/1.15 var(--font-inter); }
+.nova-shell-matchbook .user-page-subtitle { margin-top: 3px; color: #C9CBD1; font-size: 14px; }
+/* Below md, PageHeader adds its own back button above the bar; seat it inside the bar on the left instead. */
+@media (max-width: 767px) {
+  .nova-shell-matchbook .user-page-header { position: relative; gap: 0; }
+  .nova-shell-matchbook .user-page-header > .md\:hidden { position: absolute; top: 12px; left: 6px; z-index: 1; }
+  .nova-shell-matchbook .user-page-header > .md\:hidden button { display: grid; width: 40px; height: 40px; padding: 0; place-items: center; border: 0; border-radius: var(--ui-radius); background: transparent; }
+  .nova-shell-matchbook .user-page-header > .md\:hidden button:hover { background: rgb(255 255 255 / 10%); }
+  .nova-shell-matchbook .user-page-header > .md\:hidden svg { color: #FFFFFF; }
+  .nova-shell-matchbook .user-page-header:has(> .md\:hidden) .user-page-heading { padding-left: 50px; }
+}
+
+/* ------------------------------------------------------------------ tabs */
+/* SegmentedTabs: white strip, hairline dividers, the active tab filled red. */
+.nova-seg { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--mb-line); background: var(--mb-panel); scrollbar-width: none; }
+.nova-seg::-webkit-scrollbar { display: none; }
+.nova-seg.is-full { display: flex; width: 100%; }
+.nova-seg-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-right: 1px solid var(--mb-line);
+  color: var(--mb-text);
+  background: var(--mb-panel);
+  font-family: var(--font-inter);
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.nova-seg.is-full .nova-seg-tab { flex: 1 1 0; min-width: 0; }
+.nova-seg-tab:last-child { border-right: 0; }
+.nova-seg-tab:hover { background: var(--mb-soft); }
+.nova-seg-tab.is-active { color: #FFFFFF; background: #C51A1B; }
+.nova-seg-icon { display: inline-flex; color: var(--mb-faint); }
+.nova-seg-icon svg { width: 17px; height: 17px; }
+.nova-seg-tab.is-active .nova-seg-icon { color: #FFFFFF; }
+.nova-seg-tab:focus-visible { outline: 2px solid var(--mb-focus); outline-offset: -2px; }
+/* Phones: three icon tabs (Referral, Withdrawal) must fit 390px without touching the edges. */
+@media (max-width: 480px) {
+  .nova-seg-tab { gap: 6px; padding: 0 12px; font-size: 15px; }
+  .nova-seg.is-full .nova-seg-tab { padding: 0 6px; }
+}
+@media (max-width: 400px) {
+  .nova-seg.is-full .nova-seg-icon { display: none; }
+}
+
+/* ------------------------------------------------------- utility evening-out */
+/* Flat corners: the older pages use 8–24px radii; matchbook panels and controls are near-square. Pills
+   (rounded-full) keep their shape. */
+.nova-acct :is(.rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-\[5px\], .rounded-\[10px\], .rounded-\[12px\], .rounded-\[14px\], .rounded-\[16px\], .rounded-\[20px\]) { border-radius: var(--ui-radius); }
+.nova-acct :is(.rounded-t-xl, .rounded-t-2xl) { border-radius: var(--ui-radius); }
+.nova-acct :is(.rounded-b-xl, .rounded-b-2xl) { border-radius: var(--ui-radius); }
+.nova-acct :is(.shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) { box-shadow: 0 1px 2px rgb(16 18 22 / 6%); }
+.nova-acct .backdrop-blur, .nova-acct [class*='backdrop-blur'] { backdrop-filter: none; }
+
+/* Status colours: the 300/400 shades were picked for dark panels and wash out on white. */
+.nova-acct :is(.text-green-300, .text-green-400, .text-green-500, .text-emerald-300, .text-emerald-400, .text-emerald-500) { color: var(--acct-green); }
+.nova-acct :is(.text-red-300, .text-red-400, .text-red-500, .text-rose-300, .text-rose-400, .text-rose-500) { color: var(--acct-error); }
+.nova-acct :is(.text-amber-300, .text-amber-400, .text-yellow-300, .text-yellow-400, .text-orange-400) { color: var(--acct-amber); }
+.nova-acct :is(.text-blue-300, .text-blue-400, .text-sky-300, .text-sky-400, .text-indigo-400, .text-cyan-400) { color: var(--acct-link); }
+.nova-acct :is(.text-purple-300, .text-purple-400, .text-violet-400, .text-fuchsia-400) { color: #6D3FC0; }
+
+/* Fields: white with a hairline, dark focus ring. Inputs inside a .field wrapper are drawn by the wrapper. */
+.nova-acct :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], .field__control, .otp-input), select, textarea) {
+  border-color: var(--acct-field);
+  border-radius: var(--ui-radius);
+  color: var(--acct-ink);
+  background-color: var(--mb-panel);
+}
+.nova-acct :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], .field__control, .otp-input), select, textarea):focus { border-color: var(--acct-dark); outline: none; box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.nova-acct :is(input, textarea)::placeholder { color: var(--mb-faint); opacity: 1; }
+.nova-acct .field { border-color: var(--acct-field); border-radius: var(--ui-radius); background: var(--mb-panel); }
+.nova-acct .field:hover { border-color: var(--mb-line-3); background: var(--mb-panel); }
+.nova-acct .field:focus-within { border-color: var(--acct-dark); background: var(--mb-panel); box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.nova-acct .field__control { color: var(--acct-ink); background: transparent; }
+
+/* Brand buttons that are not ready yet read as grey, not as a faded red. */
+.nova-acct :is(button, a)[class*='brand-primary)]']:disabled { opacity: 1; color: var(--mb-faint); background: var(--mb-disabled-bg); box-shadow: none; }
+
+/* ------------------------------------------------------------ shared parts */
+/* Panel with a dark matchbook bar on top (use: .nova-acct-panel > .nova-acct-panel-head + body). */
+.nova-acct-panel { min-width: 0; border: 1px solid var(--acct-line); background: var(--mb-panel); }
+.nova-acct-panel-head { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 14px; color: #FFFFFF; background: var(--acct-bar); }
+.nova-acct-panel-head h2, .nova-acct-panel-head h3 { margin: 0; font-size: 17px; font-weight: 700; }
+.nova-acct-panel-head svg { width: 18px; height: 18px; }
+.nova-acct-panel-body { padding: 14px; }
+
+/* Status chips for transactions and bets. */
+.nova-acct-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: var(--ui-radius); font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; white-space: nowrap; }
+.nova-acct-chip.is-success { color: var(--mb-green-ink); background: var(--mb-green-bg); }
+.nova-acct-chip.is-pending { color: var(--mb-amber-ink); background: var(--mb-amber-bg); }
+.nova-acct-chip.is-failed { color: var(--mb-red-ink); background: var(--mb-red-bg); }
+.nova-acct-chip.is-neutral { color: var(--mb-muted); background: var(--mb-neutral-bg); }
+.nova-acct-chip.is-info { color: var(--mb-blue-ink); background: var(--mb-blue-bg); }
+
+/* 404 and route error: one centred card with a charcoal code tile and red/outline actions. Works inside the
+   shell and on its own (the router's error screen can render without the layout). */
+.nova-acct-error { display: grid; min-height: 56vh; place-items: center; padding: 24px 0; }
+.nova-acct-error-card { display: grid; justify-items: center; gap: 10px; width: min(520px, 100%); padding: 34px 28px 30px; border: 1px solid var(--mb-line); border-top: 4px solid #C51A1B; background: var(--mb-panel); text-align: center; }
+.nova-acct-error-code { display: grid; min-width: 96px; height: 64px; place-items: center; padding: 0 14px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar-2); font-family: var(--font-inter); font-size: 36px; font-weight: 700; letter-spacing: .04em; }
+.nova-acct-error-code.is-alert { min-width: 64px; background: #C51A1B; }
+.nova-acct-error-card h1 { margin: 6px 0 0; color: var(--mb-ink); font-family: var(--font-inter); font-size: 26px; font-weight: 700; line-height: 1.2; }
+.nova-acct-error-card p { max-width: 420px; margin: 0; color: var(--mb-muted); font-size: 15px; line-height: 1.5; }
+.nova-acct-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+.nova-acct-error-actions :is(a, button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
+  font-family: var(--font-inter);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.nova-acct-error-actions :is(a, button):hover { border-color: var(--mb-line-3); }
+.nova-acct-error-actions .is-primary { border-color: #C51A1B; color: #FFFFFF; background: #C51A1B; }
+.nova-acct-error-actions .is-primary:hover { border-color: #A81516; background: #A81516; }

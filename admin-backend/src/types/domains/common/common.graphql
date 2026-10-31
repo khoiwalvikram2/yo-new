@@ -1,0 +1,1032 @@
+scalar JSON
+
+type Alert { 
+  id: ID!
+  level: String!
+  message: String!
+  at: String!
+}
+
+type Approval { 
+  id: ID!
+  domain: String!
+  action: String!
+  resourceId: ID!
+  requestedAt: String!
+}
+
+type AuditSpotlight { 
+  id: ID!
+  actorId: ID!
+  domain: String!
+  action: String!
+  timestamp: String!
+}
+
+type ReportRow { 
+  dimension: String!
+  value: Float!
+  date: String
+}
+
+type Tier { 
+  name: String!
+  threshold: Float!
+}
+
+type TierEntry { 
+  threshold: Float!
+  percent: Float!
+}
+
+type OverviewKPIs {
+  tenant: String
+  turnover: Float!
+  sportsTurnover: Float!
+  casinoTurnover: Float!
+  matkaTurnover: Float!
+  ggr: Float!
+  ngr: Float!
+  liquidity: Float!
+  exposure: Float!
+  unmatchedOrders: Int!
+  upcomingDrawCutoffs: Int!
+  jackpotStatus: String!
+  alerts: [Alert!]!
+  approvalsPending: [Approval!]!
+  auditSpotlight: [AuditSpotlight!]!
+  # Enhanced financial metrics
+  totalDeposits: Float!
+  totalWithdrawals: Float!
+  netDeposits: Float!
+  sportsGGR: Float!
+  casinoGGR: Float!
+  matkaGGR: Float!
+  activePlayers: Int!
+  newPlayers: Int!
+  totalPlayers: Int!
+  totalBets: Int!
+  sportsBets: Int!
+  casinoBets: Int!
+  matkaBets: Int!
+  agentCommission: Float!
+  bonusPayouts: Float!
+  # Agent stats
+  totalSettlement: Float!
+  liveSettlement: Float!
+  liveCommission: Float!
+  totalCommission: Float!
+  # Advanced metrics
+  ftd: Float!              # First Time Deposits
+  ftdCount: Int!           # Number of FTDs
+  ltv: Float!              # Lifetime Value per player
+  arpu: Float!             # Average Revenue Per User
+  arppu: Float!            # Average Revenue Per Paying User
+  conversionRate: Float!   # Deposit conversion rate
+  retentionRate: Float!    # Player retention rate
+  churnRate: Float!        # Player churn rate
+  dauMauRatio: Float!      # Daily Active Users / Monthly Active Users
+  avgSessionDuration: Float! # Average session duration in minutes
+  avgBetSize: Float!       # Average bet size
+  winRate: Float!          # Overall win rate
+  riskScore: Float!        # Risk score (0-100)
+  complianceScore: Float!  # Compliance score (0-100)
+  # Growth metrics
+  revenueGrowth: Float!    # Revenue growth %
+  playerGrowth: Float!     # Player growth %
+  depositGrowth: Float!    # Deposit growth %
+  # Engagement metrics
+  totalSessions: Int!
+  avgSessionsPerUser: Float!
+  bounceRate: Float!
+}
+
+type DashboardTrendPoint {
+  date: String!
+  turnover: Float!
+  ggr: Float!
+  ngr: Float!
+  deposits: Float!
+  withdrawals: Float!
+  netDeposits: Float!
+  sportsGGR: Float!
+  casinoGGR: Float!
+  matkaGGR: Float!
+  activePlayers: Int!
+  betCount: Int!
+}
+
+"""
+What is happening right now, for the dashboard's "Real-time snapshot" card.
+It deliberately ignores the dashboard period presets: the query takes no
+dateRange, and every figure is measured back from the moment of the reading.
+Money is in raw whitelabel-currency amounts, like every other dashboard figure.
+"""
+type RealtimeSnapshot {
+  """ISO time the reading was taken. A cached reading keeps the time it was taken at."""
+  at: String!
+  """
+  Distinct players who placed a bet (sports, casino or matka) in the trailing
+  activityWindowMins. This is betting activity in a window, NOT presence: the
+  platform records no heartbeat or last-seen time, so it cannot say who is online.
+  """
+  activePlayers: Int!
+  """The activity window behind activePlayers, in minutes, so the label cannot drift from the query."""
+  activityWindowMins: Int!
+  """Bets open right now across sports (matched/unmatched), casino and matka (pending/active)."""
+  activeBets: Int!
+  """Approved deposit-request money settled in the trailing 60 minutes. Manual admin credits are not included."""
+  depositsLastHour: Float!
+  """Completed withdrawal-request money settled in the trailing 60 minutes. Manual admin debits are not included."""
+  withdrawalsLastHour: Float!
+}
+
+"""
+The live open book split by market, for the dashboard's "Exposure by market" card.
+For an admin it splits exactly the "Exposure" figure of overviewKPIs, so for any
+date range that ends today the rows add up to it: open sports liability
+(matched/unmatched) per sport, plus one row for open matka potential payout
+(pending/active, all matka types). No date filter and no dateRange argument:
+this is what is open now. Casino is not included, because an open casino bet has
+no known payout. Bets placed through the bet tool are included, as they are in
+the Exposure figure. Amounts are raw, in the whitelabel base currency, like
+overviewKPIs.exposure. In director core mode each whitelabel is read in its own
+base currency and the amounts are added, exactly as overviewKPIs does; that
+mixes currencies if whitelabels ever differ (all are INR today). An agent sees
+only its own players, so its rows add up to less than overviewKPIs.exposure,
+which does not scope agents at all.
+"""
+type ExposureByMarket {
+  """ISO time the reading was taken. A cached reading keeps the time it was taken at."""
+  at: String!
+  """Ordered by amount (largest first), then label. Markets with nothing open are omitted."""
+  markets: [ExposureByMarketRow!]!
+}
+
+type ExposureByMarketRow {
+  """'sports:' followed by the sport's key, or 'matka'."""
+  key: String!
+  """'sports' or 'matka'."""
+  product: String!
+  """The sport's name, or 'Matka'."""
+  label: String!
+  """Raw amount in the whitelabel base currency, like overviewKPIs.exposure."""
+  amount: Float!
+}
+
+# Payment Analytics Types
+type PaymentAnalytics {
+  pendingWithdrawals: PendingTransactions!
+  pendingDeposits: PendingTransactions!
+  paymentMethodBreakdown: [PaymentMethodStats!]!
+  transactionSuccessRate: Float!
+  avgWithdrawalTime: Float!
+  failedTransactionsRate: Float!
+  withdrawalToDepositRatio: Float!
+}
+
+type PendingTransactions {
+  count: Int!
+  totalAmount: Float!
+}
+
+type PaymentMethodStats {
+  method: String!
+  count: Int!
+  totalAmount: Float!
+  successRate: Float!
+}
+
+# Rankings Types
+type TopPerformers {
+  topDepositors: [PlayerRanking!]!
+  topProfitablePlayers: [PlayerRanking!]!
+  topLossMakingPlayers: [PlayerRanking!]!
+  topAgents: [AgentRanking!]!
+  topGames: [GameRanking!]!
+}
+
+type PlayerRanking {
+  playerId: ID!
+  playerName: String!
+  username: String!
+  phone: String
+  value: Float!
+  rank: Int!
+  trend: String!
+}
+
+type AgentRanking {
+  agentId: ID!
+  agentName: String!
+  username: String!
+  value: Float!
+  rank: Int!
+  metric: String!
+  trend: String!
+}
+
+type GameRanking {
+  gameId: ID!
+  gameName: String!
+  gameType: String!
+  revenue: Float!
+  playCount: Int!
+  rank: Int!
+}
+
+# Agent Deep Dive Types
+type AgentDeepDive {
+  downlineSummary: AgentDownlineStats!
+  conversionMetrics: AgentConversionMetrics!
+  creditUtilization: AgentCreditStats!
+  topAgentsByRevenue: [AgentRanking!]!
+  settlementStatus: AgentSettlementStatus!
+}
+
+type AgentDownlineStats {
+  totalAgents: Int!
+  totalPlayers: Int!
+  activePlayers: Int!
+  inactivePlayers: Int!
+  avgPlayersPerAgent: Float!
+}
+
+type AgentConversionMetrics {
+  registrationToDepositRate: Float!
+  depositToActiveRate: Float!
+  overallConversionRate: Float!
+}
+
+type AgentCreditStats {
+  totalCreditAllocated: Float!
+  totalCreditUsed: Float!
+  utilizationRate: Float!
+  availableCredit: Float!
+}
+
+type AgentSettlementStatus {
+  pendingAmount: Float!
+  settledAmount: Float!
+  overdueAmount: Float!
+  pendingCount: Int!
+}
+
+# Time Analysis Types
+type TimeAnalysis {
+  hourlyActivity: [HourlyStats!]!
+  dailyActivity: [DailyStats!]!
+  peakHours: PeakHoursInfo!
+  activityHeatmap: [HeatmapData!]!
+}
+
+type HourlyStats {
+  hour: Int!
+  revenue: Float!
+  betCount: Int!
+  activePlayers: Int!
+  avgBetSize: Float!
+}
+
+type DailyStats {
+  dayOfWeek: String!
+  dayNumber: Int!
+  revenue: Float!
+  betCount: Int!
+  activePlayers: Int!
+  avgRevenue: Float!
+}
+
+type PeakHoursInfo {
+  revenueHour: Int!
+  revenueAmount: Float!
+  activityHour: Int!
+  activityCount: Int!
+}
+
+type HeatmapData {
+  day: String!
+  hour: Int!
+  value: Float!
+  intensity: String!
+}
+
+# Forecasting Types
+type FinancialForecast {
+  projections: RevenueProjection!
+  trends: TrendAnalysis!
+  budgetTracking: BudgetStatus!
+  seasonality: SeasonalityData!
+}
+
+type RevenueProjection {
+  projectedMonthly: Float!
+  projectedWeekly: Float!
+  projectedDaily: Float!
+  confidence: Float!
+  growthRate: Float!
+}
+
+type TrendAnalysis {
+  shortTerm: TrendData!
+  mediumTerm: TrendData!
+  longTerm: TrendData!
+}
+
+type TrendData {
+  direction: String!
+  strength: Float!
+  prediction: String!
+}
+
+type BudgetStatus {
+  budgetAmount: Float!
+  actualAmount: Float!
+  variance: Float!
+  variancePercent: Float!
+  status: String!
+}
+
+type SeasonalityData {
+  pattern: String!
+  peakMonth: String!
+  lowMonth: String!
+  volatility: Float!
+}
+
+"""
+The Executive Dashboard's operations sections. Period figures follow the dateRange; pending counts, online,
+balances, the credit pool and head counts are what is true now. Money is raw, in the whitelabel's own currency.
+showB2C / showCredit say which sections apply: credit players or CREDIT agents make a whitelabel a credit
+(chips) whitelabel; cash players, an enabled gateway or payment methods make it B2C. Both can be true.
+"""
+type DashboardOperations {
+  showB2C: Boolean!
+  showCredit: Boolean!
+  """Approved deposit requests in the period (gateway and manual-proof requests)."""
+  directDeposits: Float!
+  """Admin wallet credits in the period that came with no deposit request."""
+  manualDeposits: Float!
+  directWithdrawals: Float!
+  manualWithdrawals: Float!
+  pendingDepositRequests: Int!
+  pendingDepositAmount: Float!
+  pendingWithdrawalRequests: Int!
+  pendingWithdrawalAmount: Float!
+  """Bank/UPI payout accounts waiting for approval."""
+  pendingPayoutAccounts: Int!
+  """Players who signed in or placed a bet in the last onlineWindowMins (there is no heartbeat)."""
+  onlineNow: Int!
+  onlineWindowMins: Int!
+  """Players whose latest sign-in falls in the period."""
+  loggedInPlayers: Int!
+  """Distinct players with a bet placed in the period (sports, casino or matka)."""
+  playersWhoBet: Int!
+  """Distinct players with a bet open now."""
+  playersWithOpenBet: Int!
+  """Every bet placed in the period, open ones included (overviewKPIs.totalBets counts settled bets only)."""
+  betsPlaced: Int!
+  """Players registered since midnight IST."""
+  registeredToday: Int!
+  inactivePlayers: Int!
+  suspendedPlayers: Int!
+  """Players' cash wallet balance now."""
+  walletBalance: Float!
+  """Bonus awarded in the period (cancelled awards left out)."""
+  bonusGiven: Float!
+  sharingAgentsActive: Int!
+  commissionAgentsActive: Int!
+  chipsDepositedByWhitelabel: Float!
+  chipsDepositedByAgents: Float!
+  chipsWithdrawnByWhitelabel: Float!
+  chipsWithdrawnByAgents: Float!
+  chipsGivenToAgents: Float!
+  creditLimit: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+  """The whitelabel's settlement balance now."""
+  settlementDue: Float!
+  """Agent settlements posted in the period."""
+  settledAmount: Float!
+  """Credit players' available chips now."""
+  chipsWithPlayers: Float!
+  directPlayers: Int!
+  agentPlayers: Int!
+  creditAgentsActive: Int!
+  """Open sports bets older than staleSportsHours, now."""
+  staleSportsBets: Int!
+  staleSportsEvents: Int!
+  staleSportsHours: Int!
+  """Casino rounds open longer than casinoStuckMinutes, now."""
+  stuckCasinoRounds: Int!
+  casinoStuckMinutes: Int!
+  """Open matka bets whose draw day is before today (IST), now."""
+  overdueMatkaBets: Int!
+  overdueMatkaMarkets: Int!
+}
+
+"""One event (sports) or draw (matka) of the open book; exposure is raw, in the whitelabel's currency."""
+type DashboardRiskEvent {
+  key: String!
+  """sports or matka"""
+  product: String!
+  label: String!
+  """The sport, or the matka session and draw day."""
+  detail: String
+  startsAt: String
+  exposure: Float!
+  bets: Int!
+  players: Int!
+}
+
+"""One of the period's largest single bets."""
+type DashboardBigBet {
+  id: String!
+  """sports, casino or matka"""
+  product: String!
+  userId: Int!
+  username: String!
+  agent: String
+  label: String
+  amount: Float!
+  """open, won, lost, settled or void"""
+  outcome: String!
+  """The player's P/L on the bet; 0 while open."""
+  playerPl: Float!
+  placedAt: String!
+}
+
+"""A player among the period's biggest winners (settled bets, every product)."""
+type DashboardTopWinner {
+  userId: Int!
+  username: String!
+  agent: String
+  profit: Float!
+  staked: Float!
+  bets: Int!
+}
+
+"""A credit agent at or past nearLimitShare of its credit limit."""
+type DashboardAgentNearLimit {
+  agentId: String!
+  username: String
+  creditLimit: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+  usedShare: Float!
+  settlementBalance: Float!
+}
+
+"""The Overview's insight cards: top risk events, big bets and winners, agents near their limit."""
+type DashboardInsights {
+  """Empty without reporting.exposure:view."""
+  riskEvents: [DashboardRiskEvent!]!
+  openExposure: Float!
+  bigBets: [DashboardBigBet!]!
+  topWinners: [DashboardTopWinner!]!
+  creditAgents: Int!
+  agentsNearLimit: [DashboardAgentNearLimit!]!
+  nearLimitShare: Float!
+}
+
+"""The Players tab's retention and conversion figures; active means placed a bet."""
+type DashboardPlayerRetention {
+  dailyActive: Int!
+  weeklyActive: Int!
+  monthlyActive: Int!
+  activeInPeriod: Int!
+  activePrevious: Int!
+  returning: Int!
+  newPlayers: Int!
+  newDepositors: Int!
+  repeatDepositors: Int!
+  depositors: Int!
+  lapsing: Int!
+}
+
+"""Settled cash casino rounds of one vendor in the period."""
+type DashboardCasinoProvider {
+  vendor: String!
+  turnover: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+  players: Int!
+}
+
+type DashboardBonusType {
+  type: String!
+  amount: Float!
+  awards: Int!
+}
+
+"""The Financial tab's casino providers and bonus analysis."""
+type DashboardFinancialInsights {
+  casinoProviders: [DashboardCasinoProvider!]!
+  casinoTotal: DashboardCasinoProvider!
+  bonusGiven: Float!
+  bonusAwards: Int!
+  bonusByType: [DashboardBonusType!]!
+  bonusOutstanding: Float!
+  bonusOutstandingAwards: Int!
+  bonusCompleted: Int!
+  bonusExpired: Int!
+  bonusStakes: Float!
+}
+
+"""A count keyed by a status or type name."""
+type DashboardKeyCount {
+  key: String!
+  players: Int!
+}
+
+"""The player base now, from registered to betting today."""
+type DashboardPlayerFunnel {
+  registered: Int!
+  """Players with an approved deposit request, ever."""
+  depositors: Int!
+  bettors30: Int!
+  bettors7: Int!
+  bettorsToday: Int!
+}
+
+"""One IST day: registrations and first deposits (a player's first approved deposit)."""
+type DashboardPlayerDay {
+  day: String!
+  registrations: Int!
+  firstDeposits: Int!
+  firstDepositAmount: Float!
+}
+
+"""One product in the period: players who bet on it, bets, stake (open bets included) and settled GGR."""
+type DashboardProductPlay {
+  product: String!
+  bettors: Int!
+  bets: Int!
+  stake: Float!
+  ggr: Float!
+}
+
+type DashboardTopStaker {
+  userId: Int!
+  username: String!
+  agent: String
+  bets: Int!
+  staked: Float!
+  """The player's settled P/L on the period's bets."""
+  playerPl: Float!
+}
+
+type DashboardTopDepositor {
+  userId: Int!
+  username: String!
+  agent: String
+  deposits: Int!
+  amount: Float!
+}
+
+"""A period's player figures, for the period-on-period comparison."""
+type DashboardPlayerPeriod {
+  newPlayers: Int!
+  bettors: Int!
+  bets: Int!
+  turnover: Float!
+  depositors: Int!
+  deposits: Int!
+  depositAmount: Float!
+}
+
+"""The Players tab."""
+type DashboardPlayersTab {
+  funnel: DashboardPlayerFunnel!
+  byStatus: [DashboardKeyCount!]!
+  byType: [DashboardKeyCount!]!
+  daily: [DashboardPlayerDay!]!
+  products: [DashboardProductPlay!]!
+  topStakers: [DashboardTopStaker!]!
+  topDepositors: [DashboardTopDepositor!]!
+  current: DashboardPlayerPeriod!
+  previous: DashboardPlayerPeriod!
+}
+
+type DashboardAgentNetwork {
+  total: Int!
+  active: Int!
+  suspended: Int!
+  sharing: Int!
+  commission: Int!
+  credit: Int!
+  topLevel: Int!
+  levels: Int!
+  newAgents: Int!
+  playersUnderAgents: Int!
+  directPlayers: Int!
+}
+
+type DashboardDomainAmount {
+  domain: String!
+  amount: Float!
+}
+
+"""An agent on the leaderboard: its own players (direct and referred) and their play in the period."""
+type DashboardAgentRow {
+  agentId: String!
+  username: String
+  scheme: String!
+  status: String!
+  subAgents: Int!
+  players: Int!
+  activePlayers: Int!
+  turnover: Float!
+  ggr: Float!
+  commission: Float!
+}
+
+type DashboardCreditAgent {
+  agentId: String!
+  username: String
+  creditLimit: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+  usedShare: Float!
+}
+
+"""The Agents tab."""
+type DashboardAgentsTab {
+  network: DashboardAgentNetwork!
+  commissionTotal: Float!
+  commissionByDomain: [DashboardDomainAmount!]!
+  settlementOwed: Float!
+  settlementOwing: Float!
+  agentsWithBalance: Int!
+  settlementsPosted: Int!
+  settlementsAmount: Float!
+  leaderboard: [DashboardAgentRow!]!
+  creditAgents: [DashboardCreditAgent!]!
+  creditLimit: Float!
+  creditUsed: Float!
+}
+
+type DashboardHeatCell {
+  """ISO weekday, 1 (Mon) to 7 (Sun), IST."""
+  weekday: Int!
+  hour: Int!
+  bets: Int!
+  stake: Float!
+}
+
+type DashboardHourRow {
+  hour: Int!
+  bets: Int!
+  stake: Float!
+  ggr: Float!
+  players: Int!
+}
+
+type DashboardWeekdayRow {
+  weekday: Int!
+  bets: Int!
+  stake: Float!
+  ggr: Float!
+  players: Int!
+}
+
+"""This IST month so far, and last month to the same point."""
+type DashboardMonthRun {
+  month: String!
+  daysElapsed: Int!
+  daysInMonth: Int!
+  ggr: Float!
+  turnover: Float!
+  bets: Int!
+  previousGgr: Float!
+  previousTurnover: Float!
+  previousBets: Int!
+}
+
+"""The Time tab: bets by IST weekday and hour, and this month's run rate."""
+type DashboardTimeTab {
+  windowFrom: String!
+  windowTo: String!
+  windowDays: Int!
+  """True when the period was under a week and the last 30 days were read instead."""
+  widened: Boolean!
+  heatmap: [DashboardHeatCell!]!
+  hourly: [DashboardHourRow!]!
+  weekdays: [DashboardWeekdayRow!]!
+  month: DashboardMonthRun!
+}
+
+"""A drill-down's column: kind is text, player, agent, money, count, datetime, status, percent or duration (minutes)."""
+type DashboardDrillColumn {
+  key: String!
+  label: String!
+  kind: String!
+}
+
+"""A drill-down row: one cell per column, in order; playerId / agentId when the row links to one."""
+type DashboardDrillRow {
+  id: String!
+  cells: [String]!
+  playerId: Int
+  agentId: String
+}
+
+"""The rows behind a dashboard figure, one page of them."""
+type DashboardDrilldown {
+  kind: String!
+  title: String!
+  subtitle: String!
+  columns: [DashboardDrillColumn!]!
+  rows: [DashboardDrillRow!]!
+  total: Int!
+  """A page that manages these rows, when there is one."""
+  page: String
+}
+
+input DashboardDateRange {
+  dateFrom: String
+  dateTo: String
+}
+
+# Whitelabel branding and settings
+type ThemeColors {
+  bgPage: String!
+  textPrimary: String!
+  textSecondary: String!
+  border: String!
+}
+
+type WhitelabelTheme {
+  primary: String!
+  success: String!
+  warning: String!
+  danger: String!
+  dark: ThemeColors
+  light: ThemeColors
+  # Legacy support
+  bgPage: String
+  textPrimary: String
+  textSecondary: String
+  border: String
+}
+
+type WhitelabelDomainRate {
+  domain: String!
+  rate: Float!
+}
+
+type WhitelabelSharingConfig {
+  id: ID!
+  whitelabelId: ID!
+  domain: String!
+  shareRate: Float!
+  basis: String!
+  effectiveFrom: String!
+  effectiveTo: String
+  createdAt: String!
+}
+
+type Whitelabel {
+  id: ID!
+  name: String!
+  domain: String!
+  logoUrl: String
+  faviconUrl: String
+  # sharePercent removed - use sharingRates for per-domain rates
+  sharingRates: [WhitelabelDomainRate!]
+  status: String
+  theme: WhitelabelTheme
+  # From app_config (whitelabel consistency)
+  baseCurrency: String
+  timeZone: String
+  # Credit management fields
+  creditLimit: Float
+  creditUsed: Float
+  creditAvailable: Float
+  creditAlertThreshold: Float
+  settlementBalance: Float
+  settlementBalanceSports: Float
+  settlementBalanceCasino: Float
+  settlementBalanceMatka: Float
+}
+
+type WhitelabelCreditInfo {
+  creditLimit: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+  creditAlertThreshold: Float!
+  settlementBalance: Float!
+  settlementBalanceSports: Float!
+  settlementBalanceCasino: Float!
+  settlementBalanceMatka: Float!
+  usagePercentage: Float!
+  isNearLimit: Boolean!
+}
+
+type WhitelabelSharingInfo {
+  sharingRates: [WhitelabelDomainRate!]!
+  allTimeTotals: [DomainTotal!]!
+  currentPeriodTotals: [DomainTotal!]!
+  currency: String!
+}
+
+type DomainTotal {
+  domain: String!
+  totalAmount: Float!
+}
+
+type WhitelabelCreditTransaction {
+  id: ID!
+  transactionType: String!
+  amount: Float!
+  balanceBefore: Float!
+  balanceAfter: Float!
+  reason: String
+  createdBy: String
+  createdByType: String
+  createdAt: String!
+  playerId: Int
+  playerName: String
+  playerEmail: String
+  playerUsername: String
+  playerPhone: String
+}
+
+type WhitelabelSettlementSummary {
+  agentCount: Int!
+  whitelabelCount: Int!
+  agentSettlements: [AgentSettlementTransaction!]!
+  whitelabelSettlements: [WhitelabelCreditTransaction!]!
+  totalAgentSettled: Float!
+  totalWhitelabelSettled: Float!
+}
+
+type AgentCreditInfo {
+  creditLimit: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+  creditAlertThreshold: Float!
+  settlementBalance: Float!
+  settlementBalanceSports: Float!
+  settlementBalanceCasino: Float!
+  settlementBalanceMatka: Float!
+  usagePercentage: Float!
+  isNearLimit: Boolean!
+}
+
+type AgentSettlementSummary {
+  agentSettlements: [AgentSettlementTransaction!]!
+  creditTransactions: [CreditTransaction!]!
+  totalAgentSettled: Float!
+  totalCreditTransactions: Float!
+}
+
+input ThemeColorsInput {
+  bgPage: String!
+  textPrimary: String!
+  textSecondary: String!
+  border: String!
+}
+
+input WhitelabelThemeInput {
+  primary: String!
+  success: String!
+  warning: String!
+  danger: String!
+  dark: ThemeColorsInput
+  light: ThemeColorsInput
+  # Legacy support
+  bgPage: String
+  textPrimary: String
+  textSecondary: String
+  border: String
+}
+
+input WhitelabelSharingRateInput {
+  domain: String!
+  shareRate: Float!
+}
+
+input CreateWhitelabelInput {
+  id: ID!
+  name: String!
+  domain: String!
+  logoUrl: String
+  faviconUrl: String
+  partnerAdminEmail: String!
+  partnerAdminName: String!
+  partnerAdminPassword: String!
+  # sharePercent removed - use sharingRates for per-domain rates
+  sharingRates: [WhitelabelSharingRateInput!]
+  # Initial credit from Director Admin
+  creditLimit: Float
+}
+
+input UpdateWhitelabelInput {
+  id: ID!
+  name: String
+  domain: String
+  logoUrl: String
+  faviconUrl: String
+  sharingRates: [WhitelabelSharingRateInput!]
+}
+
+type WhitelabelPayload {
+  success: Boolean!
+  message: String!
+  whitelabel: Whitelabel
+}
+
+input AdjustWhitelabelCreditInput {
+  whitelabelId: ID!
+  creditLimit: Float!
+  reason: String
+}
+
+# Super Admin preferences
+input AdminPreferencesInput {
+  directorMode: String! # 'core' | 'whitelabel'
+  selectedWhitelabelId: String
+}
+
+type AdminPreferencesPayload {
+  success: Boolean!
+  message: String!
+  preferences: AdminPreferences!
+}
+
+"""Result of generating casino categories for a whitelabel (provider-based)."""
+type GenerateCasinoCategoriesPayload {
+  success: Boolean!
+  message: String!
+  categoriesCreated: Int
+  gamesAssigned: Int
+  nonLatinDisabled: Int
+}
+
+extend type Mutation {
+  adjustWhitelabelCredit(input: AdjustWhitelabelCreditInput!): WhitelabelPayload!
+  updateAdminPreferences(input: AdminPreferencesInput!): AdminPreferencesPayload!
+  """Generate casino categories for a whitelabel from enabled providers (Gap/GMAG). Replaces existing categories."""
+  generateCasinoCategories(tenantId: String!): GenerateCasinoCategoriesPayload!
+  """Super-admin resets a whitelabel's admin login password. Requires the caller's own password to confirm."""
+  resetWhitelabelAdminPassword(whitelabelId: ID!, adminEmail: String, newPassword: String!, adminPassword: String!): MessageResponse!
+}
+
+# Settlements
+input GenerateSettlementInput {
+  start: String!
+  end: String!
+  sharePercent: Float!
+  notes: String
+}
+
+type Settlement {
+  id: ID!
+  tenant: String!
+  periodStart: String!
+  periodEnd: String!
+  ggr: Float!
+  sharePercent: Float!
+  partnerShareAmount: Float!
+  status: String!
+  settledAt: String
+  notes: String
+}
+
+type SettlementPayload {
+  success: Boolean!
+  message: String!
+  settlement: Settlement
+}
+
+# Generic mutation response
+type MessageResponse {
+  success: Boolean!
+  message: String!
+}
+
+# Common payload type for mutations
+type BooleanPayload {
+  success: Boolean!
+  message: String
+}
+
+# Validation result type for real-time field validation
+type CheckAvailabilityResult {
+  available: Boolean!
+  message: String
+}
+
+type ExportJobsPage {
+  items: [ExportJob!]!
+  total: Int!
+  completed: Int!
+  pending: Int!
+  failed: Int!
+  successRate: String!
+  avgProcessingTime: String!
+}
+
+type AuditExportJobsPage { items: [AuditExportJob!]! total: Int! }

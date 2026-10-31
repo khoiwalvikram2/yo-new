@@ -1,0 +1,62 @@
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.domainScroller {
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.domainScroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.domainScroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  border-radius: var(--ui-radius);
+}
+
+.domainControl {
+  width: max-content;
+}
+
+.tableCard {
+  min-width: 0;
+}
+
+.dateCell,
+.amountCell {
+  font-variant-numeric: tabular-nums;
+}
+
+.dateCell {
+  color: var(--ink-2);
+}
+
+.amountCell {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.dimensionCell {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 14px;
+  }
+
+  .dimensionCell {
+    max-width: 220px;
+  }
+}

@@ -1,0 +1,449 @@
+/* Wallet trigger and wallet popover content (R8-popover §6.2). Tokens only (contracts §3.2).
+   --_tone / --_tone-bg are module-private custom properties set by the tone classes. */
+
+/* ================= tone ================= */
+/* Put on the trigger AND on the content root; the content is portaled and cannot inherit it. */
+.toneHealthy  { --_tone: var(--ok);      --_tone-bg: var(--ok-bg); }
+.toneWarning  { --_tone: var(--warn);    --_tone-bg: var(--warn-bg); }
+.toneCritical { --_tone: var(--neg-ink); --_tone-bg: var(--neg-bg); }
+
+/* ================= trigger ================= */
+/* 34px like the kit IconButton so the topbar row keeps one control height */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 34px;
+  margin: 0;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+/* --surf-3, not --hover: --hover is invisible on the --app topbar */
+.trigger:hover,
+.trigger[aria-expanded='true'] { background: var(--surf-3); }
+.trigger:active { background: var(--press); }
+.trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.compact {
+  width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.triggerIcon {
+  position: relative;
+  display: flex;
+  flex: none;
+  color: var(--_tone, var(--ink-3));
+}
+
+.triggerIcon svg { display: block; }
+
+/* near-limit / critical dot; its ring follows the button fill */
+.triggerDot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--_tone);
+  box-shadow: 0 0 0 2px var(--app);
+  transition: box-shadow var(--t-1) ease;
+}
+
+.trigger:hover .triggerDot,
+.trigger[aria-expanded='true'] .triggerDot { box-shadow: 0 0 0 2px var(--surf-3); }
+.trigger:active .triggerDot { box-shadow: 0 0 0 2px var(--press); }
+
+.triggerAmount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--_tone, var(--ink));
+}
+
+.triggerChevron {
+  display: flex;
+  flex: none;
+  color: var(--ink-3);
+  /* The mockup's trigger chevrons change tone when their surface opens; they never turn
+     (M:749 carries no transform). Same shape as ProfileMenu.module.css .chevron. */
+  transition: color var(--t-1) ease;
+}
+
+.triggerChevron svg { display: block; }
+.trigger[aria-expanded='true'] .triggerChevron { color: var(--ink-2); }
+
+/* stands in for the trigger while the first query loads */
+.triggerLoading {
+  display: inline-grid;
+  place-items: center;
+  width: 96px;
+  height: 34px;
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* ================= content ================= */
+.wallet {
+  width: min(288px, calc(100vw - 16px));
+}
+
+/* header tile; --r-ctl is the mockup's small tile radius (9px) */
+.tile {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius);
+  background: var(--_tone-bg, var(--surf-3));
+  color: var(--_tone, var(--ink-3));
+}
+
+.tile svg { display: block; }
+
+/* status pill, toned */
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius);
+  background: var(--_tone-bg);
+  color: var(--_tone);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* tabs: a local three-button segmented control (the kit has no Tabs/Segmented) */
+.tabs {
+  flex: none;
+  padding: 12px 16px 2px;
+}
+
+/* The admin's line tabs (the owner, 2026-10-29; ui/components/Tabs.module.css), each an equal share of the
+   row: a hairline under the row, the current tab in the accent ink over a 3px accent bar. The hairline is a
+   background line, since the shared radius policy would curl a border at the row's ends. */
+.tabs .tabList {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  padding: 0;
+  box-sizing: border-box;
+  background: linear-gradient(var(--line), var(--line)) left bottom / 100% 1px no-repeat;
+}
+
+.tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 36px;
+  margin: 0;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+.tab::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+}
+
+.tab:hover { background: var(--surf-3); color: var(--ink); }
+
+.tab[aria-selected='true'],
+.tab[aria-selected='true']:hover,
+.tab[aria-selected='true']:active {
+  background: none;
+  color: var(--acc-ink);
+  font-weight: 700;
+}
+
+.tab[aria-selected='true']::after { background: var(--acc); }
+
+.tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -3px; }
+
+/* a section inside the scrolling body; hair rule between siblings */
+.section {
+  padding: 14px 16px;
+}
+
+.section + .section,
+.section + .domains { border-top: 1px solid var(--hair); }
+
+/* hero figure */
+.heroLabel {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.heroValue {
+  display: block;
+  margin: 4px 0 0;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; /* never ellipsise money */
+}
+
+.heroValue.toned { color: var(--_tone, var(--ink)); }
+.heroValue.positive { color: var(--pos-ink); }
+.heroValue.negative { color: var(--neg-ink); }
+
+/* usage meter */
+.meterTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.meterValue {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--ui-radius);
+  background: var(--track);
+  overflow: hidden;
+}
+
+/* width is an inline style */
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--ui-radius);
+  background: var(--_tone, var(--acc));
+  transition: width var(--t-3) var(--ease);
+}
+
+/* Limit / Used: label/value rows */
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 12px 0 0;
+  font-weight: 400; /* dl: margin and weight set explicitly (contracts §0.2) */
+}
+
+.statLabel,
+.statValue {
+  margin: 0;
+  padding: 9px 0;
+  border-top: 1px solid var(--hair);
+  min-width: 0;
+}
+
+.statLabel {
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-weight: 400; /* antd reset sets dt { font-weight: 500 } */
+  color: var(--ink-3);
+}
+
+.statValue {
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* near-limit / critical alert, toned */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 16px 14px;
+  padding: 10px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--_tone-bg);
+  color: var(--_tone);
+}
+
+.alertIcon {
+  display: flex;
+  flex: none;
+  margin-top: 1px;
+}
+
+.alertIcon svg { display: block; }
+
+.alertText {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+/* domain rows */
+.domains {
+  padding: 2px 16px 6px;
+}
+
+/* whitelabel/credit keep today's 256px cap; sharing/commission had none */
+.domainsCapped {
+  max-height: 256px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.domainRow {
+  padding: 10px 0;
+  border-top: 1px solid var(--hair);
+}
+
+.domainRow:first-child { border-top: 0; }
+
+.domainHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.domainLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink);
+  text-transform: capitalize;
+}
+
+.rate {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.figure { min-width: 0; }
+
+.figureLabel {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.figureValue {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* settlement rows: spec pairs — positive --pos-ink on --ok-bg, negative --neg-ink on --neg-bg, zero --ink on --surf-3 */
+.settleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--hair);
+}
+
+.settleRow:first-child { border-top: 0; }
+
+.settleLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.settleValue {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.settleValue.positive { background: var(--ok-bg); color: var(--pos-ink); }
+.settleValue.negative { background: var(--neg-bg); color: var(--neg-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger,
+  .triggerDot,
+  .triggerChevron,
+  .tab,
+  .barFill { transition: none; }
+}

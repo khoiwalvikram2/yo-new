@@ -1,0 +1,50 @@
+/* The kit's Book panel (ev.html .ev-book; ev.css .ev-side, .ev-find, .ev-plist, .ev-share): a Card with the
+   charcoal head, a full-width tab strip and search over dense ~56px rows. Works from the 260px desktop rail
+   to the full-width phone panel. */
+.book { flex: 0 0 260px; min-width: 0; }
+.mobile { flex-basis: auto; width: 100%; }
+
+.controls { padding: 12px 12px 0; }
+.tabs[role='tablist'] { display: flex; width: 100%; }
+.tabs [role='tab'] { flex: 1 1 0; min-width: 0; justify-content: center; }
+/* the skin's tab rule sets flex: 0 0 auto at (0,4,1); this is (0,4,2) */
+:global(html:not([data-skin='classic'])) .tabs[role='tablist'] > button[role='tab'] { flex: 1 1 0; min-width: 0; padding-inline: 8px; }
+
+.panel { min-width: 0; }
+.find { display: grid; padding: 10px 12px 12px; }
+.list { min-width: 0; max-height: 680px; overflow-y: auto; border-top: 1px solid var(--line); }
+
+/* .ev-plist > li: tile, two text lines and the share bar, then the figures */
+.row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row .tile { background: var(--surf-3); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.row .tileHigh { background: var(--acc); color: var(--acc-on); box-shadow: none; }
+.main { min-width: 0; }
+.line1, .line2 { display: flex; align-items: center; gap: 6px; min-width: 0; height: 18px; }
+.line2 { margin-top: 1px; color: var(--ink-3); font-size: 12px; line-height: 16px; }
+.line2 > * { flex: none; }
+.meta { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nameButton { flex: 0 1 auto; min-width: 0; overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--link, var(--acc-ink)); font: inherit; font-size: 14px; font-weight: 700; line-height: 18px; text-align: start; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.nameButton:hover { color: var(--link, var(--acc-ink)); text-decoration: underline; text-underline-offset: 3px; }
+.nameButton:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--ui-radius); }
+/* Compact tags for a dense row: the risk and scheme pills, and the pill PatternBadge renders as the last
+   child of its focusable span. (0,3,0) and (0,3,1) clear the skin's (0,2,1) pill padding. */
+.row .main .pill, .main .line2 > [tabindex] > span { flex: none; height: 18px; padding: 0 6px; font-size: 11px; }
+
+.share { display: block; height: 4px; margin-top: 4px; overflow: hidden; border-radius: var(--ui-radius); background: var(--surf-3); }
+.shareFill { display: block; height: 100%; background: var(--s1); }
+.shareFill.loss { background: var(--neg-ink); }
+
+/* .lrow__end: the exposure, its label, then the wallet */
+.end { display: grid; justify-items: end; min-width: 0; max-width: 112px; text-align: end; font-variant-numeric: tabular-nums; }
+.exposure { font-size: 14px; font-weight: 700; line-height: 16px; white-space: nowrap; }
+.endLabel, .wallet { color: var(--ink-3); font-size: 11px; line-height: 13px; }
+.wallet { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.positive { color: var(--pos-ink); }
+.negative { color: var(--neg-ink); }
+
+@media (max-width: 767px) { .book { flex-basis: auto; width: 100%; } }
+/* An agent's name opens the agent's profile: the kit's link blue, as every profile link in admin (a player's
+   name only selects the player in this rail, so it keeps the ink). After .nameButton, so it wins. */
+.profileLink, .profileLink:hover { color: var(--link, var(--acc-ink)); }
+.profileLink:hover { text-decoration: underline; text-underline-offset: 3px; }

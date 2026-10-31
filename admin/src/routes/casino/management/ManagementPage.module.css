@@ -1,0 +1,827 @@
+.page,
+.dashboard {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The container sits on the wrapper: an element cannot answer its own @container query. */
+.statsWrap {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+/* The scope filter bar with the trail of the scope it selects directly under it. */
+.scope {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gamesCard {
+  min-width: 0;
+}
+
+.scopeTrail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0 2px;
+  list-style: none;
+}
+
+.scopeTrail li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.scopeTrail li + li::before {
+  content: '/';
+  margin-right: 1px;
+  color: var(--line);
+}
+
+.gamesHeader {
+  display: grid;
+  gap: 13px;
+  padding: 15px var(--card-pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surf);
+}
+
+.gamesHeaderTop,
+.gamesToolbar,
+.gamesTitleGroup,
+.multiActions,
+.masterControl,
+.drawerFooter,
+.drawerFooterActions,
+.choiceActions,
+.sectionHeading,
+.sectionActions,
+.settingIntro,
+.vipHeader,
+.settingGroupHeader,
+.settingGroupSummary,
+.groupTools,
+.betFormFooter,
+.gameIdentity,
+.vendorCell,
+.inlineBadges,
+.statusStack,
+.gameCardHeading,
+.cardToggle {
+  display: flex;
+  align-items: center;
+}
+
+.gamesHeaderTop,
+.vipHeader,
+.settingGroupHeader,
+.betFormFooter,
+.cardToggle {
+  justify-content: space-between;
+}
+
+.gamesTitleGroup,
+.sectionHeading,
+.settingIntro,
+.gameIdentity,
+.vendorCell {
+  gap: 10px;
+  min-width: 0;
+}
+
+.sectionIcon,
+.settingIcon,
+.vendorIcon,
+.playerAvatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+}
+
+.sectionIcon,
+.settingIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ui-radius);
+}
+
+.gamesTitle,
+.sectionHeading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.gamesCount,
+.sectionHeading p,
+.helpCopy {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.gamesToolbar {
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.gameSearch {
+  flex: 1 1 360px;
+  max-width: 560px;
+}
+
+.multiActions,
+.masterControl,
+.drawerFooterActions,
+.choiceActions,
+.sectionActions,
+.groupTools,
+.inlineBadges {
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.selectionHint,
+.drawerHint,
+.timestamp,
+.secondaryText,
+.mutedDash,
+.groupDate,
+.updatedAt,
+.noLimits {
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.stateInset {
+  padding: var(--card-pad);
+}
+
+.checkCell {
+  width: 44px;
+}
+
+.priorityCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 88px;
+}
+
+.dragHandle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.gameRow {
+  background: var(--surf);
+  transition: background var(--t-1) var(--ease), opacity var(--t-1) var(--ease);
+}
+
+.gameRow[data-master-disabled='true'] {
+  background: var(--neg-bg);
+}
+
+.gameRow[data-selected='true'] {
+  box-shadow: inset 3px 0 var(--acc);
+}
+
+.gameThumb {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.gameThumb img,
+.gamePoster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gameCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gameName {
+  display: block;
+  max-width: 260px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--link, var(--acc-ink));
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.gameName:hover {
+  color: var(--link, var(--acc-ink));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.gameName:focus-visible,
+.gamePoster:focus-visible,
+.tierBadges:focus-visible,
+.settingGroupSummary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.secondaryText {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orderBadge,
+.groupIndex {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  min-width: 27px;
+  min-height: 25px;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.statusStack {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.timestamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.vendorIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--ui-radius);
+}
+
+.vendorCell {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.tierBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gamesGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  padding: var(--card-pad);
+  user-select: none;
+}
+
+.gameCard {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: var(--sh);
+  transition: border-color var(--t-1) var(--ease), box-shadow var(--t-1) var(--ease), transform var(--t-1) var(--ease);
+}
+
+.gameCard:hover {
+  border-color: var(--acc);
+  box-shadow: var(--sh-tip);
+  transform: translateY(-1px);
+}
+
+.gameCard[data-selected='true'] {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px var(--acc-soft), var(--sh-tip);
+}
+
+.gameCard[data-drag-select='true'] {
+  cursor: crosshair;
+}
+
+.cardCheckbox,
+.posterStatus,
+.posterVendor {
+  position: absolute;
+  z-index: 2;
+}
+
+.cardCheckbox {
+  top: 9px;
+  left: 9px;
+  padding: 4px;
+  border-radius: var(--ui-radius);
+  background: var(--float);
+  box-shadow: var(--sh-tip);
+}
+
+.gamePoster {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: var(--surf-3);
+  cursor: pointer;
+}
+
+.posterPlaceholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--ink-3);
+}
+
+.posterVendor {
+  bottom: 8px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 3px 7px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--float);
+  color: var(--ink-2);
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: var(--sh-tip);
+}
+
+.posterStatus {
+  top: 8px;
+  right: 8px;
+}
+
+.gameCardBody {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+}
+
+.gameCardHeading {
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gameCardHeading > div {
+  min-width: 0;
+}
+
+.cardToggle {
+  gap: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--hair);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.drawerBody,
+.drawerPanel,
+.accessSettings,
+.betSettings,
+.settingGroups {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.drawerPanel {
+  padding-top: 2px;
+}
+
+.drawerFooter {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.drawerHint {
+  display: inline-flex;
+  flex: 1 1 220px;
+  align-items: center;
+  gap: 5px;
+}
+
+.settingSection,
+.vipSection,
+.betFormCard,
+.settingGroup {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: var(--sh);
+}
+
+.settingSection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+}
+
+.settingIntro > span:last-child,
+.sectionHeading > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settingIntro strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.settingIntro small {
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.vipSection {
+  display: grid;
+  gap: 13px;
+  padding: 14px;
+}
+
+.vipHeader {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.betFormHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surf-3);
+}
+
+.betFormBody {
+  display: grid;
+  gap: 16px;
+  padding: 14px;
+}
+
+.targetPanel,
+.playerPicker {
+  display: grid;
+  gap: 10px;
+}
+
+.selectedPlayers,
+.playersDialogList {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  list-style: none;
+}
+
+.selectedPlayers li,
+.playersDialogList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.selectedPlayers li:last-child,
+.playersDialogList li:last-child {
+  border-bottom: 0;
+}
+
+.selectedPlayers li > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.limitGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.betFormFooter {
+  gap: 12px;
+  padding-top: 13px;
+  border-top: 1px solid var(--hair);
+}
+
+.settingsDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.settingsDivider::before,
+.settingsDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.settingGroupHeader {
+  gap: 8px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surf-3);
+}
+
+.settingGroupSummary {
+  flex: 1 1 auto;
+  gap: 7px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupDate {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.settingGroupBody {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.limitList {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.limitList > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.limitList dt {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.limitList dt small {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.limitList dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.noLimits {
+  margin: 0;
+  text-align: center;
+}
+
+.updatedAt {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--hair);
+}
+
+.groupActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hair);
+}
+
+.playersDialogList li {
+  justify-content: flex-start;
+}
+
+.playerAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius-circle);
+}
+
+.playersDialogList li > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.playersDialogList strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playersDialogList small {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+@container (min-width: 560px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1120px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1199px) {
+  .gamesGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .gamesGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .gamesHeaderTop,
+  .gamesToolbar,
+  .settingSection,
+  .vipHeader,
+  .betFormHeader,
+  .betFormFooter,
+  .settingGroupHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gamesToolbar,
+  .gameSearch,
+  .multiActions,
+  .drawerFooterActions,
+  .choiceActions,
+  .sectionActions {
+    width: 100%;
+  }
+
+  .multiActions,
+  .choiceActions,
+  .drawerFooterActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .multiActions > :first-child,
+  .drawerHint {
+    grid-column: 1 / -1;
+  }
+
+  .limitGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gamesGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .groupTools {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
+@media (max-width: 479px) {
+  .gamesGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gamePoster {
+    aspect-ratio: 16 / 10;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gameRow,
+  .gameCard {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 6: the kit's 3px corner on the vendor tile and the card checkbox. */
+:global(html:not([data-skin='classic'])) .vendorIcon,
+:global(html:not([data-skin='classic'])) .cardCheckbox {
+  border-radius: var(--ui-radius);
+}

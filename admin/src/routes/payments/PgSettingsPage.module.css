@@ -1,0 +1,357 @@
+/* PG Settings (/payments/pg-settings, mockup M:2575-2583). The mockup lists gateways in the generic table
+   template (M:3361-3409); this page is the single WeLivePay configuration form. BEYOND-MOCKUP, redrawn on the
+   kit's idioms at the owner's request (2026-10-21), as App Configuration was: the form in kit panels (Gateway,
+   Credentials, Deposit limits, Redirects), a side column with the webhook and what is live now, and the kit
+   .formbar that sticks to the bottom only while something is unsaved. Columns follow the form's own width. */
+.form {
+  min-width: 0;
+  container: pg-settings / inline-size;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+.main,
+.side {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.cardBody {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* the two deposit limits share a row until their panel is too narrow */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px 16px;
+  min-width: 0;
+}
+
+/* ---- Enable switch as a settings row ---------------------------------------------------------- */
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.toggleText {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toggleLabel {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.toggleHelp {
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* ---- Secret field: the kit TextField face with its own show/hide button ------------------------ */
+.secretFace {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease;
+}
+
+.secretFace:hover {
+  border-color: var(--acc-soft-h);
+}
+
+.secretFace:focus-within {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+
+.secretInvalid {
+  border-color: var(--neg-ink);
+}
+
+.secretInput {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0 11px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.secretInput::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+.secretToggle {
+  flex: none;
+  margin-right: 4px;
+}
+
+/* ---- Webhook -------------------------------------------------------------------------------- */
+.webhookText {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* a long URL reads better in the mono face; it wraps anywhere, so the whole of it shows */
+.mono {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12.5px;
+  line-height: 1.5;
+  word-break: break-all;
+  resize: none;
+}
+
+/* The CopyButton's visually hidden announcement is absolutely positioned; this is its containing block. */
+.copyWrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.regenerate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.regenerate > button {
+  width: auto;
+}
+
+.regenerateNote {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+/* ---- Live configuration --------------------------------------------------------------------- */
+.summary {
+  display: grid;
+  margin: 0;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.summaryRow:first-child {
+  padding-top: 0;
+}
+
+.summaryRow:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.summaryRow dt {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.summaryRow dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Save bar (kit .formbar) ---------------------------------------------------------------- */
+.form .saveBar {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: none;
+}
+
+.form .saveBar.savePending {
+  position: sticky;
+  bottom: 0;
+  border-color: var(--line-3);
+  box-shadow: var(--sh-pop);
+}
+
+.saveBar > * {
+  width: auto;
+}
+
+.saveHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-end: auto;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.saveDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.savePending .saveHint {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.savePending .saveDot {
+  background: var(--h-amb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--h-amb) 24%, transparent);
+}
+
+/* ---- Widths --------------------------------------------------------------------------------- */
+@container pg-settings (min-width: 460px) {
+  .pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* the webhook and the live summary move beside the form once both fit */
+@container pg-settings (min-width: 960px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+
+  .side {
+    position: sticky;
+    top: 16px;
+  }
+}
+
+@container pg-settings (max-width: 520px) {
+  .form .saveBar > button {
+    flex: 1 1 auto;
+  }
+
+  .saveHint {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secretFace {
+    transition: none;
+  }
+}
+
+/* ---- Player skin (admin UI kit; off under <html data-skin="classic">) ------------------------ */
+/* The secret field wears the kit .ctl face, as PasswordField's skin does: 44px, 1px --line-2, 3px, --field,
+   15px ink; hover --line-3; focus --focus-border plus the 3px --focus-ring; invalid --neg-ink through hover
+   and focus. The eye is the kit's .ctl__btn, a 32px square 6px in from the edge (doubled class: above
+   IconButton's size classes whatever order the modules load in). Panels and rows take the kit's corners. */
+:global(html:not([data-skin='classic'])) .secretFace {
+  height: 44px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+}
+
+:global(html:not([data-skin='classic'])) .secretFace:hover {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .secretFace:focus-within {
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .secretInvalid,
+:global(html:not([data-skin='classic'])) .secretInvalid:hover,
+:global(html:not([data-skin='classic'])) .secretInvalid:focus-within {
+  border-color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .secretInput {
+  padding: 0 12px;
+  font-size: 15px;
+}
+
+:global(html:not([data-skin='classic'])) .secretToggle.secretToggle {
+  width: 32px;
+  height: 32px;
+  margin-right: 6px;
+}
+
+:global(html:not([data-skin='classic'])) .toggleRow {
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .mono {
+  font-size: 13.5px;
+}
+
+/* The URL box is as tall as the URL (two lines in the side column), not the textarea's 88px floor
+   (doubled class: above the Textarea's own rules in both skins). */
+.mono.mono,
+:global(html:not([data-skin='classic'])) .mono.mono {
+  min-height: 0;
+  field-sizing: content;
+}
+
+:global(html:not([data-skin='classic'])) .form .saveBar {
+  border-radius: var(--ui-radius);
+}

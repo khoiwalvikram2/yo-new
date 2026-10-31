@@ -1,0 +1,41 @@
+/* Bundle create/edit has no dedicated mockup (O8). It follows the approved Create Bonus form idiom:
+   one readable card, ruled sections, a sticky action row and token-only light/dark surfaces. */
+.card {
+  overflow: clip;
+}
+
+.form {
+  padding: var(--card-pad);
+}
+
+.rule {
+  height: 1px;
+  margin: 22px calc(var(--card-pad) * -1);
+  background: var(--line);
+}
+
+.footer {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.footerHint {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.requiredMark {
+  color: var(--neg-ink);
+}
+
+@media (max-width: 767px) {
+  .rule {
+    margin-block: 18px;
+  }
+
+  .footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+

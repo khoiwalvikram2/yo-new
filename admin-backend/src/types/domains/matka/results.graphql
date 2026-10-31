@@ -1,0 +1,177 @@
+# Matka Results Management
+
+enum MatkaResultType {
+  open
+  close
+}
+
+type MatkaResult {
+  id: ID!
+  tenant: String
+  matkaId: ID!
+  date: String! # ISO yyyy-mm-dd
+  type: MatkaResultType!
+  result: String!
+  declaredBy: String!
+  declaredByName: String # Resolved user name
+  declaredAt: String!
+  rolledBackAt: String
+  rolledBackBy: String
+  rolledBackByName: String # Resolved user name
+  rollbackReason: String
+  rollbackTag: String
+  createdAt: String!
+  pendingBetsCount: Int # Number of pending bets waiting for this result
+}
+
+type MatkaResultImpact {
+  betsSettled: Int!
+  winners: Int!
+  totalPayout: Float!
+}
+
+type MatkaResultPage {
+  items: [MatkaResult!]!
+  total: Int!
+}
+
+input MatkaRunningFilter {
+  search: String
+  date: String
+  matkaId: ID
+  matkaType: String
+  session: MatkaResultType
+  page: Int
+  limit: Int
+}
+type MatkaRunningMarket {
+  id: ID!
+  matkaId: ID!
+  marketName: String!
+  code: String
+  matkaType: String!
+  date: String!
+  session: MatkaResultType
+  timezone: String!
+  resultAt: String
+  betCount: Int!
+  playerCount: Int!
+  currency: String
+  totalStake: Float
+  potentialPayout: Float
+  resultValue: String
+  openResultValue: String
+  resultStatus: String!
+  declareSession: MatkaResultType
+  canDeclare: Boolean!
+}
+type MatkaRunningPage {
+  items: [MatkaRunningMarket!]!
+  total: Int!
+  openBetCount: Int!
+  pendingResultCount: Int!
+}
+type MatkaRunningBet {
+  id: ID!
+  userId: ID!
+  playerName: String
+  bidType: String!
+  selection: String!
+  amount: Float!
+  payoutMultiplier: Float!
+  potentialPayout: Float!
+  currency: String!
+  status: String!
+  walletType: String!
+  createdAt: String!
+}
+type MatkaRunningBetsPage {
+  items: [MatkaRunningBet!]!
+  total: Int!
+}
+
+type MatkaResultPayload {
+  success: Boolean!
+  message: String!
+  result: MatkaResult
+  impact: MatkaResultImpact
+}
+
+input MatkaResultCreateInput {
+  matkaId: ID!
+  date: String! # ISO yyyy-mm-dd
+  type: MatkaResultType!
+  result: String!
+  idempotencyKey: String
+}
+
+input MatkaResultListFilter {
+  matkaId: ID
+  type: MatkaResultType
+  dateFrom: String # ISO yyyy-mm-dd
+  dateTo: String # ISO yyyy-mm-dd
+  search: String
+  rolledBack: Boolean
+  page: Int
+  limit: Int
+  sort: String
+}
+
+input MatkaResultRollbackInput {
+  id: ID!
+  reason: String!
+  tag: String
+}
+
+# Bulk import types
+# Note: MatkaImportError is already defined in matka.graphql
+type MatkaResultBulkRowOutput {
+  matkaId: ID!
+  date: String! # ISO yyyy-mm-dd
+  type: MatkaResultType!
+  result: String!
+}
+
+type MatkaResultBulkDryRun {
+  valid: [MatkaResultBulkRowOutput!]!
+  invalid: [MatkaImportError!]!
+  errors: [MatkaImportError!]!
+}
+
+input MatkaResultBulkRow {
+  matkaId: ID!
+  date: String! # ISO yyyy-mm-dd
+  type: MatkaResultType!
+  result: String!
+}
+
+# Scheduling types
+input MatkaResultScheduleInput {
+  matkaId: ID!
+  date: String! # ISO yyyy-mm-dd
+  type: MatkaResultType!
+  result: String!
+  scheduledAt: String! # ISO timestamp
+}
+
+type MatkaResultSchedule {
+  id: ID!
+  tenant: String
+  matkaId: ID!
+  date: String!
+  type: MatkaResultType!
+  result: String!
+  scheduledBy: String!
+  scheduledAt: String!
+  executedAt: String
+  executedBy: String
+  status: String!
+  errorMessage: String
+  createdAt: String!
+}
+
+type MatkaResultSchedulesPage {
+  items: [MatkaResultSchedule!]!
+  total: Int!
+}
+

@@ -1,0 +1,392 @@
+/* Bonuses (/bonus) in the matchbook theme: flat white bonus cards with a status stripe (active green,
+   available red), neutral tags, label/value rows and a flat red wagering bar; the history as one hairline
+   filter strip over a dense table (a compact list on phones) with matchbook status chips. Behaviour lives in
+   pages/Bonus.tsx; this file only paints it. Page rules sit under .nova-acct (MainLayout); the switch-bonus
+   and first-deposit modals render in a portal outside it, so they are scoped by the .bon-modal class passed
+   through ModalSurface. */
+
+/* ------------------------------------------------------------------ page */
+.nova-acct .bon-page { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
+.nova-acct .bon-page > .user-account-header { margin: 0; }
+.nova-acct .bon-page :is(h2, h3, h4, p, dl, dd) { margin: 0; }
+.nova-acct .bon-section { display: grid; gap: 12px; min-width: 0; }
+
+/* Buttons: red solid primary, flat green claim. */
+.nova-acct .bon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  font-family: var(--font-inter);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.nova-acct .bon-btn svg { width: 16px; height: 16px; }
+.nova-acct .bon-btn-primary { color: #FFFFFF; background: linear-gradient(180deg, #D22322 0%, #C51A1B 100%); }
+.nova-acct .bon-btn-primary:hover:not(:disabled) { background: var(--acct-red-hover, #A81516); }
+.nova-acct .bon-btn-claim { color: #FFFFFF; background: var(--acct-green, #0B8040); }
+.nova-acct .bon-btn-claim:hover:not(:disabled) { background: #096B35; }
+.nova-acct .bon-btn:disabled { color: var(--mb-faint); background: var(--mb-disabled-bg); cursor: not-allowed; }
+.nova-acct .bon-btn-busy { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Loading and empty states. */
+.nova-acct .bon-loading { display: grid; min-height: 220px; place-items: center; }
+.nova-acct .bon-loading-icon { width: 28px; height: 28px; color: var(--mb-faint); }
+.nova-acct .bon-empty { display: grid; justify-items: center; gap: 6px; padding: 48px 16px 44px; text-align: center; }
+.nova-acct .bon-empty-icon { display: grid; width: 56px; height: 56px; place-items: center; margin-bottom: 6px; border-radius: var(--ui-radius); color: var(--mb-faint); background: var(--mb-soft); }
+.nova-acct .bon-empty-icon svg { width: 26px; height: 26px; }
+.nova-acct .bon-empty-icon.is-gift { color: #F2C14E; background: var(--mb-bar-2); }
+.nova-acct .bon-empty-title { color: var(--acct-ink, var(--mb-ink)); font-size: 19px; font-weight: 700; line-height: 1.25; }
+.nova-acct .bon-empty-text { max-width: 420px; color: var(--acct-muted, var(--mb-muted)); font-size: 15px; line-height: 1.45; }
+.nova-acct .bon-empty .bon-empty-action { width: auto; min-width: 180px; margin-top: 12px; }
+.nova-acct .bon-empty.is-login { border-top: 4px solid var(--acct-red, #C51A1B); }
+.nova-acct .bon-empty.is-login .bon-empty-title { font-size: 24px; }
+
+/* ----------------------------------------------------------------- cards */
+.nova-acct .bon-panel > .nova-acct-panel-head { padding-right: 12px; }
+.nova-acct .bon-panel > .nova-acct-panel-head .bon-head-icon { flex: none; color: #F2C14E; }
+.nova-acct .bon-head-count {
+  display: grid;
+  min-width: 26px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0 7px;
+  place-items: center;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: rgb(255 255 255 / 14%);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.nova-acct .bon-grid { display: grid; gap: 12px; }
+/* One active bonus fills the row (its card switches to a two-column body); several share it. */
+.nova-acct .bon-grid.is-active { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.nova-acct .bon-grid.is-available { grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); padding: 14px; }
+
+.nova-acct .bon-card {
+  --bon-stripe: var(--mb-bar);
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--acct-line, var(--mb-line));
+  border-top: 4px solid var(--bon-stripe);
+  border-radius: var(--ui-radius);
+  background: var(--mb-panel);
+  transition: border-color .15s, box-shadow .15s;
+}
+.nova-acct .bon-card:hover { border-color: var(--mb-line-3); border-top-color: var(--bon-stripe); box-shadow: 0 6px 16px rgb(16 18 22 / 8%); }
+.nova-acct .bon-card.is-active { --bon-stripe: var(--acct-green, #0B8040); }
+.nova-acct .bon-card.is-available { --bon-stripe: var(--acct-red, #C51A1B); }
+.nova-acct .bon-card.is-completed { --bon-stripe: var(--acct-bar, #43444A); }
+.nova-acct .bon-card.is-expired { --bon-stripe: #A3A1A7; }
+
+.nova-acct .bon-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.nova-acct .bon-card-title { flex: 1 1 auto; min-width: 0; }
+.nova-acct .bon-card-name { overflow: hidden; color: var(--acct-text, var(--mb-text)); font-size: 17px; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.nova-acct .bon-card-amount { margin-top: 4px; color: var(--acct-ink, var(--mb-ink)); font-size: 28px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.nova-acct .bon-card-pct { margin-left: 6px; color: var(--acct-muted, var(--mb-muted)); font-size: 14px; font-weight: 600; }
+.nova-acct .bon-card-head .nova-acct-chip { flex: none; margin-top: 2px; padding: 3px 9px; }
+.nova-acct .bon-card-body { display: grid; gap: 12px; min-width: 0; }
+.nova-acct .bon-card-foot { display: grid; gap: 10px; margin-top: auto; }
+
+/* Chips: the bonus-specific "ready" tone, and icons sized for chips. */
+.nova-acct .nova-acct-chip.is-ready { color: var(--mb-red-ink); background: var(--mb-red-bg); }
+.nova-acct .bon-page .nova-acct-chip svg { flex: none; width: 12px; height: 12px; }
+
+/* Tags: neutral; the domain tag carries a small coloured dot. */
+.nova-acct .bon-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.nova-acct .bon-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  color: var(--acct-text, var(--mb-text));
+  background: var(--mb-soft);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.nova-acct .bon-tag.is-outline { border-color: var(--acct-field, var(--mb-line-2)); color: var(--mb-muted); background: var(--mb-panel); }
+.nova-acct .bon-tag.is-domain::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: var(--ui-radius); background: var(--bon-dot, #8D8C92); }
+.nova-acct .bon-tag.is-sports { --bon-dot: #1B6FAE; }
+.nova-acct .bon-tag.is-casino { --bon-dot: #6D3FC0; }
+.nova-acct .bon-tag.is-matka { --bon-dot: #A15C00; }
+.nova-acct .bon-tag.is-global { --bon-dot: #0E7C86; }
+.nova-acct .bon-tags.is-tight { gap: 4px; }
+.nova-acct .bon-tags.is-tight .bon-tag { min-height: 22px; padding: 0 6px; font-size: 11px; }
+
+/* Label / value rows between hairlines. */
+.nova-acct .bon-rows { display: grid; align-content: start; min-width: 0; border-top: 1px solid var(--mb-line); }
+.nova-acct .bon-rows:empty { display: none; }
+.nova-acct .bon-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--mb-line); font-size: 14px; }
+.nova-acct .bon-row dt { flex: none; color: var(--acct-muted, var(--mb-muted)); }
+.nova-acct .bon-row dd { min-width: 0; color: var(--acct-ink, var(--mb-ink)); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
+.nova-acct .bon-row-note { margin-left: 4px; color: var(--acct-muted, var(--mb-muted)); font-weight: 500; }
+.nova-acct .bon-rows.is-dense .bon-row { padding: 5px 0; font-size: 13px; }
+
+/* Wagering: a flat red bar with wagered / remaining / target under it. */
+.nova-acct .bon-wager { align-self: start; padding: 12px 14px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-panel-2); }
+.nova-acct .bon-wager-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.nova-acct .bon-wager-label { color: var(--acct-ink, var(--mb-ink)); font-size: 15px; font-weight: 700; }
+.nova-acct .bon-wager-x { margin-left: 4px; color: var(--acct-muted, var(--mb-muted)); font-weight: 600; }
+.nova-acct .bon-wager-pct { color: var(--mb-red-text); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-acct .bon-bar { height: 10px; overflow: hidden; border-radius: var(--ui-radius); background: var(--mb-disabled-bg); }
+.nova-acct .bon-bar > span { display: block; height: 100%; background: var(--acct-red, #C51A1B); transition: width .5s ease-out; }
+.nova-acct .bon-bar.is-thin { height: 6px; }
+.nova-acct .bon-wager-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.nova-acct .bon-wager-figs > div { display: grid; gap: 2px; min-width: 0; }
+.nova-acct .bon-wager-figs > div:nth-child(2) { text-align: center; }
+.nova-acct .bon-wager-figs > div:last-child { text-align: right; }
+.nova-acct .bon-wager-figs small { color: var(--acct-muted, var(--mb-muted)); font-size: 12px; font-weight: 600; }
+.nova-acct .bon-wager-figs b { color: var(--acct-ink, var(--mb-ink)); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.nova-acct .bon-wager-figs.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nova-acct .bon-wager.is-compact { padding: 10px 12px; }
+.nova-acct .bon-wager.is-compact .bon-wager-label { font-size: 14px; }
+.nova-acct .bon-wager.is-compact .bon-wager-pct { font-size: 15px; }
+.nova-acct .bon-wager.is-compact .bon-wager-figs b { font-size: 14px; }
+
+.nova-acct .bon-lock { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--mb-amber-line); border-radius: var(--ui-radius); color: var(--mb-amber-ink); background: var(--mb-amber-bg); font-size: 14px; font-weight: 600; }
+.nova-acct .bon-lock svg { flex: none; width: 15px; height: 15px; }
+
+/* A card wide enough (one active bonus on desktop) puts details and wagering side by side. */
+@container (min-width: 640px) {
+  .nova-acct .bon-card-body:has(> .bon-wager) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+  .nova-acct .bon-card-name { font-size: 19px; }
+  .nova-acct .bon-card-amount { font-size: 32px; }
+  .nova-acct .bon-wager { padding: 16px 18px; }
+  .nova-acct .bon-wager-pct { font-size: 22px; }
+  .nova-acct .bon-bar:not(.is-thin) { height: 12px; }
+  .nova-acct .bon-wager-figs b { font-size: 17px; }
+}
+
+/* -------------------------------------------------------- history filters */
+/* One white strip with hairline dividers (as on Statements); the custom range is its own grey row. */
+.nova-acct .bon-filters { position: relative; z-index: 2; border: 1px solid var(--acct-line, var(--mb-line)); background: var(--mb-panel); }
+.nova-acct .bon-filter-row { display: flex; flex-wrap: wrap; align-items: stretch; min-width: 0; }
+.nova-acct .bon-filter-row > * { min-width: 0; }
+.nova-acct .bon-date-group { display: contents; }
+.nova-acct .bon-search { position: relative; flex: 1 1 260px; border-right: 1px solid var(--acct-line, var(--mb-line)); }
+.nova-acct .bon-date-select { position: relative; flex: 0 0 200px; border-right: 1px solid var(--acct-line, var(--mb-line)); }
+.nova-acct .bon-filter-row > select.bon-status-select { flex: 0 0 170px; border-right: 1px solid var(--acct-line, var(--mb-line)); }
+.nova-acct .bon-filter-row > :last-child { border-right: 0; }
+.nova-acct .bon-count { display: flex; align-items: center; margin-left: auto; padding: 0 16px; color: var(--acct-muted, var(--mb-muted)); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.nova-acct .bon-filters :is(input.bon-input, select.bon-select) {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--acct-ink, var(--mb-ink));
+  background-color: transparent;
+  box-shadow: none;
+  font-family: var(--font-inter);
+  font-size: 15px;
+}
+.nova-acct .bon-filters input.bon-input { padding: 0 44px 0 42px; }
+.nova-acct .bon-filters select.bon-select {
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2366656B' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 15px;
+  font-weight: 600;
+  appearance: none;
+  cursor: pointer;
+}
+.nova-acct .bon-filters select.bon-select.has-icon { padding-left: 42px; }
+.nova-acct .bon-filters :is(input.bon-input, select.bon-select):hover { background-color: var(--mb-panel-2); }
+.nova-acct .bon-filters :is(input.bon-input, select.bon-select):focus { outline: none; background-color: var(--mb-panel); box-shadow: inset 0 -2px 0 var(--acct-red, #C51A1B); }
+.nova-acct .bon-filter-icon { position: absolute; top: 50%; left: 14px; z-index: 1; width: 16px; height: 16px; color: var(--mb-faint); transform: translateY(-50%); pointer-events: none; }
+.nova-acct .bon-search-clear,
+.nova-acct .bon-range-clear {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--acct-muted, var(--mb-muted));
+  background: transparent;
+  cursor: pointer;
+}
+.nova-acct .bon-search-clear { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); }
+.nova-acct :is(.bon-search-clear, .bon-range-clear):hover { border-color: var(--acct-field, var(--mb-line-2)); color: var(--acct-ink, var(--mb-ink)); background: var(--mb-panel); }
+.nova-acct .bon-range { display: flex; flex: 1 0 100%; align-items: center; gap: 8px; order: 99; padding: 8px 12px; border-top: 1px solid var(--acct-line, var(--mb-line)); background: var(--mb-panel-2); }
+.nova-acct .bon-range .nova-dp { flex: 0 1 210px; }
+.nova-acct .bon-range-arrow { flex: none; color: var(--mb-faint); font-size: 16px; font-weight: 700; line-height: 1; }
+
+/* ---------------------------------------------------------------- history */
+.nova-acct .bon-history { overflow: hidden; }
+.nova-acct .bon-table-wrap { overflow-x: auto; }
+.nova-acct .bon-table { width: 100%; border-collapse: collapse; }
+.nova-acct .bon-table th {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--acct-line, var(--mb-line));
+  color: var(--acct-muted, var(--mb-muted));
+  background: var(--acct-soft, var(--mb-soft));
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.nova-acct .bon-table td { padding: 12px 14px; border-bottom: 1px solid var(--mb-line); color: var(--acct-text, var(--mb-text)); font-size: 14px; vertical-align: middle; }
+.nova-acct .bon-table tbody tr:last-child td { border-bottom: 0; }
+.nova-acct .bon-table tbody tr { transition: background-color .15s; }
+.nova-acct .bon-table tbody tr:hover { background: var(--mb-panel-2); }
+.nova-acct .bon-cell-name { display: block; color: var(--acct-ink, var(--mb-ink)); font-size: 15px; font-weight: 700; line-height: 1.25; }
+.nova-acct .bon-cell-sub { display: block; margin-top: 3px; color: var(--acct-muted, var(--mb-muted)); font-size: 12px; font-variant-numeric: tabular-nums; }
+.nova-acct .bon-cell-sub.is-inline { display: inline; margin-left: 6px; }
+.nova-acct .bon-cell-amount { color: var(--acct-ink, var(--mb-ink)); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nova-acct .bon-mini-wager { min-width: 140px; max-width: 210px; }
+.nova-acct .bon-mini-wager-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; color: var(--acct-muted, var(--mb-muted)); font-size: 12px; font-weight: 600; }
+.nova-acct .bon-mini-wager-head b { color: var(--mb-red-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-acct .bon-mini-wager-figs { margin-top: 4px; color: var(--acct-muted, var(--mb-muted)); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nova-acct .bon-dates { display: grid; gap: 3px; color: var(--acct-ink, var(--mb-ink)); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nova-acct .bon-dates > div > span:first-child { color: var(--acct-muted, var(--mb-muted)); }
+.nova-acct .bon-dates-note { margin-left: 3px; color: var(--acct-muted, var(--mb-muted)); }
+.nova-acct .bon-dates > .is-claimed { color: var(--acct-green, var(--mb-green)); font-weight: 600; }
+.nova-acct .bon-dates > .is-forfeited { color: var(--mb-faint); }
+
+/* Phones: one compact row per bonus. */
+.nova-acct .bon-hrow { display: grid; gap: 10px; padding: 14px; }
+.nova-acct .bon-hrow + .bon-hrow { border-top: 1px solid var(--acct-line, var(--mb-line)); }
+.nova-acct .bon-hrow-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.nova-acct .bon-hrow-title { flex: 1 1 auto; min-width: 0; }
+.nova-acct .bon-hrow-title h4 { overflow: hidden; color: var(--acct-ink, var(--mb-ink)); font-size: 16px; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.nova-acct .bon-hrow-amount { margin-top: 3px; color: var(--acct-ink, var(--mb-ink)); font-size: 21px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.nova-acct .bon-hrow-status { flex: none; }
+
+/* ------------------------------------------------------------ breakpoints */
+/* The table needs ~900px, so tablets and small laptops keep the compact rows, two to a line. */
+@media (min-width: 640px) and (max-width: 1279.98px) {
+  .nova-acct .bon-hlist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nova-acct .bon-hrow { align-content: start; border-bottom: 1px solid var(--acct-line, var(--mb-line)); }
+  .nova-acct .bon-hrow + .bon-hrow { border-top: 0; }
+  .nova-acct .bon-hrow:nth-child(odd) { border-right: 1px solid var(--acct-line, var(--mb-line)); }
+  .nova-acct .bon-hrow:nth-last-child(-n + 2):nth-child(odd),
+  .nova-acct .bon-hrow:last-child { border-bottom: 0; }
+}
+@media (max-width: 639.98px) {
+  .nova-acct .bon-grid.is-available { padding: 10px; }
+  .nova-acct .bon-card { padding: 14px; }
+  .nova-acct .bon-card-amount { font-size: 26px; }
+  .nova-acct .bon-empty { padding: 40px 16px 36px; }
+
+  .nova-acct .bon-filter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nova-acct .bon-search { grid-column: 1 / -1; border-right: 0; }
+  .nova-acct .bon-date-select { border-top: 1px solid var(--acct-line, var(--mb-line)); border-right: 1px solid var(--acct-line, var(--mb-line)); }
+  .nova-acct .bon-filter-row > select.bon-status-select { border-top: 1px solid var(--acct-line, var(--mb-line)); border-right: 0; }
+  .nova-acct .bon-filters :is(input.bon-input, select.bon-select) { height: 46px; }
+  .nova-acct .bon-filters select.bon-select { padding-right: 30px; background-position: right 10px center; font-size: 14px; }
+  .nova-acct .bon-filters select.bon-select.has-icon { padding-left: 38px; }
+  .nova-acct .bon-date-select .bon-filter-icon { left: 12px; }
+  .nova-acct .bon-count { grid-column: 1 / -1; order: 100; margin-left: 0; padding: 9px 14px; border-top: 1px solid var(--acct-line, var(--mb-line)); font-size: 13px; }
+  .nova-acct .bon-range { grid-column: 1 / -1; flex-direction: column; align-items: stretch; padding: 10px 12px; }
+  .nova-acct .bon-range .nova-dp { flex: none; }
+  .nova-acct .bon-range .nova-dp-pop { right: 0; width: auto; }
+  .nova-acct .bon-range-arrow { align-self: center; transform: rotate(90deg); }
+  .nova-acct .bon-range-clear { align-self: flex-end; }
+}
+
+/* ---------------------------------------------------------------- modals */
+/* Switch bonus and first deposit: white surface under a charcoal head bar, flat buttons. */
+.nova-modal-surface.bon-modal {
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--mb-text);
+  background: var(--mb-panel);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 45%);
+  font-family: var(--font-inter);
+}
+.nova-modal-layer:has(.bon-modal)::backdrop { background: rgb(12 13 16 / 72%); backdrop-filter: blur(3px); }
+.nova-modal-surface.bon-modal :is(h2, h3, p) { margin: 0; }
+.nova-modal-surface.bon-modal :is(button, a):focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 2px; }
+.nova-modal-surface.bon-modal .nova-modal-header { align-items: center; gap: 12px; min-height: 58px; padding: 9px 10px 9px 18px; border-bottom: 0; color: #FFFFFF; background: var(--mb-bar); }
+.nova-modal-surface.bon-modal .nova-modal-header h2 { color: #FFFFFF; font: 700 21px/1.2 var(--font-inter); letter-spacing: -.01em; }
+.nova-modal-surface.bon-modal .nova-modal-close { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+.nova-modal-surface.bon-modal .nova-modal-close:hover { color: #FFFFFF; background: rgb(255 255 255 / 12%); }
+.nova-modal-surface.bon-modal .nova-modal-body { padding: 18px; }
+.nova-modal-surface.bon-modal .nova-modal-footer { gap: 8px; padding: 12px 18px 14px; border-top: 1px solid var(--mb-line); background: var(--mb-panel); }
+.nova-modal-surface.bon-modal .nova-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  margin: 0;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: linear-gradient(180deg, #D22322 0%, #C51A1B 100%);
+  font-family: var(--font-inter);
+  font-size: 16px;
+  font-weight: 700;
+  filter: none;
+  cursor: pointer;
+}
+.nova-modal-surface.bon-modal .nova-button:hover:not(:disabled) { background: #A81516; filter: none; }
+.nova-modal-surface.bon-modal .nova-button:disabled { color: var(--mb-faint); background: var(--mb-disabled-bg); cursor: not-allowed; }
+.nova-modal-surface.bon-modal .nova-button.nova-button-secondary { border-color: var(--mb-line-2); color: var(--mb-ink); background: var(--mb-panel); }
+.nova-modal-surface.bon-modal .nova-button.nova-button-secondary:hover:not(:disabled) { border-color: var(--mb-line-3); background: var(--mb-panel-2); }
+.nova-modal-surface.bon-modal .nova-button svg { width: 17px; height: 17px; }
+
+/* Switch bonus: the warning, then current -> new as two flat cards. */
+.nova-modal-surface.bon-modal .bon-switch { display: grid; gap: 10px; }
+.nova-modal-surface.bon-modal .bon-switch-warn { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--mb-red-line); border-left: 3px solid #C4271C; border-radius: var(--ui-radius); color: var(--mb-red-ink); background: var(--mb-red-bg); font-size: 14px; line-height: 1.45; }
+.nova-modal-surface.bon-modal .bon-switch-warn svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.nova-modal-surface.bon-modal .bon-switch-warn-title { margin-bottom: 2px; font-weight: 700; }
+.nova-modal-surface.bon-modal .bon-switch-card { margin: 0; padding: 14px 16px; border: 1px solid var(--mb-line); border-left: 4px solid var(--mb-line-3); border-radius: var(--ui-radius); color: var(--mb-text); background: var(--mb-panel-2); }
+.nova-modal-surface.bon-modal .bon-switch-card.is-current { border-left-color: #C4271C; }
+.nova-modal-surface.bon-modal .bon-switch-card.is-new { border-left-color: #0B8040; }
+.nova-modal-surface.bon-modal .bon-switch-kicker { display: flex; align-items: center; gap: 7px; color: var(--mb-muted); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.nova-modal-surface.bon-modal .bon-switch-kicker svg { flex: none; width: 15px; height: 15px; }
+.nova-modal-surface.bon-modal .is-current .bon-switch-kicker { color: var(--mb-red-ink); }
+.nova-modal-surface.bon-modal .is-new .bon-switch-kicker { color: var(--mb-green-ink); }
+.nova-modal-surface.bon-modal .bon-switch-name { margin-top: 8px; color: var(--mb-ink); font-size: 17px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.nova-modal-surface.bon-modal .bon-switch-amount { margin-top: 4px; color: var(--mb-ink); font-size: 26px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.nova-modal-surface.bon-modal .is-current .bon-switch-amount { color: var(--mb-error); }
+.nova-modal-surface.bon-modal .is-new .bon-switch-amount { color: var(--mb-green); }
+.nova-modal-surface.bon-modal .bon-switch-amount > span { margin-left: 8px; color: var(--mb-muted); font-size: 14px; font-weight: 500; }
+.nova-modal-surface.bon-modal .bon-switch-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--mb-line); color: var(--mb-muted); font-size: 14px; }
+.nova-modal-surface.bon-modal .bon-switch-meta > span:last-child { color: var(--mb-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-modal-surface.bon-modal .bon-switch-arrow { display: grid; justify-self: center; width: 34px; height: 34px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar); }
+.nova-modal-surface.bon-modal .bon-switch-arrow svg { width: 16px; height: 16px; transform: rotate(90deg); }
+.nova-modal-surface.bon-modal .bon-switch-footer > .nova-button { flex: 1 1 0; min-width: 0; }
+
+/* First deposit required. */
+.nova-modal-surface.bon-modal .bon-firstdep { display: grid; justify-items: center; gap: 12px; padding: 24px 18px 18px; text-align: center; }
+.nova-modal-surface.bon-modal .bon-firstdep-icon { display: grid; width: 56px; height: 56px; place-items: center; border-radius: var(--ui-radius); color: var(--mb-amber-ink); background: var(--mb-amber-bg); }
+.nova-modal-surface.bon-modal .bon-firstdep-icon svg { width: 28px; height: 28px; }
+.nova-modal-surface.bon-modal .bon-firstdep-text { max-width: 420px; color: var(--mb-text); font-size: 15px; line-height: 1.5; }
+.nova-modal-surface.bon-modal .bon-firstdep-actions { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; width: 100%; max-width: 420px; gap: 8px; margin-top: 6px; padding: 0; border: 0; background: transparent; }
+
+@media (max-width: 639px) {
+  .nova-modal-surface.bon-modal .nova-modal-header { min-height: 54px; padding-left: 14px; }
+  .nova-modal-surface.bon-modal .nova-modal-header h2 { font-size: 19px; }
+  .nova-modal-surface.bon-modal .nova-modal-body { padding: 14px; }
+  .nova-modal-surface.bon-modal .nova-modal-footer { padding: 10px 14px 12px; }
+  .nova-modal-surface.bon-modal .bon-switch-amount { font-size: 23px; }
+}

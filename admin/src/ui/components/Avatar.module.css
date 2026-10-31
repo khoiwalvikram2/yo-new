@@ -1,0 +1,70 @@
+/* The ProfileMenu's 34px avatar (M:743-747) and the table's 22px avatar (M:1009-1017).
+   Its five hues are decorative: the name remains the information and is supplied by the owning
+   control or row. Avatar is not focusable and has no motion. */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 50%;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.size22 {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+}
+
+.size34 {
+  width: 34px;
+  height: 34px;
+  font-size: 12.5px;
+}
+
+.hue1 {
+  background: var(--h-ind-bg);
+  color: var(--h-ind);
+}
+
+.hue2 {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.hue3 {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.hue4 {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+.hue5 {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .ava: a 3px square tile, 800 initials (13px at 34, 10px at 22). The five hues stay token-driven:
+   the skin's --h-* ramp leads with charcoal and the topbar remaps the default hue to the kit's red tile. */
+:global(html:not([data-skin='classic'])) .avatar {
+  border-radius: var(--ui-radius);
+  font-weight: 800;
+}
+
+:global(html:not([data-skin='classic'])) .size22 {
+  font-size: 10px;
+}
+
+:global(html:not([data-skin='classic'])) .size34 {
+  font-size: 13px;
+}

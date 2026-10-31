@@ -1,0 +1,121 @@
+/* Casino Vendor Management (M:2197-2204). The mockup draws this page with the generic table template
+   (M:3361-3409): a page head, then one table card whose first column is the key cell and whose Status
+   column is a pill. The legacy stats, filters, row selection, status switch and row toggle are not drawn;
+   they follow the approved Deposits / Payment Methods idioms and are BEYOND-MOCKUP where noted. */
+
+/* BEYOND-MOCKUP: the payments pages' 16px rhythm between the stats, the filters and the table card
+   (DepositRequests.module.css .content); the mockup's own column gap is 20px (.gcol M:898). */
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the filter selects take a steady width in the FilterBar row (the .card-tools row,
+   M:867) instead of growing to their longest provider name; in the compact popover the FilterBar
+   stretches them to its width. */
+.filterSelect {
+  flex: 0 1 200px;
+  min-width: 140px;
+}
+
+/* ---------- bulk actions ---------- */
+
+/* BEYOND-MOCKUP: the mockup has no bulk selection. This is the kit DataTable's bulk bar
+   (DataTable.module.css .bulk: --acc-soft band between --hair rules, card-pad inset), drawn by the page
+   because the legacy header box selects every searched vendor, not only the page's rows. */
+.bulk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px var(--card-pad);
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.bulkCount {
+  min-width: 0;
+}
+
+.bulkActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ---------- table cells ---------- */
+
+/* The legacy header put the select-all box beside "Vendor Details"; the box and the label share the
+   header line (thead th M:984-988 owns the type). */
+.selectHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The vendor cell: the row's box, then the name as the key cell (td.k M:997) over its status pill
+   (.pill M:1018-1028; Enabled takes the ok pair, Disabled the muted pair, as M:1025 and M:1028 do).
+   The .who-cell layout (M:1008) lays the box beside the two lines. */
+.vendorCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.vendorBody {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.vendorName {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+/* Counts are right-aligned figures, as the mockup's >Games column is (td.r M:996). */
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* The legacy enabled-games figure was green when any game was on and grey at zero. */
+.countOn {
+  color: var(--pos-ink);
+}
+
+.countOff {
+  color: var(--ink-3);
+}
+
+/* BEYOND-MOCKUP: the status switch with a fixed slot beside it for the in-flight spinner, so the switch
+   does not move while a toggle is saved (legacy: antd's loading switch). */
+.statusCell {
+  display: inline-grid;
+  grid-template-columns: auto 14px;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.statusBusy {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+}

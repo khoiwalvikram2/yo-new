@@ -1,0 +1,92 @@
+/* Promoted from the mockup's queue-clear state (M:1050-1056) and the Overview's neutral
+   no-rows variant. The host chooses whether this component owns the card inset. */
+.empty {
+  box-sizing: border-box;
+  font-family: var(--font-ui);
+  text-align: center;
+}
+
+.card {
+  padding: 34px var(--card-pad) 40px;
+}
+
+.none {
+  padding: 0;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 12px;
+  border-radius: var(--ui-radius);
+}
+
+.neutral .icon {
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.ok .icon {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.description {
+  margin-top: 4px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.description > :first-child {
+  margin-top: 0;
+}
+
+.description > :last-child {
+  margin-bottom: 0;
+}
+
+.action {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .empty (kit p2): a 56px 4px tile, a 19px title and 15px muted text held to a readable 380px. The tile's
+   colours stay with the base tone rules (.neutral .icon / .ok .icon, (0,2,0)), which already are the kit's
+   --surf-3/--ink-3 and --ok-bg/--ok: the skin's .icon (0,2,1) sets only size and shape, so it cannot
+   flatten the ok tone. The glyph is drawn at the kit's 26px whatever size the caller passed. */
+:global(html:not([data-skin='classic'])) .icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .icon > svg {
+  width: 26px;
+  height: 26px;
+}
+
+:global(html:not([data-skin='classic'])) .title {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+:global(html:not([data-skin='classic'])) .description {
+  max-width: 380px;
+  margin: 6px auto 0;
+  font-size: 15px;
+  line-height: 1.45;
+}

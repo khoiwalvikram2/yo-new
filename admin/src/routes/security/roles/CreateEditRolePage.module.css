@@ -1,0 +1,64 @@
+/* /security/roles/new and /security/roles/:id/edit. The mockup draws no role editor and no form (O8); the
+   page follows the form idiom Create Bonus set (Task 027): kit cards in a kit Form with the sticky
+   FormActions. Every rule here is BEYOND-MOCKUP unless it cites a mockup line. */
+
+/* the width decision for the footer belongs to this stretching wrapper (the shell panel moves the width) */
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  container: role-editor / inline-size;
+}
+
+.form {
+  gap: 16px;
+}
+
+/* the role name does not need the card's full 1280px */
+.nameField {
+  max-width: 560px;
+}
+
+/* the picker fills the flush body edge to edge; its tinted category list must keep the card's corners */
+.permissionsCard {
+  overflow: clip;
+}
+
+/* The kit FormActions bleeds into a padded card body; here it is the form's own last row, so it takes the
+   card surface (.card M:853-856) instead, and keeps the legacy footer: the hint left, the actions right. */
+.footer {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  margin: 0;
+  padding: 12px var(--card-pad);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+}
+
+/* the legacy buttons were at least 140px wide beside the hint */
+.footer > button {
+  min-width: 140px;
+}
+
+.footerHint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.requiredMark {
+  color: var(--neg-ink);
+}
+
+/* a narrow form stacks the hint and both actions, full width, in reading order (as the legacy phone layout) */
+@container role-editor (max-width: 560px) {
+  .footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .footer > button {
+    min-width: 0;
+  }
+}
+

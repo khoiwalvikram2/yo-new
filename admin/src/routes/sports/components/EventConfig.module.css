@@ -1,0 +1,12 @@
+/* BEYOND-MOCKUP: scoped event configuration uses the existing responsive admin kit. */
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+.stack > * { min-width: 0; }
+.formFields { min-width: 0; border: 0; padding: 0; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.tabs { max-width: 100%; min-width: 0; overflow-x: auto; padding-block: 2px; }
+.footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.note { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.error { margin: 0; padding: 12px; border: 1px solid var(--neg-ink); border-radius: var(--ui-radius); background: var(--surf); color: var(--neg-ink); overflow-wrap: anywhere; }
+.checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--ui-radius); min-width: 0; }
+.checks legend { padding-inline: 4px; color: var(--ink-2); font-size: 12px; font-weight: 600; }
+@media (max-width: 480px) { .grid, .checks { grid-template-columns: minmax(0, 1fr); } }

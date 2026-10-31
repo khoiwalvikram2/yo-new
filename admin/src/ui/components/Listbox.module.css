@@ -1,0 +1,742 @@
+/* Shared by Combobox and MultiSelect (page migration C, phase 5). Tokens only.
+
+   1. The field face is the kit field face TextField uses: .searchfield M:693-701 (--surf, 1px --line,
+      --r-ctl, 36px, hover border --acc-soft-h), focus ring from .ai-comp:focus-within M:1476, placeholder
+      --ink-3 M:1186. Disabled palette from button:disabled M:480-484, as TextField's. Unlike TextField's
+      face it does not clip, so a MultiSelect face can grow to hold its chips.
+   2. The list is the command palette's list: .pal-list M:1187, rows .pal-i M:1188-1200, empty row
+      .pal-none M:1201, on the floating surface the mockup gives its menus (.menu M:1205-1208:
+      --float, 1px --line, --r-tile, --sh-pop). The mockup caps .pal-list at min(52vh, 420px); a list
+      under a form field is capped at 320px instead (eight 40px rows), with no viewport unit.
+   3. BEYOND-MOCKUP, derived: the virtually focused option ("active") is the .pal-i:hover row plus a 2px
+      --acc bar on its leading edge, so keyboard position is shown by shape as well as by the --hover
+      tint; a chosen option is .pal-i.sel (--acc-soft ground, --acc-ink text) with a tick, never colour
+      alone. Chips take the FilterChips chip palette (--acc-soft ground, --acc-ink text). The sm rows
+      take the menu row metrics (.menu button M:1209-1215: 32px, 12.5px). */
+
+/* ---------- field face ---------- */
+
+.field {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  cursor: text;
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease, background var(--t-1) ease;
+}
+
+.field:not(.disabled):hover {
+  border-color: var(--acc-soft-h);
+}
+
+.field:focus-within {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+
+.sm {
+  min-height: 30px;
+  border-radius: var(--ui-radius);
+}
+
+.error {
+  border-color: var(--neg-ink);
+}
+
+.success {
+  border-color: var(--pos-ink);
+}
+
+.disabled {
+  border-color: var(--hair);
+  background: var(--surf-3);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.input {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  margin: 0;
+  padding: 0 4px 0 11px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+}
+
+.sm .input {
+  height: 28px;
+  padding-left: 9px;
+  font-size: 12.5px;
+}
+
+.input::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+/* select-only: the input is read-only and behaves like a button that opens the list */
+.selectOnly {
+  cursor: pointer;
+  caret-color: transparent;
+}
+
+/* the face draws the focus ring (.field:focus-within above), so the input itself shows none */
+.selectOnly:focus-visible {
+  outline: 0;
+}
+
+.affix {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  align-self: stretch;
+  padding: 0 10px 0 4px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.sm .affix {
+  padding-right: 8px;
+}
+
+.clearButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  align-self: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.clearButton:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.clearButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* ---------- MultiSelect: chips inside the face ---------- */
+
+.multi {
+  align-items: stretch;
+}
+
+.values {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 0 4px 5px;
+}
+
+.sm .values {
+  padding: 2px 0 2px 3px;
+}
+
+.multiInput {
+  flex: 1 0 64px;
+  width: auto;
+  height: 26px;
+  padding-left: 6px;
+}
+
+.sm .multiInput {
+  height: 24px;
+  padding-left: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 0 2px 0 8px;
+  border-radius: var(--ui-radius);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.sm .chip {
+  height: 22px;
+  font-size: 11.5px;
+}
+
+.chipLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chipRemove {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--t-1) ease;
+}
+
+.chipRemove:hover {
+  background: var(--acc-soft-h);
+}
+
+.chipRemove:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+
+/* the "+N" summary is a count, not a value: the neutral --surf-3 pill ground (.pill M:1018-1022) */
+.more {
+  padding: 0 8px;
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- the floating list ---------- */
+
+.surface {
+  z-index: var(--z-pop);
+  box-sizing: border-box;
+  max-width: min(480px, calc(100vw - 16px));
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--float);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--sh-pop);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+
+.list {
+  padding: 8px;
+}
+
+.list:empty {
+  padding: 0;
+}
+
+/* a list with a header (Select's search box, kit .dd-head): the header stays put and the options scroll
+   under it, so the surface stops scrolling and the listbox takes the remaining height */
+.withHeader {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.withHeader .list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.header {
+  flex: none;
+  padding: 8px 8px 7px;
+  border-bottom: 1px solid var(--line);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--t-1) ease;
+}
+
+.surfaceSm .option {
+  min-height: 32px;
+}
+
+.option:hover,
+.active {
+  background: var(--hover);
+}
+
+.active {
+  box-shadow: inset 2px 0 0 var(--acc);
+}
+
+.option:active {
+  background: var(--press);
+}
+
+/* options never take DOM focus (the input keeps it, aria-activedescendant names the option); should a
+   script focus one anyway, it still shows the kit ring */
+.option:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.optionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.surfaceSm .optionLabel {
+  font-size: 12.5px;
+}
+
+.optionDescription {
+  flex: 0 1 auto;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected {
+  background: var(--acc-soft);
+}
+
+.selected.active,
+.selected:hover {
+  background: var(--acc-soft-h);
+}
+
+.selected .optionLabel,
+.selected .optionDescription {
+  color: var(--acc-ink);
+}
+
+.check {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--acc-ink);
+}
+
+/* MultiSelect's leading box: an empty outline when not chosen, so the row reads as a checkbox list. The
+   kit Checkbox's border (Checkbox.module.css): --ink-3 clears 3:1 non-text contrast in both themes. */
+.box {
+  box-sizing: border-box;
+  border: 1px solid var(--ink-3);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.selected .box {
+  border-color: var(--acc);
+}
+
+.optionDisabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* BEYOND-MOCKUP, derived: an option group's heading is the drawer section label (.dr-sec M:1151: 12px,
+   600, --ink-3, .07em tracking, uppercase) set on the .pal-i row inset (10px). It is not an option. */
+.group + .group,
+.option + .group {
+  margin-top: 4px;
+}
+
+.groupLabel {
+  padding: 8px 10px 4px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: default;
+  user-select: none;
+}
+
+.optionDisabled:hover {
+  background: none;
+}
+
+.none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 12px;
+  color: var(--ink-3);
+  font-size: 13px;
+  text-align: center;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field,
+  .clearButton,
+  .chipRemove,
+  .option {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Face (Combobox, MultiSelect): the kit .ctl, as TextField's skin block draws it: 44px floor (sm 36px),
+   1px --line-2, 3px, --field, 15px; hover --line-3; focus --focus-border plus the 3px --focus-ring;
+   invalid --neg-ink through hover and focus; disabled --disabled-bg/--disabled-fg on --line. No dashed
+   read-only face here: a select-only combobox's input is read-only by design. The chevron turns over
+   while the list is open (kit .ctl.is-open > .chev).
+   Tags (kit .tag): 28px, --surf-3, 1px --line, 3px, 13px 700 --ink, a 20px x button.
+   List (kit .lbx / .dd-pop): 4px padding, 1px --line-2, 3px, --float, --sh-pop; options 38px, 10px sides,
+   2px radius, 14px --ink; --surf-3 under the pointer and the active option (the base 2px --acc bar on the
+   active option is kept so keyboard position is not shown by a faint tint alone); a selected option is
+   700 with the red check (--acc-ink) instead of the pink ground. MultiSelect boxes are the kit .dd-box,
+   red-filled with a white tick when chosen. Group headings 11px 700 caps .06em --ink-3; the empty and
+   loading row 14px --ink-3, left-aligned. */
+:global(html:not([data-skin='classic'])) .field {
+  min-height: 44px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .sm {
+  min-height: 36px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .field:not(.disabled):hover {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .field:not(.disabled):focus-within {
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .field.success {
+  border-color: var(--pos-ink);
+}
+
+:global(html:not([data-skin='classic'])) .field.error,
+:global(html:not([data-skin='classic'])) .field.error:not(.disabled):hover,
+:global(html:not([data-skin='classic'])) .field.error:not(.disabled):focus-within {
+  border-color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .field.disabled {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .input {
+  height: 42px;
+  padding: 0 4px 0 12px;
+  font-size: 15px;
+}
+
+:global(html:not([data-skin='classic'])) .sm .input {
+  height: 34px;
+  padding-left: 10px;
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .multiInput {
+  height: 30px;
+  padding-left: 4px;
+}
+
+:global(html:not([data-skin='classic'])) .sm .multiInput {
+  height: 26px;
+  padding-left: 4px;
+}
+
+:global(html:not([data-skin='classic'])) .affix {
+  padding: 0 12px 0 4px;
+  color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .sm .affix {
+  padding-right: 10px;
+}
+
+:global(html:not([data-skin='classic'])) .affix > svg {
+  transition: transform 0.15s ease;
+}
+
+:global(html:not([data-skin='classic'])) .field:has(.input[aria-expanded='true']) .affix > svg {
+  transform: rotate(180deg);
+}
+
+:global(html:not([data-skin='classic'])) .clearButton {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .clearButton:hover {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+/* MultiSelect tags: kit .ctl--tags / .tag */
+:global(html:not([data-skin='classic'])) .values {
+  gap: 6px;
+  padding: 6px 0 6px 8px;
+}
+
+:global(html:not([data-skin='classic'])) .sm .values {
+  gap: 4px;
+  padding: 3px 0 3px 5px;
+}
+
+:global(html:not([data-skin='classic'])) .chip {
+  gap: 3px;
+  height: 28px;
+  padding: 0 3px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .sm .chip {
+  height: 24px;
+  font-size: 12px;
+}
+
+:global(html:not([data-skin='classic'])) .chip.more {
+  padding: 0 8px;
+  color: var(--ink-2);
+}
+
+:global(html:not([data-skin='classic'])) .chipRemove {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--ui-radius);
+  color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .chipRemove:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+/* the floating list: kit .lbx */
+:global(html:not([data-skin='classic'])) .surface {
+  padding: 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--float);
+  box-shadow: var(--sh-pop);
+  font-size: 14px;
+  letter-spacing: normal;
+}
+
+:global(html:not([data-skin='classic'])) .list {
+  padding: 0;
+}
+
+/* kit .dd-head */
+:global(html:not([data-skin='classic'])) .header {
+  margin-bottom: 4px;
+  padding: 2px 2px 6px;
+  border-bottom-color: var(--line);
+}
+
+:global(html:not([data-skin='classic'])) .option {
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .surfaceSm .option {
+  min-height: 32px;
+}
+
+:global(html:not([data-skin='classic'])) .selected {
+  background: transparent;
+}
+
+:global(html:not([data-skin='classic'])) .option:hover,
+:global(html:not([data-skin='classic'])) .active {
+  background: var(--surf-3);
+}
+
+:global(html:not([data-skin='classic'])) .optionDisabled:hover {
+  background: transparent;
+}
+
+:global(html:not([data-skin='classic'])) .optionLabel {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+:global(html:not([data-skin='classic'])) .surfaceSm .optionLabel {
+  font-size: 13px;
+}
+
+:global(html:not([data-skin='classic'])) .optionDescription {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+:global(html:not([data-skin='classic'])) .selected .optionLabel {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .selected:has(.box) .optionLabel {
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .selected .optionDescription {
+  color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .check {
+  color: var(--acc-ink);
+}
+
+/* kit .dd-box */
+:global(html:not([data-skin='classic'])) .box {
+  border: 1.5px solid var(--line-3);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+}
+
+:global(html:not([data-skin='classic'])) .selected .box {
+  border-color: var(--acc);
+  background: var(--acc);
+  color: var(--acc-on);
+}
+
+:global(html:not([data-skin='classic'])) .box svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3.4;
+}
+
+:global(html:not([data-skin='classic'])) .optionDisabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+:global(html:not([data-skin='classic'])) .optionDisabled .optionLabel,
+:global(html:not([data-skin='classic'])) .optionDisabled .optionDescription {
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .optionDisabled .box {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+}
+
+/* a chosen but locked row: the kit's disabled-checked grey, so the white tick still shows */
+:global(html:not([data-skin='classic'])) .optionDisabled.selected .box {
+  border-color: var(--line-3);
+  background: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .groupLabel {
+  padding: 8px 10px 4px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+:global(html:not([data-skin='classic'])) .none {
+  justify-content: flex-start;
+  padding: 10px;
+  color: var(--ink-3);
+  font-size: 14px;
+  text-align: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-skin='classic'])) .affix > svg {
+    transition: none;
+  }
+}

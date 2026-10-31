@@ -1,0 +1,73 @@
+/* The kit's Event detail Bets panel (.ev-bets): charcoal head, a tools block, then a dense bets table
+   that scrolls both ways inside its own box, with a sticky header row and a sticky Bet column.
+   BEYOND-MOCKUP: hierarchy groups, the Event column and the confirmation dialogs reuse kit tokens. */
+.sidebar { flex: 0 0 384px; min-width: 0; max-width: 100%; }
+.collapsed { flex-basis: 64px; }
+/* Expand: the page gives the rail the whole workspace row. */
+.wide { flex: 1 1 100%; }
+.mobile { width: 100%; min-width: 0; }
+.stack { display: grid; gap: 12px; min-width: 0; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.muted { color: var(--ink-3); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.positive { color: var(--pos-ink); font-weight: 700; }
+.negative { color: var(--neg-ink); font-weight: 700; }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* kit .ibtn--bar: the fold glyph takes the head's ink (white on the bar); doubled over IconButton's (0,1,0) */
+.headIcon.headIcon { color: var(--ink); }
+
+/* .ev-bets__tools: search, then All / Back / Lay with the Filters disclosure, then the follow switch */
+.tools { display: grid; gap: 10px; min-width: 0; padding: 12px; border-bottom: 1px solid var(--line); }
+.toolsRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }
+.filterCount { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: var(--ui-radius); background: var(--acc); color: #FFFFFF; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* the disclosed filters: a soft inset block, Void/Invalid and Status side by side, Group by under them */
+.filtersPanel { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf-3); }
+.field { flex: 1 1 120px; min-width: 0; }
+.groupBy { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; overflow-x: auto; }
+.groupByLabel { color: var(--ink-3); font-size: 13px; font-weight: 600; white-space: nowrap; }
+/* Wide: search, the side control with Filters, and the switch share one line; the disclosed filters go under. */
+.wide .tools { grid-template-columns: minmax(220px, 1fr) auto auto; align-items: center; }
+.wide .toolsRow { flex-wrap: nowrap; }
+.wide .filtersPanel { grid-column: 1 / -1; order: 1; }
+.wide .field { flex: 0 1 200px; }
+
+/* .ev-betwrap: the scroll box owns both axes, so the header and the first column stick inside it.
+   It is also the infinite-scroll container. */
+.list { min-width: 0; max-height: 600px; overflow: auto; scrollbar-width: thin; }
+/* A grouped table scrolls sideways inside its group; the list above it scrolls the groups. */
+.groupScroll { min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.feedFoot { position: sticky; left: 0; display: grid; justify-items: start; gap: 6px; padding: 10px 12px; }
+
+/* .tbl.tbl--compact.ev-bettbl. Separate borders: collapsed ones stay behind when a sticky cell moves. */
+.table { width: 100%; border-collapse: separate; border-spacing: 0; color: var(--ink-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.table th { position: sticky; top: 0; z-index: 2; padding: 9px 10px; border-bottom: 1px solid var(--line); background: var(--surf-3); color: var(--ink-3); font-size: 12px; font-weight: 700; letter-spacing: .05em; line-height: 1.2; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.table td { height: 44px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--surf); line-height: 1.3; vertical-align: middle; white-space: nowrap; }
+.table tbody tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover td { background: var(--hover); }
+.table th:first-child, .table td:first-child { position: sticky; left: 0; z-index: 1; }
+.table th:first-child { z-index: 3; }
+/* The row's side bar on the left edge, and a hairline that keeps the stuck column apart from the rest. */
+.table td:first-child { box-shadow: inset 3px 0 0 var(--back), 1px 0 0 var(--line); }
+.table .lay td:first-child { box-shadow: inset 3px 0 0 var(--lay), 1px 0 0 var(--line); }
+.table .num { text-align: right; }
+.table .actionsCell { width: 1%; padding-block: 4px; }
+.actionsCell button[aria-expanded='true'] { color: var(--ink); background: var(--surf-3); }
+
+.bet { display: flex; align-items: center; gap: 8px; max-width: 168px; }
+.tag { display: inline-grid; flex: none; place-items: center; height: 22px; padding: 0 7px; border-radius: var(--ui-radius); background: var(--back); color: var(--odds-ink); font-size: 11px; font-weight: 800; letter-spacing: .05em; }
+.tagLay { background: var(--lay); }
+.sel { min-width: 0; }
+.sel b { display: block; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 700; text-overflow: ellipsis; }
+.sel small { display: block; overflow: hidden; color: var(--ink-3); font-size: 11px; text-overflow: ellipsis; }
+.kind { text-transform: capitalize; }
+/* Live Analysis only: sport • league • event sits after Placed and stops at 220px, the full path in its title. */
+.eventPath { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.figure { color: var(--ink); font-weight: 700; }
+.player { display: flex; align-items: center; gap: 6px; }
+.player .playerLink { font-size: 13px; font-weight: 700; }
+
+/* Hierarchy groups (User / Agent) */
+.group { min-width: 0; border-bottom: 1px solid var(--line); }
+.summary { display: grid; gap: 5px; padding: 10px 12px; cursor: pointer; color: var(--link, var(--acc-ink)); font-size: 13px; overflow-wrap: anywhere; }
+.summary:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.group[open] .summary { border-bottom: 1px solid var(--line); }

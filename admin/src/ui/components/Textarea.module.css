@@ -1,0 +1,118 @@
+.textarea {
+  box-sizing: border-box;
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  min-height: 90px;
+  margin: 0;
+  padding: 10px 12px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  transition: border-color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.textarea::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+.textarea:not(:disabled):hover {
+  border-color: var(--acc-soft-h);
+}
+
+.textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.textarea:disabled {
+  cursor: not-allowed;
+  border-color: var(--hair);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.textarea.error {
+  border-color: var(--neg-ink);
+}
+
+.textarea.success {
+  border-color: var(--pos-ink);
+}
+
+.autoGrow {
+  overflow-y: hidden;
+  resize: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .textarea {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .ctl--area: the field box (1px --line-2, 3px, --field, 15px ink) with 10px 12px padding and an 88px
+   floor. The textarea is the box itself, so the states sit on it: hover --line-3; focus --focus-border plus
+   the 3px --focus-ring (a transparent outline stays for forced-colours mode); invalid --neg-ink through
+   hover and focus; read-only dashed on --panel-2; disabled --disabled-bg/--disabled-fg on --line.
+   The character count is FieldShell's .count (12px --ink-3 in its skin block). */
+:global(html:not([data-skin='classic'])) .textarea {
+  min-height: 88px;
+  padding: 10px 12px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.45;
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease, background var(--t-1) ease;
+}
+
+:global(html:not([data-skin='classic'])) .textarea:not(:disabled):hover {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .textarea:not(:disabled):focus {
+  border-color: var(--focus-border);
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .textarea.success {
+  border-color: var(--pos-ink);
+}
+
+:global(html:not([data-skin='classic'])) .textarea.error,
+:global(html:not([data-skin='classic'])) .textarea.error:not(:disabled):hover,
+:global(html:not([data-skin='classic'])) .textarea.error:not(:disabled):focus {
+  border-color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .textarea:read-only:not(:disabled) {
+  border-style: dashed;
+  background: var(--panel-2);
+}
+
+:global(html:not([data-skin='classic'])) .textarea:disabled {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .textarea::placeholder {
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-skin='classic'])) .textarea {
+    transition: none;
+  }
+}

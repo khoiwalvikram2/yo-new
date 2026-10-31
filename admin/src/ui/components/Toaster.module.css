@@ -1,0 +1,214 @@
+/* The toast stack: fixed to the bottom centre, newest nearest the edge (.toasts M:1225-1230, .toast
+   M:1231-1241). It sits above antd's 10000 layer while both toast systems exist, so feedback raised by
+   a migrated surface is never hidden behind an antd modal (page migration C, D4). */
+.host {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: var(--z-toast);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  /* the stack never blocks the page; each toast takes its own pointer events back */
+  pointer-events: none;
+}
+
+/* the two live regions, stacked in the same column so the order on screen is the order they arrived */
+.region {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: var(--ui-radius);
+  background: var(--float);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-pop);
+  font-size: 12.5px;
+  color: var(--ink);
+  max-width: 100%;
+  pointer-events: auto;
+  animation: rise var(--t-2) ease;
+}
+
+.glyph {
+  display: flex;
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* BEYOND-MOCKUP: the mockup's toast carries no tone. A toast that reports a failure or a success
+   states it in its glyph as well as its words, on the semantic tokens the notices use. */
+.ok .glyph {
+  color: var(--ok);
+}
+
+.warn .glyph {
+  color: var(--warn);
+}
+
+.error .glyph {
+  color: var(--neg-ink);
+}
+
+.info .glyph {
+  color: var(--blue);
+}
+
+.body {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.message {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.title + .message {
+  margin-top: 2px;
+}
+
+/* BEYOND-MOCKUP: the dismiss button closes the row. Negative margins keep a one-line toast its height and
+   tuck the button into the padding. (0,2,0) over IconButton's own margin (0,1,0). */
+.toast .dismiss {
+  margin: -4px -6px -4px -4px;
+}
+
+/* the mockup's own entrance: 14px up and fading in (M:1232, M:1240) */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .host {
+    bottom: 16px;
+    max-width: calc(100% - 24px);
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .toast (kit p2/p3): charcoal in both themes, 4px, at most 370px wide. Its tokens switch to on-charcoal
+   values so the action Button and the busy Spinner follow. The tone glyphs take the kit's constant
+   on-charcoal colours. */
+:global(html:not([data-skin='classic'])) .toast {
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft);
+  --ink-3: var(--chrome-muted);
+  --hover: rgba(255, 255, 255, .08);
+  --press: rgba(255, 255, 255, .14);
+  --surf-3: rgba(255, 255, 255, .08);
+  --ring: #FFFFFF;
+  color-scheme: dark;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: min(370px, 100%);
+  padding: 12px 8px 12px 14px;
+  border: 1px solid var(--chrome-line);
+  border-radius: var(--ui-radius);
+  background: var(--chrome);
+  box-shadow: var(--sh-dlg);
+  color: #FFFFFF;
+  font-size: 14px;
+}
+
+/* (0,2,1) beats the base tone rules (0,2,0); the skin tone rules below are (0,3,1). */
+:global(html:not([data-skin='classic'])) .glyph {
+  margin-top: 1px;
+  color: var(--chrome-muted);
+}
+
+:global(html:not([data-skin='classic'])) .ok .glyph {
+  color: #3FD08A;
+}
+
+:global(html:not([data-skin='classic'])) .warn .glyph {
+  color: #F0B44C;
+}
+
+:global(html:not([data-skin='classic'])) .error .glyph {
+  color: #FF6B61;
+}
+
+:global(html:not([data-skin='classic'])) .info .glyph {
+  color: #5DB1F0;
+}
+
+:global(html:not([data-skin='classic'])) .title {
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+/* A message on its own is the toast's main line; under a title it is the muted .toast__text. */
+:global(html:not([data-skin='classic'])) .message {
+  color: #FFFFFF;
+}
+
+:global(html:not([data-skin='classic'])) .title + .message {
+  margin-top: 1px;
+  color: var(--chrome-muted);
+  font-size: 13px;
+}
+
+/* .toast__act: the action is a kit Button (ghost, sm) whose classes live in Button's module, so it is
+   reached by element, less the dismiss button. (0,3,2) beats .ghost/.sm and their skin forms (0,2,1); the
+   states are (0,5,2) over .ghost:not(...):hover/:active (0,3,0) and their skin forms (0,4,1). */
+:global(html:not([data-skin='classic'])) .toast > button:not(.dismiss) {
+  align-self: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: var(--ui-radius);
+  background: none;
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .toast > button:not(.dismiss):not(:disabled, [aria-disabled='true']):hover {
+  border-color: rgba(255, 255, 255, .6);
+  background: rgba(255, 255, 255, .08);
+  color: #FFFFFF;
+}
+
+:global(html:not([data-skin='classic'])) .toast > button:not(.dismiss):not(:disabled, [aria-disabled='true']):active {
+  border-color: rgba(255, 255, 255, .6);
+  background: rgba(255, 255, 255, .14);
+  color: #FFFFFF;
+}
+
+/* .toast .ibtn: 28px, nudged up to the first line. The glyph is IconButton's --ink-3 (--chrome-muted here)
+   and its hover is --surf-3 / --ink, so re-pointing --surf-3 at --chrome-3 gives the kit's white on
+   --chrome-3 without out-ranking IconButton's hover. */
+:global(html:not([data-skin='classic'])) .toast .dismiss {
+  --surf-3: var(--chrome-3);
+  width: 28px;
+  height: 28px;
+  margin: -4px 0 0;
+}

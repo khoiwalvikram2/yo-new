@@ -1,0 +1,111 @@
+/* Currency Management (/currency, W7 Task 199). The page has no mockup page (inventory/mockup-pages.json); it
+   follows the generic table template (M:3361-3409): page head, statistics, one card per view. The view strip
+   is drawn only inside the converter and settings views, which nothing opens (as before; owner question).
+   Rules the mockup does not draw are marked BEYOND-MOCKUP. */
+
+/* The page column is the container the view strip measures (the context panel changes its width). */
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  container: currency-content / inline-size;
+}
+
+/* The grid item that holds a view's cards (the currencies view's filters and table, or a switched view's tab
+   panel); without this it grows to the table's minimum width on a phone instead of letting the table scroll
+   inside its card. */
+.panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the legacy Currencies / Currency Converter / Settings switch is the mockup's .seg
+   (M:777-794) as a tab strip, start-aligned above the view it switches (converter and settings only, as
+   before; neither is reachable until the owner decides). Narrow, it fills its row, as the
+   mockup's period seg does on a phone (M:1615-1616); the kit Tabs has no stretch option, so the page
+   stretches it, each tab taking its label's width plus an equal share of the rest. */
+.tabs {
+  justify-self: start;
+  max-width: 100%;
+}
+
+@container currency-content (max-width: 767px) {
+  .tabs {
+    display: flex;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .tabs > [role='tab'] {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+    padding: 0 8px;
+  }
+}
+
+/* Under 480px the three labels need the glyphs' room; the label alone names each tab. */
+@container currency-content (max-width: 479px) {
+  .tabs > [role='tab'] > [aria-hidden='true'] {
+    display: none;
+  }
+}
+
+/* ---------- settings view ---------- */
+
+/* BEYOND-MOCKUP: the legacy settings card's two sections, each under an h3 in the card's section label
+   metrics (.dr-sec M:1151-1152 at card size). */
+.settings {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.settingSection {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settingTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* The legacy grey explainer, in the card sub colour (M:860-867). */
+.settingText {
+  max-width: 72ch;
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* The legacy 200px select; it grows with a long stored label and never past its section. */
+.defaultSelect {
+  justify-self: start;
+  min-width: 200px;
+  max-width: 100%;
+}
+
+/* BEYOND-MOCKUP: the legacy small read-out cards become quiet tiles inside the settings card (one card
+   surface, no card-in-card), on the --surf-3 ground the mockup uses for inset wells. */
+.settingTile {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--hair);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+/* The legacy Statistic suffix: smaller than the figure, beside it. */
+.statSuffix {
+  margin-left: 2px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 500;
+}

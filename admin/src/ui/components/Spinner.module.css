@@ -1,0 +1,61 @@
+/* No mockup rule exists for a spinner. A ring in currentColor with one transparent side:
+   it takes the text colour of whatever holds it (--acc-on inside a primary Button, --ink-3 in a Select),
+   so it needs no colour token of its own. */
+.spinner {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Button loading, wallet trigger placeholder */
+.sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+/* Popover and list loading */
+.md {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+
+/* A region waiting for its first data (LoadingState). The border grows with the ring so the arc keeps
+   the same optical weight as the small sizes. */
+.lg {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+/* CSS Modules scopes this name and rewrites the `animation` above to match. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A frozen arc reads as "stuck", so reduced motion slows the turn instead of stopping it. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .spin: a red arc on a full hairline ring. The ring is 30% of currentColor, which on a page's --ink-3
+   lands on --line-2 in both themes, and stays faint on the charcoal topbar and toasts, where --line-2 is not
+   remapped and would draw a bright ring; --line-2 is the fallback. A primary or dangerSolid Button turns
+   the arc white from its own module. The duration is not re-stated, so the reduced-motion rule keeps it. */
+:global(html:not([data-skin='classic'])) .spinner {
+  border-color: var(--line-2);
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: var(--acc);
+}

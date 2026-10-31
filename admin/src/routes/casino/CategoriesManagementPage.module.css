@@ -1,0 +1,235 @@
+.page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The container sits on the wrapper: an element cannot answer its own @container query. */
+.statsWrap {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+@container (min-width: 560px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1120px) {
+  .statsGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.listCard {
+  min-width: 0;
+}
+
+.dragCell {
+  position: relative;
+  width: 44px;
+}
+
+.thumbCell {
+  width: 58px;
+}
+
+.categoryIcon,
+.gameThumb,
+.placeholderTile {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.categoryIcon,
+.gameThumb {
+  object-fit: cover;
+}
+
+.gameThumb {
+  width: 30px;
+  height: 30px;
+}
+
+.gameRow {
+  background: var(--surf);
+}
+
+.primaryText,
+.secondaryText {
+  display: block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.primaryText {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.secondaryText {
+  margin-top: 2px;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.categoryToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.categoryToggle:hover {
+  color: var(--acc-ink);
+}
+
+.categoryToggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.categoryToggle span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slug {
+  display: inline-flex;
+  max-width: 240px;
+  margin-top: 5px;
+  margin-left: 21px;
+  padding: 2px 7px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusControl,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: max-content;
+}
+
+.actions {
+  justify-content: flex-end;
+}
+
+.expandedCell {
+  position: relative;
+  padding: 0;
+  background: var(--surf-3);
+}
+
+.gamesPanel {
+  min-width: 0;
+  border-block: 1px solid var(--hair);
+}
+
+.gamesHeading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--card-pad);
+  border-bottom: 1px solid var(--hair);
+  color: var(--acc-ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.gamesHeading strong {
+  color: var(--ink-2);
+  font-weight: 650;
+}
+
+.gamesHeading span {
+  color: var(--ink-3);
+}
+
+.drawerForm {
+  display: grid;
+  gap: 18px;
+}
+
+.drawerActions {
+  width: 100%;
+}
+
+.drawerHint {
+  flex: 1 1 220px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.drawerButtons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.fieldHelp {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 767px) {
+  .drawerActions {
+    align-items: stretch;
+  }
+
+  .drawerHint {
+    flex-basis: 100%;
+  }
+
+  .drawerButtons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+}

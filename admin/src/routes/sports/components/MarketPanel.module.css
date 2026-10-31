@@ -1,0 +1,60 @@
+/* Event detail market panel (admin UI kit, "Event detail" screen). The kit's .panel and its charcoal head are
+   the Card (MarketHeader); this module adds the state pill and facts on the head's sub line, the fold
+   button, the flush body and the market type tabs. */
+
+/* Market type tabs (kit .seg.seg--sm): the strip scrolls sideways rather than widening the column. */
+.tabs {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* The kit sets the state pill right after the name (h2 + .pill + .panel__sub); it opens the sub line. */
+.state {
+  margin-inline-end: 10px;
+}
+
+/* kind · n bets · liquidity */
+.fact + .fact::before {
+  content: '·';
+  margin-inline: 6px;
+}
+
+.figure,
+.exposure {
+  font-variant-numeric: tabular-nums;
+}
+
+.exposure {
+  display: inline-flex;
+}
+
+/* kit .ibtn--bar.ibtn--sm: the chevron takes the head's ink (white on the bar) and points down once folded.
+   Doubled to (0,2,0) so it wins over IconButton's own (0,1,0) colour whatever the stylesheet order. */
+.fold.fold {
+  color: var(--ink);
+}
+
+.fold svg {
+  transition: transform .15s ease;
+}
+
+.fold[aria-expanded='false'] svg {
+  transform: rotate(180deg);
+}
+
+/* The body is flush: the price rows, then the market book bar (it brings its own top hairline), edge to edge. */
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.body > * {
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold svg {
+    transition: none;
+  }
+}

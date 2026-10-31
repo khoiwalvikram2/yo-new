@@ -1,0 +1,41 @@
+/* .kbd (M:703-708). The mockup's .kbd is a <span> flex item; this is a <kbd> that can sit inline, so:
+   - display:inline-flex, or height/line-height box is ignored on an inline element;
+   - font-family is explicit, or antd's unlayered `kbd { font-family: 'SFMono-Regular', ... }` (reset.css:117-121) wins. */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  box-sizing: border-box;
+  height: 22px;
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 22px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit kbd: a 3px keycap with a 2px bottom edge, 600 12px mono. display is not re-stated: SearchTrigger
+   hides the key on phones with `.field .kbd { display: none }` (0,2,0), which a (0,2,1) rule would beat.
+   The only consumer sits in the charcoal topbar, whose remap turns --line, --app and --ink-3 into
+   --chrome-line-2, --chrome and --chrome-muted: exactly the kit's top-bar key (.app-search kbd). */
+:global(html:not([data-skin='classic'])) .kbd {
+  justify-content: center;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: var(--ui-radius);
+  background: var(--app);
+  color: var(--ink-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-weight: 600;
+  line-height: 1;
+}

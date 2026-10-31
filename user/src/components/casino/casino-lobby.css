@@ -1,0 +1,392 @@
+/* Live Casino and Slots lobby: the owner's Matchbook Live Casino layout in the site's colours — white panels
+   with a red label tab cut into the top-left corner, round arrows, and light game cards (six or more to a
+   row) with the image on top and the name and provider centred under it; on hover the whole card turns red
+   with a "Play Now" button in its centre. It sits on the page's default background, with the home page's
+   white tab strip (red active tab). The wrapper keeps .nova-ex-grid for the home page's tokens (--ex-red,
+   --ex-link, --ex-line, --ex-text, --ex-muted) and focus rules; the home page's bar, tab and row classes are
+   restyled here inside .nova-lobby only. Surfaces, lines and text use the panel's --mb-* tokens
+   (styles/matchbook-tokens.css), so the lobby follows the light/dark switch; white text on red, the red
+   label tabs and everything drawn over game art stay fixed in both themes. */
+
+.nova-ex-grid.nova-lobby {
+  --lobby-accent: var(--ex-red);
+  --lobby-accent-deep: #9E1516;
+  --lobby-panel: var(--mb-panel);
+  --lobby-border: var(--mb-line);
+  --lobby-raised: var(--mb-soft);
+  --lobby-card: var(--mb-soft);
+  --lobby-card-line: var(--mb-line);
+  --lobby-text: var(--mb-ink);
+  --lobby-muted: var(--mb-muted);
+  grid-template-columns: minmax(0, 1fr);
+}
+.nova-lobby-main { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; container: lobby / inline-size; }
+.nova-lobby-rows { display: grid; gap: 14px; min-width: 0; }
+.nova-lobby-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------- category tabs + toolbar */
+/* The home page's white tab strip with the red active tab; it stays under the site header while the rows scroll. */
+.nova-lobby-tabs { position: sticky; top: var(--header-height, 64px); z-index: 30; }
+.nova-lobby-tabs .nova-ex-sport-tabs { border: 1px solid var(--lobby-border); border-radius: var(--ui-radius); }
+.nova-lobby-tabs .nova-ex-sport-tabs button { min-height: 52px; }
+.nova-lobby-tabs .nova-ex-sport-tabs img { opacity: 1; object-fit: contain; }
+.nova-lobby-tabs .nova-ex-sport-tabs button.active img { filter: brightness(0) invert(1); }
+/* Category icons are uploaded art, usually dark; on the dark strip they are drawn light instead. */
+html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter: brightness(0) invert(.85); }
+.nova-lobby-tabs .nova-ex-tabs-arrow:first-child { border-radius: var(--ui-radius); }
+.nova-lobby-tabs .nova-ex-tabs-arrow:last-child { border-radius: var(--ui-radius); }
+.nova-lobby-toolbar { display: flex; gap: 10px; }
+.nova-lobby-search {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  background: var(--mb-field);
+}
+.nova-lobby-search:focus-within { border-color: var(--mb-focus-border); box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.nova-lobby-search > svg { position: absolute; left: 13px; width: 17px; height: 17px; color: var(--ex-muted); pointer-events: none; }
+/* Scoped past the app-wide `input:not(.field__control):not(.otp-input)` fill (index.css), which would
+   otherwise paint a second, tinted box inside the field. */
+.nova-ex-grid.nova-lobby .nova-lobby-search input {
+  width: 100%;
+  height: 100%;
+  padding: 0 40px 0 38px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--ex-text);
+  background: transparent;
+  font-family: var(--font-inter);
+  font-size: 16px;
+  outline: none;
+}
+.nova-lobby-search input::placeholder { color: var(--ex-muted); }
+.nova-lobby-search-clear {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--ex-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.nova-lobby-search-clear:hover { color: var(--ex-text); background: var(--mb-hover); }
+.nova-lobby-search-clear svg { width: 15px; height: 15px; }
+.nova-lobby-providers-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  color: var(--ex-text);
+  background: var(--mb-panel);
+  font-family: var(--font-inter);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.nova-lobby-providers-btn:hover:not(:disabled) { border-color: var(--lobby-accent); }
+.nova-lobby-providers-btn:disabled { color: var(--ex-muted); cursor: default; }
+.nova-lobby-providers-btn svg { width: 16px; height: 16px; }
+.nova-lobby-providers-btn b { min-width: 20px; padding: 0 6px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--lobby-accent); font-size: 11px; line-height: 1.6; text-align: center; }
+.nova-lobby-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: -6px; }
+.nova-lobby-chips > span:first-child { color: var(--ex-muted); font-size: 13px; }
+.nova-lobby-chip { padding: 2px 9px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--lobby-accent); font-size: 12px; font-weight: 700; }
+.nova-lobby-chips button { margin-left: auto; padding: 0; border: 0; color: var(--ex-link); background: none; font-family: var(--font-inter); font-size: 14px; font-weight: 600; cursor: pointer; }
+.nova-lobby-chips button:hover { text-decoration: underline; }
+
+/* --------------------------------------------------------------- panels */
+/* Each row sits in a white panel; its title is a red tab cut into the top-left corner, and the count,
+   See All and arrows sit on the same line, centred on the tab. Rows scrolled to from the tabs land below
+   the site header and the sticky tab strip. */
+.nova-lobby-section {
+  position: relative;
+  min-width: 0;
+  padding: 0 30px 10px;
+  border: 1px solid var(--lobby-border);
+  border-radius: var(--ui-radius);
+  color: var(--lobby-text);
+  background: var(--lobby-panel);
+  scroll-margin-top: calc(var(--header-height, 64px) + 62px);
+}
+.nova-lobby-section > .nova-ex-section-head {
+  align-items: center;
+  min-height: 0;
+  margin: 0 -30px 16px;
+  padding: 0 16px 0 0;
+  color: var(--lobby-text);
+  background: transparent;
+}
+.nova-lobby-section > .nova-ex-section-head > svg,
+.nova-lobby-section > .nova-ex-section-head > .nova-lobby-cat-icon { display: none; }
+.nova-lobby-section > .nova-ex-section-head h2 {
+  flex: 0 1 auto;
+  margin-top: -1px;
+  margin-left: -1px;
+  padding: 11px 30px 11px 16px;
+  border-top-left-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: linear-gradient(180deg, var(--lobby-accent), var(--lobby-accent-deep));
+  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+  font-family: var(--font-inter);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+}
+.nova-lobby-section > .nova-ex-section-head .nova-ex-section-count { color: var(--mb-neutral-ink); background: var(--mb-neutral-bg); }
+.nova-lobby-section > .nova-ex-section-head .nova-ex-section-all { font-size: 14px; font-weight: 700; line-height: 20px; }
+.nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows { gap: 6px; }
+.nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ex-line);
+  border-radius: 50%;
+  color: var(--ex-text);
+  background: var(--lobby-raised);
+}
+.nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows button:hover:not(:disabled) { border-color: var(--lobby-accent); color: #FFFFFF; background: var(--lobby-accent); }
+.nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows svg { width: 15px; height: 15px; }
+/* See All / Show less / Clear are buttons here: they change the page, not the route. */
+.nova-lobby-toggle { padding: 0; border: 0; background: none; font-family: var(--font-inter); cursor: pointer; }
+.nova-lobby-arrows-end { margin-left: auto; }
+.nova-lobby-skeleton-bar {
+  width: 190px;
+  height: 42px;
+  margin: -1px 0 16px -31px;
+  border-top-left-radius: var(--ui-radius);
+  background: rgb(197 26 27 / 30%);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+}
+
+/* ------------------------------------------------------------- rows + grids */
+/* Five whole cards to a row on desktop (the owner's call, 2026-10-16); the arrows and See All reach the rest.
+   The See All grid uses the same five columns. The track's padding leaves room for a card's hover lift and
+   shadow, which the scroll box would otherwise clip. */
+.nova-lobby-track { gap: 16px; margin: -6px -8px 0 -8px; padding: 6px 8px 18px 8px; scroll-padding-inline-start: 8px; scroll-snap-type: x proximity; }
+.nova-lobby-track > .nova-lobby-tile,
+.nova-lobby .nova-lobby-track > .nova-ex-tile.is-skeleton { flex: 0 0 calc((100% - 4 * 16px) / 5); scroll-snap-align: start; }
+.nova-lobby-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px 16px; padding: 0 0 14px; }
+.nova-lobby-sentinel { height: 4px; }
+.nova-lobby-foot { display: flex; justify-content: center; padding: 6px 0 10px; }
+.nova-lobby .nova-ex-tile.is-skeleton {
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--lobby-card-line);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(110deg, var(--mb-soft) 30%, var(--mb-panel-2) 50%, var(--mb-soft) 70%);
+}
+
+/* ------------------------------------------------------------------ cards */
+/* CasinoCard keeps its markup (the home page's rail uses it too). In the lobby it is one light card: the
+   image on top, the name and provider centred under it on the same background. The art button is stretched
+   over the whole card (the image keeps the top 3:2), so the hover wash and "Play Now" sit in the centre of
+   the card and pressing anywhere on it launches the game; the heart sits above it and always shows. */
+.nova-lobby-tile { position: relative; display: flex; min-width: 0; }
+.nova-lobby-tile > .nova-game-card { width: 100%; }
+.nova-lobby .nova-game-card {
+  overflow: hidden;
+  border: 1px solid var(--lobby-card-line);
+  border-radius: var(--ui-radius);
+  color: var(--lobby-text);
+  background: var(--lobby-card);
+  box-shadow: var(--mb-shadow);
+  transform: none;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.nova-lobby .nova-game-card:hover {
+  border-color: rgb(197 26 27 / 55%);
+  box-shadow: 0 6px 14px rgb(16 18 22 / 14%);
+  transform: translateY(-3px);
+}
+/* aspect-ratio: auto undoes panel-refresh.css's global 4:3 art, which would stop the stretch. */
+.nova-lobby .nova-game-art {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: auto;
+  height: auto;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+}
+.nova-lobby .nova-game-art img,
+.nova-lobby .nova-game-placeholder { inset: 0 0 auto; width: 100%; height: auto; aspect-ratio: 3 / 2; }
+.nova-lobby .nova-game-placeholder { background: var(--mb-disabled-bg); }
+.nova-lobby .nova-game-card:hover .nova-game-art img { transform: scale(1.04); }
+.nova-lobby .nova-game-art-shade,
+.nova-lobby .nova-game-art-title { display: none; }
+/* Hover / keyboard focus: the whole card washes red and a white "Play Now" pill with a red play disc pops
+   up in its centre, ringed by a soft pulse. Both are drawn by the art button itself. */
+.nova-lobby .nova-game-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgb(197 26 27 / 74%) 0%, rgb(158 21 22 / 93%) 60%, rgb(130 14 15 / 96%) 100%);
+  opacity: 0;
+  transition: opacity .2s ease;
+  pointer-events: none;
+}
+.nova-lobby .nova-game-art::after {
+  content: var(--lobby-play-label, "Play Now");
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  padding: 7px 18px 7px 42px;
+  border-radius: var(--ui-radius);
+  color: var(--lobby-accent-deep);
+  background: #FFFFFF url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='14' fill='%23C51A1B'/%3E%3Cpath d='M11.2 8.6v10.8l8.6-5.4z' fill='%23FFFFFF'/%3E%3C/svg%3E") no-repeat 6px 50% / 26px 26px;
+  box-shadow: 0 0 0 0 rgb(255 255 255 / 45%), 0 10px 24px rgb(0 0 0 / 28%);
+  font-family: var(--font-inter);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 26px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(.82);
+  transition: opacity .2s ease, transform .28s cubic-bezier(.2, .9, .3, 1.3);
+  pointer-events: none;
+}
+.nova-lobby .nova-game-card:hover .nova-game-art::before,
+.nova-lobby .nova-game-art:focus-visible::before { opacity: 1; }
+.nova-lobby .nova-game-card:hover .nova-game-art::after,
+.nova-lobby .nova-game-art:focus-visible::after { opacity: 1; transform: translate(-50%, -50%) scale(1); animation: nova-lobby-play-ring 1.6s ease-out .2s infinite; }
+@keyframes nova-lobby-play-ring {
+  from { box-shadow: 0 0 0 0 rgb(255 255 255 / 45%), 0 10px 24px rgb(0 0 0 / 28%); }
+  to { box-shadow: 0 0 0 12px rgb(255 255 255 / 0%), 0 10px 24px rgb(0 0 0 / 28%); }
+}
+/* While a launch is pending the spinner shows instead. */
+.nova-lobby .nova-game-art:disabled::before,
+.nova-lobby .nova-game-art:disabled::after { opacity: 0; animation: none; }
+/* The heart: a dark disc with a light ring, so it reads on light and dark art alike. Scoped with
+   .nova-ex-grid.nova-lobby to outrank nova.css's `html.dark .nova-game-save` rules, which in dark mode
+   would paint it a pale --surface disc with a pale heart — invisible on the light shell. */
+.nova-ex-grid.nova-lobby .nova-game-save {
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid rgb(255 255 255 / 70%);
+  color: #FFFFFF;
+  background: rgb(16 18 22 / 62%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+  backdrop-filter: blur(4px);
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease, transform .15s ease;
+}
+.nova-ex-grid.nova-lobby .nova-game-save:hover { border-color: #FFFFFF; color: #FFFFFF; background: var(--lobby-accent); transform: scale(1.06); }
+.nova-ex-grid.nova-lobby .nova-game-save.is-saved { border-color: #FFFFFF; color: #FFFFFF; background: var(--lobby-accent); }
+.nova-ex-grid.nova-lobby .nova-game-save > svg { width: 15px; height: 15px; stroke-width: 2.4; }
+.nova-lobby .nova-game-copy {
+  min-height: 0;
+  padding: calc(66.667% + 10px) 10px 12px;
+  border: 0;
+  background: transparent;
+  text-align: center;
+}
+.nova-lobby .nova-game-name { color: var(--lobby-text); font-family: var(--font-inter); font-size: 14px; font-weight: 700; line-height: 1.3; text-align: center; }
+.nova-lobby .nova-game-copy > p { margin-top: 2px; color: var(--lobby-muted); font-size: 12px; text-align: center; }
+.nova-lobby .nova-game-error { color: var(--mb-red-text); }
+
+/* ------------------------------------------------- buttons, panels, states */
+.nova-lobby-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 24px;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  color: var(--ex-text);
+  background: var(--mb-panel);
+  font-family: var(--font-inter);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.nova-lobby-btn:hover:not(:disabled) { border-color: var(--lobby-accent); color: var(--mb-red-text); }
+.nova-lobby-btn.is-primary { border-color: var(--lobby-accent-deep); color: #FFFFFF; background: linear-gradient(180deg, var(--lobby-accent), var(--lobby-accent-deep)); }
+.nova-lobby-btn.is-primary:hover:not(:disabled) { color: #FFFFFF; filter: brightness(1.08); }
+.nova-lobby-btn:disabled { opacity: .7; cursor: wait; }
+.nova-lobby-btn small { min-width: 22px; padding: 0 7px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--lobby-accent); font-size: 11px; line-height: 1.6; }
+.nova-lobby-btn.is-primary small { color: var(--lobby-accent); background: #FFFFFF; }
+.nova-lobby-spin { width: 16px; height: 16px; animation: nova-lobby-spin 1s linear infinite; }
+@keyframes nova-lobby-spin { to { transform: rotate(360deg); } }
+.nova-lobby-panel {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 40px 16px;
+  border: 1px solid var(--lobby-border);
+  border-radius: var(--ui-radius);
+  color: var(--lobby-text);
+  background: var(--lobby-panel);
+  text-align: center;
+}
+.nova-lobby-panel strong { color: var(--lobby-text); font-family: var(--font-inter); font-size: 20px; font-weight: 700; }
+.nova-lobby-panel p { max-width: 46ch; margin: 0; color: var(--lobby-muted); font-size: 14px; line-height: 1.5; }
+.nova-lobby-panel.is-error strong { color: var(--mb-red-text); }
+.nova-lobby-section > .nova-lobby-panel { padding: 24px 16px; border: 0; background: transparent; }
+
+/* ----------------------------------------------------------------- narrow */
+@container lobby (max-width: 899px) {
+  .nova-lobby-track { gap: 14px; }
+  .nova-lobby-track > .nova-lobby-tile,
+  .nova-lobby .nova-lobby-track > .nova-ex-tile.is-skeleton { flex-basis: calc((100% - 3 * 14px) / 3.3); }
+  .nova-lobby-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container lobby (max-width: 639px) {
+  .nova-lobby-tabs .nova-ex-sport-tabs button { min-width: 0; min-height: 46px; padding: 0 12px; font-size: 15px; }
+  .nova-lobby-providers-label { display: none; }
+  .nova-lobby-section { padding: 0 12px 4px; }
+  .nova-lobby-section > .nova-ex-section-head { gap: 8px; margin: 0 -12px 14px; padding-right: 8px; }
+  .nova-lobby-section > .nova-ex-section-head h2 { padding: 9px 24px 9px 12px; font-size: 15px; line-height: 18px; }
+  .nova-lobby-section > .nova-ex-section-head .nova-ex-section-all { font-size: 13px; }
+  .nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows { gap: 4px; }
+  .nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows button { width: 26px; height: 26px; }
+  .nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows svg { width: 13px; height: 13px; }
+  .nova-lobby-skeleton-bar { width: 150px; height: 36px; margin-left: -13px; }
+  .nova-lobby-track { gap: 12px; margin-right: -12px; padding-right: 12px; }
+  .nova-lobby-track > .nova-lobby-tile,
+  .nova-lobby .nova-lobby-track > .nova-ex-tile.is-skeleton { flex-basis: calc((100% - 2 * 12px) / 2.3); }
+  .nova-lobby-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+  .nova-lobby .nova-game-copy { padding: calc(66.667% + 8px) 8px 10px; }
+  .nova-lobby .nova-game-name { font-size: 13px; }
+  .nova-lobby .nova-game-copy > p { font-size: 11px; }
+  .nova-lobby .nova-game-art::after { padding: 5px 12px 5px 34px; background-position: 5px 50%; background-size: 22px 22px; font-size: 12px; line-height: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nova-lobby .nova-game-card,
+  .nova-lobby .nova-game-art::before,
+  .nova-lobby .nova-game-art::after,
+  .nova-ex-grid.nova-lobby .nova-game-save { transition: none; }
+  .nova-lobby .nova-game-card:hover { transform: none; }
+  .nova-lobby .nova-game-card:hover .nova-game-art img { transform: none; }
+  .nova-lobby .nova-game-card:hover .nova-game-art::after,
+  .nova-lobby .nova-game-art:focus-visible::after { animation: none; }
+}

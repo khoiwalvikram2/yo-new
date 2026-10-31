@@ -1,0 +1,237 @@
+type VIPTier {
+  id: ID!
+  tenant: String
+  name: String!
+  level: Int!
+  minMonthlyDeposit: Float!
+  color: String!
+  benefits: [String!]!
+  perks: [VIPPerk!]!
+  status: String!
+  depositPolicy: VIPDepositPolicy!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type VIPDepositPolicy {
+  enabled: Boolean!
+  methods: [String!]!
+  min: Float
+  max: Float
+  daily: Float
+  monthly: Float
+}
+
+input VIPDepositPolicyInput {
+  enabled: Boolean!
+  methods: [String!]!
+  min: Float
+  max: Float
+  daily: Float
+  monthly: Float
+}
+
+type VIPPerk {
+  name: String!
+  description: String!
+  icon: String
+}
+
+type VIPMember {
+  id: ID!
+  tenant: String
+  userId: ID!
+  userName: String!
+  userEmail: String
+  tierId: ID!
+  tierName: String!
+  tierLevel: Int!
+  currentPoints: Int!
+  lifetimePoints: Int!
+  "Approved deposits this whitelabel month, which decide an automatic tier."
+  monthlyDeposits: Float
+  nextTierId: ID
+  nextTierName: String
+  "Approved deposits still needed this month to reach the next tier; null for a manual tier."
+  pointsToNextTier: Int
+  joinedAt: String!
+  lastActivityAt: String
+  status: String!
+  stats: VIPMemberStats
+}
+
+type VIPMemberStats {
+  totalDeposits: Float!
+  totalWithdrawals: Float!
+  totalBets: Float!
+  totalWins: Float!
+  netGGR: Float!
+  avgBetSize: Float!
+  sessionsCount: Int!
+  currency: String!
+}
+
+type VIPTransaction {
+  id: ID!
+  tenant: String
+  memberId: ID!
+  type: String!
+  points: Int!
+  description: String!
+  relatedEntityType: String
+  relatedEntityId: ID
+  balanceBefore: Int!
+  balanceAfter: Int!
+  createdAt: String!
+}
+
+type VIPHistory {
+  id: ID!
+  tenant: String
+  memberId: ID!
+  fromTierId: ID
+  fromTierName: String
+  toTierId: ID!
+  toTierName: String!
+  reason: String!
+  pointsAtChange: Int!
+  createdAt: String!
+}
+
+type VIPBenefit {
+  id: ID!
+  tenant: String
+  tierId: ID!
+  name: String!
+  description: String!
+  type: String!
+  value: String!
+  status: String!
+}
+
+input VIPTierInput {
+  name: String!
+  level: Int!
+  minMonthlyDeposit: Float!
+  color: String!
+  benefits: [String!]!
+  perks: [VIPPerkInput!]!
+  depositPolicy: VIPDepositPolicyInput
+  """
+  Bank/UPI receiving-account ids this tier may use. Omit to leave accounts as they are.
+  Needs payments.methods update permission.
+  """
+  receivingAccountIds: [String!]
+}
+
+input VIPPerkInput {
+  name: String!
+  description: String!
+  icon: String
+}
+
+input CreateVIPMemberInput {
+  userId: ID!
+  tierId: ID!
+  initialPoints: Int
+}
+
+input UpdateVIPMemberInput {
+  memberId: ID!
+  tierId: ID
+  points: Int
+  status: String
+}
+
+input AddVIPPointsInput {
+  memberId: ID!
+  points: Int!
+  description: String!
+  relatedEntityType: String
+  relatedEntityId: ID
+}
+
+input RemoveVIPPointsInput {
+  memberId: ID!
+  points: Int!
+  description: String!
+  relatedEntityType: String
+  relatedEntityId: ID
+}
+
+input VIPBenefitInput {
+  tierId: ID!
+  name: String!
+  description: String!
+  type: String!
+  value: String!
+}
+
+type VIPTierPayload {
+  success: Boolean!
+  message: String!
+  tier: VIPTier
+}
+
+type VIPMemberPayload {
+  success: Boolean!
+  message: String!
+  member: VIPMember
+}
+
+type VIPPointsPayload {
+  success: Boolean!
+  message: String!
+  transaction: VIPTransaction
+  member: VIPMember
+}
+
+type VIPStats {
+  totalMembers: Int!
+  activeMembers: Int!
+  newMembersToday: Int!
+  totalPointsAwarded: Int!
+  tierDistribution: [VIPTierDistribution!]!
+  topMembers: [VIPMember!]!
+}
+
+type VIPTierDistribution {
+  tierId: ID!
+  tierName: String!
+  tierLevel: Int!
+  memberCount: Int!
+  percentage: Float!
+}
+
+# Scheduling & Audit & Versions
+type VIPTierSchedule {
+  id: ID!
+  tierId: ID!
+  toStatus: String!
+  effectiveAt: String!
+  createdAt: String!
+}
+
+type VIPAuditEvent {
+  id: ID!
+  action: String!
+  tierId: ID
+  message: String!
+  at: String!
+  actor: String
+}
+
+type VIPValidationIssue {
+  code: String!
+  message: String!
+  tierId: ID
+}
+
+type VIPTierVersion {
+  id: ID!
+  tierId: ID!
+  snapshot: VIPTier!
+  createdAt: String!
+  reason: String!
+}
+

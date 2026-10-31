@@ -1,0 +1,140 @@
+/* The report contributor page (it replaced the Contributors card's drawer): figures, then a full-width
+   table, on the kit's page rhythm. */
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+/* the header sub: "Player · <drilled path> · Agent <name>" */
+.where {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.where > * + *::before {
+  content: '·';
+  content: '·' / '';
+  margin-right: 8px;
+}
+
+.kind {
+  font-weight: 700;
+}
+
+.filters {
+  padding: 12px var(--card-pad);
+  border-bottom: 1px solid var(--hair);
+}
+
+.cellStack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 320px;
+}
+
+.cellMain {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.cellSub {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Back and Lay, decorative hues (the player skin's exchange colours below) */
+.side {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--ui-radius);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.back {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.lay {
+  background: var(--h-red-bg);
+  color: var(--h-red);
+}
+
+:global(html:not([data-skin='classic'])) .back {
+  background: var(--back);
+  color: var(--odds-ink);
+}
+
+:global(html:not([data-skin='classic'])) .lay {
+  background: var(--lay);
+  color: var(--odds-ink);
+}
+
+.gain {
+  color: var(--pos-ink);
+  font-weight: 600;
+}
+
+.loss {
+  color: var(--neg-ink);
+  font-weight: 600;
+}
+
+.dim {
+  color: var(--ink-3);
+}
+
+.rowLink {
+  color: var(--link, var(--acc-ink));
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.rowLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rowLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,112 @@
+/* The section's accent (Card's accent) tints a glyph chip before the title. */
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.chip {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--ui-radius);
+  background: var(--accent-bg, var(--surf-3));
+  color: var(--accent, var(--ink-3));
+}
+
+/* The Overview's operations sections: each Card's flush body is a grid of figures split by hairlines,
+   as the kit's stat strips draw them. A figure is a caps label, a tabular value and a muted note.
+
+   The grid's column count follows the section's own count (--ops-cols: 3, 4 or 5) once the card is
+   wide enough, and is two across below that. The step is a container query on the card body, not a
+   viewport one, for the reason KpiCards.module.css gives: the context panel changes the column's width
+   without the viewport moving.
+
+   The hairlines are each cell's right and bottom border; the grid sits 1px past the wrapper's right
+   and bottom edge and the wrapper clips, so the outer edge never doubles the card's own border and a
+   short last row leaves no filled gap. */
+.wrap {
+  container: overview-ops / inline-size;
+  overflow: hidden;
+  border-top: 1px solid var(--hair);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 -1px -1px 0;
+  font-family: var(--font-ui);
+}
+
+@container overview-ops (min-width: 600px) {
+  .grid {
+    grid-template-columns: repeat(var(--ops-cols, 4), minmax(0, 1fr));
+  }
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-right: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+}
+
+.label,
+.value,
+.note {
+  margin: 0;
+}
+
+.label {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.value {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  /* A skeleton holds the figure's line, so loading does not move the note. */
+  min-height: 25px;
+  overflow-wrap: anywhere;
+}
+
+/* Colour (data-accent, tokens.css; the owner's colour pass): a headline figure's text in its accent. The cell
+   keeps the card's ground: the owner asked for coloured text, not coloured boxes. */
+.value.coloured {
+  color: var(--accent, var(--ink));
+}
+
+.note {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  min-height: 17px;
+}
+
+.link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}

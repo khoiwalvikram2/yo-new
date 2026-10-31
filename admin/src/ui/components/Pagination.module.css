@@ -1,0 +1,285 @@
+/* Pagination preserves the legacy TablePagination's range, page-size and navigation capabilities.
+   Control metrics come from .act/.ghost and the Overview pager (design phase 2, BEYOND-MOCKUP). */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 12px var(--card-pad);
+  border-top: 1px solid var(--line);
+  background: var(--surf);
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+}
+
+/* A Card body="table" already supplies the closing inset, while the table itself owns the
+   separator rhythm. Keep the default standalone pagination unchanged. */
+.embedded {
+  padding-bottom: 0;
+  border-top: 0;
+}
+
+.summary {
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.summary strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.controls,
+.pages {
+  display: flex;
+  align-items: center;
+}
+
+.controls {
+  flex: none;
+  gap: 8px;
+}
+
+.pages {
+  gap: 4px;
+}
+
+.sizeLabel {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sizeSelect {
+  box-sizing: border-box;
+  height: 30px;
+  min-width: 64px;
+  margin: 0;
+  padding: 0 24px 0 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.sizeSelect:hover {
+  border-color: var(--acc-soft-h);
+}
+
+.sizeSelect:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 2px;
+  background: var(--line);
+}
+
+.pageButton,
+.arrowButton {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--t-1) ease, border-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+/* A page number can be wider than the 30px square (page 1,234 of a long list), so the page button grows
+   sideways from a 30px minimum instead of letting the number overflow it. The arrows stay square. */
+.pageButton {
+  width: auto;
+  min-width: 30px;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pageButton:hover,
+.arrowButton:hover {
+  border-color: var(--line);
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.pageButton:focus-visible,
+.arrowButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.current,
+.current:hover {
+  border-color: var(--acc);
+  background: var(--acc);
+  color: var(--acc-on);
+}
+
+.pageButton:disabled,
+.arrowButton:disabled {
+  border-color: transparent;
+  background: none;
+  color: var(--ink-3);
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.ellipsis {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 30px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+@media (max-width: 767px) {
+  .pagination {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .summary {
+    text-align: center;
+  }
+
+  .controls {
+    justify-content: space-between;
+  }
+
+  .divider,
+  .pageButton:not(.current),
+  .ellipsis {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sizeSelect,
+  .pageButton,
+  .arrowButton {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). The kit's .pager: a 14px muted count
+   with the numbers in full ink, and 34px squared page buttons on a 1px --line, the current page filled red
+   and a disabled arrow on --panel-2. The hover rule skips the current and disabled buttons with :not(), so
+   neither needs to out-rank it; the phone rule that hides the other page numbers sets only display, which
+   nothing here touches. */
+:global(html:not([data-skin='classic'])) .summary {
+  color: var(--ink-3);
+  font-size: 14px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+:global(html:not([data-skin='classic'])) .summary strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .sizeLabel {
+  color: var(--ink-3);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+:global(html:not([data-skin='classic'])) .sizeSelect {
+  height: 34px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .sizeSelect:hover {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .divider {
+  height: 24px;
+}
+
+:global(html:not([data-skin='classic'])) :is(.pageButton, .arrowButton) {
+  width: 34px;
+  height: 34px;
+  border-color: var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* a long page number still grows sideways from the 34px square */
+:global(html:not([data-skin='classic'])) .pageButton {
+  width: auto;
+  min-width: 34px;
+  padding: 0 8px;
+}
+
+:global(html:not([data-skin='classic'])) :is(.pageButton, .arrowButton):hover:not(:disabled, .current) {
+  border-color: var(--line-3);
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .pageButton.current,
+:global(html:not([data-skin='classic'])) .pageButton.current:hover {
+  border-color: var(--acc);
+  background: var(--acc);
+  color: #FFFFFF;
+}
+
+:global(html:not([data-skin='classic'])) :is(.pageButton, .arrowButton):disabled {
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--disabled-fg);
+  opacity: 1;
+}
+
+:global(html:not([data-skin='classic'])) .ellipsis {
+  width: 22px;
+  height: 34px;
+  color: var(--ink-3);
+  font-size: 14px;
+}

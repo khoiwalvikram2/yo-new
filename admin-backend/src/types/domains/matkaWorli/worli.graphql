@@ -1,0 +1,70 @@
+enum WorliSessionSide { OPEN CLOSE }
+enum WorliStatus { SCHEDULED OPENING_SOON OPEN LOCKED CLOSED SETTLING SETTLED PAUSED VOIDED }
+
+type WorliCounters { 
+  betCount: Int!
+  totalStakeMinor: Float!
+  exposureTotalMinor: Float!
+  worstOutcomeKey: String
+  worstOutcomePlMinor: Float
+}
+
+type WorliInstance {
+  id: ID!
+  marketId: ID!
+  marketName: String
+  runDate: String!
+  side: WorliSessionSide!
+  status: WorliStatus!
+  scheduledOpenAt: String!
+  scheduledLockAt: String!
+  scheduledCloseAt: String!
+  operatorMessage: String
+  counters: WorliCounters!
+  bidRulesVersionId: ID
+}
+
+type WorliInstancesPage { items: [WorliInstance!]!, total: Int! }
+
+type WorliMutationPayload { success: Boolean!, message: String! }
+
+input WorliBetsFilter {
+  search: String
+  userId: ID
+  bidType: String
+  stakeMin: Float
+  stakeMax: Float
+  timeFrom: String
+  timeTo: String
+}
+
+type WorliBookItem { selection: String!, betCount: Int!, plMinor: Float! }
+type WorliBookGroup { bidType: String!, items: [WorliBookItem!]! }
+type WorliBook { totalStakeMinor: Float!, groups: [WorliBookGroup!]! }
+
+type WorliActivity { id: ID!, action: String!, reason: String, actorId: ID!, createdAt: String! }
+
+extend type Query {
+  worliRunningInstances(date: String, marketId: ID, status: [WorliStatus!], search: String, hasResult: Boolean, page: Int, limit: Int, sort: String): WorliInstancesPage!
+  worliInstance(id: ID!): WorliInstance
+  worliBook(instanceId: ID!, side: WorliSessionSide!): WorliBook!
+  worliBets(instanceId: ID!, filters: WorliBetsFilter, page: Int, limit: Int): MatkaBetsPage!
+  worliActivity(instanceId: ID!): [WorliActivity!]!
+}
+
+extend type Mutation {
+  pauseWorliInstance(id: ID!, reason: String!): WorliMutationPayload!
+  resumeWorliInstance(id: ID!, reason: String!): WorliMutationPayload!
+  lockNowWorliInstance(id: ID!, reason: String!): WorliMutationPayload!
+  closeNowWorliInstance(id: ID!, reason: String!): WorliMutationPayload!
+  setWorliMarketMessage(id: ID!, message: String!): WorliMutationPayload!
+  adjustWorliSuspendMinutes(id: ID!, minutes: Int!, reason: String!): WorliMutationPayload!
+  voidMatkaBet(id: ID!, reason: String!): WorliMutationPayload!
+}
+
+extend type Subscription {
+  worliInstanceUpdated(id: ID!): WorliInstance!
+  worliBetCreated(instanceId: ID!): MatkaBet!
+}
+
+

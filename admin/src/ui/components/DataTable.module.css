@@ -1,0 +1,252 @@
+/* DataTable composes the native Table primitives. This module owns only orchestration: toolbar,
+   live states, sort/action controls and expansion. Cell geometry and overflow cues stay in Table. */
+.root {
+  min-width: 0;
+  font-family: var(--font-ui);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 var(--card-pad) 12px;
+}
+
+.bulk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px var(--card-pad);
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.bulkActions,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.region {
+  position: relative;
+  min-width: 0;
+}
+
+.loadingBar {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: var(--card-pad);
+  right: var(--card-pad);
+  height: 2px;
+  border-radius: var(--ui-radius);
+  background: var(--acc);
+}
+
+.staleError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 var(--card-pad) 12px;
+  padding: 10px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--neg-bg);
+  color: var(--neg-ink);
+  font-size: 12.5px;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--t-1) ease;
+}
+
+.sortButton:hover,
+.sortActive {
+  color: var(--ink);
+}
+
+.sortButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.sortButton:disabled {
+  cursor: not-allowed;
+}
+
+.sortIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--ink-3);
+}
+
+.root .selectCell,
+.root .expandCell {
+  width: 40px;
+  min-width: 40px;
+  padding-right: 4px;
+  padding-left: 4px;
+  text-align: center;
+}
+
+.root .region table td.stateCell {
+  height: auto;
+  padding: 0;
+  border-bottom: 0;
+  white-space: normal;
+}
+
+.errorState {
+  display: flex;
+  min-height: 192px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px var(--card-pad);
+  color: var(--neg-ink);
+  text-align: center;
+}
+
+.errorMessage {
+  margin: 0;
+}
+
+.root .region table td.expandedCell {
+  height: auto;
+  padding: 14px var(--card-pad);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  white-space: normal;
+}
+
+.compact :is(th, td) {
+  height: 32px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sortButton {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). The bulk-action bar is the kit's
+   charcoal .bulk. It re-declares the tokens its children read (the Topbar trick), so the Buttons inside it
+   sit on charcoal without rules of their own: outlined/ghost buttons go white-on-charcoal, link buttons
+   take --chrome-link, danger text the chrome red, and primary stays red. A selected row (data-selected)
+   takes the hover tint and the red inset edge, like Table's open row; expanded rows sit on --panel-2;
+   compact density is 6px rows. */
+:global(html:not([data-skin='classic'])) .bulk {
+  --surf: transparent;
+  --surf-3: rgba(255, 255, 255, .08);
+  --field: transparent;
+  --float: var(--chrome-2);
+  --line: rgba(255, 255, 255, .3);
+  --line-2: rgba(255, 255, 255, .3);
+  --line-3: rgba(255, 255, 255, .5);
+  --hair: rgba(255, 255, 255, .18);
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft);
+  --ink-3: var(--bar-muted);
+  --hover: rgba(255, 255, 255, .08);
+  --press: rgba(255, 255, 255, .14);
+  --ring: #FFFFFF;
+  --link: var(--chrome-link);
+  --acc-ink: var(--chrome-link);
+  --acc-soft: rgba(255, 255, 255, .1);
+  --acc-soft-h: rgba(255, 255, 255, .3);
+  --focus-border: #FFFFFF;
+  --focus-ring: rgba(255, 255, 255, .14);
+  --disabled-bg: rgba(255, 255, 255, .08);
+  --disabled-fg: var(--chrome-muted);
+  /* light-theme danger red is unreadable on charcoal; take the chrome red in both themes */
+  --neg-ink: var(--chrome-red);
+  --neg-h: var(--chrome-red);
+  --neg-bg: color-mix(in srgb, var(--chrome-red) 16%, transparent);
+  --neg-on: var(--chrome-edge);
+  color-scheme: dark;
+  gap: 8px 12px;
+  padding: 8px var(--card-pad);
+  border-top: 0;
+  border-bottom: 0;
+  background: var(--chrome);
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+:global(html:not([data-skin='classic'])) .bulkActions {
+  gap: 8px;
+}
+
+/* the refetch bar: flat, and ink rather than red (red is kept for the action and the current place) */
+:global(html:not([data-skin='classic'])) .loadingBar {
+  border-radius: var(--ui-radius);
+  background: var(--ink-2);
+}
+
+/* (0,5,3): above Table's row hover (0,4,3), press and open (0,5,2) and the sticky cell's --surf */
+:global(html:not([data-skin='classic'])) .root .region tr[data-selected='true'] > td:not([colspan]) {
+  background: var(--hover);
+}
+
+:global(html:not([data-skin='classic'])) .root .region tr[data-selected='true'] > td:first-child {
+  box-shadow: inset 3px 0 0 var(--acc);
+}
+
+:global(html:not([data-skin='classic'])) .root .region table td.expandedCell {
+  background: var(--panel-2);
+}
+
+/* (0,3,3): beats Table's 10px body/footer rows (0,2,2) and loses, as it should, to the state and
+   expansion cells (0,4,1), which keep their own padding */
+:global(html:not([data-skin='classic'])) .compact .region :is(tbody, tfoot) td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+:global(html:not([data-skin='classic'])) .compact .region thead th {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}

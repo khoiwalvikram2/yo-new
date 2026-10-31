@@ -1,0 +1,163 @@
+/* Promoted from the Overview feed and snapshot rows. The containing ul owns its inset; each li
+   owns only row rhythm and the hairline between siblings. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hair);
+  list-style: none;
+  min-width: 0;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.feed {
+  --list-row-tile-size: 32px;
+}
+
+.stat {
+  --list-row-tile-size: 30px;
+}
+
+.tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--list-row-tile-size);
+  height: var(--list-row-tile-size);
+  border-radius: var(--ui-radius);
+}
+
+.statTile {
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+/* data-accent (tokens.css): the accent's tint behind the glyph in the accent; the plain tile without one. */
+.accentTile {
+  background: var(--accent-bg, var(--surf-3));
+  color: var(--accent, var(--ink-3));
+}
+
+.hue1 {
+  background: var(--h-ind-bg);
+  color: var(--h-ind);
+}
+
+.hue2 {
+  background: var(--h-red-bg);
+  color: var(--h-red);
+}
+
+.hue3 {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.hue4 {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.hue5 {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.hue6 {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.feedTitle,
+.statLabel,
+.sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feedTitle {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.statLabel {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.sub {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.age,
+.value {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.age {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.value {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .lrows / .lrow__* (kit p2): a 34px tile (3px through --r-tile-s), a 14px title, a 13px muted sub, rows
+   on a --line hairline. Only the hairline's colour moves, so .row:last-child (0,2,0) still drops the
+   last one. The decorative hue tiles keep their (re-picked) ramp. */
+:global(html:not([data-skin='classic'])) .row {
+  border-bottom-color: var(--line);
+}
+
+:global(html:not([data-skin='classic'])) .feed,
+:global(html:not([data-skin='classic'])) .stat {
+  --list-row-tile-size: 34px;
+}
+
+:global(html:not([data-skin='classic'])) .feedTitle {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+:global(html:not([data-skin='classic'])) .statLabel {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+:global(html:not([data-skin='classic'])) .sub {
+  margin-top: 1px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* .lrow__end */
+:global(html:not([data-skin='classic'])) .age {
+  font-size: 13px;
+}
+
+:global(html:not([data-skin='classic'])) .value {
+  font-weight: 700;
+}

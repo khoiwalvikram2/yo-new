@@ -1,0 +1,660 @@
+# Player Profile Types
+
+type PlayerProfile {
+  id: ID!
+  name: String!
+  email: String
+  phone: String
+  username: String
+  status: PlayerStatus!
+  tenant: String
+  createdAt: String
+  lastLogin: String
+  lastBet: String
+  firstDeposit: String
+  riskType: RiskType
+  kycLevel: String
+  kycStatus: String
+  kycLastUpdate: String
+  vipTierId: ID
+  vipTierName: String
+  wallet: Wallet
+  limits: PlayerLimits
+  access: PlayerAccess!
+  playerType: PlayerType
+  agentId: ID
+  creditLimit: Float
+  creditUsed: Float
+  creditAvailable: Float
+  settlementBalance: Float
+  referredBy: ReferrerUser
+}
+
+type PlayerOverview {
+  profile: PlayerProfile!
+  kpis: PlayerKPIs!
+  recentActivity: [PlayerActivityEvent!]!
+  exposureByProduct: [ExposureByProduct!]!
+  topProducts: [TopProduct!]!
+}
+
+type WalletTypeBreakdown {
+  cash: Float!
+  bonus: Float!
+  referralBonus: Float!
+}
+
+type BetCountByWalletType {
+  cash: Int!
+  bonus: Int!
+  referralBonus: Int!
+}
+
+type ProductBreakdown {
+  sports: Float!
+  casino: Float!
+  matka: Float!
+}
+
+type PlayerKPIs {
+  lifetimeValue: Float!
+  totalWagered: Float!
+  totalWinnings: Float!
+  netGamingRevenue: Float!
+  netDeposits: Float!
+  depositCount: Int!
+  depositVolume: Float!
+  withdrawalCount: Int!
+  withdrawalVolume: Float!
+  manualDepositCount: Int!
+  manualDepositVolume: Float!
+  manualWithdrawalCount: Int!
+  manualWithdrawalVolume: Float!
+  chargebackCount: Int!
+  chargebackVolume: Float!
+  openBetsCount: Int!
+  settledBetsCount: Int!
+  averageBetSize: Float!
+  bonusBalance: Float!
+  activeBonusesCount: Int!
+  wageringCompletionPercent: Float!
+  casinoRTP: Float
+  casinoHitRate: Float
+  activeDays: Int!
+  sessionsCount: Int!
+  averageSessionLength: Float!
+  ggr: Float!
+  profitLoss: Float!
+  ggrByWalletType: WalletTypeBreakdown!
+  plByWalletType: WalletTypeBreakdown!
+  bonusToCashTransfer: Float!
+  referralToCashTransfer: Float!
+  settledBetCountByWalletType: BetCountByWalletType!
+  plByProduct: ProductBreakdown!
+  ggrByProduct: ProductBreakdown!
+  totalSportsStake: Float!
+  totalSportsOpenStake: Float!
+  totalCasinoStake: Float!
+  totalMatkaStake: Float!
+}
+
+type PlayerActivityEvent {
+  id: ID!
+  type: String!
+  timestamp: String!
+  description: String!
+  metadata: String
+}
+
+type ExposureByProduct {
+  product: String!
+  exposure: Float!
+  currency: String!
+}
+
+type TopProduct {
+  product: String!
+  identifier: String!
+  name: String!
+  betCount: Int!
+  totalStake: Float!
+  totalReturn: Float!
+  netAmount: Float!
+}
+
+type PlayerBet {
+  id: ID!
+  product: String!
+  userId: ID!
+  status: String!
+  stake: Float!
+  return: Float
+  netAmount: Float!
+  currency: String!
+  createdAt: String!
+  settledAt: String
+  # Sports-specific fields
+  sportId: String
+  sportName: String
+  leagueId: String
+  leagueName: String
+  eventId: String
+  eventName: String
+  marketId: String
+  marketName: String
+  selectionId: String
+  selectionName: String
+  odds: Float
+  oddsSize: Float
+  side: String
+  liability: Float
+  pl: Float
+  result: String
+  eventResult: String
+  ipAddress: String
+  deviceInfo: String
+  location: String
+  country: String
+  # Casino-specific fields
+  gameId: String
+  gameName: String
+  providerId: String
+  providerName: String
+  vendorName: String
+  tableId: String
+  winAmount: Float
+  sessionId: String
+  gameRoundId: String
+  transactionId: String
+  # Matka-specific fields
+  matkaId: String
+  matkaName: String
+  matkaType: String
+  bidType: String
+  bidNumbers: String
+  marketSession: String
+  payoutMultiplier: Float
+  potentialWin: Float
+  actualWin: Float
+  payout: Float
+  # Wallet & bonus campaign info
+  walletType: String
+  campaign: BetCampaignDetail
+}
+
+type PlayerBetsPage {
+  items: [PlayerBet!]!
+  total: Int!
+  hasMore: Boolean!
+}
+
+type PlayerTransaction {
+  id: ID!
+  type: String!
+  method: String
+  amount: Float!
+  fees: Float!
+  netAmount: Float!
+  status: String!
+  reference: String
+  provider: String
+  currency: String!
+  createdAt: String!
+  metadata: String
+  balanceBefore: Float
+  balanceAfter: Float
+}
+
+type PlayerTransactionsPage {
+  items: [PlayerTransaction!]!
+  total: Int!
+  hasMore: Boolean!
+}
+
+type PlayerBonus {
+  id: ID!
+  campaignId: Int!
+  type: String!
+  name: String!
+  domain: String!
+  amount: Float!
+  currency: String!
+  status: String!
+  distributionType: String
+  grantedAt: String!
+  completedAt: String
+  expiresAt: String
+  triggerAmount: Float
+  wageringRequirement: Float!
+  wageringCompleted: Float!
+  wageringRemaining: Float!
+  firstDepositRequired: Boolean!
+  firstDepositUnlocked: Boolean!
+  contributionRules: String
+  campaign: BonusCampaign
+}
+
+type PlayerVipInfo {
+  tierId: ID!
+  tierName: String!
+  tierLevel: Int!
+  currentPoints: Float!
+  lifetimePoints: Float!
+  "Approved deposits this whitelabel month, which decide an automatic tier."
+  monthlyDeposits: Float
+  nextTierId: ID
+  nextTierName: String
+  "Approved deposits still needed this month to reach the next tier; null for a manual tier."
+  pointsToNextTier: Float
+  benefits: [String!]!
+  perks: [VipPerk!]!
+  history: [VipTierChange!]!
+  transactions: [VipTransaction!]!
+}
+
+type VipPerk {
+  name: String!
+  description: String!
+  icon: String
+}
+
+type VipTierChange {
+  id: ID!
+  fromTierId: ID
+  fromTierName: String
+  toTierId: ID!
+  toTierName: String!
+  reason: String!
+  pointsAtChange: Float!
+  createdAt: String!
+}
+
+type VipTransaction {
+  id: ID!
+  type: String!
+  points: Float!
+  description: String!
+  balanceBefore: Float!
+  balanceAfter: Float!
+  createdAt: String!
+}
+
+type PlayerDevice {
+  id: ID!
+  deviceId: String!
+  deviceType: String!
+  os: String
+  browser: String
+  ipAddress: String
+  location: String
+  isTrusted: Boolean!
+  firstSeen: String!
+  lastSeen: String!
+}
+
+type PlayerSession {
+  id: ID!
+  deviceId: String
+  deviceType: String
+  ipAddress: String
+  location: String
+  userAgent: String
+  startedAt: String!
+  lastActivity: String!
+  isActive: Boolean!
+}
+
+type PlayerSecurityEvent {
+  id: ID!
+  type: String!
+  description: String!
+  timestamp: String!
+  ipAddress: String
+  userAgent: String
+  success: Boolean!
+  metadata: String
+  location: String
+  language: String
+  screenResolution: String
+  timezone: String
+  platform: String
+}
+
+type PlayerNote {
+  id: ID!
+  content: String!
+  category: String
+  tags: [String!]!
+  isPinned: Boolean!
+  createdBy: String!
+  createdAt: String!
+  updatedAt: String
+}
+
+type PlayerCommLog {
+  id: ID!
+  type: String!
+  channel: String!
+  template: String
+  status: String!
+  sentAt: String!
+  deliveredAt: String
+  openedAt: String
+  clickedAt: String
+  bounced: Boolean!
+  metadata: String
+}
+
+# Credit player statement (Query.playerCreditStatement). Amounts use the
+# player's P&L sign (positive = player won), the sign of settlement_balance.
+# Money rows (BET_SETTLED, SETTLEMENT) carry balanceAfter; informational rows
+# (LIMIT_CHANGE, CREDIT_USED_CHANGE, ALLOCATION) do not move the balance.
+type PlayerCreditStatement {
+  playerId: ID!
+  playerType: String!
+  dateFrom: String!
+  dateTo: String!
+  summary: CreditStatementSummary!
+  openingBalance: Float!
+  closingBalance: Float!
+  totals: CreditStatementTotals!
+  rows: [CreditStatementRow!]!
+  totalRows: Int!
+  limit: Int!
+  offset: Int!
+}
+
+type CreditStatementSummary {
+  creditLimit: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+  settlementBalance: Float!
+  settlementBalanceSports: Float!
+  settlementBalanceCasino: Float!
+  settlementBalanceMatka: Float!
+}
+
+type CreditStatementTotals {
+  totalWon: Float!
+  totalLost: Float!
+  netResult: Float!
+  settlementsTotal: Float!
+  settlementCount: Int!
+  betCount: Int!
+}
+
+type CreditStatementRow {
+  id: ID!
+  type: String!
+  occurredAt: String!
+  domain: String
+  reference: String
+  details: String
+  amount: Float!
+  affectsBalance: Boolean!
+  balanceAfter: Float
+  valueBefore: Float
+  valueAfter: Float
+}
+
+input PlayerBetsFilter {
+  search: String
+  product: String
+  status: String
+  walletType: String
+  dateFrom: String
+  dateTo: String
+  sportId: String
+  leagueId: String
+  gameId: String
+  matkaId: String
+  stakeMin: Float
+  stakeMax: Float
+  limit: Int
+  offset: Int
+}
+
+input PlayerTransactionsFilter {
+  search: String
+  type: String
+  method: String
+  status: String
+  dateFrom: String
+  dateTo: String
+  amountMin: Float
+  amountMax: Float
+  limit: Int
+  offset: Int
+}
+
+input PlayerOverviewInput {
+  playerId: ID!
+  dateRange: String
+  dateFrom: String
+  dateTo: String
+}
+
+input SetPlayerLimitsInput {
+  playerId: ID!
+  dailyStakeLimit: Float
+  weeklyStakeLimit: Float
+  exposureCapOverride: Float
+  cooldownSeconds: Int
+  maxBetSports: Float
+  maxBetCasino: Float
+  maxBetMatka: Float
+}
+
+input GrantBonusInput {
+  playerId: ID!
+  bonusType: String!
+  amount: Float!
+  currency: String!
+  wageringRequirement: Float
+  expiresInDays: Int
+  reason: String
+}
+
+input GrantSpecialBonusInput {
+  playerId: ID!
+  campaignId: ID!
+  amount: Float!
+  currency: String
+}
+
+input AdjustVipTierInput {
+  playerId: ID!
+  tierId: ID
+  reason: String
+}
+
+input AddPlayerNoteInput {
+  playerId: ID!
+  content: String!
+  category: String
+  tags: [String!]
+  isPinned: Boolean
+}
+
+input TerminateSessionsInput {
+  playerId: ID!
+  sessionIds: [ID!]
+  allSessions: Boolean
+  reason: String
+}
+
+type PlayerProfilePayload {
+  success: Boolean!
+  message: String!
+  profile: PlayerProfile
+}
+
+type PlayerLimitsPayload {
+  success: Boolean!
+  message: String!
+  limits: PlayerLimits
+}
+
+type PlayerBonusPayload {
+  success: Boolean!
+  message: String!
+  bonus: PlayerBonus
+}
+
+type SetBonusAwardStatusPayload {
+  success: Boolean!
+  message: String!
+  newStatus: String
+}
+
+"""Admin activates a pending bonus card (same rules as user app). code set on failure e.g. ALREADY_ACTIVE_BONUS."""
+type ActivateBonusAwardAdminPayload {
+  success: Boolean!
+  message: String!
+  code: String
+}
+
+type PlayerVipPayload {
+  success: Boolean!
+  message: String!
+  vipInfo: PlayerVipInfo
+}
+
+type PlayerNotePayload {
+  success: Boolean!
+  message: String!
+  note: PlayerNote
+}
+
+type TerminateSessionsPayload {
+  success: Boolean!
+  message: String!
+  terminatedCount: Int!
+}
+
+# Agent-specific inputs and payloads
+input CreatePlayerForAgentInput {
+  username: String!
+  password: String!
+  email: String
+  phone: String
+  name: String
+  status: PlayerStatus
+  currency: String
+  initialBalance: Float
+  # New fields for role-based player creation
+  playerType: PlayerType
+  agentId: ID # Target agent ID (self or sub-agent)
+  creditLimit: Float # Required for credit players
+  bonusAllowed: Boolean # Default false for credit players
+  # Stake/limit fields (optional; applied on create via createPlayerDb limits)
+  maxBetSports: Float
+  maxBetCasino: Float
+  maxBetMatka: Float
+  dailyStakeLimit: Float
+}
+
+type CreatePlayerForAgentPayload {
+  success: Boolean!
+  message: String!
+  playerId: ID
+}
+
+type PlayerActionPayload {
+  success: Boolean!
+  message: String!
+}
+
+# Move Player to Agent types
+input MovePlayerToAgentInput {
+  playerId: ID!
+  targetAgentId: ID!
+  reason: String!
+}
+
+type MovePlayerToAgentPayload {
+  success: Boolean!
+  message: String
+}
+
+type MovePlayerPreCheckAgent {
+  id: ID!
+  username: String!
+  schemeType: String!
+  status: String!
+  allowedDomains: [String!]!
+  commissionRates: [AgentDomainRate!]
+  levelIndex: Int
+}
+
+type MovePlayerPreCheckResult {
+  canMove: Boolean!
+  blockers: [String!]!
+  warnings: [String!]!
+  player: MovePlayerBasicInfo
+  sourceAgent: MovePlayerPreCheckAgent
+  targetAgent: MovePlayerPreCheckAgent
+  openBetsCounts: MovePlayerOpenBetsCounts
+  activeBonusCount: Int!
+  walletBalance: Float
+  exposure: Float
+  commissionCycleStatus: String
+  commissionCycleFrom: String
+  commissionCycleTo: String
+}
+
+type MovePlayerOpenBetsCounts {
+  sports: Int!
+  casino: Int!
+  matka: Int!
+  total: Int!
+}
+
+type MovePlayerBasicInfo {
+  id: ID!
+  name: String
+  username: String
+  phone: String
+  status: String
+}
+
+type PlayerAgentTransfer {
+  id: ID!
+  timestamp: String!
+  performedBy: String
+  fromAgentId: ID!
+  fromAgentUsername: String
+  toAgentId: ID!
+  toAgentUsername: String
+  reason: String
+}
+
+type PlayerReferralProfile {
+  # Stats
+  totalEarnings: Float!
+  grossEarnings: Float!
+  totalReferrals: Int!
+  activeReferrals: Int!
+  totalClicks: Int!
+  totalAttributions: Int!
+  conversionRate: Float!
+  earningsByRuleType: [ReferrerEarningsByRule!]!
+
+  # Referral link
+  referralLink: ReferralLink
+
+  # Who referred this player
+  referredBy: ReferrerUser
+
+  # Referees (users this player referred)
+  referees: [User!]!
+
+  # Earnings history
+  earnings: [ReferralEarning!]!
+
+  # Settlements history
+  settlements: [ReferralSettlement!]!
+}
+
+
+type PlayerSecurityAuditPage { items: [PlayerSecurityEvent!]! total: Int! }

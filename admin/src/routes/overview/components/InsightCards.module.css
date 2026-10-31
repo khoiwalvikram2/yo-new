@@ -1,0 +1,168 @@
+/* The Overview's insight cards: flush lists of rows on hairlines, each a glyph tile (or a rank), a name over
+   a muted detail line, and the figure at the end. Tiles take their row's accent tint (data-accent, tokens.css);
+   figures stay in the ink, so the colour stays on the small tiles (the owner's toned-down pass). */
+.list {
+  margin: 0;
+  padding: 0 var(--card-pad);
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.tile,
+.rank {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius);
+  background: var(--accent-bg, var(--surf-3));
+  color: var(--accent, var(--ink-3));
+}
+
+.rank {
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.sub {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.end {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.amount {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A player's winnings are the house's loss: the one figure here that takes a colour. */
+.win {
+  color: var(--viz-rose, var(--neg-ink));
+}
+
+.meter {
+  flex: 0 0 72px;
+}
+
+.player {
+  color: inherit;
+  text-decoration: none;
+}
+
+.player:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.player:focus-visible,
+.more:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.more {
+  color: var(--link);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.more:hover {
+  text-decoration: underline;
+}
+
+.empty {
+  margin: 0;
+  padding: 14px var(--card-pad) 16px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* Big Bets & Winners: the two lists side by side, stacked when the card is narrow. The container is the
+   wrapper: a container cannot query itself. */
+.colsWrap {
+  container: overview-insight-cols / inline-size;
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cols > div + div {
+  border-top: 1px solid var(--hair);
+}
+
+@container overview-insight-cols (min-width: 720px) {
+  .cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cols > div + div {
+    border-top: 0;
+    border-left: 1px solid var(--hair);
+  }
+}
+
+.colLabel {
+  margin: 0;
+  padding: 12px var(--card-pad) 2px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}

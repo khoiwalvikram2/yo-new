@@ -1,0 +1,33 @@
+/* BEYOND-MOCKUP: advertisement management follows the approved kit table/drawer recipe. */
+.workspace { display: grid; gap: 20px; min-width: 0; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.sortHandle { cursor: grab; }
+.sortHandle:active { cursor: grabbing; }
+.sortHandle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.dragging { opacity: .7; }
+.order { display: flex; align-items: center; gap: 6px; }
+.identity { min-width: 140px; max-width: 320px; }
+.title { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.sub { color: var(--ink-3); font-size: 12px; overflow-wrap: anywhere; }
+.thumbnail { display: block; width: 64px; height: 40px; object-fit: cover; border-radius: var(--ui-radius); background: var(--surf-3); }
+.imageFallback { display: grid; place-items: center; width: 64px; min-height: 40px; color: var(--ink-3); font-size: 11px; background: var(--surf-3); border-radius: var(--ui-radius); }
+.form { display: grid; gap: 20px; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+
+@media (max-width: 1100px) {
+  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .stats, .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .actions { width: 100%; }
+  .actions > button { flex: 1 1 auto; }
+}
+@media (max-width: 480px) {
+  .stats, .fields { grid-template-columns: 1fr; }
+  .footer > button { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace { scroll-behavior: auto; }
+}

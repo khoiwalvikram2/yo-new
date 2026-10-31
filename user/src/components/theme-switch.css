@@ -1,0 +1,53 @@
+/* Light/dark switch (ThemeSwitch): a charcoal track with a sun and a moon; the white knob slides onto the
+   active mode. The same switch shows in the header, the mobile menu panel and Settings. */
+button.nova-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 0;
+  padding: 4px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+button.nova-theme-toggle:hover { background: transparent; }
+/* Older icon-button rules size this button (nova.css squeezes it to 33px inside the topbar, which also
+   holds the phone menu panel); the switch keeps its own width wherever it sits. */
+button.nova-theme-toggle:has(> .nova-theme-track) { width: auto; height: auto; min-width: 0; }
+.nova-theme-track {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(2, 26px);
+  align-items: center;
+  width: 60px;
+  height: 30px;
+  padding: 0 2px;
+  border: 1px solid #4A4D53;
+  border-radius: var(--ui-radius);
+  background: #383B41;
+  transition: border-color .15s, background-color .15s;
+}
+button.nova-theme-toggle:hover .nova-theme-track { border-color: #6A6D73; background: #43464C; }
+.nova-theme-track svg { position: relative; z-index: 1; justify-self: center; width: 14px; height: 14px; color: #AEB0B6; transition: color .2s; }
+.nova-theme-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 26px;
+  height: 24px;
+  border-radius: var(--ui-radius);
+  background: #FFFFFF;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+  transition: transform .22s cubic-bezier(.3, .7, .4, 1);
+}
+/* Light: knob on the sun (amber). Dark: knob slides onto the moon (charcoal). */
+button.nova-theme-toggle[aria-pressed='false'] .nova-theme-track svg:first-child { color: #D98A00; }
+button.nova-theme-toggle[aria-pressed='true'] .nova-theme-knob { transform: translateX(28px); }
+button.nova-theme-toggle[aria-pressed='true'] .nova-theme-track svg:nth-child(2) { color: #2B2F35; }
+button.nova-theme-toggle:focus-visible { outline: 2px solid #3BA7F0; outline-offset: 1px; border-radius: var(--ui-radius); }
+@media (prefers-reduced-motion: reduce) {
+  .nova-theme-knob, .nova-theme-track svg { transition: none; }
+}

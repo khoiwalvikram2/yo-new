@@ -1,0 +1,47 @@
+.root {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.heading {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0 8px 6px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+  transition: color var(--t-1) ease;
+}
+
+.starOn {
+  color: var(--acc);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">): muted caps heading, gold stars. */
+:global(html:not([data-skin='classic'])) .heading {
+  padding: 4px 12px 6px 16px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+:global(html:not([data-skin='classic'])) .starOn {
+  color: #D98E04;
+}

@@ -1,0 +1,75 @@
+/* /reporting/pnl (page migration C, W3 Task 122). The mockup draws this page through its generic
+   template (M:2447-2456 rendered by M:3361-3414): the page head and one table card. The page composes
+   kit pieces; this file only stacks them and styles what a table cell holds. Colours are tokens. */
+
+/* The sections stack like the mockup's content column `.gcol` (M:898): 20px apart, 16px on a phone
+   (M:1605). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the legacy domain tabs keep their own row under the filters. When the four labels
+   outrun a narrow column the row scrolls sideways instead of wrapping, with the mockup's thin
+   scrollbar (M:488-495). */
+.domainScroller {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.domainScroller::-webkit-scrollbar {
+  height: 10px;
+}
+
+.domainScroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.domainScroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: var(--ui-radius);
+}
+
+.domainScroller::-webkit-scrollbar-thumb:hover {
+  background-color: var(--sb-h);
+}
+
+/* the rail keeps its natural width inside the scroller (.seg is inline-flex, M:778) */
+.domainControl {
+  width: max-content;
+}
+
+/* A cell already has the mockup's 12.5px tabular figures (tbody td, M:990-995); a date reads in the
+   cell's own --ink-2. */
+.dateCell {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The amount carries the key cell's weight (td.k, M:997) and the mockup's signed colours: a gain in
+   --pos-ink and a loss in --neg-ink, as the KPI delta draws them (.kpi-d.up / .kpi-d.down, M:839-840).
+   The sign is also in the text (+ or -), so colour is never the only signal. */
+.amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gain {
+  color: var(--pos-ink);
+}
+
+.loss {
+  color: var(--neg-ink);
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+}

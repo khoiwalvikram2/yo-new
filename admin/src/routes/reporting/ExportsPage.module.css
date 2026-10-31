@@ -1,0 +1,420 @@
+/* /reporting/exports — the Export Center. The mockup's Export Center page (M:2531-2538) is the generic
+   job table (M:3361-3409), which the History tab follows; the Create Export tab, the templates, the
+   expanded rows and the job drawer are not drawn, so they are composed from the mockup's own idioms:
+   the KPI row (.kpis M:808-810), the card (M:853-867), the bordered tile (.envcard M:636-642) with its
+   accent glyph tile (.envtile M:644-648), the feed and snapshot rows (.fitem/.srow M:1062-1081), the
+   neutral pill (.pill M:1018-1021), the table cells (M:984-1006, .acts M:1034) and the drawer
+   (M:1136-1167). Everything else is marked BEYOND-MOCKUP. */
+
+/* BEYOND-MOCKUP: the whitelabel-context refusal is the access-denied state every page renders
+   (shared/core/RBACGuard.module.css): a kit Notice on the page ground, inset and held to a readable
+   measure, in place of antd's centred 403 illustration. */
+.contextDenied {
+  padding: 16px;
+  max-width: 448px;
+}
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The four totals (.kpis M:808-810). The row answers to its own width, not the viewport, because the
+   context panel takes 205px of it (definition of done item 17): two across from 520px, four from
+   1040px (each tile needs about 240px for "Pending / processing" beside its 40px glyph tile). */
+.statsZone {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px; /* .kpis gap M:808 */
+}
+
+@container (min-width: 520px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1040px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.tabPanel {
+  min-width: 0;
+}
+
+.panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- shared bits ---------- */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A count beside a card title: the kit Badge, with its meaning in visually hidden text. */
+.categoryCount {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px; /* the card head's tool height (.dots M:888) */
+}
+
+/* The format tag: the mockup's neutral pill (.pill M:1018-1021). BEYOND-MOCKUP: the legacy blue CSV and
+   green XLSX tags were decoration only, so both formats take the one neutral tone. */
+.formatTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.formatTags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* The type glyph tile: .ftile's 32px square (M:1064) in .envtile's accent tint (M:644-648). The
+   legacy tile was a solid indigo square with a white glyph. */
+.typeIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ui-radius);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+}
+
+/* Two-line table cells: a key line over a dim line (td.k M:997, td.dim M:998). */
+.typeCell {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* .fitem gap M:1062 */
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.typeCellText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.typeCellName {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* BEYOND-MOCKUP: the list view prints the whole description, as the legacy table did, so it wraps in
+   its cell instead of widening the table (cells are nowrap by default, M:991). */
+.typeCellDescription {
+  min-width: 240px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.dim {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.twoLine {
+  display: grid;
+  gap: 2px;
+}
+
+/* Row actions (.acts M:1034). */
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* ---------- Create Export ---------- */
+
+/* A view option's glyph beside its name (.seg button M:781-785). */
+.viewOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.viewMode {
+  flex: none;
+}
+
+/* BEYOND-MOCKUP: the saved templates keep the legacy wrapping row of bordered chips, each the mockup's
+   bordered tile (.envcard M:636-638) holding the name, the type and the two actions. */
+.templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.template {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.templateText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.templateName {
+  max-width: 200px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templateType {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.templateActions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The second line of the export-limit notice (the legacy secondary caption). */
+.noticeNote {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+/* BEYOND-MOCKUP: the catalogue in tiles, at most three across as the legacy grid was (lg 8 of 24),
+   fitting its own width rather than stepping by viewport: a tile needs 260px for two filter selects
+   and its format buttons. */
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(260px, calc((100% - 24px) / 3)), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each type is the mockup's bordered tile (.envcard M:636-638) inside its category card, not a second
+   card: it has no shadow of its own. */
+.typeTile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.typeHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.typeText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The legacy tile title: 14px/600 at 1.3. */
+.typeName {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.typeDescription {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The formats and the estimate, ruled off from the filters as before (the hairline of .srow M:1077).
+   In a narrow tile a long estimate drops to its own line under the format tags rather than pushing
+   past the tile. */
+.typeMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  min-width: 0;
+  min-height: 30px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hair);
+}
+
+/* Alone on its line the estimate may still break rather than overflow; it never does at the tile's
+   260px minimum, but a figure has no upper bound. */
+.estimate {
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* The estimating ring turns, and a turning 14px square spans up to its 19.8px diagonal, so it keeps
+   3px each side to stay inside the row's edge (the scrollable overflow counts the turned box). */
+.estimateSpinner {
+  margin-inline: 3px;
+}
+
+.typeFilters {
+  display: grid;
+  gap: 8px;
+}
+
+/* The format buttons share the tile's last line equally, at the bottom of a tile that is taller than
+   its content (a row of tiles keeps one height). */
+.typeActions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.typeActions .formatButton {
+  flex: 1 1 0;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* ---------- History ---------- */
+
+.total {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The in-progress notice inside the table card takes the card's gutter (--card-pad M:32). */
+.tableNotice {
+  padding: 0 var(--card-pad) 12px;
+}
+
+/* BEYOND-MOCKUP: a running job's expanded row. The legacy fixed 50% progress bar claimed a progress the
+   query does not report; the row shows the kit spinner and the legacy sentence instead. */
+.processingNote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+/* BEYOND-MOCKUP: the job's two moments, the legacy antd Timeline as a plain ordered list with the
+   legacy dot colours (created green, completed blue) on the semantic tokens. */
+.timeline {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timelineItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.timelineDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.timelineDone {
+  background: var(--blue);
+}
+
+.timelineText {
+  display: grid;
+  gap: 2px;
+}
+
+.timelineTitle {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---------- Job drawer ---------- */
+
+/* The drawer body's sections (.dr-body M:1150, .dr-sec spacing M:1151): the details list, then the
+   notices. */
+.drawerBody {
+  display: grid;
+  gap: 16px;
+}
+
+/* the phone step of the page's vertical rhythm (M:1603-1606) */
+@media (max-width: 767px) {
+  .content,
+  .panel,
+  .stats {
+    gap: 14px;
+  }
+}

@@ -1,0 +1,270 @@
+/* Referral Rules (/referrals/rules, mockup mkt-refrules M:2347-2355). The mockup draws this page with the
+   generic table template (M:3361-3409): a page head, then one table card. Its rule IDs, conditions and
+   block rules have no data in the page's queries (D13), so the table keeps the legacy columns. The rule
+   editor drawer, its form and the empty-state notice are not drawn; they follow the approved Deposits
+   drawer (M:1136-1167) and the Create Bonus form idiom (Task 027) and are BEYOND-MOCKUP where noted. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- table cells ---------- */
+
+/* BEYOND-MOCKUP: the legacy rule cell (a type tile, the type and its Config line) on the who-cell row
+   (.who-cell M:1008) with the KPI tile's shape (.tile M:823-826) at table size. */
+.ruleCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.ruleTile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ui-radius);
+}
+
+.ruleCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The key cell (td.k M:997). */
+.ruleName {
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.ruleConfig {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.configTerm {
+  color: var(--ink-3);
+}
+
+.configValue {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+/* Two-line Created cell: the time takes the dim cell colour (td.dim M:998). */
+.stack {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.date {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.secondary {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* BEYOND-MOCKUP: the payout type and the drawer's Edit/New marker are categories, not statuses, so they
+   take the .flag shape (M:1029-1033) on the decorative hue ramp (.av.a1-a5 M:1013-1017), as the Bet List's
+   categorical badges do; the Status column alone uses the semantic .pill tones. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.hueBlu {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.hueGrn {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.hueInd {
+  background: var(--h-ind-bg);
+  color: var(--h-ind);
+}
+
+.hueVio {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.hueRed {
+  background: var(--h-red-bg);
+  color: var(--h-red);
+}
+
+.hueAmb {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+/* ---------- rule drawer (BEYOND-MOCKUP) ---------- */
+
+/* The legacy header card: the drawer's summary block, built like the Deposits drawer's player summary on
+   the card surface (.card M:853-856). */
+.ruleSummary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.summaryTile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ui-radius);
+}
+
+.summaryCopy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Portalled drawer content sits outside Page's margin neutraliser, so it sets its own margins. */
+.summaryHeading {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.summarySub {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Each legacy settings card is a quiet tile on the card surface; the section legend and description are
+   FormSection's own (.dr-sec M:1151 is the nearest drawn section rule). The tile is the size container
+   for the tier fields below; nothing inside it is fixed-position. */
+.tile {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  container-type: inline-size;
+}
+
+/* A field the legacy form gave a whole row (a single field, the reload minimum, the tier list). */
+.fullRow {
+  grid-column: 1 / -1;
+}
+
+/* One field per tier; two side by side once the tile has the room (its own width, not the viewport). */
+.tierGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+@container (min-width: 420px) {
+  .tierGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.statusRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+
+.statusText {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* The footer keeps the legacy hint on the left and the three actions on the right (.dr-foot M:1165). */
+.drawerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.footerHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.footerHint svg {
+  flex: none;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+/* The drawer is the full viewport width below 768px (Drawer.module.css), so this follows the viewport. */
+@media (max-width: 767px) {
+  .drawerFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .footerActions {
+    flex-wrap: wrap;
+  }
+
+  .footerActions > * {
+    flex: 1 1 auto;
+  }
+}

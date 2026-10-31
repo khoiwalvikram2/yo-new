@@ -1,0 +1,338 @@
+/* Payout Account Approvals (M:2414-2420). The mockup draws this page with the generic table template
+   (M:3361-3409); the detail drawer and its approve/reject review are not drawn, so they follow the
+   approved Deposit Requests drawer (M:1136-1167, Task 025) and are BEYOND-MOCKUP where noted. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- table cells ---------- */
+
+/* Two-line cells (user, created): the second line takes the dim cell colour (td.dim M:997). */
+.stack {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.secondary {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The user name links to the profile: the mockup's text link (.linkbtn M:879-886). */
+.playerLink {
+  justify-self: start;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.playerLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.playerLink:active {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.playerLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* BEYOND-MOCKUP: the mockup splits Account Holder, Account / VPA and IFSC into columns (M:2416); the
+   legacy Account Details cell lists them as term/value lines with copy actions, kept here with the .dl
+   term and value colours (M:1153-1156) at table size. */
+.accountList {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.accountRow {
+  display: grid;
+  grid-template-columns: 72px minmax(0, auto);
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.accountTerm {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* The CopyButton's visually hidden announcement is absolutely positioned; this cell is its containing
+   block, or it escapes the table's horizontal scroller and widens the page. */
+.accountValue {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* The legacy cell truncated each value inside a 260px column; the full value stays in the title and is
+   what the copy action copies. */
+.accountText {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- drawer ---------- */
+
+.drawerContent {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.userSummary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.heroIcon,
+.sectionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.heroIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ui-radius);
+}
+
+.summaryCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.summaryCopy strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A class, not `.summaryCopy span`, so no span-rendered kit element (a StatusPill) can inherit it. */
+.contact {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.profileLink {
+  flex: none;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: color var(--t-1) ease, text-decoration-color var(--t-1) ease;
+}
+
+.profileLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.profileLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.drawerSection {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+
+.sectionIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius);
+}
+
+.sectionHeading {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Drawer content is portalled outside Page's heading/paragraph neutraliser, so it zeroes its own margins. */
+.sectionTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.sectionSub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.code {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* A description value with its copy action; positioned for the same reason as .accountValue. */
+.copyValue {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A recorded rejection reason: the drawer's negative flag (.dr-flag M:1158-1164). */
+.rejection {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--ui-radius);
+  background: var(--neg-bg);
+}
+
+.rejection > svg {
+  flex: none;
+  color: var(--neg-ink);
+}
+
+.rejection strong {
+  display: block;
+  color: var(--neg-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.rejection p {
+  margin: 2px 0 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.drawerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.footerHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.footerHint svg {
+  flex: none;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+@media (max-width: 767px) {
+  .userSummary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .profileLink {
+    width: calc(100% - 52px);
+    margin-left: 52px;
+  }
+
+  .drawerFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .footerActions {
+    flex-wrap: wrap;
+  }
+
+  .footerActions > * {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playerLink,
+  .profileLink {
+    transition: none;
+  }
+}

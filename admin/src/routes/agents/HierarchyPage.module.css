@@ -1,0 +1,143 @@
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.drawerContent {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.drawerIdentity {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.drawerAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--ui-radius);
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.drawerName {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.drawerName strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawerName span {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.drawerPills,
+.domains,
+.drawerFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.domains span {
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.code {
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.drawerCard {
+  box-shadow: none;
+}
+
+.drawerCard > div:last-child {
+  display: grid;
+  gap: 14px;
+}
+
+.positive { color: var(--ok); }
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kpiGrid > span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.kpiGrid small {
+  color: var(--ink-3);
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.kpiGrid strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawerFooter {
+  justify-content: flex-end;
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .stats { grid-template-columns: 1fr; }
+
+  .drawerIdentity {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .drawerPills { grid-column: 2; }
+  .drawerFooter > * { flex: 1 1 auto; }
+}

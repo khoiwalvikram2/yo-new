@@ -1,0 +1,58 @@
+/* BEYOND-MOCKUP: financial facts and nested lazy-agent tree follow the kit card/table surfaces. */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.scheme { width: 210px; max-width: 100%; }
+.profileLink { color: var(--link, var(--acc-ink)); font-size: 15px; font-weight: 650; text-decoration: none; overflow-wrap: anywhere; }
+.profileLink:hover { text-decoration: underline; }
+.profileLink:focus-visible, .subLink:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.muted { color: var(--ink-3); font-size: 12px; line-height: 1.4; }
+.positive { color: var(--pos-ink); display: inline-flex; align-items: center; gap: 4px; }
+.negative { color: var(--neg-ink); display: inline-flex; align-items: center; gap: 4px; }
+.breadcrumb { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px var(--card-pad); border-bottom: 1px solid var(--line); }
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 7: the profile link is the theme's red ink (dark --acc is under 4.5:1 on the panel) */
+:global(html:not([data-skin='classic'])) .profileLink {
+  color: var(--link, var(--acc-ink));
+}
+
+/* Compact rows (2026-10-28 redesign): one figure per column with a quiet context line under it,
+   one action in front and the rest in the row menu. Amounts sit in their own elements so they read
+   (and can be found) on their own. */
+.agent { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.agentAvatar { flex: none; border-radius: var(--ui-radius); }
+.agentText { display: grid; gap: 2px; min-width: 0; }
+.agentName { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.agentName > :last-child:not(a):not(button) { margin-left: 4px; }
+.sub { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; color: var(--ink-3); font-size: 12px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.sub > * + *::before, .warnLine > span + span::before { content: '·'; margin-right: 6px; }
+.agentSub { display: flex; flex-wrap: nowrap; align-items: center; gap: 0 6px; min-width: 0; color: var(--ink-3); font-size: 12px; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.agentSub > * + *::before { content: '·'; margin-right: 6px; }
+.sub { white-space: nowrap; }
+.subLink { color: var(--link, var(--acc-ink)); text-decoration: none; }
+.subLink:hover { text-decoration: underline; }
+.phone { display: inline-flex; align-items: center; gap: 2px; }
+.stack { display: grid; justify-items: start; gap: 3px; min-width: 0; }
+.figure { color: var(--ink); font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.figureLine { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; color: var(--ink); font-size: 14px; font-variant-numeric: tabular-nums; }
+.figureLine strong { font-weight: 650; }
+.label { color: var(--ink-3); font-size: 12px; }
+.subStrong { color: var(--ink-3); font-size: 13px; }
+.rates { display: flex; flex-wrap: wrap; gap: 2px 10px; color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+.rates strong { font-weight: 650; }
+.rateDomain { color: var(--ink-3); }
+.direction { display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border-radius: var(--ui-radius); background: var(--surf-3); color: var(--ink-2, var(--ink)); font-size: 11px; font-weight: 650; }
+
+.credit { display: grid; gap: 5px; min-width: 200px; }
+.creditTop { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--ink); font-size: 14px; font-variant-numeric: tabular-nums; }
+.creditTop strong { font-weight: 650; }
+.ofText { color: var(--ink-3); font-size: 12px; }
+.percent { color: var(--ink-2, var(--ink)); font-size: 13px; }
+.warnText { color: var(--warn); font-size: 13px; }
+.creditMeter { width: 100%; }
+.warnLine { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; color: var(--warn); font-size: 12px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.warnLine > svg { flex: none; }
+
+.rowActions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.rowActions :is(button, a) { border-radius: var(--ui-radius); }
+/* A count chip, as on the line tabs (ui/components/Tabs.module.css .count). */
+.groupCount { margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--surf-3); color: var(--ink-2); font-size: 12px; font-weight: 700; line-height: 1.35; font-variant-numeric: tabular-nums; }
+input[type='radio']:checked + label .groupCount { background: var(--acc-soft); color: var(--acc-ink); }
+

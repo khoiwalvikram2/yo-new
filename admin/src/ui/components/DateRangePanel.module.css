@@ -1,0 +1,152 @@
+/* The period panel: a grid of preset chips, then two date fields when Custom is chosen, then Apply and
+   Reset. The mockup's pill opens a plain menu of presets (M:3845-3851); a custom range needs more than
+   a menu, so the panel is BEYOND-MOCKUP, built from the mockup's own parts — the chips take the
+   segmented control's pressed and unpressed treatment (M:778-794), the divider its hairline. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* The columns fit themselves to the panel: the widest label, the pressed "This Month" in Inter 700 at
+   11px, measures 60.69px in Chromium, and with the chip's padding and borders needs 73px. Four fixed
+   columns were 62.5px at a 320px viewport, where that label ran 4.19px past its chip. auto-fit drops
+   to three columns instead of clipping. */
+.presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(73px, 1fr));
+  gap: 6px;
+  padding: 12px;
+}
+
+.chip {
+  height: 34px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-1) ease, color var(--t-1) ease, border-color var(--t-1) ease;
+}
+
+.chip:hover {
+  background: var(--hover);
+  border-color: var(--acc-soft-h);
+  color: var(--ink);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--acc-on);
+  font-weight: 600;
+}
+
+.custom {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  height: 59px;
+  box-sizing: border-box;
+  padding: 7px 12px 0;
+  border-top: 1px solid var(--hair);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--hair);
+}
+
+.actions > button {
+  height: 36px;
+}
+
+/* why Apply cannot be pressed yet; it is linked to the button, not merely near it */
+.blocked {
+  margin-right: auto;
+  align-self: center;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Presets wear the kit's .segc trough: --hover ground, 1px --line, 3px radius, 3px padding, 2px gaps;
+   chips are flat 2px-radius cells in 13px 700 --ink-3, --ink on hover, and the chosen one is --acc with
+   --acc-on text. The custom row loses its fixed 59px height, which no longer holds the kit's 14px label
+   over a 36px field. Sections are split by --line hairlines. */
+:global(html:not([data-skin='classic'])) .presets {
+  gap: 2px;
+  margin: 12px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--hover);
+}
+
+:global(html:not([data-skin='classic'])) .chip {
+  height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .chip:hover {
+  background: transparent;
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .chip:focus-visible {
+  outline-offset: 1px;
+}
+
+:global(html:not([data-skin='classic'])) .chip[aria-pressed='true'],
+:global(html:not([data-skin='classic'])) .chip[aria-pressed='true']:hover {
+  background: var(--acc);
+  color: var(--acc-on);
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .custom {
+  gap: 10px;
+  height: auto;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+
+:global(html:not([data-skin='classic'])) .actions {
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+
+:global(html:not([data-skin='classic'])) .blocked {
+  color: var(--ink-3);
+  font-size: 13px;
+}

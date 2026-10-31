@@ -1,0 +1,80 @@
+type Permission {
+  domain: String!
+  actions: [String!]!
+}
+
+input PermissionInput {
+  domain: String!
+  actions: [String!]!
+}
+
+type Role {
+  id: ID!
+  name: String!
+  tenant: String
+  permissions: [Permission!]!
+  updatedAt: String!
+}
+
+input RoleInput {
+  name: String!
+  permissions: [PermissionInput!]!
+}
+
+input CreateRoleInput {
+  name: String!
+  permissions: [PermissionInput!]!
+}
+
+input UpdateRoleInput {
+  id: ID!
+  name: String
+  permissions: [PermissionInput!]
+}
+
+input AssignRoleInput {
+  userId: ID!
+  roleId: ID!
+}
+
+type RolePayload {
+  success: Boolean!
+  message: String!
+  role: Role
+}
+
+type AssignRolePayload {
+  success: Boolean!
+  message: String!
+}
+
+type AdminUser {
+  id: ID!
+  name: String!
+  email: String
+  status: PlayerStatus
+  createdAt: String
+  roles: [Role!]!
+}
+
+input CreateSupportAdminInput {
+  name: String!
+  email: String!
+  password: String!
+  phone: String
+  roleIds: [ID!]!
+}
+
+type CreateSupportAdminPayload {
+  success: Boolean!
+  message: String!
+  user: AdminUser
+}
+
+type IpEntry {
+  id: ID!
+  cidr: String!
+  createdAt: String!
+}
+
+

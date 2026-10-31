@@ -1,0 +1,728 @@
+# CRM — a separate application at crm.<whitelabel-domain>.
+#
+# Everything here is scoped by the tenant on the caller's token. No operation
+# takes a tenant argument; supplying one would be the obvious way to reach
+# another whitelabel's desk.
+
+type CrmSettings {
+  tenant: String!
+  enabled: Boolean!
+  seatLimit: Int!
+  seatsUsed: Int!
+  sessionIdleMinutes: Int!
+  enforceIpAllowlist: Boolean!
+  updatedBy: String
+  updatedAt: String
+}
+
+"""
+Everything the CRM holds on one player, rendered for a data subject request.
+
+Returned as text rather than a URL for the same reason the CSV export is: the
+rows are already in memory, the caller is already authenticated, and a signed
+link is one more thing that can outlive the permission that produced it.
+"""
+type CrmDsarExport {
+  playerId: ID!
+  generatedAt: String!
+  filename: String!
+  "The full document, as formatted JSON."
+  json: String!
+}
+
+"What an erasure actually removed. Counts, so the answer to the request is checkable."
+type CrmDsarEraseResult {
+  ok: Boolean!
+  error: String
+  notesRedacted: Int!
+  contactNotesCleared: Int!
+  tasksRedacted: Int!
+}
+
+"""
+How the desk performed over a period.
+
+Desk health is live triage — what is going wrong right now. This is the
+period's numbers: throughput, deadlines, whether calls connected, who did the
+work. Computed live from the operational tables, scoped to the reader's books.
+"""
+type CrmDeskReport {
+  from: String!
+  to: String!
+  tasks: CrmReportTasks!
+  contacts: CrmReportContacts!
+  "One row per person with any activity in the period, busiest first."
+  agents: [CrmReportAgentRow!]!
+  rg: CrmReportRg!
+}
+
+type CrmReportTasks {
+  created: Int!
+  completed: Int!
+  "Went past their deadline unacknowledged during the period."
+  breached: Int!
+  "Open right now — not range-bound, so the report ends on the present state."
+  openNow: Int!
+  "Creation to completion, in minutes, for tasks completed in the period."
+  avgMinutesToClose: Int
+  "Deadline to pick-up, in minutes, for escalations acknowledged in the period."
+  avgMinutesToAcknowledge: Int
+  byDay: [CrmReportTaskDay!]!
+}
+
+type CrmReportTaskDay {
+  date: String!
+  created: Int!
+  completed: Int!
+}
+
+type CrmReportContacts {
+  attempts: Int!
+  connected: Int!
+  byChannel: [CrmReportChannelRow!]!
+}
+
+type CrmReportChannelRow {
+  channel: String!
+  attempts: Int!
+  connected: Int!
+}
+
+"What one person did in the period, counted only inside the reader's books."
+type CrmReportAgentRow {
+  crmUserId: ID!
+  name: String!
+  tasksCompleted: Int!
+  tasksBreached: Int!
+  contactAttempts: Int!
+  contactsConnected: Int!
+  notesWritten: Int!
+}
+
+type CrmReportRg {
+  flagsRaised: Int!
+  flagsLifted: Int!
+  "Blocking episodes standing right now. Not range-bound."
+  blocksActiveNow: Int!
+}
+
+"""
+A saved player filter.
+
+Stores a filter, never a set of players: opening one resolves against the
+reader's own books, so two people see different players through the same shared
+segment and sharing discloses nothing.
+"""
+type CrmSegment {
+  id: ID!
+  name: String!
+  description: String
+  "The filter as saved, in the same shape `crmPlayers` takes."
+  filter: CrmPlayerFilter!
+  "Shared segments are offered to the whole whitelabel. Scoping still applies per reader."
+  isShared: Boolean!
+  "Null when the author's account is gone; a shared segment outlives them."
+  ownerName: String
+  "True when the caller wrote it — only its author may change or remove it."
+  isMine: Boolean!
+  createdAt: String!
+  updatedAt: String!
+}
+
+"""
+The saved form of a player filter.
+
+An output mirror of `CrmPlayerFilterInput`: GraphQL will not let an input type
+be returned, and the alternative — handing the filter back as an opaque JSON
+scalar — would put a value the client must reconstruct outside the schema.
+"""
+type CrmPlayerFilter {
+  search: String
+  status: String
+  bookId: ID
+  assignment: String
+  tagIds: [ID!]
+  tagMatch: String
+  hasNotes: Boolean
+}
+
+"""
+The result of raising the same task for many players.
+
+Counts rather than a boolean: a batch where nine of two hundred were already
+open has to be able to say so.
+"""
+type CrmBulkTaskResult {
+  ok: Boolean!
+  error: String
+  created: Int!
+  "Already had this task open. Not a failure — the work is already on the queue."
+  skippedDuplicate: Int!
+  "Not in the caller's books, so nothing was created for them."
+  skippedUnreachable: Int!
+}
+
+"""
+When a whitelabel's desk works.
+
+Not a display preference. Every task's `dueAt` and `breachAt` is computed
+against this calendar, and the escalation ladder does not advance outside it —
+so a desk on the wrong hours reports breaches that were nobody's fault.
+
+Owned by the whitelabel, unlike the Super Admin settings above: those are
+commercial, this is operational.
+"""
+type CrmDeskCalendar {
+  "An IANA zone, e.g. Asia/Kolkata."
+  timezone: String!
+  "Minutes past midnight the desk opens."
+  openMinute: Int!
+  "Minutes past midnight the desk closes. 1440 means midnight."
+  closeMinute: Int!
+  "ISO weekdays the desk works, 1 = Monday. Never empty."
+  days: [Int!]!
+  "Answered against the desk's own timezone, not the viewer's."
+  isOpenNow: Boolean!
+}
+
+"A whitelabel and the state of its CRM, for the Super Admin screen."
+type CrmWhitelabelRow {
+  tenant: String!
+  name: String!
+  domain: String
+  enabled: Boolean!
+  seatLimit: Int!
+  seatsUsed: Int!
+}
+
+"""
+One whitelabel's CRM users, as the admin panel sees them.
+
+Carries the seat allowance alongside the list because the two are only useful
+together: a create that is about to fail for want of a seat should be visible
+before it is attempted, not after.
+"""
+type WhitelabelCrmUserPage {
+  tenant: String!
+  "False when a Super Admin has not switched the CRM on. Reads still work; writes do not."
+  enabled: Boolean!
+  seatLimit: Int!
+  seatsUsed: Int!
+  "True only for a Super Admin, who may look at any whitelabel."
+  canChooseTenant: Boolean!
+  users: [CrmUser!]!
+}
+
+type CrmPermission {
+  domain: String!
+  action: String!
+  label: String!
+  description: String!
+}
+
+type CrmPermissionGroup {
+  domain: String!
+  label: String!
+  description: String!
+  actions: [CrmPermission!]!
+}
+
+type CrmPermissionPair {
+  domain: String!
+  actions: [String!]!
+}
+
+type CrmRole {
+  id: ID!
+  name: String!
+  description: String
+  isSystem: Boolean!
+  userCount: Int!
+  permissions: [CrmPermission!]!
+}
+
+type CrmUser {
+  id: ID!
+  name: String!
+  username: String
+  email: String
+  phone: String
+  status: String!
+  requirePasswordReset: Boolean!
+  lastLoginAt: String
+  lastSeenAt: String
+  createdAt: String!
+  roleNames: [String!]!
+  roleIds: [ID!]!
+  "While set and in the future, escalations skip this user and follow their delegate."
+  outOfOfficeUntil: String
+  delegateTo: ID
+}
+
+type CrmBook {
+  id: ID!
+  name: String!
+  description: String
+  memberCount: Int!
+  playerCount: Int!
+  createdAt: String!
+}
+
+type CrmBookMember {
+  id: ID!
+  name: String!
+  status: String!
+}
+
+"The signed-in CRM user, rebuilt from the token on every request."
+type CrmMe {
+  id: ID!
+  name: String!
+  email: String
+  status: String!
+  requirePasswordReset: Boolean!
+  tenant: String!
+  whitelabelName: String
+  permissions: [CrmPermissionPair!]!
+  bookIds: [ID!]!
+  canViewAllPlayers: Boolean!
+  sessionIdleMinutes: Int!
+  "While set and in the future, escalations skip you and follow your delegate."
+  outOfOfficeUntil: String
+  delegateTo: ID
+}
+
+type CrmLoginResult {
+  ok: Boolean!
+  token: String
+  "One message for every failure. The specific reason goes to the audit trail, not here."
+  error: String
+  me: CrmMe
+}
+
+type CrmPlayer {
+  id: ID!
+  name: String!
+  username: String
+  phone: String
+  email: String
+  status: String!
+  playerType: String!
+  createdAt: String!
+  lastLoginAt: String
+  cash: String!
+  bonus: String!
+  exposure: String!
+  bookId: ID
+  bookName: String
+  ownerName: String
+  "The tags this player carries, for the list."
+  tags: [CrmPlayerTagRef!]!
+  "How many notes the desk has on them."
+  noteCount: Int!
+}
+
+"A tag as it appears on a player row — just enough to render the chip."
+type CrmPlayerTagRef {
+  id: ID!
+  name: String!
+  colour: String!
+}
+
+type CrmPlayerPage {
+  items: [CrmPlayer!]!
+  total: Int!
+}
+
+type CrmPlayerProfile {
+  id: ID!
+  name: String!
+  username: String
+  phone: String
+  email: String
+  status: String!
+  playerType: String!
+  createdAt: String!
+  lastLoginAt: String
+  cash: String!
+  bonus: String!
+  exposure: String!
+  referralBalance: String!
+  bookId: ID
+  bookName: String
+  ownerName: String
+  riskType: String
+  remark: String
+  withdrawalLock: Boolean!
+  bonusAllowed: Boolean!
+  sportsBetAllowed: Boolean!
+  casinoBetAllowed: Boolean!
+  matkaBetAllowed: Boolean!
+  creditLimit: String!
+  creditUsed: String!
+  totalDeposits: String!
+  depositCount: Int!
+  totalWithdrawals: String!
+  withdrawalCount: Int!
+  totalStake: String!
+  betCount: Int!
+  firstBetAt: String
+  lastBetAt: String
+  "How many times the desk has tried to reach them."
+  contactAttempts: Int!
+  "Of those, how many nobody answered — the number that says stop calling."
+  contactUnanswered: Int!
+  lastContactedAt: String
+}
+
+type CrmTimelineEntry {
+  key: String!
+  source: String!
+  occurredAt: String!
+  title: String!
+  status: String
+  amount: String
+  detail: String
+}
+
+type CrmTimelinePage {
+  entries: [CrmTimelineEntry!]!
+  "Opaque. Absent when there is nothing further to read."
+  nextCursor: String
+}
+
+type CrmLoginAttempt {
+  id: ID!
+  username: String!
+  userName: String
+  success: Boolean!
+  reason: String
+  ipAddress: String
+  userAgent: String
+  createdAt: String!
+}
+
+type CrmPiiAccessEntry {
+  id: ID!
+  userName: String
+  resourceType: String!
+  resourceId: String!
+  action: String!
+  fields: [String!]
+  ipAddress: String
+  createdAt: String!
+}
+
+type CrmIpAllowlistEntry {
+  id: ID!
+  cidr: String!
+  label: String
+  createdAt: String!
+}
+
+type CrmMutationResult {
+  ok: Boolean!
+  error: String
+}
+
+input CrmPermissionInput {
+  domain: String!
+  action: String!
+}
+
+input CrmPlayerFilterInput {
+  search: String
+  status: String
+  bookId: ID
+  "assigned | unassigned"
+  assignment: String
+  "Players carrying these tags."
+  tagIds: [ID!]
+  "all (default) requires every tag; any requires at least one."
+  tagMatch: String
+  "Players with at least one note, or with none."
+  hasNotes: Boolean
+}
+
+input CrmCreateUserInput {
+  name: String!
+  username: String!
+  password: String!
+  email: String
+  phone: String
+  roleIds: [ID!]
+}
+
+input CrmUpdateUserInput {
+  id: ID!
+  name: String
+  email: String
+  phone: String
+}
+
+"A note the desk wrote about a player. Notes cannot be edited, only removed."
+type CrmPlayerNote {
+  id: ID!
+  content: String!
+  category: String
+  "Free-text labels on the note itself. Not the player tag vocabulary."
+  labels: [String!]!
+  isPinned: Boolean!
+  "all | crm_only | admin_only"
+  visibility: String!
+  "crm | admin — derived from which author column is set."
+  authorKind: String!
+  "The author's name as it was when they wrote it."
+  createdBy: String!
+  createdAt: String!
+  "Always null: there is no edit path, so a note cannot have been changed."
+  updatedAt: String
+}
+
+type CrmPlayerNotePayload {
+  ok: Boolean!
+  error: String
+  note: CrmPlayerNote
+}
+
+input CrmAddPlayerNoteInput {
+  playerId: ID!
+  content: String!
+  category: String
+  labels: [String!]
+  isPinned: Boolean
+  "all | crm_only | admin_only. Defaults to all."
+  visibility: String
+}
+
+"A label the whitelabel defined, for putting on players."
+type CrmTag {
+  id: ID!
+  name: String!
+  colour: String!
+  description: String
+  "Archived tags stay on the players that carry them; they are just no longer offered."
+  isArchived: Boolean!
+  "Set when this tag was folded into another, so old references still resolve."
+  mergedIntoId: ID
+  playerCount: Int!
+  createdAt: String!
+}
+
+type CrmTagLimit {
+  used: Int!
+  limit: Int!
+}
+
+"One responsible-gambling episode. A player can have several over time."
+type CrmRgFlag {
+  id: ID!
+  flagType: String!
+  status: String!
+  "player | operator — who asked. Legally these are different acts."
+  initiatedBy: String!
+  "Whether this one actually stops staking and deposits."
+  blocksPlay: Boolean!
+  startsAt: String!
+  "The earliest a self-exclusion may be lifted."
+  minTermEndsAt: String
+  "When a cooling-off lapses by itself. Null means indefinite."
+  endsAt: String
+  "What the player was holding when the block went on."
+  balanceAtBlock: String
+  reason: String
+  raisedBy: String!
+  raisedAt: String!
+  liftedBy: String
+  liftedAt: String
+  liftReason: String
+}
+
+type CrmRgFlagType {
+  value: String!
+  blocksPlay: Boolean!
+}
+
+"Current permission to contact a player on one channel for one purpose."
+type CrmConsent {
+  channel: String!
+  purpose: String!
+  state: String!
+  stateSince: String!
+  grantedAt: String
+  source: String!
+  consentTextVersion: String
+  evidenceRef: String
+}
+
+type CrmConsentEvent {
+  id: ID!
+  channel: String!
+  purpose: String!
+  "Null on the first record for this channel and purpose."
+  fromState: String
+  toState: String!
+  source: String!
+  evidenceRef: String
+  actorKind: String!
+  actorId: String
+  reason: String
+  createdAt: String!
+}
+
+"A piece of work the desk owes a player."
+type CrmTask {
+  id: ID!
+  playerId: ID
+  bookId: ID!
+  bookName: String
+  assigneeId: ID
+  assigneeName: String
+  title: String!
+  body: String
+  priority: String!
+  status: String!
+  "What actually happened. Required before a task can be closed."
+  outcome: String
+  "manual | rg_flag | payout | rule:<name>"
+  source: String!
+  "Computed against the whitelabel's desk calendar, so a deadline never falls when nobody is working."
+  dueAt: String!
+  slaMinutes: Int!
+  breachAt: String!
+  isBreaching: Boolean!
+  escalationLevel: Int!
+  acknowledgedAt: String
+  completedAt: String
+  createdAt: String!
+}
+
+type CrmTaskEvent {
+  id: ID!
+  "created | assigned | status | book_moved | escalated | escalation_failed | acknowledged"
+  kind: String!
+  actor: String
+  fromValue: String
+  toValue: String
+  note: String
+  createdAt: String!
+}
+
+"A notification addressed to one CRM user."
+type CrmNotification {
+  id: ID!
+  kind: String!
+  title: String!
+  body: String
+  resourceType: String
+  resourceId: String
+  readAt: String
+  createdAt: String!
+}
+
+input CrmTaskFilterInput {
+  assignedToMe: Boolean
+  unassigned: Boolean
+  status: [String!]
+  playerId: ID
+  "Only tasks past their deadline and not yet acknowledged."
+  breachingOnly: Boolean
+}
+
+"One attempt to reach a player. An attempt, not a send — nothing in this process can message a player."
+type CrmContactAttempt {
+  id: ID!
+  channel: String!
+  "out | in"
+  direction: String!
+  outcome: String!
+  notes: String
+  byName: String!
+  occurredAt: String!
+}
+
+"""
+What is going wrong on a desk right now.
+
+Live triage, not reporting: every bucket is something a supervisor can act on
+today, ordered by how badly it is failing. Each carries a total alongside its
+rows, so the page stays bounded however bad things get.
+"""
+type CrmDeskHealth {
+  "Open tasks the escalation ladder could not deliver to anybody. Invisible before this existed."
+  reachedNobody: CrmDeskTaskBucket!
+  "Books for which the ladder would find no recipient — the cause of the above."
+  uncoveredBooks: CrmUncoveredBookBucket!
+  "Climbed as far as the ladder goes and still nobody has picked it up."
+  ladderExhausted: CrmDeskTaskBucket!
+  "Past its deadline and unacknowledged."
+  breaching: CrmDeskTaskBucket!
+  "Open work with no assignee."
+  unassigned: CrmDeskTaskBucket!
+  "Players contacted repeatedly in the last 30 days without ever getting through."
+  neverReached: CrmUnreachedPlayerBucket!
+  "True when every bucket is empty, so the page can say so rather than look broken."
+  allClear: Boolean!
+}
+
+type CrmDeskTaskBucket {
+  total: Int!
+  rows: [CrmDeskTask!]!
+}
+
+type CrmDeskTask {
+  id: ID!
+  title: String!
+  bookId: ID!
+  bookName: String!
+  playerId: ID
+  assigneeName: String
+  breachAt: String
+  minutesOverdue: Int!
+  escalationLevel: Int!
+  "How many times the ladder has failed to reach anybody. Only on reachedNobody."
+  failedAttempts: Int
+  "When it first failed to reach anybody. Only on reachedNobody."
+  firstFailedAt: String
+}
+
+type CrmUncoveredBookBucket {
+  total: Int!
+  rows: [CrmUncoveredBook!]!
+}
+
+type CrmUncoveredBook {
+  bookId: ID!
+  bookName: String!
+  openTasks: Int!
+}
+
+type CrmUnreachedPlayerBucket {
+  total: Int!
+  rows: [CrmUnreachedPlayer!]!
+}
+
+type CrmUnreachedPlayer {
+  playerId: ID!
+  playerName: String
+  attempts: Int!
+  lastAttemptAt: String
+  lastOutcome: String
+}
+
+"""
+A player list, rendered for download.
+
+Returned as text rather than a URL because there is no file to host: the rows
+are already in memory, the caller is already authenticated, and a signed link
+would be one more thing that can outlive the permission that produced it.
+"""
+type CrmPlayerExport {
+  filename: String!
+  csv: String!
+  rowCount: Int!
+  "How many matched in total. Larger than rowCount when the cap bit."
+  total: Int!
+  "True when the export was capped, so the screen can say the file is partial."
+  truncated: Boolean!
+}

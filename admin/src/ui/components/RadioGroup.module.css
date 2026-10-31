@@ -1,0 +1,373 @@
+.root {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+}
+
+.legend {
+  padding: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.required {
+  margin-left: 3px;
+  color: var(--neg-ink);
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  min-width: 0;
+}
+
+.vertical {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.option {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.input {
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 1px 8px 0 0;
+  padding: 0;
+  appearance: none;
+  border: 1px solid var(--ink-3);
+  border-radius: 50%;
+  background: var(--surf);
+  cursor: pointer;
+  transition: border-color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.input::after {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--acc);
+  content: '';
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity var(--t-1) ease, transform var(--t-1) ease;
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--acc);
+}
+
+.input:checked {
+  border-color: var(--acc);
+}
+
+.input:checked::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.input:focus-visible + .optionCopy {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.optionCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.optionLabel {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.description,
+.help,
+.error {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.description,
+.help {
+  color: var(--ink-3);
+}
+
+.error {
+  color: var(--neg-ink);
+  font-weight: 500;
+}
+
+.invalid .input {
+  border-color: var(--neg-ink);
+}
+
+.disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.disabled .optionCopy,
+.input:disabled + .optionCopy,
+.segmentedInput:disabled + .segmentedLabel {
+  cursor: not-allowed;
+}
+
+.root:not(.disabled) .input:disabled + .optionCopy,
+.root:not(.disabled) .segmentedInput:disabled + .segmentedLabel {
+  opacity: 0.45;
+}
+
+.segmented {
+  width: fit-content;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--ui-radius);
+  background: var(--track);
+}
+
+.segmented.vertical {
+  width: 100%;
+}
+
+.segmentedInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.segmentedLabel {
+  display: grid;
+  gap: 1px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: var(--ui-radius);
+  color: var(--ink-2);
+  cursor: pointer;
+  place-content: center;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+.segmentedInput:not(:disabled) + .segmentedLabel:hover {
+  background: var(--surf);
+  color: var(--ink);
+}
+
+.segmentedInput:checked + .segmentedLabel {
+  background: var(--acc);
+  color: var(--acc-on);
+}
+
+.segmentedInput:checked + .segmentedLabel .optionLabel,
+.segmentedInput:checked + .segmentedLabel .description {
+  color: inherit;
+}
+
+.segmentedInput:focus-visible + .segmentedLabel {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input,
+  .input::after,
+  .segmentedLabel {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .chk radio: an 18px circle, 1.5px --line-3 border, --field fill; --ink-3 on hover; checked is an
+   --acc ring round an 8px --acc dot (the base ::after). 15px --ink labels; legend in the kit label face,
+   --neg-ink when invalid. The segmented variant is the kit's .segc trough (--hover ground, 1px --line,
+   3px, 2px-radius cells in 13px 700 --ink-3, the chosen one --acc with --acc-on text). Disabled is grey
+   fill and --disabled-fg text instead of the base 45% opacity, for the whole group (fieldset[disabled]
+   makes every input :disabled) and per option. Shared with CheckboxGroup, whose boxes are Checkbox's. */
+:global(html:not([data-skin='classic'])) .legend {
+  padding: 0 0 6px;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+:global(html:not([data-skin='classic'])) .required {
+  color: var(--acc-ink);
+}
+
+:global(html:not([data-skin='classic'])) .invalid .legend {
+  color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 9px 0 0;
+  border: 1.5px solid var(--line-3);
+  background: var(--field);
+}
+
+:global(html:not([data-skin='classic'])) .input::after {
+  inset: 3.5px;
+  background: var(--acc);
+}
+
+:global(html:not([data-skin='classic'])) .input:hover:not(:disabled) {
+  border-color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .input:checked,
+:global(html:not([data-skin='classic'])) .input:checked:hover:not(:disabled) {
+  border-color: var(--acc);
+}
+
+:global(html:not([data-skin='classic'])) .invalid .input,
+:global(html:not([data-skin='classic'])) .invalid .input:hover:not(:disabled) {
+  border-color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .input:disabled {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+  cursor: not-allowed;
+}
+
+:global(html:not([data-skin='classic'])) .input:disabled:checked {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .input:disabled::after {
+  background: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .optionLabel {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+:global(html:not([data-skin='classic'])) .description,
+:global(html:not([data-skin='classic'])) .help {
+  font-size: 13px;
+}
+
+:global(html:not([data-skin='classic'])) .error {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  color: var(--neg-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .error::before {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  background: currentColor;
+  content: '';
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* disabled: no opacity; the controls and their text carry it */
+:global(html:not([data-skin='classic'])) .disabled {
+  opacity: 1;
+}
+
+:global(html:not([data-skin='classic'])) .root .input:disabled + .optionCopy,
+:global(html:not([data-skin='classic'])) .root .segmentedInput:disabled + .segmentedLabel {
+  opacity: 1;
+}
+
+:global(html:not([data-skin='classic'])) .input:disabled + .optionCopy .optionLabel,
+:global(html:not([data-skin='classic'])) .input:disabled + .optionCopy .description {
+  color: var(--disabled-fg);
+}
+
+/* segmented: kit .segc */
+:global(html:not([data-skin='classic'])) .segmented {
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--hover);
+}
+
+:global(html:not([data-skin='classic'])) .segmentedLabel {
+  min-height: 28px;
+  padding: 4px 12px;
+  border-radius: var(--ui-radius);
+  color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .segmentedLabel .optionLabel {
+  color: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .segmentedInput:not(:disabled) + .segmentedLabel:hover {
+  background: transparent;
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .segmentedInput:checked + .segmentedLabel,
+:global(html:not([data-skin='classic'])) .segmentedInput:checked:not(:disabled) + .segmentedLabel:hover {
+  background: var(--acc);
+  color: var(--acc-on);
+}
+
+:global(html:not([data-skin='classic'])) .segmentedInput:disabled + .segmentedLabel {
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .segmentedInput:disabled:checked + .segmentedLabel {
+  background: var(--line-3);
+  color: var(--acc-on);
+}

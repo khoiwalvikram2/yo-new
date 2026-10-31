@@ -1,0 +1,52 @@
+/* Soft = panel-row badge; solid = rail/active-row badge. Deliberately no position, top/right or
+   box-shadow: the rail badge (ring) and a bell badge add those from their own module at higher
+   specificity, since a CSS module cannot select another module's hashed class. */
+.badge {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  font-style: normal;
+  line-height: 18px;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.soft {
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+}
+
+.solid {
+  background: var(--acc);
+  color: var(--acc-on);
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .badge: 11px 800 figures; soft turns neutral (ink on --surf-3 with a hairline) because red is kept
+   for the action and the current place; solid is already the kit's red through tokens. Size, position and
+   the solid colours are not re-stated: Rail's `.button .badge` (0,2,0) sets those and a (0,2,1) rule here
+   would beat it. */
+:global(html:not([data-skin='classic'])) .badge {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+:global(html:not([data-skin='classic'])) .soft {
+  background: var(--surf-3);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* The context panel's current row (data-current, a plain attribute) fills the badge itself; drop the
+   hairline there so it does not draw a grey ring on red. */
+:global(html:not([data-skin='classic'])) [data-current='true'] .soft {
+  box-shadow: none;
+}

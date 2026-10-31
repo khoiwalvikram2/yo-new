@@ -1,0 +1,11 @@
+.positive {
+  color: var(--pos-ink);
+}
+
+.negative {
+  color: var(--neg-ink);
+}
+
+.feedback {
+  padding: 0 var(--card-pad);
+}

@@ -1,0 +1,37 @@
+/* BEYOND-MOCKUP: the public sign-in route uses kit controls and saved theme tokens.
+   The page supplies no viewport height; the public route's root flex column owns its space. */
+.page {
+  box-sizing: border-box;
+  display: grid;
+  flex: 1;
+  align-items: center;
+  justify-items: center;
+  min-width: 0;
+  padding: 40px 20px;
+  background: var(--app);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+
+.portal { width: 100%; max-width: 460px; min-width: 0; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.eyebrow { color: var(--ink-3); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.card { display: grid; gap: 24px; padding: 32px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf); box-shadow: var(--sh-pop); }
+.brand { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.brandIcon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--ui-radius); background: var(--acc-soft); color: var(--acc-ink); }
+.title { margin: 0; font-size: 25px; font-weight: 650; letter-spacing: -.03em; line-height: 1.25; }
+.subtitle { margin: 0; color: var(--ink-3); font-size: 13px; line-height: 1.5; }
+.form { display: grid; gap: 20px; min-width: 0; }
+.submit { width: 100%; justify-content: center; }
+.security { margin: 0; color: var(--ink-3); font-size: 11px; line-height: 1.7; text-align: center; }
+.help { margin: 20px 0 0; color: var(--ink-3); font-size: 12px; line-height: 1.6; text-align: center; }
+
+@media (max-width: 480px) {
+  .page { padding: 24px 14px; }
+  .card { padding: 24px 20px; }
+  .title { font-size: 23px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page { scroll-behavior: auto; }
+}

@@ -1,0 +1,68 @@
+/* Referral Program overview (/referrals, W6 Task 175; mockup M:2327-2334). The mockup draws this page
+   as a metric matrix in the generic table template (M:3361-3409); the page keeps its own figures, the
+   program configuration and the recent earnings, so the rules below compose the kit and are
+   BEYOND-MOCKUP unless a mockup rule is cited. */
+
+/* The page's cards stack with the mockup's card rhythm: 20px (.grid M:897), 16px on phones (M:1604). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+}
+
+/* ---------- figures ---------- */
+
+/* The six figures follow the width of the column they sit in (the context panel changes it by 269px),
+   so the grid is decided by a container query on this stretching wrapper, not by the viewport. */
+.statsRegion {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* A ₹12,48,76,540.00 figure at the Stat's 24px/700 (the .kpi-val metrics, M:833-836) needs about a
+   268px card, so six across never fits a 1280px page with the panel open, and each step starts where
+   every card gets that much: one per row, two from 556px (2 x 268 + one 20px gap), three from 900px
+   (above 3 x 268 + two gaps = 844px). Gap: .kpis M:808, 14px on phones (M:1603). */
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+@container (min-width: 556px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@container (min-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---------- program configuration ---------- */
+
+/* The reward modes wrap as a row of pills (.pill M:1018-1023), as the legacy tags did. */
+.modes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ---------- recent earnings ---------- */
+
+/* An earning is money paid out to a referrer: the legacy table printed it green and strong, kept on the
+   mockup's positive ink at the key-cell weight (td.k M:997, --pos-ink M:839). */
+.amount {
+  color: var(--pos-ink);
+  font-weight: 600;
+}

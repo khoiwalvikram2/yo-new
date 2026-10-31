@@ -1,0 +1,38 @@
+/* ReportKpiGrid — the drill-down reports' KPI row on the kit Stat (page migration Task 121).
+   The tiles are the kit's .kpi anatomy (Stat.module.css, M:811-850); this module owns only the grid.
+   Tokens only. */
+
+/* The column count depends on the row's own width, not the viewport's: the shell's context panel
+   takes 205px (definition of done item 17), so the kit Grid's viewport breakpoints cannot see it.
+   BEYOND-MOCKUP: the mockup's KPI row is fixed at four (M:811); the steps below keep a 24px INR value
+   such as ₹1,23,45,678.00 whole in each tile. */
+.root {
+  min-width: 0;
+  container: report-kpis / inline-size;
+}
+
+/* 12px between tiles, the legacy gap-3 and the kit Grid's tightest step (M:1574-1606). */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+@container report-kpis (width >= 480px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container report-kpis (width >= 840px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container report-kpis (width >= 1160px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

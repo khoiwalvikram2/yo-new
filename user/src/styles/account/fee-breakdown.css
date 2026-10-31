@@ -1,0 +1,13 @@
+/* FeeBreakdown (deposit and withdrawal confirm steps) in the matchbook theme: a hairline box with a grey
+   head strip, label-left / amount-right rows and a bold total. Imported by components/payment/FeeBreakdown.tsx
+   so both pages get it. */
+.nova-acct .nova-fee { overflow: hidden; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-panel); }
+.nova-acct .nova-fee-head { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--mb-line); color: var(--mb-ink); background: var(--mb-soft); font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.nova-acct .nova-fee-head svg { flex: none; width: 15px; height: 15px; color: var(--mb-muted); }
+.nova-acct .nova-fee-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 12px; font-size: 15px; }
+.nova-acct .nova-fee-row + .nova-fee-row { border-top: 1px solid var(--mb-line); }
+.nova-acct .nova-fee-label { color: var(--mb-muted); }
+.nova-acct .nova-fee-value { color: var(--mb-ink); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.nova-acct .nova-fee-row.is-total { border-top-color: var(--mb-line); background: var(--mb-panel-2); }
+.nova-acct .nova-fee-row.is-total .nova-fee-label { color: var(--mb-ink); font-weight: 700; }
+.nova-acct .nova-fee-row.is-total .nova-fee-value { font-size: 18px; font-weight: 700; }

@@ -1,0 +1,2 @@
+ALTER TABLE "crm_player_notes" DROP CONSTRAINT "crm_player_notes_one_author";--> statement-breakpoint
+ALTER TABLE "crm_player_notes" ADD CONSTRAINT "crm_player_notes_one_author" CHECK (num_nonnulls("crm_player_notes"."author_crm_user_id", "crm_player_notes"."author_admin_user_id") <= 1);

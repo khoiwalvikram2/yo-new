@@ -1,0 +1,158 @@
+/* Event detail head, stats and risk alert (admin UI kit, "Event detail" screen). */
+
+/* The event uses the shared open page heading and inline back control. */
+.head { min-width: 0; }
+.head .pageHeader { margin-bottom: 0; }
+
+.tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--acc-ink);
+}
+
+.tile img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.crumb {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.state {
+  margin-left: 8px;
+  vertical-align: 4px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* competition · start · event code; the separator is decoration, so it carries empty alt text */
+.meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.meta > * + *::before {
+  content: '·';
+  content: '·' / '';
+  margin-right: 8px;
+}
+
+.auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.autoNote {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+@media (max-width: 767px) {
+  .desktopLabel,
+  .fullscreen {
+    display: none;
+  }
+}
+
+.barIcon[aria-pressed='true'] { background: var(--acc-soft); color: var(--acc-ink); }
+.auto [role='switch'] { font-weight: 600; }
+
+/* ---- stats: the kit's .stats.ev-stats, one row of compact tiles that steps to 3 and then 2 columns with
+   the room the page gives it */
+.statsFrame {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.stats {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* The kit steps at 1240px of its whole app frame; this frame is the page's content column only, so the
+   same look (five across on a laptop) steps at 1000px. Below it: three across on six tracks, so a short
+   last row splits its width instead of leaving a hole (five tiles go 3 + 2 halves, four go 2 + 2). */
+@container (max-width: 999px) {
+  .stats {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .stats > * {
+    grid-column: span 2;
+  }
+
+  .stats > :nth-child(4):nth-last-child(2),
+  .stats > :nth-child(5):nth-last-child(1),
+  .stats > :first-child:nth-last-child(4),
+  .stats > :first-child:nth-last-child(4) ~ * {
+    grid-column: span 3;
+  }
+}
+
+/* Two across; an odd last tile takes the whole row. */
+@container (max-width: 640px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats > *,
+  .stats > :nth-child(4):nth-last-child(2),
+  .stats > :nth-child(5):nth-last-child(1),
+  .stats > :first-child:nth-last-child(4),
+  .stats > :first-child:nth-last-child(4) ~ * {
+    grid-column: auto;
+  }
+
+  .stats > :nth-child(odd):last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* the figure is a house loss */
+.loss {
+  color: var(--acc-ink);
+}
+
+/* ---- risk alert: the kit's compact notice (.notice--compact). div.alert outranks Notice's own padding
+   and alignment, (0,1,0) classic and (0,2,1) player skin. */
+div.alert {
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+}
+
+:global(html:not([data-skin='classic'])) div.alert {
+  padding: 7px 10px;
+}
+
+:global(html:not([data-skin='classic'])) .alert p {
+  font-size: 13px;
+}
+
+.alertActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

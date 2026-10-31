@@ -1,0 +1,97 @@
+.preview {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.thumbnailButton {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: inherit;
+  cursor: zoom-in;
+  transition: background var(--t-1) ease, border-color var(--t-1) ease;
+}
+
+.thumbnailButton:hover {
+  border-color: var(--acc-soft-h);
+  background: var(--hover);
+}
+
+.thumbnailButton:active {
+  background: var(--press);
+}
+
+.thumbnailButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.thumbnail {
+  display: block;
+  width: 168px;
+  max-width: 100%;
+  height: 104px;
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.cover {
+  object-fit: cover;
+}
+
+.contain {
+  object-fit: contain;
+}
+
+.fullFrame {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: 10px;
+  overflow: auto;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.fullImage {
+  display: block;
+  max-width: 100%;
+  max-height: 640px;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbnailButton {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .thumb (kit p2): a --line-2 frame with a 3px radius on --panel-2, darkening to --line-3 on hover (the
+   base hover border is --acc-soft-h, a pink in this skin). The skin's resting rule (0,2,1) outranks the
+   base :hover/:active (0,2,0), so both states are restated at (0,3,1). */
+:global(html:not([data-skin='classic'])) .thumbnailButton {
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--panel-2);
+}
+
+:global(html:not([data-skin='classic'])) .thumbnailButton:hover {
+  border-color: var(--line-3);
+  background: var(--hover);
+}
+
+:global(html:not([data-skin='classic'])) .thumbnailButton:active {
+  border-color: var(--line-3);
+  background: var(--press);
+}
+
+:global(html:not([data-skin='classic'])) .thumbnail {
+  border-radius: var(--ui-radius);
+}

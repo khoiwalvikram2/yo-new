@@ -1,0 +1,108 @@
+/* Referrer Statistics (/referrals/referrers/:referrerId, W6 Task 180). The mockup has no page for a single
+   referrer (details live only in its drawer, .dr-body/.dl M:1150-1157), so the rules below compose the kit
+   and are BEYOND-MOCKUP unless a mockup rule is cited. */
+
+/* The referrer facts, the four figures and the rule table stack with the mockup's card rhythm: 20px
+   (.grid M:897), 16px on phones (M:1604). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+}
+
+/* ---------- referrer facts ---------- */
+
+/* The legacy compact info bar: one wrapping row of term/value pairs. The terms take the description
+   list's term colour and size (.dl dt M:1155), the values its value weight (.dl dd M:1156). */
+.factsCard {
+  min-width: 0;
+}
+
+/* The card has no title, hence no head to supply the top inset, so its body is flush and the row pads
+   itself on all four sides with the shared card inset (--card-pad M:32). */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 24px;
+  min-width: 0;
+  margin: 0;
+  padding: var(--card-pad);
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.factTerm {
+  flex: none;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.factValue {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* The username kept its monospace face. */
+.code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-weight: 500;
+}
+
+/* ---------- figures ---------- */
+
+/* The four figures follow the width of their own column (the context panel changes it by 269px). A
+   ₹12,48,76,540.00 figure at the Stat's 24px/700 (.kpi-val M:833-836) needs about a 268px card, so each
+   step starts where every card gets that much: one per row, two from 556px (2 x 268 + one 20px gap), four
+   from 1180px (above 4 x 268 + three gaps = 1132px). Gap: .kpis M:808, 14px on phones (M:1603). */
+.statsRegion {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+@container (min-width: 556px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@container (min-width: 1180px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- rule table ---------- */
+
+/* Earnings are money paid out to the referrer: the legacy table printed them green and semibold, kept on
+   the mockup's positive ink at the key-cell weight (td.k M:997, --pos-ink M:839). */
+.amount {
+  color: var(--pos-ink);
+  font-weight: 600;
+}

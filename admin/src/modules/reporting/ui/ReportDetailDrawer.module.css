@@ -1,0 +1,212 @@
+/* ReportDetailDrawer — the drill-down reports' contributors panel and its detail drawer (page
+   migration Task 121). BEYOND-MOCKUP throughout: the mockup's report pages are plain tables with no
+   side panel (M:2468-2495, the generic template M:3361-3409). The panel is a kit Card; its rows take
+   the mockup's interactive row (tr.hit M:1001-1006) and feed row (.fitem M:1062-1073); the detail is
+   the kit Drawer the deposit queue approved (M:1136-1152). Tokens only. */
+
+/* ===================== PANEL ===================== */
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The Players / Agents tabs straight under the card head (they carry the counts). */
+.tabs {
+  padding: 12px var(--card-pad);
+  border-bottom: 1px solid var(--hair);
+}
+
+/* The tab strip fills the panel's width in two equal halves, as the legacy block Segmented did. */
+.tabStrip {
+  display: flex;
+  width: 100%;
+}
+
+.tabStrip > * {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+/* Player skin: the kit tab strip sizes each tab to its label ((0,3,1) flex: 0 0 auto in
+   SegmentedControl.module.css); here the two tabs split the strip equally, (0,4,2). */
+:global(html:not([data-skin='classic'])) .tabStrip[role='tablist'] {
+  display: flex;
+  width: 100%;
+}
+
+:global(html:not([data-skin='classic'])) .tabStrip[role='tablist'] > button[role='tab'] {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+}
+
+.content {
+  min-width: 0;
+  padding: 10px;
+}
+
+/* ===================== ROWS ===================== */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One contributor: the whole row is the button that opens its detail (tr.hit M:1001-1006: hover
+   --hover, press --press; the feed row's tile, name and meta M:1062-1073). */
+.entity {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease);
+}
+
+.entity:hover {
+  background: var(--hover);
+}
+
+.entity:active {
+  background: var(--press);
+}
+
+.entity:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.tile {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--ui-radius);
+}
+
+/* Decorative hues: players blue, agents violet, as the legacy tiles were. */
+.player {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.agent {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name,
+.via,
+.meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* each row opens the contributor's page: the name reads in the link blue so it says so (the owner, 2026-10-21) */
+.name {
+  color: var(--link, var(--acc-ink));
+  font-weight: 600;
+}
+
+.via {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.meta {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.figures {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.amount {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* GGR keeps its legacy sign colour on the semantic pair, and says the sign in hidden text. */
+.ggr {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gain {
+  color: var(--pos-ink);
+}
+
+.loss {
+  color: var(--neg-ink);
+}
+
+.ggrLabel {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px var(--card-pad);
+  border-top: 1px solid var(--hair);
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entity {
+    transition: none;
+  }
+}

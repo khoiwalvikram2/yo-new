@@ -1,0 +1,26 @@
+/* BEYOND-MOCKUP: commission workspace uses kit summary/card/table compositions. */
+.workspace { display: grid; gap: 20px; min-width: 0; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.summaries { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.stack { display: grid; gap: 16px; min-width: 0; }
+.domainList { display: grid; gap: 10px; margin: 0; }
+.domainList > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.domainList dt { color: var(--ink-3); font-size: 12px; }
+.domainList dd { margin: 0; color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.breakdown { display: grid; gap: 3px; min-width: 110px; font-size: 12px; }
+.positive { color: var(--pos-ink); }
+.negative { color: var(--neg-ink); }
+.secondary { color: var(--ink-3); font-size: 12px; }
+.tableControls { padding: 16px 20px; display: grid; gap: 16px; overflow-x: auto; }
+.totalStrip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; color: var(--ink-2); font-size: 12px; }
+@media (max-width: 1023px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summaries { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .tableControls { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace { scroll-behavior: auto; }
+}

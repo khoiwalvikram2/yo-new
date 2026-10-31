@@ -1,0 +1,32 @@
+# Global search result types (unified shape for all entities)
+
+type ParentChainItem {
+  id: ID!
+  username: String!
+  levelIndex: Int
+  route: String!
+}
+
+type SearchResultItem {
+  id: ID!
+  type: String!
+  label: String!
+  subtitle: String
+  route: String!
+  status: String
+  metadata: JSON
+  parentChain: [ParentChainItem!]
+}
+
+type GlobalSearchResult {
+  players: [SearchResultItem!]!
+  agents: [SearchResultItem!]!
+  whitelabels: [SearchResultItem!]!
+  casinoGames: [SearchResultItem!]!
+  sports: [SearchResultItem!]!
+  matkas: [SearchResultItem!]!
+  vipMembers: [SearchResultItem!]!
+  referralCodes: [SearchResultItem!]!
+  bets: [SearchResultItem!]!
+  bonuses: [SearchResultItem!]!
+}

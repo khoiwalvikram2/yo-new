@@ -1,0 +1,660 @@
+# Reporting Domain Types
+
+enum ReportingDomain {
+  SPORTS
+  CASINO
+  MATKA
+  AGENTS
+  BONUSES
+  GLOBAL
+}
+
+# Sports Reporting Types
+type SportsKPIs {
+  totalStakes: Float!
+  totalPayouts: Float!
+  totalExposure: Float!
+  grossGamingRevenue: Float!
+  netRevenue: Float!
+  holdPercentage: Float!
+  betCount: Int!
+  playerCount: Int!
+  activePlayerCount: Int!
+}
+
+type SportsTrendPoint {
+  date: String!
+  stakes: Float!
+  payouts: Float!
+  ggr: Float!
+  betCount: Int!
+  playerCount: Int!
+}
+
+type SportsBreakdown {
+  id: ID
+  name: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+}
+
+type TopSportsEvent {
+  eventId: ID
+  eventName: String!
+  leagueName: String!
+  sportName: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+}
+
+# Casino Reporting Types
+type CasinoKPIs {
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  netRevenue: Float!
+  holdPercentage: Float!
+  betCount: Int!
+  playerCount: Int!
+  activePlayerCount: Int!
+}
+
+type CasinoTrendPoint {
+  date: String!
+  stakes: Float!
+  payouts: Float!
+  ggr: Float!
+  betCount: Int!
+  playerCount: Int!
+}
+
+# Matka Reporting Types
+type MatkaKPIs {
+  totalStakes: Float!
+  totalPayouts: Float!
+  totalExposure: Float!
+  grossGamingRevenue: Float!
+  netRevenue: Float!
+  holdPercentage: Float!
+  betCount: Int!
+  playerCount: Int!
+  activePlayerCount: Int!
+}
+
+type MatkaTrendPoint {
+  date: String!
+  stakes: Float!
+  payouts: Float!
+  ggr: Float!
+  betCount: Int!
+  playerCount: Int!
+}
+
+# Agent Reporting Types
+type AgentKPIs {
+  totalTurnover: Float!
+  totalGGR: Float!
+  commissionEarned: Float!
+  shareEarned: Float!
+  downlineTurnover: Float!
+  downlineGGR: Float!
+  playerCount: Int!
+  activePlayerCount: Int!
+  betCount: Int!
+  agentCount: Int!
+}
+
+type AgentPerformanceDomainBreakdown {
+  domain: String!
+  turnover: Float!
+  ggr: Float!
+  cut: Float!
+  cutPercent: Float!
+  # For "user% − agent% = cut%" display in Sports/Casino/Matka Cut columns
+  userCutPercent: Float
+  agentCutPercent: Float
+}
+
+type AgentPerformance {
+  agentId: ID!
+  agentName: String
+  schemeType: String
+  totalTurnover: Float!
+  totalGGR: Float!
+  commissionEarned: Float!
+  shareEarned: Float!
+  downlineTurnover: Float!
+  downlineGGR: Float!
+  playerCount: Int!
+  betCount: Int!
+  level: Int!
+  # Cut formula: userCutPercent - agentCutPercent = cut (%). Shown as e.g. 85% - 10% = 75%
+  userCutPercent: Float
+  agentCutPercent: Float
+  domainBreakdown: [AgentPerformanceDomainBreakdown!]
+}
+
+type AgentPerformanceTotals {
+  totalTurnover: Float!
+  totalGGR: Float!
+  commissionEarned: Float!
+  shareEarned: Float!
+  agentCount: Int!
+  playerCount: Int!
+  betCount: Int!
+}
+
+type AgentPerformanceResult {
+  agents: [AgentPerformance!]!
+  totals: AgentPerformanceTotals
+}
+
+type AgentTrendPoint {
+  date: String!
+  turnover: Float!
+  ggr: Float!
+  commission: Float!
+  share: Float!
+  playerCount: Int!
+}
+
+# Reporting Filters
+input ReportingFilter {
+  tenant: String
+  whitelabelId: String
+  dateFrom: String
+  dateTo: String
+  currency: String
+}
+
+input SportsReportingFilter {
+  tenant: String
+  whitelabelId: String
+  agentId: ID
+  sportId: ID
+  leagueId: ID
+  eventId: ID
+  dateFrom: String
+  dateTo: String
+  currency: String
+}
+
+input CasinoReportingFilter {
+  tenant: String
+  whitelabelId: String
+  agentId: ID
+  dateFrom: String
+  dateTo: String
+  currency: String
+}
+
+input MatkaReportingFilter {
+  tenant: String
+  whitelabelId: String
+  agentId: ID
+  dateFrom: String
+  dateTo: String
+  currency: String
+}
+
+input AgentReportingFilter {
+  tenant: String
+  whitelabelId: String
+  agentId: ID
+  parentAgentId: ID
+  schemeType: String
+  dateFrom: String
+  dateTo: String
+  domain: String
+  currency: String
+}
+
+input BonusReportingFilter {
+  tenant: String
+  whitelabelId: String
+  campaignId: ID
+  dateFrom: String
+  dateTo: String
+  domain: String
+  currency: String
+  schemeType: String
+}
+
+"""Bonus KPIs for a date range — computed live from bonus_awards (campaign tenant–scoped)."""
+type BonusKPIs {
+  totalIssued: Float!
+  totalRedeemed: Float!
+  totalExpired: Float!
+  totalCancelled: Float!
+  outstandingLiability: Float!
+  totalWagering: Float!
+  totalRevenue: Float!
+  awardCount: Int!
+  redemptionCount: Int!
+  playerCount: Int!
+  roi: Float!
+}
+
+# Saved Reports
+type SavedReport {
+  id: ID!
+  name: String!
+  description: String
+  reportType: String!
+  filtersJson: JSON!
+  isPinned: Boolean!
+  createdAt: String!
+  updatedAt: String!
+}
+
+input SavedReportInput {
+  name: String!
+  description: String
+  reportType: String!
+  filtersJson: JSON!
+  isPinned: Boolean
+}
+
+# Export Jobs
+type ExportJob {
+  id: ID!
+  reportType: String!
+  exportFormat: String!
+  status: String!
+  fileUrl: String
+  errorMessage: String
+  scheduledAt: String
+  completedAt: String
+  createdAt: String!
+}
+
+input ExportJobInput {
+  reportType: String!
+  filtersJson: JSON!
+  exportFormat: String!
+  scheduledAt: String
+}
+
+# Sports Drill-Down Types
+type SportsLeagueBreakdown {
+  leagueId: ID
+  leagueName: String!
+  sportId: ID
+  sportName: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+  eventCount: Int!
+}
+
+type SportsEventBreakdown {
+  eventId: ID!
+  eventName: String!
+  leagueId: ID
+  leagueName: String!
+  sportId: ID
+  sportName: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+  startTime: String
+}
+
+type SportsMarketBreakdown {
+  marketId: ID!
+  marketName: String!
+  eventId: ID
+  eventName: String
+  leagueId: ID
+  leagueName: String
+  sportId: ID
+  sportName: String
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int
+}
+
+type AgentBreakdown {
+  agentId: ID!
+  agentName: String
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  netGgr: Float!
+  betCount: Int!
+  playerCount: Int!
+  commission: Float!
+}
+
+type PlayerBreakdown {
+  playerId: ID!
+  playerUsername: String
+  playerPhone: String
+  directAgentId: ID
+  directAgentName: String
+  agentChain: [String!]
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  avgStake: Float!
+  winRate: Float!
+}
+
+# Casino Drill-Down Types
+type CasinoProviderBreakdown {
+  providerId: ID!
+  providerName: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+  gameCount: Int!
+}
+
+type CasinoVendorBreakdown {
+  vendorId: ID!
+  vendorName: String!
+  providerId: ID
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+  gameCount: Int!
+}
+
+type CasinoGameBreakdown {
+  gameId: ID!
+  gameName: String!
+  vendorId: ID
+  vendorName: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+  rtp: Float
+}
+
+# Matka Drill-Down Types
+type MatkaTypeBreakdown {
+  matkaType: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+  marketCount: Int!
+}
+
+type MatkaMarketBreakdown {
+  matkaId: ID!
+  marketName: String!
+  matkaType: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+  sessionCount: Int!
+}
+
+type MatkaSessionBreakdown {
+  marketSession: String!
+  matkaId: ID
+  marketName: String!
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  playerCount: Int!
+}
+
+# Filter inputs for drill-down
+input SportsDrillDownFilter {
+  tenant: String
+  whitelabelId: String
+  dateFrom: String
+  dateTo: String
+  sportId: ID
+  leagueId: ID
+  eventId: ID
+  agentId: ID
+  playerId: ID
+  currency: String
+}
+
+input CasinoDrillDownFilter {
+  tenant: String
+  whitelabelId: String
+  dateFrom: String
+  dateTo: String
+  providerId: ID
+  vendorId: ID
+  gameId: ID
+  agentId: ID
+  playerId: ID
+  currency: String
+}
+
+input MatkaDrillDownFilter {
+  tenant: String
+  whitelabelId: String
+  dateFrom: String
+  dateTo: String
+  matkaType: String
+  matkaId: ID
+  marketSession: String
+  agentId: ID
+  playerId: ID
+  currency: String
+}
+
+# Agent Drill-Down Types
+type AgentPlayerBreakdown {
+  playerId: ID!
+  playerUsername: String
+  totalStakes: Float!
+  totalPayouts: Float!
+  grossGamingRevenue: Float!
+  betCount: Int!
+  avgStake: Float!
+  winRate: Float!
+}
+
+input AgentDrillDownFilter {
+  tenant: String
+  whitelabelId: String
+  dateFrom: String
+  dateTo: String
+  agentId: ID
+  parentAgentId: ID
+  playerId: ID
+  domain: String
+  currency: String
+  schemeType: String
+}
+
+# Agent-specific reporting types
+type GGRTrendPoint {
+  date: String!
+  sportsGGR: Float!
+  casinoGGR: Float!
+  matkaGGR: Float!
+  totalGGR: Float!
+}
+
+type DomainBreakdownPoint {
+  domain: String!
+  ggr: Float!
+  percentage: Float!
+  totalBets: Int!
+  totalStake: Float!
+}
+
+type PlayerActivityPoint {
+  date: String!
+  newPlayers: Int!
+  activePlayers: Int!
+  totalBets: Int!
+  totalDeposits: Float!
+}
+
+type TopPlayer {
+  playerId: ID!
+  playerName: String!
+  username: String!
+  totalGGR: Float!
+  totalBets: Int!
+  totalStake: Float!
+  totalPayout: Float!
+  winRate: Float!
+  avgBetSize: Float!
+  status: String!
+  lastBetAt: String!
+}
+
+type TopEvent {
+  eventId: ID!
+  eventName: String!
+  sport: String
+  domain: String!
+  totalGGR: Float!
+  totalBets: Int!
+  totalStake: Float!
+  totalPayout: Float!
+  avgOdds: Float!
+  startTime: String!
+  status: String!
+}
+
+# Reporting Query type for grouping agent-specific reporting queries
+type ReportingQuery {
+  ggrTrends(agentId: ID!, periodFrom: String!, periodTo: String!): [GGRTrendPoint!]!
+  domainBreakdown(agentId: ID!, periodFrom: String!, periodTo: String!): [DomainBreakdownPoint!]!
+  playerActivity(agentId: ID!, periodFrom: String!, periodTo: String!): [PlayerActivityPoint!]!
+  topPlayers(agentId: ID!, periodFrom: String!, periodTo: String!, limit: Int = 50): [TopPlayer!]!
+  topEvents(agentId: ID!, periodFrom: String!, periodTo: String!, domain: String, limit: Int = 50): [TopEvent!]!
+}
+
+# Daily reporting snapshot pipeline health (directors / ops)
+type SnapshotHealthSummary {
+  nextRunAtIso: String!
+  snapshotTimezone: String!
+  runAtLocalTime: String!
+  healthCheckCron: String!
+  dailyLookbackDays: Int!
+  backfillLookbackDays: Int!
+  errorsLast24h: Int!
+  """Count of backfill_zero_enqueue_with_gaps warnings in the last 24h (global pipeline signal)."""
+  backfillGapWarningsLast24h: Int!
+  missingDaysCount: Int!
+  lastSchedulePublishAt: String
+  lastScheduleFailureAt: String
+  lastScheduleFailureMessage: String
+  lastJobCompleteAt: String
+  lastDailyScheduleRunAt: String
+  lastDailyScheduleRunStatus: String
+  lastHealthBackfillRunAt: String
+  lastHealthBackfillRunStatus: String
+}
+
+type SnapshotPageInfo {
+  startCursor: String
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+}
+
+type SnapshotRunConnection {
+  nodes: [SnapshotRun!]!
+  pageInfo: SnapshotPageInfo!
+}
+
+type SnapshotEventConnection {
+  nodes: [SnapshotEvent!]!
+  pageInfo: SnapshotPageInfo!
+}
+
+type SnapshotPgBossJobCount {
+  name: String!
+  state: String!
+  count: Int!
+}
+
+type SnapshotPgBossScheduleRow {
+  name: String!
+  cron: String
+  timezone: String
+}
+
+"""Read-only pg-boss rows for reporting snapshot jobs (schema may differ by pg-boss version)."""
+type SnapshotPgBossOverview {
+  jobCounts: [SnapshotPgBossJobCount!]!
+  schedules: [SnapshotPgBossScheduleRow!]!
+  readError: String
+}
+
+type SnapshotRun {
+  id: ID!
+  trigger: String!
+  status: String!
+  startedAt: String!
+  finishedAt: String
+  summaryJson: JSON
+  errorMessage: String
+}
+
+type SnapshotEvent {
+  id: ID!
+  runId: ID
+  occurredAt: String!
+  level: String!
+  eventType: String!
+  tenant: String
+  whitelabelId: String
+  currency: String
+  reportingDay: String
+  snapshotDateUtc: String
+  reportingDayLabel: String
+  timezoneNote: String
+  domain: String
+  pgBossJobId: String
+  singletonKey: String
+  message: String
+  detailJson: JSON
+}
+
+type SnapshotMissingDay {
+  tenant: String!
+  whitelabelId: String!
+  currency: String!
+  reportingDay: String!
+  timezone: String!
+}
+
+"""Sports snapshot row is older than at least one settled bet on that reporting day (late result declaration)."""
+type SnapshotStaleDay {
+  tenant: String!
+  whitelabelId: String!
+  currency: String!
+  reportingDay: String!
+  timezone: String!
+  staleBetCount: Int!
+  snapshotCreatedAt: String!
+  latestSettledAt: String!
+}
+

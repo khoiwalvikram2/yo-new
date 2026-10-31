@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>GameDash</title>
+  <rect width="48" height="48" rx="12" fill="#4f46e5"/>
+  <path d="M23 17.5A8.5 8.5 0 1 0 23 30V24H17.5" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29 16H32A8 8 0 0 1 32 32H29V16Z" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

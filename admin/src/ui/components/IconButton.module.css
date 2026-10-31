@@ -1,0 +1,123 @@
+/* .iconbtn (mockup) verbatim; sm from .rowdots; disabled from button:disabled minus the fill, so a
+   disabled icon button does not grow a grey tile. */
+.iconButton {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+.md {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ui-radius);
+}
+
+.sm {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--ui-radius);
+}
+
+.icon {
+  display: flex;
+}
+
+.iconButton:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+.iconButton:not(:disabled, [aria-disabled='true']):active {
+  background: var(--press);
+  color: var(--ink);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.iconButton:disabled,
+.iconButton[aria-disabled='true'] {
+  cursor: not-allowed;
+  color: var(--ink-3);
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconButton {
+    transition: none;
+  }
+}
+
+/* ===================== PAGE MIGRATION (C) — W0 addition ===================== */
+
+/* bordered — the card head's own icon button (.dots M:888-894): a 30px bordered tile on the card
+   surface, where the plain variant is a bare glyph. It brings its own box, so it replaces .sm/.md. */
+.bordered {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.bordered:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--hover);
+  border-color: var(--acc-soft-h);
+  color: var(--ink);
+}
+
+.bordered:not(:disabled, [aria-disabled='true']):active {
+  background: var(--press);
+  border-color: var(--acc-soft-h);
+  color: var(--ink);
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .ibtn. The plain face already matches it through tokens (--ink-3 glyph; --surf-3 tile and --ink on
+   hover), so its base and hover rules are not re-stated: callers re-skin it at (0,2,0)-(0,4,0) (Topbar's
+   .burger.burger, NotificationBell's .bell[aria-expanded]) and a (0,2,1)/(0,4,1) rule here would beat
+   them. Sizes are the kit's (md 36, sm 30, bordered 36; owner, 2026-10-17), under :where() at the base
+   rules' (0,1,0) and later, so callers that size an IconButton through className still win. md already
+   uses --r-ctl (3px). */
+:where(html:not([data-skin='classic'])) .md,
+:where(html:not([data-skin='classic'])) .bordered {
+  width: 36px;
+  height: 36px;
+}
+
+:where(html:not([data-skin='classic'])) .sm {
+  width: 30px;
+  height: 30px;
+}
+
+:global(html:not([data-skin='classic'])) .sm {
+  border-radius: var(--ui-radius);
+}
+
+/* bordered (kit .ibtn--bordered): --line-2 hairline, --line-3 on hover. (0,4,1) beats the base (0,3,0). */
+:global(html:not([data-skin='classic'])) .bordered {
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .bordered:not(:disabled, [aria-disabled='true']):hover {
+  border-color: var(--line-3);
+  background: var(--surf-3);
+}
+
+/* Same specificity as the hover and later, so a press still shows while the pointer is over it. */
+:global(html:not([data-skin='classic'])) .bordered:not(:disabled, [aria-disabled='true']):active {
+  border-color: var(--line-3);
+  background: var(--press);
+}

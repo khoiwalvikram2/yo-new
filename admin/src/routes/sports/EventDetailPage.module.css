@@ -1,0 +1,98 @@
+/* Event detail (admin UI kit, "Event detail" screen). The gutters and base type are the shared Page's; this
+   root paints the app ground so the fullscreen element has one. */
+.workspace { min-width: 0; background: var(--app); color: var(--ink); }
+.page { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+/* what auto-refresh covers: read with the switch (aria-describedby), not shown; the kit head carries no note */
+.scope { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.feedback { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.error { color: var(--neg-ink); }
+.state { min-width: 0; padding: 24px; }
+.retry { margin: 12px auto; display: block; }
+
+/* ---- workspace (kit .ev-ws): it sizes itself to its own width. Under 900px one panel shows at a time,
+   picked by the bottom tabs; to 1439px the markets sit beside one side rail (Bets | Book), picked by the
+   side tabs; from 1440px book | markets | bets. The three-column step waits for 1440 so the markets keep the
+   full ladder (P/L beside three back and three lay prices) instead of folding it under the names.
+   All three stay mounted; data-view / data-side only choose what shows.
+   Under 768px of viewport the page is in its mobile mode instead, which mounts one panel at a time. */
+.ws { container: evws / inline-size; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.desktop { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 12px; min-width: 0; }
+.rail { min-width: 0; }
+.center { display: flex; flex-direction: column; gap: 12px; min-width: 0; container-type: inline-size; }
+.desktop .rail, .desktop .center, .desktop .sideTabs { display: none; }
+.desktop[data-view='markets'] .center { display: flex; }
+.desktop[data-view='players'] [data-event-panel='players'],
+.desktop[data-view='bets'] [data-event-panel='bets'] { display: block; }
+.desktop.collapsed [data-event-panel='bets'] { overflow: hidden; }
+
+@container evws (min-width: 900px) {
+  .desktop { grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: auto minmax(0, 1fr); }
+  .desktop[data-view] .center { display: flex; grid-column: 1; grid-row: 1 / span 2; }
+  .desktop[data-view] .sideTabs { display: flex; grid-column: 2; grid-row: 1; width: 100%; }
+  .desktop[data-side='bets'] [data-event-panel='bets'],
+  .desktop[data-side='players'] [data-event-panel='players'] { display: block; grid-column: 2; grid-row: 2; }
+  .desktop[data-side='bets'] [data-event-panel='players'],
+  .desktop[data-side='players'] [data-event-panel='bets'] { display: none; }
+  /* a collapsed bets rail is 64px, too narrow for the tab bar, so the bar goes and the rail rises into its row */
+  .desktop.collapsed[data-side='bets'] { grid-template-columns: minmax(0, 1fr) 64px; row-gap: 0; }
+  .desktop.collapsed[data-side='bets'] .sideTabs { display: none; }
+  .ws .wsTabs { display: none; }
+}
+
+@container evws (min-width: 1440px) {
+  .desktop { grid-template-columns: 260px minmax(0, 1fr) 310px; grid-template-rows: auto; }
+  .desktop.collapsed[data-side] { grid-template-columns: 260px minmax(0, 1fr) 64px; }
+  .desktop[data-view] .sideTabs { display: none; }
+  .desktop[data-side] [data-event-panel='players'] { display: block; grid-column: 1; grid-row: 1; }
+  .desktop[data-view] .center { grid-column: 2; grid-row: 1; }
+  .desktop[data-side] [data-event-panel='bets'] { display: block; grid-column: 3; grid-row: 1; }
+}
+
+/* wide bets (kit [data-wide]): the bets rail takes the whole workspace; its Collapse button returns */
+@container evws (min-width: 900px) {
+  .desktop[data-wide][data-side][data-view] { grid-template-columns: minmax(0, 1fr); }
+  .desktop[data-wide][data-side][data-view] .center,
+  .desktop[data-wide][data-side][data-view] .sideTabs,
+  .desktop[data-wide][data-side][data-view] [data-event-panel='players'] { display: none; }
+  .desktop[data-wide][data-side][data-view] [data-event-panel='bets'] { display: block; grid-column: 1; grid-row: auto; }
+}
+
+/* markets only (kit [data-focus], the head's layers button): the markets take the whole row */
+.desktop[data-focus][data-side][data-view] { grid-template-columns: minmax(0, 1fr); }
+.desktop[data-focus][data-side][data-view] .sideTabs,
+.desktop[data-focus][data-side][data-view] [data-event-panel='players'],
+.desktop[data-focus][data-side][data-view] [data-event-panel='bets'] { display: none; }
+.desktop[data-focus][data-side][data-view] .center { display: flex; grid-column: 1; grid-row: auto; }
+.ws[data-focus] .wsTabs { display: none; }
+
+/* the side tabs fill their column, one tab each half */
+:global(html:not([data-skin='classic'])) .sideTabs[role='tablist'] > button[role='tab'] { flex: 1 1 0; }
+
+/* ---- markets column */
+/* kit .ev-mbar: the market type tabs, and how fresh the feed prices are on the right */
+.filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }
+.filters > :first-child { min-width: 0; max-width: 100%; }
+.pricesAt { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pricesDot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+.pricesAt.stale .pricesDot { background: var(--ink-3); box-shadow: none; }
+.markets { display: grid; gap: 12px; min-width: 0; }
+.market { min-width: 0; max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
+.market:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--ui-radius); }
+.marketSurface { min-width: 0; }
+.scrollHint { display: none; margin: 0 4px 8px; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.projected { margin: 8px 4px 0; color: var(--ink-3); font-size: 12px; line-height: 1.6; }
+@media (min-width: 768px) { @container (max-width: 450px) { .marketSurface { min-width: 450px; } .scrollHint { display: block; } } }
+
+/* ---- mobile mode: one mounted panel over the bottom tabs */
+.mobile { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mobilePanel { min-width: 0; }
+
+/* ---- bottom tabs (kit .ev-tabs): icon, name and count; the current one carries a red bar on top */
+.bottomTabs { position: sticky; bottom: 0; z-index: 4; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding-bottom: env(safe-area-inset-bottom); border: 1px solid var(--line); background: var(--surf); box-shadow: 0 -6px 16px rgb(16 18 22 / 10%); }
+.tab { appearance: none; display: grid; justify-items: center; align-content: center; gap: 2px; min-width: 0; min-height: 56px; padding: 6px 4px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink-3); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.tab:last-child { border-right: 0; }
+.tab:hover { background: var(--hover); color: var(--ink); }
+.tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -4px; }
+.tab[aria-pressed='true'] { color: var(--acc-ink); box-shadow: inset 0 3px 0 var(--acc); }
+.tabCount { color: inherit; font-weight: 700; font-variant-numeric: tabular-nums; }

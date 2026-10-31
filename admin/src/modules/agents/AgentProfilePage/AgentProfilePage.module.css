@@ -1,0 +1,5 @@
+/* BEYOND-MOCKUP: detail-page stack preserves the shell's page gutters and token surfaces. */
+.stack { display: grid; gap: 20px; min-width: 0; }
+.panel { min-width: 0; }
+.tabs { max-width: 100%; overflow-x: auto; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }

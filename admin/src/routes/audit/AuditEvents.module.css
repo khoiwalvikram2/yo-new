@@ -1,0 +1,28 @@
+/* BEYOND-MOCKUP: audit forms, presets, metadata, expanded data and table density derive
+   from existing kit tokens; the complete workspace follows the saved light/dark theme. */
+.stack { display: grid; gap: 16px; min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.end { justify-content: flex-end; }
+.row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.name { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ink); font-size: 13px; }
+.secondary { color: var(--ink-3); font-size: 12px; margin: 0; overflow-wrap: anywhere; }
+.secondarySmall { color: var(--ink-3); font-size: 11px; }
+.strong { color: var(--ink); font-size: 13px; font-weight: 600; }
+.code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
+.description { overflow-wrap: anywhere; }
+.tabs { overflow-x: auto; max-width: 100%; }
+.table { min-width: 1400px; }
+.compact :global(td) { padding-block: 8px; }
+.large :global(td) { padding-block: 20px; }
+.sort { appearance: none; display: inline-flex; align-items: center; gap: 6px; padding: 0; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.sort:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; border-radius: var(--ui-radius); }
+.changed { padding: 16px; background: var(--surf-3); border-radius: var(--ui-radius); }
+.json { margin: 0; padding: 12px; max-height: 320px; overflow: auto; border: 1px solid var(--line); background: var(--surf-3); color: var(--ink-2); border-radius: var(--ui-radius); font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.error { color: var(--neg-ink); font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 639px) { .details { grid-template-columns: minmax(0, 1fr); } }
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 7: the sort button's focus outline is the kit's focus ring */
+:global(html:not([data-skin='classic'])) .sort:focus-visible {
+  outline-color: var(--ring);
+}

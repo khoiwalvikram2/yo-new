@@ -1,0 +1,23 @@
+/* /bonuses/:id/edit (W6 Task 171). The mockup draws no edit page and draws Create Bonus only as a
+   field-spec table (M:2307), so the form follows the approved Create Bonus idiom (W1 Task 027,
+   BonusCreatePage.module.css): the kit Card, Form, FormSection and FormActions inside Page's default
+   1280px form cap. These rules are that page's, restated here because a page does not import another
+   page's module. */
+
+/* BEYOND-MOCKUP: the card's body is flush and the form owns the --card-pad gutter on every side, so
+   FormActions' edge-to-edge bleed stays inside the form's own box. The card clips to its --r-card
+   corners because that sticky footer reaches the bottom edge; `clip` creates no scroll container, so
+   the footer still sticks to the shell's scrolling main. */
+.card {
+  overflow: clip;
+}
+
+.form {
+  padding: var(--card-pad);
+}
+
+/* Each legacy antd Row started a new line. In the kit's two-column field grid a control that began
+   a Row starts in the first column, leaving the rest of the previous row empty. */
+.rowStart {
+  grid-column-start: 1;
+}

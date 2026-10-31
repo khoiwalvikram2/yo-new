@@ -1,0 +1,249 @@
+/* Drill-down report charts (TrendCard, ContextCharts, ReportChartTip) on the approved mockup's chart
+   tokens — page migration Task 121. Sources: CHART (M:901-958) and the recipe the migrated overview
+   charts already use (routes/overview/components/charts.module.css, not imported: it belongs to that
+   page). Tokens only.
+
+   recharts cannot read a custom property from a JS prop, so every colour is set by a class on the SVG
+   element recharts draws: a series layer takes the caller's className (Line.js `recharts-line`, Bar.js),
+   a Cell's className lands on its sector or rectangle, and an active dot takes the className passed in
+   its activeDot object (ActivePoints.js renders it outside the series layer). The legend is our own
+   HTML (TrendLegend). A CSS declaration beats an SVG presentation attribute, so a plot re-themes itself
+   when the theme flips. */
+
+/* ===================== PLOT ===================== */
+/* No inset of its own: the kit Card body already carries --card-pad, the inset the mockup's
+   .chartwrap uses (M:912). */
+.plot {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+/* ContextCharts' bar and pie, side by side once the pair's own row is wide enough (the mockup's
+   .pair, M:899, with the legacy equal columns and 16px gap; legacy lg:grid-cols-2). A container
+   query, because the shell's context panel changes the row's width (definition of done item 17). */
+.charts {
+  min-width: 0;
+  container: report-charts / inline-size;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+@container report-charts (width >= 720px) {
+  .pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ===================== AXES, GRID, CROSSHAIR (M:915-918) ===================== */
+.plot :global(.recharts-cartesian-grid) line {
+  stroke: var(--grid);
+}
+
+.plot :global(.recharts-cartesian-axis-line),
+.plot :global(.recharts-cartesian-axis-tick-line) {
+  stroke: var(--axis);
+}
+
+.plot :global(.recharts-cartesian-axis-tick-value),
+.plot :global(.recharts-label) {
+  fill: var(--tick);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A line chart's cursor is a stroked curve, a bar chart's a filled rectangle (M:918). */
+.cursorLine {
+  stroke: var(--cross);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.cursorBar {
+  fill: var(--cross);
+  fill-opacity: 0.1;
+  stroke: none;
+}
+
+/* ===================== LINE SERIES ===================== */
+/* Up to three series take the ramp in order (M:919-924: one indigo in three steps). A chart with
+   more series takes the decorative hue ramp (M:938-941 .spk-1..4; blue and amber continue it,
+   BEYOND-MOCKUP), the token file's rule for categorical series. drillDownModel.lineSlots chooses; a
+   line whose colour carries a reading names its hue (the bonus trend: redeemed green, expired red). */
+.lineS1 :global(.recharts-line-curve) { stroke: var(--s1); }
+.lineS2 :global(.recharts-line-curve) { stroke: var(--s2); }
+.lineS3 :global(.recharts-line-curve) { stroke: var(--s3); }
+.lineHInd :global(.recharts-line-curve) { stroke: var(--h-ind); }
+.lineHRed :global(.recharts-line-curve) { stroke: var(--h-red); }
+.lineHGrn :global(.recharts-line-curve) { stroke: var(--h-grn); }
+.lineHVio :global(.recharts-line-curve) { stroke: var(--h-vio); }
+.lineHBlu :global(.recharts-line-curve) { stroke: var(--h-blu); }
+.lineHAmb :global(.recharts-line-curve) { stroke: var(--h-amb); }
+
+/* The hovered point: the series colour with a ring of the card (M:922-925 .dot-N, .dot-ring). */
+.dotS1,
+.dotS2,
+.dotS3,
+.dotHInd,
+.dotHRed,
+.dotHGrn,
+.dotHVio,
+.dotHBlu,
+.dotHAmb {
+  stroke: var(--surf);
+}
+
+.dotS1 { fill: var(--s1); }
+.dotS2 { fill: var(--s2); }
+.dotS3 { fill: var(--s3); }
+.dotHInd { fill: var(--h-ind); }
+.dotHRed { fill: var(--h-red); }
+.dotHGrn { fill: var(--h-grn); }
+.dotHVio { fill: var(--h-vio); }
+.dotHBlu { fill: var(--h-blu); }
+.dotHAmb { fill: var(--h-amb); }
+
+/* ===================== BARS AND SLICES ===================== */
+/* The single-series bar takes the ramp's first step; slices are categorical and take the hue ramp,
+   cycling as the legacy six-colour list did (M:931-934). */
+.barS1 :global(.recharts-rectangle) {
+  fill: var(--s1);
+}
+
+.plot .fillHInd { fill: var(--h-ind); }
+.plot .fillHRed { fill: var(--h-red); }
+.plot .fillHGrn { fill: var(--h-grn); }
+.plot .fillHVio { fill: var(--h-vio); }
+.plot .fillHBlu { fill: var(--h-blu); }
+.plot .fillHAmb { fill: var(--h-amb); }
+
+/* The slice's "name: N%" label sits outside the pie on the card, so it takes body ink (BEYOND-MOCKUP:
+   the mockup draws no pie). */
+.plot :global(.recharts-pie-label-text) {
+  fill: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===================== LEGEND (M:903-911) ===================== */
+/* TrendLegend, drawn as recharts Legend content: the mockup's .legend row of .lg entries, each an 8px
+   pill swatch on its series' slot (the .key* classes below) and the series name. Entries follow the
+   series order and take their slot by key, never by position: recharts 3 sorts its own legend payload
+   by name, so the default legend's legend-item-N classes do not follow the lines. The row stays where
+   recharts' default legend sat, under the plot and centred (legacy placement; the mockup puts it in
+   the card head, flush right, BEYOND-MOCKUP). */
+.legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+}
+
+.lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lgKey {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--ui-radius-circle);
+  flex: none;
+}
+
+.lgText {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+/* M:1621-1624: the entries close up on the narrowest phones. */
+@media (max-width: 400px) {
+  .legend {
+    gap: 12px;
+  }
+}
+
+/* ===================== TOOLTIP (M:942-958, visual recipe only) ===================== */
+/* recharts owns the tip's placement and show/hide, so the mockup's absolute position, opacity and
+   transform are not transcribed. */
+.tip {
+  min-width: 172px;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--float);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--sh-tip);
+  font-family: var(--font-ui);
+}
+
+.tipLabel {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tipRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.tipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.tipName {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.tipValue {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the swatch tying a tip row or a legend entry to its series (M:954-956, M:908-910) */
+.keyS1 { background: var(--s1); }
+.keyS2 { background: var(--s2); }
+.keyS3 { background: var(--s3); }
+.keyHInd { background: var(--h-ind); }
+.keyHRed { background: var(--h-red); }
+.keyHGrn { background: var(--h-grn); }
+.keyHVio { background: var(--h-vio); }
+.keyHBlu { background: var(--h-blu); }
+.keyHAmb { background: var(--h-amb); }
+
+/* ===================== REDUCED MOTION ===================== */
+/* No transition is declared here; the one that reaches these plots is recharts' own on the tooltip
+   wrapper, which recharts already drops under reduced motion. Kept as each module's own answer, as
+   the overview's chart module does; the mockup kills motion globally at M:1629-1635. */
+@media (prefers-reduced-motion: reduce) {
+  .plot :global(.recharts-tooltip-wrapper) {
+    transition: none !important;
+  }
+}

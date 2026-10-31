@@ -1,0 +1,87 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Builds and packed archives
+dist/
+*.tgz
+*.tar.gz
+
+# Environment variables: every variant, the examples stay tracked. user/.gitignore keeps
+# user/.env.production on purpose: it holds only public VITE_ build values.
+.env
+.env.*
+!.env.example
+*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Logs
+logs/
+*.log
+
+# Test output: coverage, Playwright results and reports
+coverage/
+test-results/
+playwright-report/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Vite's temporary bundled config files
+*.timestamp-*.mjs
+
+# Private keys and signing stores (the public CA certificates under */certs stay tracked)
+*private*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+
+# Mobile app builds
+*.apk
+*.aab
+
+# Debugging captures: heap snapshots, CPU profiles, network logs
+*.heapsnapshot
+*.cpuprofile
+*.har
+
+# Database and cache dumps
+*.dump
+dump.rdb
+
+# Editor and merge leftovers
+*.bak
+*.orig
+*.rej
+
+# Local working folders: scratch output, the archive of superseded code (see .archive/README.md),
+# copies taken before edits (there is no git history yet) and brainstorm visual-companion artifacts
+tmp/
+.archive/
+.backups/
+.superpowers/
+# The root docs folder only (plans, specs, audits); admin/src/docs and admin-backend/docs stay tracked
+/docs/
+
+# Claude Code's local settings
+.claude/
+
+# Reference sources kept locally only; no app imports them. mati99 holds the separate Matka repos
+# (HJ-AT/matka-admin, matka-backend, matka-user, each with its own .git) and the UI kit the player
+# app's Matka screens were copied from (now in user/src/features/matka/kit). NOVA-website-source is
+# the design reference for the player UI.
+mati99/
+NOVA-website-source/

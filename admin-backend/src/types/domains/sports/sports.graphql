@@ -1,0 +1,1107 @@
+enum MarketState { 
+  open 
+  suspended 
+  void 
+  settled 
+}
+
+type Market {
+  id: ID!
+  tenant: String
+  sport: String!
+  competition: String!
+  event: String!
+  eventId: ID
+  name: String!
+  state: MarketState!
+  kind: MarketKind!
+  type: String
+  liquidity: Float
+  unmatchedOrders: Int
+  cutoffAt: String!
+  tickSize: Float!
+  createdBy: String!
+  updatedAt: String!
+  runners: [MarketRunner!]
+  marketCode: String
+}
+
+# Runners for live markets
+type MarketRunner { id: ID!, name: String!, sortOrder: Int, selectionCode: String }
+
+# v1 Sports hierarchy minimal types
+enum SportStatus { active inactive }
+
+type Sport { 
+  id: ID!
+  key: String!
+  name: String!
+  sort: Int!
+  sportCode: String!
+  status: SportStatus!
+  updatedAt: String!
+}
+
+# Third-party proxied entities for builder steps (v1)
+type League { id: ID! name: String! sportId: ID status: SportStatus updatedAt: String }
+type Event { id: ID! name: String! leagueId: ID startTime: String status: SportStatus updatedAt: String }
+
+# Global search result for sports hierarchy
+type SportsSearchResult {
+  type: String! # "sport", "league", or "event"
+  sportId: ID!
+  sportName: String!
+  leagueId: ID
+  leagueName: String
+  eventId: ID
+  eventName: String
+}
+
+input SportsSearchInput {
+  query: String!
+  limit: Int
+}
+
+# Markets proxied from provider for builder preview
+type Runner { id: ID! name: String! sortPriority: Int selectionCode: String status: SportStatus }
+type ProviderMarket { id: ID! name: String! eventId: ID type: String status: SportStatus updatedAt: String startTime: String runners: [Runner!]! }
+
+# Persist selection
+input PersistEventSelectionInput {
+  sportId: ID!
+  sportCode: String!
+  leagueCode: String!
+  leagueName: String!
+  eventCode: String!
+  eventName: String!
+  startTime: String
+}
+
+type PersistResult {
+  success: Boolean!
+  message: String!
+  leaguesUpserted: Int!
+  eventsUpserted: Int!
+  marketsUpserted: Int!
+  runnersUpserted: Int!
+  skippedEventsCount: Int!
+  skippedEvents: [SkippedEvent!]!
+  skippedMarketsCount: Int!
+}
+
+# Generic mutation payload for sports mutations to enable UI notifications
+type SportsMutationPayload {
+  success: Boolean!
+  message: String!
+}
+
+type SkippedEvent {
+  leagueCode: String!
+  leagueName: String!
+  eventCode: String!
+  eventName: String!
+  reason: String!
+}
+
+# Auto ingestion config
+type AutoSportsConfig {
+  id: ID!
+  sportId: ID!
+  leagueCodes: [String!]
+  frequencyHours: Int!
+  active: Boolean!
+  lastRunAt: String
+  lastRunStatus: String
+  nextRunAt: String
+  updatedAt: String!
+}
+
+# Auto ingestion run history
+type AutoRun {
+  id: ID!
+  sportId: ID!
+  startedAt: String!
+  finishedAt: String
+  status: String!
+  leaguesAdded: Int!
+  eventsAdded: Int!
+  marketsAdded: Int!
+  runnersAdded: Int!
+  skippedEventsCount: Int!
+  skippedEvents: [SkippedEvent!]
+  errorMessage: String
+}
+
+# Sorting
+input ReorderSportsInput {
+  id: ID!
+  sort: Int!
+}
+
+input ReorderLeaguesInput {
+  id: ID!
+  sort: Int!
+}
+
+# League-level settings
+type LeagueSettings {
+  id: ID!
+  leagueId: ID!
+  tierId: String!
+  exchangeMinStake: Float
+  exchangeMaxStake: Float
+  bookmakerMinStake: Float
+  bookmakerMaxStake: Float
+  fancyMinStake: Float
+  fancyMaxStake: Float
+  exchangeDelay: Int
+  bookmakerDelay: Int
+  fancyDelay: Int
+  exchangeCooldown: Int
+  bookmakerCooldown: Int
+  fancyCooldown: Int
+  exchangeMinOdds: Float
+  exchangeMaxOdds: Float
+  exchangeCommission: Float
+  bookmakerCommission: Float
+  fancyCommission: Float
+  exchangeExposureDaily: Float
+  exchangeExposureWeekly: Float
+  exchangeExposureCap: Float
+  bookmakerExposureDaily: Float
+  bookmakerExposureWeekly: Float
+  bookmakerExposureCap: Float
+  fancyExposureDaily: Float
+  fancyExposureWeekly: Float
+  fancyExposureCap: Float
+  cashoutActive: Boolean
+  riskLevel: String
+  riskThreshold: Float
+  volatilityThreshold: Float
+  alertOnBreach: Boolean
+  alertChannel: String
+  alertRateLimit: Int
+  createdAt: String!
+  updatedAt: String!
+}
+
+# Event-level settings
+type EventSettings {
+  id: ID!
+  eventId: ID!
+  tierId: String!
+  exchangeMinStake: Float
+  exchangeMaxStake: Float
+  bookmakerMinStake: Float
+  bookmakerMaxStake: Float
+  fancyMinStake: Float
+  fancyMaxStake: Float
+  exchangeDelay: Int
+  bookmakerDelay: Int
+  fancyDelay: Int
+  exchangeCooldown: Int
+  bookmakerCooldown: Int
+  fancyCooldown: Int
+  exchangeMinOdds: Float
+  exchangeMaxOdds: Float
+  exchangeCommission: Float
+  bookmakerCommission: Float
+  fancyCommission: Float
+  exchangeExposureDaily: Float
+  exchangeExposureWeekly: Float
+  exchangeExposureCap: Float
+  bookmakerExposureDaily: Float
+  bookmakerExposureWeekly: Float
+  bookmakerExposureCap: Float
+  fancyExposureDaily: Float
+  fancyExposureWeekly: Float
+  fancyExposureCap: Float
+  cashoutActive: Boolean
+  riskLevel: String
+  riskThreshold: Float
+  volatilityThreshold: Float
+  alertOnBreach: Boolean
+  alertChannel: String
+  alertRateLimit: Int
+  createdAt: String!
+  updatedAt: String!
+}
+
+input UpsertEventSettingsInput {
+  tierId: String
+  exchangeMinStake: Float
+  exchangeMaxStake: Float
+  bookmakerMinStake: Float
+  bookmakerMaxStake: Float
+  fancyMinStake: Float
+  fancyMaxStake: Float
+  exchangeDelay: Int
+  bookmakerDelay: Int
+  fancyDelay: Int
+  exchangeCooldown: Int
+  bookmakerCooldown: Int
+  fancyCooldown: Int
+  exchangeMinOdds: Float
+  exchangeMaxOdds: Float
+  exchangeCommission: Float
+  bookmakerCommission: Float
+  fancyCommission: Float
+  exchangeExposureDaily: Float
+  exchangeExposureWeekly: Float
+  exchangeExposureCap: Float
+  bookmakerExposureDaily: Float
+  bookmakerExposureWeekly: Float
+  bookmakerExposureCap: Float
+  fancyExposureDaily: Float
+  fancyExposureWeekly: Float
+  fancyExposureCap: Float
+  cashoutActive: Boolean
+  riskLevel: String
+  riskThreshold: Float
+  volatilityThreshold: Float
+  alertOnBreach: Boolean
+  alertChannel: String
+  alertRateLimit: Int
+}
+
+# Risk Configuration Types
+type RiskConfig {
+  id: ID!
+  eventId: ID!
+  percentiles: RiskPercentiles
+  weights: RiskWeights
+  amounts: RiskAmounts
+  alerts: RiskAlerts
+  createdAt: String!
+  updatedAt: String!
+}
+
+type RiskAlerts {
+  enabled: Boolean
+  triggerLevels: [String!]
+  notificationEnabled: Boolean
+  bannerEnabled: Boolean
+  sidebarIndicatorEnabled: Boolean
+  cooldownSeconds: Int
+}
+
+type RiskPercentiles {
+  liability75: Float
+  liability90: Float
+  liability95: Float
+  exposure75: Float
+  exposure90: Float
+  betCount75: Float
+  betCount90: Float
+  odds75: Float
+  odds90: Float
+}
+
+type RiskWeights {
+  liability: Int
+  exposure: Int
+  volume: Int
+  odds: Int
+}
+
+type RiskAmounts {
+  highLiability: Float
+  mediumLiability: Float
+  highExposure: Float
+  mediumExposure: Float
+  highBetCount: Float
+  mediumBetCount: Float
+  highOdds: Float
+  mediumOdds: Float
+}
+
+input RiskPercentilesInput {
+  liability75: Float
+  liability90: Float
+  liability95: Float
+  exposure75: Float
+  exposure90: Float
+  betCount75: Float
+  betCount90: Float
+  odds75: Float
+  odds90: Float
+}
+
+input RiskWeightsInput {
+  liability: Int
+  exposure: Int
+  volume: Int
+  odds: Int
+}
+
+input RiskAmountsInput {
+  highLiability: Float
+  mediumLiability: Float
+  highExposure: Float
+  mediumExposure: Float
+  highBetCount: Float
+  mediumBetCount: Float
+  highOdds: Float
+  mediumOdds: Float
+}
+
+input RiskAlertsInput {
+  enabled: Boolean
+  triggerLevels: [String!]
+  notificationEnabled: Boolean
+  bannerEnabled: Boolean
+  sidebarIndicatorEnabled: Boolean
+  cooldownSeconds: Int
+}
+
+input UpsertRiskConfigInput {
+  eventId: ID!
+  percentiles: RiskPercentilesInput
+  weights: RiskWeightsInput
+  amounts: RiskAmountsInput
+  alerts: RiskAlertsInput
+}
+
+input UpsertLeagueSettingsInput {
+  tierId: String
+  exchangeMinStake: Float
+  exchangeMaxStake: Float
+  bookmakerMinStake: Float
+  bookmakerMaxStake: Float
+  fancyMinStake: Float
+  fancyMaxStake: Float
+  exchangeDelay: Int
+  bookmakerDelay: Int
+  fancyDelay: Int
+  exchangeCooldown: Int
+  bookmakerCooldown: Int
+  fancyCooldown: Int
+  exchangeMinOdds: Float
+  exchangeMaxOdds: Float
+  exchangeCommission: Float
+  bookmakerCommission: Float
+  fancyCommission: Float
+  exchangeExposureDaily: Float
+  exchangeExposureWeekly: Float
+  exchangeExposureCap: Float
+  bookmakerExposureDaily: Float
+  bookmakerExposureWeekly: Float
+  bookmakerExposureCap: Float
+  fancyExposureDaily: Float
+  fancyExposureWeekly: Float
+  fancyExposureCap: Float
+  cashoutActive: Boolean
+  riskLevel: String
+  riskThreshold: Float
+  volatilityThreshold: Float
+  alertOnBreach: Boolean
+  alertChannel: String
+  alertRateLimit: Int
+}
+
+# Settings per sport (and VIP tier)
+type SportSettings {
+  sportId: ID!
+  tierId: ID!
+  # Stake limits
+  exchangeMinStake: Float
+  exchangeMaxStake: Float
+  bookmakerMinStake: Float
+  bookmakerMaxStake: Float
+  fancyMinStake: Float
+  fancyMaxStake: Float
+  # Bet delays (seconds)
+  exchangeDelay: Int
+  bookmakerDelay: Int
+  fancyDelay: Int
+  # Bet cooldowns (seconds)
+  exchangeCooldown: Int
+  bookmakerCooldown: Int
+  fancyCooldown: Int
+  # Odds limits
+  exchangeMinOdds: Float
+  exchangeMaxOdds: Float
+  # Commission
+  exchangeCommission: Float
+  bookmakerCommission: Float
+  fancyCommission: Float
+  # Exposure limits
+  exchangeExposureDaily: Float
+  exchangeExposureWeekly: Float
+  exchangeExposureCap: Float
+  bookmakerExposureDaily: Float
+  bookmakerExposureWeekly: Float
+  bookmakerExposureCap: Float
+  fancyExposureDaily: Float
+  fancyExposureWeekly: Float
+  fancyExposureCap: Float
+  # Toggles
+  cashoutActive: Boolean
+  # Risk
+  riskLevel: String
+  riskThreshold: Float
+  volatilityThreshold: Float
+  # Alerts
+  alertOnBreach: Boolean
+  alertChannel: String
+  alertRateLimit: Int
+}
+
+input UpsertSportSettingsInput {
+  sportIds: [ID!]!
+  tierId: ID
+  mode: String! # overwrite | fill-empty | replace-all
+  # Same fields as SportSettings, but optional
+  exchangeMinStake: Float
+  exchangeMaxStake: Float
+  bookmakerMinStake: Float
+  bookmakerMaxStake: Float
+  fancyMinStake: Float
+  fancyMaxStake: Float
+  exchangeDelay: Int
+  bookmakerDelay: Int
+  fancyDelay: Int
+  exchangeCooldown: Int
+  bookmakerCooldown: Int
+  fancyCooldown: Int
+  exchangeMinOdds: Float
+  exchangeMaxOdds: Float
+  exchangeCommission: Float
+  bookmakerCommission: Float
+  fancyCommission: Float
+  exchangeExposureDaily: Float
+  exchangeExposureWeekly: Float
+  exchangeExposureCap: Float
+  bookmakerExposureDaily: Float
+  bookmakerExposureWeekly: Float
+  bookmakerExposureCap: Float
+  fancyExposureDaily: Float
+  fancyExposureWeekly: Float
+  fancyExposureCap: Float
+  cashoutActive: Boolean
+  riskLevel: String
+  riskThreshold: Float
+  volatilityThreshold: Float
+  alertOnBreach: Boolean
+  alertChannel: String
+  alertRateLimit: Int
+}
+
+input SeedSportsInput { provider: String! }
+type SeedPayload { inserted: Int! updated: Int! }
+
+
+type ExposurePoint { 
+  dimension: String!
+  value: Float!
+}
+
+type RiskLimit { 
+  id: ID!
+  segment: String
+  userId: ID
+  maxStake: Float!
+  liabilityCap: Float!
+  updatedAt: String!
+}
+
+input RiskLimitInput { 
+  segment: String
+  userId: ID
+  maxStake: Float!
+  liabilityCap: Float!
+}
+
+type LadderTick { 
+  price: Float!
+  backVol: Float!
+  layVol: Float!
+}
+
+union OrderbookMessage = OrderbookSnapshot | OrderbookDelta
+
+type OrderbookSnapshot { 
+  seq: Int!
+  at: String!
+  marketId: ID!
+  items: [LadderTick!]!
+}
+
+type OrderbookDeltaOp { 
+  op: String!
+  id: String!
+  backVol: Float
+  layVol: Float
+}
+
+type OrderbookDelta { 
+  seq: Int!
+  at: String!
+  marketId: ID!
+  ops: [OrderbookDeltaOp!]!
+}
+
+# Unified market kinds
+enum MarketKind { exchange bookmaker fancy }
+
+# Unified book for Exchange and Bookmaker
+type SelectionBook { selectionId: ID!, selectionName: String!, items: [LadderTick!]! }
+type MarketBook { marketId: ID!, kind: MarketKind!, at: String!, seq: Int!, selections: [SelectionBook!]! }
+
+# Fancy book (Yes/No or lines)
+type FancyLine { id: ID!, name: String!, back: Float!, lay: Float!, at: String! }
+type FancyBook { marketId: ID!, at: String!, lines: [FancyLine!]! }
+
+# Event-centric views for running markets
+enum EventStatus { upcoming in_play finished suspended }
+
+type SportsEvent {
+  id: ID!
+  sport: String!
+  competition: String!
+  name: String!
+  startTime: String!
+  status: EventStatus
+  marketCount: Int!
+  matchedVolume: Float
+  totalLiquidity: Float
+  betsCount: Int!
+  inPlay: Boolean!
+  updatedAt: String!
+  lastBetAt: String
+  eventCode: String
+}
+
+type EventDetail {
+  event: SportsEvent!
+  markets: [Market!]!
+}
+
+type RunnerTop { selectionId: ID!, selectionName: String!, back: Float, lay: Float }
+type EventMarketOdds { marketId: ID!, kind: MarketKind!, state: MarketState!, top: [RunnerTop!], fancy: [FancyLine!], seq: Int!, at: String! }
+type EventLive { eventId: ID!, markets: [EventMarketOdds!]!, seq: Int!, at: String! }
+
+# Sports Bets
+enum SportsBetStatus { matched unmatched cancelled settled won lost void }
+enum SportsBetSide { back lay }
+
+# Agent info for bets (AgentScheme enum is defined in agents.graphql)
+type BetAgentInfo {
+  agentId: ID!
+  agentName: String!
+  schemeType: AgentScheme!
+  rate: Float!
+}
+
+type SportsBet {
+  id: ID!
+  tenant: String
+  whitelabelId: String!
+  userId: String!
+  userName: String
+  userPhone: String
+  userFlags: JSON
+  sportId: ID!
+  sportName: String
+  leagueId: ID!
+  leagueName: String
+  marketId: ID!
+  marketName: String
+  eventId: ID!
+  eventName: String
+  runnerId: ID!
+  selectionId: String!
+  selectionName: String
+  side: SportsBetSide!
+  price: Float!
+  size: Float!
+  stake: Float!
+  liability: Float!
+  status: SportsBetStatus!
+  matchedAt: String
+  settledAt: String
+  result: String
+  eventResult: String
+  pl: Float
+  currency: String!
+  ipAddress: String
+  userAgent: String
+  location: String
+  country: String
+  deviceInfo: String
+  oddsSize: Float
+  agentInfo: BetAgentInfo
+  createdAt: String!
+  updatedAt: String!
+  walletType: String
+  campaign: BetCampaignDetail
+}
+
+input SportsBetsQuery {
+  tenant: String
+  whitelabelId: String
+  """When true, omit tenant/whitelabel filter so open bets count is across all tenants (e.g. for declare-result chips)."""
+  allTenants: Boolean
+  userId: String
+  userIds: [String!]
+  sportId: ID
+  leagueId: ID
+  eventId: ID
+  marketId: ID
+  runnerId: ID
+  selectionId: String
+  status: SportsBetStatus
+  statuses: [SportsBetStatus!]
+  side: SportsBetSide
+  dateFrom: String
+  dateTo: String
+  search: String
+  limit: Int
+  offset: Int
+}
+
+type SportsBetsPage {
+  items: [SportsBet!]!
+  total: Int!
+}
+
+# --- Live Sports Analytics (Subscriptions) ---
+
+"""
+Real-time KPIs for live sports betting activity on running markets with open bets.
+All monetary fields are raw numbers; clients must format via currency rules.
+"""
+type SportsLiveKpis {
+  at: String!
+  totalStake: Float!
+  totalLiability: Float!
+  netExposure: Float!
+  grossExposure: Float!
+  activeMarkets: Int!
+  activePlayers: Int!
+  betsPerMin: Float!
+  avgOdds: Float!
+  backBets: Int!
+  layBets: Int!
+}
+
+type SportsSportStat {
+  sportId: ID!
+  sportName: String
+  totalStake: Float!
+  totalLiability: Float!
+  netExposure: Float!
+  bets: Int!
+}
+
+type SportsLeagueStat {
+  leagueId: ID!
+  leagueName: String
+  totalStake: Float!
+  totalLiability: Float!
+  netExposure: Float!
+  bets: Int!
+}
+
+type SportsEventStat {
+  eventId: ID!
+  eventName: String
+  totalStake: Float!
+  totalLiability: Float!
+  netExposure: Float!
+  bets: Int!
+}
+
+type SportsMarketTypeStat {
+  marketType: MarketKind!
+  totalStake: Float!
+  totalLiability: Float!
+  netExposure: Float!
+  bets: Int!
+}
+
+type SportsBetSideStat {
+  side: SportsBetSide!
+  totalStake: Float!
+  totalLiability: Float!
+  bets: Int!
+}
+
+type SportsLiveBreakdown {
+  bySport: [SportsSportStat!]!
+  byLeague: [SportsLeagueStat!]!
+  byEvent: [SportsEventStat!]!
+  byMarketType: [SportsMarketTypeStat!]!
+  byBetSide: [SportsBetSideStat!]!
+}
+
+type SportsLiveDashboard {
+  kpis: SportsLiveKpis!
+  breakdown: SportsLiveBreakdown!
+}
+
+enum SportsRiskSeverity { critical warning info }
+enum SportsRiskEntityType { overall sport league event }
+
+type SportsRiskAlert {
+  id: ID!
+  entityType: SportsRiskEntityType!
+  entityId: ID!
+  entityName: String
+  severity: SportsRiskSeverity!
+  metric: String!
+  value: Float!
+  threshold: Float!
+  description: String!
+  channel: String
+  at: String!
+}
+
+type SportsRiskAlerts {
+  at: String!
+  items: [SportsRiskAlert!]!
+}
+
+type SportsPlayerEvent {
+  id: ID!
+  userId: String!
+  userName: String
+  eventId: ID!
+  eventName: String
+  marketId: ID!
+  marketName: String
+  stake: Float!
+  side: SportsBetSide!
+  price: Float!
+  status: SportsBetStatus!
+  at: String!
+}
+
+input SportsLiveScope {
+  tenant: String
+  whitelabelId: String
+}
+
+extend type Subscription {
+  sportsRiskAlerts(scope: SportsLiveScope): SportsRiskAlerts!
+}
+
+# --- Sports Manual Results ---
+
+enum SportsResultMarketType { exchange bookmaker fancy }
+
+type SportsResult {
+  id: ID!
+  tenant: String!
+  whitelabelId: String!
+  isGlobal: Boolean!
+  sportId: ID!
+  leagueId: ID!
+  eventId: ID!
+  marketId: ID!
+  marketType: SportsResultMarketType!
+  runnerId: ID # For exchange/bookmaker
+  selectionName: String # For fancy
+  result: String # Numeric result as string (for fancy)
+  declaredBy: String!
+  declaredByName: String
+  declaredAt: String!
+  rolledBackAt: String
+  rolledBackBy: String
+  rolledBackByName: String
+  rollbackReason: String
+  rollbackTag: String
+  createdAt: String!
+  # Resolved fields
+  sport: Sport
+  league: League
+  event: Event
+  market: ProviderMarket
+  runner: Runner
+}
+
+input SportsResultInput {
+  sportId: ID!
+  leagueId: ID!
+  eventId: ID!
+  marketId: ID!
+  marketType: SportsResultMarketType!
+  runnerId: ID # For exchange/bookmaker
+  selectionName: String # For fancy
+  result: String # Numeric result as string (for fancy)
+  idempotencyKey: String
+}
+
+input RollbackSportsResultInput {
+  id: ID!
+  reason: String!
+  tag: String
+}
+
+input SportsResultsQuery {
+  tenant: String
+  whitelabelId: String
+  sportId: ID
+  leagueId: ID
+  eventId: ID
+  marketId: ID
+  marketType: SportsResultMarketType
+  dateFrom: String
+  dateTo: String
+  search: String
+  rolledBack: Boolean
+  page: Int
+  limit: Int
+  sort: String
+}
+
+type SportsResultsPage {
+  items: [SportsResult!]!
+  total: Int!
+}
+
+# --- Sports Auto Results Settings ---
+
+type SportsAutoResultsSettings {
+  id: ID!
+  tenant: String!
+  whitelabelId: String!
+  sportId: ID
+  leagueId: ID
+  eventId: ID
+  exchangeEnabled: Boolean!
+  bookmakerEnabled: Boolean!
+  fancyEnabled: Boolean!
+  enabled: Boolean!
+  autoDeclareEnabled: Boolean!
+  rules: String # JSON string
+  notifyOnAutoDeclare: Boolean!
+  notifyChannels: [String!]
+  createdBy: String!
+  updatedBy: String!
+  createdAt: String!
+  updatedAt: String!
+  # Resolved fields
+  sport: Sport
+  league: League
+  event: Event
+}
+
+input SportsAutoResultsSettingsInput {
+  sportId: ID
+  leagueId: ID
+  eventId: ID
+  exchangeEnabled: Boolean!
+  bookmakerEnabled: Boolean!
+  fancyEnabled: Boolean!
+}
+
+input SportsAutoResultsSettingsQuery {
+  sportId: ID
+  leagueId: ID
+  eventId: ID
+  enabled: Boolean
+}
+
+input ToggleAutoResultMarketTypeInput {
+  id: ID!
+  marketType: SportsResultMarketType!
+  enabled: Boolean!
+}
+
+# --- Betting Patterns & Intelligence ---
+
+enum BettingPatternType {
+  RAPID_BETTING
+  MULTI_ACCOUNT
+  COORDINATED
+  UNUSUAL_STAKE
+  ODD_TIMING
+  AGENT_COLLUSION
+  HIGH_ODDS
+}
+
+enum PatternSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+type BettingPattern {
+  id: ID!
+  userId: ID!
+  userName: String
+  eventId: ID
+  patternType: BettingPatternType!
+  severity: PatternSeverity!
+  metrics: JSON!
+  detectedAt: String!
+  status: String!
+  notes: String
+}
+
+# Automation Rule Types
+enum AutomationRuleType {
+  AUTO_VOID
+  AUTO_SUSPEND
+  MARKET_MAKER
+}
+
+type AutomationRule {
+  id: ID!
+  eventId: ID
+  ruleType: AutomationRuleType!
+  config: JSON!
+  enabled: Boolean!
+  priority: Int!
+}
+
+input AutomationRuleInput {
+  eventId: ID
+  ruleType: AutomationRuleType!
+  config: JSON!
+  enabled: Boolean!
+  priority: Int
+}
+
+# Player Intelligence Types
+type PlayerStatistics {
+  totalBets: Int!
+  totalStake: Float!
+  totalWinnings: Float!
+  netProfit: Float!
+  winRate: Float!
+  averageStake: Float!
+  averageOdds: Float!
+  roi: Float!
+  largestWin: Float!
+  largestLoss: Float!
+  favoriteMarketType: String
+  bettingFrequency: String
+  riskScore: Float!
+}
+
+type StakeRange {
+  min: Float!
+  max: Float!
+  median: Float!
+}
+
+type OddsRange {
+  min: Float!
+  max: Float!
+  median: Float!
+}
+
+type MarketPreference {
+  marketType: String!
+  percentage: Float!
+  totalBets: Int!
+}
+
+type StreakBehavior {
+  chasingLosses: Boolean!
+  stopAfterWin: Boolean!
+  averageStreakLength: Float
+}
+
+type PlayerBettingPattern {
+  peakBettingHours: [Int!]
+  averageSessionDuration: Float
+  typicalStakeRange: StakeRange
+  marketPreferences: [MarketPreference!]
+  oddsRange: OddsRange
+  bettingSidePreference: String
+  streakBehavior: StreakBehavior
+}
+
+type PlayerRiskProfile {
+  riskLevel: String!
+  flags: [String!]
+  manualFlags: [String!]!
+  patternFlags: [String!]!
+  patterns: [BettingPattern!]
+  suspiciousActivityCount: Int!
+  lastReviewedAt: String
+  notes: String
+}
+
+type SportsPlayerDevice {
+  ipAddress: String!
+  userAgent: String
+  location: String
+  country: String
+  firstUsed: String!
+  lastUsed: String!
+  betCount: Int!
+}
+
+type RelatedPlayer {
+  userId: ID!
+  userName: String!
+  relationshipType: String!
+  confidence: Float!
+  sharedAttributes: [String!]
+}
+
+type PlayerAgentChain {
+  level: Int!
+  agentId: ID!
+  agentName: String!
+  commissionRate: Float
+  creditLimit: Float
+  creditUsed: Float
+}
+
+type SportsPlayerProfile {
+  user: User!
+  statistics: PlayerStatistics!
+  patterns: PlayerBettingPattern!
+  riskProfile: PlayerRiskProfile!
+  devices: [SportsPlayerDevice!]
+  relatedPlayers: [RelatedPlayer!]
+  agentChain: [PlayerAgentChain!]
+  recentBets: [SportsBet!]!
+}
+
+# Queries
+extend type Query {
+  sportsPlayerProfile(userId: ID!): SportsPlayerProfile
+  bettingPatterns(
+    userId: ID
+    eventId: ID
+    severity: PatternSeverity
+    status: String
+    limit: Int
+  ): [BettingPattern!]!
+  automationRules(eventId: ID): [AutomationRule!]!
+}
+
+# Mutations
+extend type Mutation {
+  upsertAutomationRule(input: AutomationRuleInput!): MessageResponse!
+  deleteAutomationRule(id: ID!): MessageResponse!
+  voidBet(betId: ID!, reason: String!): MessageResponse!
+  cancelBet(betId: ID!, reason: String!): MessageResponse!
+  flagPlayer(userId: ID!, flag: String!, reason: String!): MessageResponse!
+  unflagPlayer(userId: ID!, flag: String!): MessageResponse!
+  dismissPattern(patternId: ID!, reason: String!): MessageResponse!
+}
+
+# Subscriptions
+extend type Subscription {
+  betPlaced(eventId: ID): SportsBet!
+  patternDetected(eventId: ID): BettingPattern!
+  automationTriggered(eventId: ID): JSON!
+}
+
+type SportsResultStats {
+  total: Int!
+  today: Int!
+  exchange: Int!
+  bookmaker: Int!
+  fancy: Int!
+  rolledBack: Int!
+}
+extend type Query { sportsResultStats: SportsResultStats! }

@@ -1,0 +1,57 @@
+/* The mockup's share bar: a pill track with a filled pill inside it (.bar and .bar i, M:1085/M:1091).
+   The caller sizes the track — a 56px bar beside an amount (M:1089), or a full-width one under a
+   label — so this module sets only the height, the shape and the tones.
+
+   It exists so that no page sets a fill width with `style=`: inline styles are banned outright in
+   routes/payments/** and routes/players/** (admin/eslint.config.js), and every page that draws a
+   share had to work around it. Inside src/ui the ban does not apply, and the width is exactly the
+   thing that must be dynamic. */
+.track {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--ui-radius);
+  background: var(--track);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--ui-radius);
+  background: var(--acc);
+}
+
+/* BEYOND-MOCKUP: the mockup fills every bar in the accent. A meter that reports a limit being
+   approached or passed takes the semantic tones instead, the same pair the KPI deltas use. */
+.warn {
+  background: var(--warn);
+}
+
+.neg {
+  background: var(--neg-ink);
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .meter__track / .meter__fill (kit p2): an 8px near-square track on --surf-3 with an inset hairline, and a
+   square fill in the charcoal data ramp (--s1) — red stays for the action and "now". The tone rules are
+   doubled (.fill.warn, (0,3,1)) because the skin's .fill (0,2,1) would otherwise outrank the base tones
+   (0,1,0) that sit on the same element. */
+:global(html:not([data-skin='classic'])) .track {
+  height: 6px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+:global(html:not([data-skin='classic'])) .fill {
+  border-radius: var(--ui-radius);
+  background: var(--s1);
+}
+
+:global(html:not([data-skin='classic'])) .fill.warn {
+  background: var(--warn);
+}
+
+:global(html:not([data-skin='classic'])) .fill.neg {
+  background: var(--neg-ink);
+}

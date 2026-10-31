@@ -1,0 +1,196 @@
+.notifications {
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(384px, calc(100vh - 80px));
+  max-height: min(384px, calc(100dvh - 80px));
+}
+
+.count {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.clear {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--acc-ink);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.clear:hover { text-decoration-color: currentColor; }
+.clear:active { color: var(--acc-h); text-decoration-color: currentColor; }
+.clear:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--ui-radius); }
+
+.list {
+  padding: 6px;
+}
+
+.item {
+  width: 100%;
+  margin: 0;
+  padding: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-1) ease;
+}
+
+.item + .item { margin-top: 2px; }
+.item:hover { background: var(--hover); }
+.item:active { background: var(--press); }
+.item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+.itemTile {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.itemTile svg { display: block; }
+
+.itemBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.itemTop {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.itemTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemAmount {
+  flex: none;
+  font-size: 12.5px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--pos-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.itemMessage {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemTime {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.unreadDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--acc);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clear,
+  .item { transition: none; }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit list rows: full-bleed rows split by hairlines, 34px icon tiles, 14px bold titles, 13px muted subs, a
+   red unread marker. The head (count, "Clear all") sits on TopbarPopover's charcoal head, whose token
+   switch already turns --ink-3 / --acc-ink light there. Rules are (0,2,1), (0,3,1) for the sibling rule. */
+:global(html:not([data-skin='classic'])) .clear {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .list {
+  padding: 0;
+}
+
+:global(html:not([data-skin='classic'])) .item {
+  padding: 10px 14px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .item + .item {
+  margin-top: 0;
+  border-top: 1px solid var(--line);
+}
+
+:global(html:not([data-skin='classic'])) .itemTile {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .itemTitle {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .itemAmount {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .itemMessage {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .unreadDot {
+  background: var(--acc);
+}
+
+/* The tool rail drawer (variant="sheet"): the rows sit in the drawer body, which brings its own inset. */
+.sheetList {
+  padding: 0;
+}

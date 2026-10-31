@@ -1,0 +1,34 @@
+type WhitelabelPgSettings {
+  id: ID!
+  tenant: String!
+  provider: String!
+  enabled: Boolean!
+  displayName: String!
+  secretSiteKeyMasked: String
+  hasSecretSiteKey: Boolean!
+  webhookUrl: String!
+  minDeposit: Float
+  maxDeposit: Float
+  redirectSuccessUrl: String
+  redirectFailureUrl: String
+  updatedAt: String!
+}
+
+input UpsertPgSettingsInput {
+  enabled: Boolean
+  displayName: String
+  secretSiteKey: String
+  minDeposit: Float
+  maxDeposit: Float
+  redirectSuccessUrl: String
+  redirectFailureUrl: String
+}
+
+extend type Query {
+  whitelabelPgSettings: WhitelabelPgSettings!
+}
+
+extend type Mutation {
+  upsertWhitelabelPgSettings(input: UpsertPgSettingsInput!): WhitelabelPgSettings!
+  regeneratePgWebhookToken: WhitelabelPgSettings!
+}

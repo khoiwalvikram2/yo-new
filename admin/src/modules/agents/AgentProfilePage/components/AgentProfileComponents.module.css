@@ -1,0 +1,116 @@
+/* BEYOND-MOCKUP: account details, profile metrics, controls and tables derive from kit tokens. */
+.stack { display: grid; gap: 20px; min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.identity { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }
+.copy { display: grid; gap: 10px; min-width: 0; }
+.title { margin: 0; color: var(--ink); font-size: 24px; font-weight: 650; overflow-wrap: anywhere; }
+.muted { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.sectionTitle { margin: 0; color: var(--ink); font-size: 14px; font-weight: 600; }
+.statGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.statGrid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.kpiGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.detailsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; min-width: 0; }
+.picker { min-width: 0; flex: 1 1 180px; }
+.search { min-width: 0; flex: 1 1 240px; }
+.tabs { max-width: 100%; overflow-x: auto; min-width: 0; }
+.link { color: var(--acc); font: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.link:hover { text-decoration: underline; }
+.link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.positive { color: var(--pos-ink); }
+.negative { color: var(--neg-ink); }
+.warning { color: var(--warn); }
+.mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; font-size: 12px; }
+.balance { font-size: 24px; font-weight: 650; overflow-wrap: anywhere; }
+.list { margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 13px; line-height: 1.7; }
+.rowDetails { display: grid; justify-items: start; gap: 6px; min-width: 0; }
+.tableTools { min-width: 0; padding: 0 var(--card-pad) 12px; }
+.url { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.urlField { flex: 1 1 240px; min-width: 0; }
+.auditAgent { display: block; max-width: 280px; overflow-wrap: anywhere; }
+.treeLabel { display: flex; gap: 8px; align-items: center; }
+@media (max-width: 1023px) { .statGrid, .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .detailsGrid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 599px) { .statGrid, .statGrid3, .kpiGrid { grid-template-columns: minmax(0, 1fr); } .header { flex-direction: column; } .picker, .search { flex-basis: 100%; } }
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 7: the link is the theme's red ink (dark --acc is under 4.5:1 on the panel) */
+:global(html:not([data-skin='classic'])) .link {
+  color: var(--acc-ink);
+}
+
+/* 2026-10-28 redesign (the approved agent-profile mockup), the same anatomy as the player profile. The head:
+   who the agent is and the actions, then a strip of figures across the card's foot. */
+.summary { display: grid; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf); }
+/* The page title row carries the actions; the page's own gap is the only space under it. */
+.pageHeader.pageHeader { margin-bottom: 0; }
+.summaryTop > .identity { flex: 1 1 480px; }
+.summaryTop { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 20px; min-width: 0; padding: 20px var(--card-pad); }
+.summaryAvatar.summaryAvatar.summaryAvatar { width: 56px; height: 56px; flex: none; font-size: 20px; }
+.identityText { display: grid; gap: 10px; min-width: 0; }
+.nameRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
+.agentName { margin: 0; color: var(--ink); font-size: 24px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; min-width: 0; color: var(--ink); font-size: 13px; }
+.metaItem { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.metaLabel { color: var(--ink-3); }
+.metaValue { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.menuLabel { display: inline-flex; align-items: center; gap: 6px; }
+.strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--hair); background: var(--panel-2, var(--surf-3)); }
+.stripCell { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 14px var(--card-pad); border-inline-end: 1px solid var(--hair); }
+.stripCell:last-child { border-inline-end: 0; }
+.stripLabel { color: var(--ink-3); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.stripValue { margin: 0; color: var(--ink); font-size: 22px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stripNote { margin: 0; color: var(--ink-3); font-size: 12px; }
+.stripValue.warning { color: var(--warn); }
+
+/* The Overview's wallet + period row above its KPIs. */
+.controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; min-width: 0; }
+.period { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; min-width: 0; }
+
+/* Overview: the period's figures in a wide column, the agent's setup and network in a narrow one, which drops
+   under the wide one when there is no room for both. */
+.overview { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px; min-width: 0; }
+.overviewMain { flex: 999 1 640px; display: grid; gap: 20px; min-width: 0; container: agent-main / inline-size; }
+.overviewSide { flex: 1 1 320px; display: grid; gap: 20px; min-width: 0; }
+.overviewKpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.figureGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--hair); }
+.figureCell { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 16px var(--card-pad); background: var(--surf); }
+.figureValue { margin: 0; color: var(--ink); font-size: 20px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rateTiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 1px; background: var(--hair); }
+.share { display: flex; align-items: center; gap: 8px; min-width: 120px; font-variant-numeric: tabular-nums; }
+.shareMeter { flex: 1; }
+.share > span { min-width: 36px; text-align: right; color: var(--ink-2); font-size: 13px; }
+.inlineValue { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Four KPI cards need about 220px each; a narrower column takes them two by two, never three and one. */
+@container agent-main (max-width: 900px) { .overviewKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container agent-main (max-width: 560px) { .figureGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container agent-main (max-width: 380px) { .overviewKpis { grid-template-columns: minmax(0, 1fr); } }
+/* Phones: the period presets stay on one line and scroll sideways, like the tab strip, instead of
+   wrapping one preset onto a line of its own. */
+@media (max-width: 767px) {
+  .period { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .period::-webkit-scrollbar { display: none; }
+  :global(html:not([data-skin='classic'])) .period.period > [role='group'], .period.period > [role='group'] { flex: none; flex-wrap: nowrap; width: max-content; }
+}
+@media (max-width: 767px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stripCell:nth-child(2n) { border-inline-end: 0; } .stripCell:nth-child(n + 3) { border-top: 1px solid var(--hair); } .stripValue { font-size: 18px; } }
+
+/* The tabs (2026-10-29): each opens with its figures (a row of KPI cards, three or four), then its lists.
+   The row follows the tab's own width: two by two under 960px, one per line on a phone. */
+.tabPanel { container: agent-tab / inline-size; }
+.tabKpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.tabKpis3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@container agent-tab (max-width: 960px) { .tabKpis:not(.tabKpis3) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container agent-tab (max-width: 600px) { .tabKpis3 { grid-template-columns: minmax(0, 1fr); } }
+@container agent-tab (max-width: 420px) { .tabKpis.tabKpis { grid-template-columns: minmax(0, 1fr); } }
+/* A stacked cell in a right-aligned column. */
+.cellEnd { justify-items: end; text-align: end; }
+/* Commission: the carried-over lines under the domain table. */
+.carry { padding: 12px var(--card-pad); border-top: 1px solid var(--hair); }
+.carry:empty { display: none; }
+/* Sub-agents: one step of indent per level, and a dot where a branch has nothing under it. */
+.treeIndent { flex: none; width: 16px; }
+/* As wide as the extra-small expand button (10px sides, a 14px icon, the border), so the names line up. */
+.treeLeaf { display: inline-grid; flex: none; place-items: center; width: 36px; color: var(--ink-3); }
+/* Credit: the usage bar under its heading, the alert threshold beside it. */
+.usage { display: grid; gap: 10px; min-width: 0; }
+.usageHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }

@@ -1,0 +1,120 @@
+/* Nth D/W (/reporting/players/nth-dw, mockup M:2522-2530). The mockup draws the page with the generic
+   table template (M:3361-3409): a page head, then one table card. Its Nth / Players / Deposit Value rows
+   have no query behind them (D13); the page keeps its per-player table. The KPI row and the filter bar
+   (search and the reporting period control, M:1736-1746) are the legacy page's, laid out as the sibling
+   Player Activity report lays them out, and are BEYOND-MOCKUP where noted. */
+
+/* The page's blocks stack with the mockup's column gap (.gcol M:898). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* ---------- KPI row ---------- */
+
+/* The row follows its own width, not the viewport (the context panel takes 205px of it): one card per
+   row, two from 580px, four from 1180px. The mockup's .kpis (M:808-810) steps 1/2/4 at 1024/1760px of
+   viewport for a 343px card with a sparkline; the kit Stat has none, so a card needs 40px tile + 10px gap
+   + the widest figure (₹99,99,99,999.00, about 199px at 24px/700) + 28px inset, about 279px with its
+   border. BEYOND-MOCKUP: the container thresholds. */
+.statsFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+
+@container (min-width: 580px) {
+  .statGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1180px) {
+  .statGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- table card ---------- */
+
+.tableCard {
+  min-width: 0;
+}
+
+/* The player cell: the profile link, then the phone on a dim second line (td.dim M:998). The legacy
+   column was 220px wide and cut a long name with an ellipsis; it still does. */
+.playerCell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: 220px;
+}
+
+/* The mockup's text link (.linkbtn M:879-886), at the key cell's weight (td.k M:997). */
+.playerLink {
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-overflow: ellipsis;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.playerLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.playerLink:active {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.playerLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.playerPhone {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Amounts keep the legacy reading on the delta inks (M:839-840): money in green, money out red, the
+   all-time column heavier than the period one. Every figure sits on tabular digits (M:994). */
+.deposit {
+  color: var(--pos-ink);
+}
+
+.withdrawal {
+  color: var(--neg-ink);
+}
+
+.lifetime {
+  font-weight: 600;
+}
+
+/* The 20px gap steps to 16px on a phone, as the kit Stack does. */
+@media (max-width: 767px) {
+  .content,
+  .statGrid {
+    gap: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playerLink {
+    transition: none;
+  }
+}

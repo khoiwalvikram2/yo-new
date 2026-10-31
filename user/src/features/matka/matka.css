@@ -1,0 +1,56 @@
+/* Matka composition uses the supplied m99 kit inside the existing player shell. */
+.gw-matka-page-header, .gw-matka-nav, .gw-matka-nav > a,
+.gw-matka-search, .gw-matka-notice, .gw-matka-loading,
+.gw-matka-rate-notice {
+  border-radius: var(--ui-radius);
+}
+.m99-kit.gw-matka { min-height: 0; background: transparent; width: 100%; min-width: 0; }
+.gw-matka-page-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px; background: var(--m99-bar); color: white; }
+.m99-kit .gw-matka-page-header h1 { color: white; font-size: 28px; line-height: 1.2; }
+.gw-matka-page-header .m99-eyebrow { color: #d6d8dc; font-size: 11px; font-weight: 700; }
+.gw-matka-page-header p { color: #d6d8dc; margin-top: 5px; }
+.gw-matka-nav { display: flex; align-items: stretch; flex-wrap: wrap; margin-block: 18px; border: 1px solid var(--m99-border); background: var(--m99-surface); }
+.gw-matka-nav > a { padding: 13px 18px; font-weight: 700; color: var(--m99-ink); border-right: 1px solid var(--m99-border); text-decoration: none; }
+.gw-matka-nav > a[aria-current=page] { color: white; background: var(--m99-brand); }
+.gw-matka-nav > div { margin-left: auto; display: flex; gap: 12px; align-items: center; padding: 8px 12px; }
+.gw-matka-nav label { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--m99-muted); }
+.m99-kit .gw-matka-nav select, .m99-kit .gw-matka-toolbar select { background: var(--m99-surface); color: var(--m99-ink); border: 1px solid var(--m99-border); padding: 8px; min-height: 36px; }
+.gw-matka-directory-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 20px 0 14px; }
+.gw-matka-directory-head h2 { display: flex; align-items: center; gap: 10px; font-size: 22px; }
+.gw-matka-directory-head p { color: var(--m99-muted); margin-top: 4px; }
+.gw-matka-search { display: flex; align-items: center; gap: 9px; min-width: 240px; padding: 10px 12px; background: var(--m99-surface); border: 1px solid var(--m99-border); }
+.m99-kit .gw-matka-search input { background: transparent; color: var(--m99-ink); outline: none; border: 0; width: 100%; }
+.gw-matka-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.gw-matka-toolbar > label { display: flex; gap: 8px; align-items: center; color: var(--m99-muted); }
+.gw-matka-layout { margin-left: auto; }
+.gw-matka-notice { display: flex; gap: 15px; align-items: center; justify-content: space-between; padding: 14px; margin: 12px 0; border: 1px solid var(--m99-border); border-left: 3px solid var(--m99-brand); background: var(--m99-surface); }
+.gw-matka-notice.is-success { border-left-color: var(--m99-success); }
+.gw-matka-notice.is-error { border-left-color: var(--m99-danger); color: var(--m99-danger); }
+.gw-matka-loading { padding: 35px 18px; color: var(--m99-muted); text-align: center; background: var(--m99-surface); border: 1px solid var(--m99-border); }
+.gw-matka-pager { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 14px; border-top: 1px solid var(--m99-border); color: var(--m99-muted); }
+.gw-matka-pager > div { display: flex; gap: 8px; }
+.m99-kit.gw-matka-modal { min-height: 0; padding: 20px; }
+.nova-modal-surface.gw-matka-native-dialog { padding: 0; }
+.gw-matka-footnote { color: var(--m99-muted); font-size: 12px; margin-top: 18px; padding-bottom: 10px; }
+.gw-matka .m99-market-details { margin-top: 18px; }
+.m99-kit.gw-matka :is(.m99-panel, .m99-market-card, .m99-button, .m99-icon-button, input, select, .m99-game-card, .m99-field input, .m99-segmented, .m99-number-grid button), .m99-kit.gw-matka-modal :is(.m99-button, .m99-panel) { border-radius: var(--ui-radius); }
+@media (max-width: 640px) {
+  .gw-matka-page-header { padding: 15px; gap: 10px; }
+  .gw-matka-page-header p { font-size: 12px; }
+  .gw-matka-nav > a { flex: 1; text-align: center; padding: 12px 8px; }
+  .gw-matka-nav > div { width: 100%; border-top: 1px solid var(--m99-border); justify-content: space-between; }
+  .gw-matka-directory-head { display: block; }
+  .gw-matka-search { min-width: 0; width: 100%; margin-top: 12px; }
+  .gw-matka-toolbar { gap: 10px; }
+  .gw-matka-toolbar .m99-segmented { max-width: 100%; overflow-x: auto; }
+  .gw-matka-notice { flex-wrap: wrap; }
+  .gw-matka-pager { flex-wrap: wrap; padding-inline: 8px; }
+}
+.m99-kit.gw-matka .m99-game-card, .m99-kit.gw-matka .m99-market-card { animation: none; opacity: 1; }
+.m99-kit.gw-matka .m99-game-card-symbol { border-radius: 50%; }
+.m99-kit.gw-matka .m99-game-card:disabled { cursor: not-allowed; box-shadow: none; transform: none; }
+.m99-kit.gw-matka .m99-game-card:disabled .m99-game-card-footer i { background: var(--m99-soft); color: var(--m99-muted); }
+.gw-matka-rate-notice { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; background: var(--m99-sidebar); border-bottom: 1px solid var(--m99-border); color: var(--m99-text); }
+.gw-matka-rate-notice > svg { flex-shrink: 0; margin-top: 2px; }
+.gw-matka-rate-notice strong { font-size: 13px; }
+.gw-matka-rate-notice p { color: var(--m99-muted); margin-top: 4px; font-size: 12px; }

@@ -1,0 +1,600 @@
+/* Design tokens — approved mockup values (S "Tokens"; contracts §3.2). Plain custom
+   properties only: this file must never become an `@theme` block, or Tailwind v4 would
+   generate utilities from it (R8-tailwind §0.2). */
+
+:root {
+  /* Radii */
+  --r-card: var(--ui-radius);
+  --r-ctl: var(--ui-radius);
+  --r-tile: var(--ui-radius);
+  --r-tile-s: var(--ui-radius);
+  --r-row: var(--ui-radius);
+  --r-pill: var(--ui-radius);
+
+  /* Shell metrics */
+  --rail-w: 64px;
+  --panel-w: 205px;
+
+  /* Page metrics — the inset every card head, plot, feed and table shares. One token moves
+     every card inset at once. */
+  --card-pad: 18px;
+
+  /* Motion */
+  --t-1: .14s;
+  --t-2: .18s;
+  --t-3: .24s;
+  --ease: cubic-bezier(.4,0,.2,1);
+
+  /* Type */
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* VIP tier creation's persisted default swatch, independent of the viewing theme. */
+  --vip-tier-default: #6B7280;
+
+  /* Layers. Kit modal layers sit above antd's 10000 base while popovers and tooltips remain above
+     a kit modal, matching the mockup's toast > tooltip > menu > drawer > scrim order (D4). These
+     values are shared by both themes; colour themes must never change stacking behaviour. */
+  --z-shell: 100;
+  --z-drawer: 900;
+  --z-modal: 10200;
+  --z-pop: 10300;
+  --z-tip: 10400;
+  --z-toast: 10500;
+}
+
+:root, [data-theme="light"] {
+  color-scheme: light;
+
+  /* Surface */
+  --app: #f7f8fc;
+  --surf: #ffffff;
+  --surf-3: #f4f5f9;
+  --float: #ffffff;
+  --panel: #ffffff;
+
+  /* Line */
+  --line: #eaecf4;
+  --hair: #f0f1f6;
+  --panel-line: #edeff4;
+
+  /* State */
+  --hover: #f5f6fa;
+  --press: #ebedf5;
+  --track: #eef0f7;
+  --ring: #4f46e5;
+  --sb: #d4d8e6;
+  --sb-h: #bfc5d8;
+  --scrim: rgba(16,20,38,.42);
+
+  /* Text */
+  --ink: #101426;
+  --ink-2: #5a6379;
+  --ink-3: #676d80;
+
+  /* Accent */
+  --acc: #4f46e5;
+  --acc-h: #4338ca;
+  --acc-a: #372fa8;
+  --acc-soft: #eeeffd;
+  --acc-soft-h: #e4e5fb;
+  --acc-on: #ffffff;
+  --acc-ink: #4f46e5;
+
+  /* Semantic */
+  --pos-ink: #047857;
+  --neg-bg: #fdecec;
+  --neg-ink: #b91c1c;
+  /* BEYOND-MOCKUP: the mockup draws no destructive control. --neg-h is --neg-ink one step darker,
+     the step --acc takes to --acc-h; --neg-on is the text on a solid --neg-ink fill, as --acc-on is
+     on --acc. */
+  --neg-h: #991b1b;
+  --neg-on: #ffffff;
+  --warn-bg: #fdf2dc;
+  --warn: #b45309;
+  --ok-bg: #dcf6e9;
+  --ok: #047857;
+  --blue-bg: #e8effd;
+  --blue: #1d5ce0;
+
+  /* Decorative hue ramp — a KPI tile, an avatar, a feed tile, a categorical chart segment.
+     This is NOT the semantic ramp above: it carries no meaning, and it is held at one
+     luminance so a row of cards reads as a set. Never reach for it to say "good" or "failed". */
+  --h-ind: #4f46e5;
+  --h-ind-bg: #eeeffd;
+  --h-red: #b91c1c;
+  --h-red-bg: #fdecec;
+  --h-grn: #047857;
+  --h-grn-bg: #dcf6e9;
+  --h-vio: #7c3aed;
+  --h-vio-bg: #f3f0fe;
+  --h-blu: #1d5ce0;
+  --h-blu-bg: #e8effd;
+  --h-amb: #b45309;
+  --h-amb-bg: #fdf2dc;
+
+  /* Chart series ramp — ONE indigo in three steps, NOT three hues. Each step clears 3:1 on the
+     card (the pale end with margin now, not on the line) and each is ~1.75x the step below it, so
+     the ramp reads as a ramp — and still does under every colour-vision deficiency, because it is
+     a lightness ramp rather than a hue one. Series take them in order: --s1, --s2, --s3. A chart
+     whose segments are categorical rather than a ramp takes the decorative hue ramp above. */
+  --s1: #3730a3;
+  --s2: #5a52e8;
+  --s3: #7b86f6;
+
+  /* Chart furniture: the plot's gridlines, its axis and tick lines, its tick labels, and the
+     crosshair that follows the pointer. */
+  --grid: #eef0f6;
+  --axis: #d6dae7;
+  --tick: #676d80;
+  --cross: #8c93a8;
+
+  /* Chart area gradient: opacity at the line, and where it hands off to nothing */
+  --fill-a: .28;
+  --fill-b: .07;
+
+  /* Banner: the pale indigo ground and border of the dashboard's call-out band, and the two layers
+     of the wave drawn in its corner (mockup M:122-125). Decoration only, no meaning. */
+  --banner: #f4f4fe;
+  --banner-line: #e6e6fb;
+  --wave: #e6e6fb;
+  --wave-2: #eeeefc;
+
+  /* Rail */
+  --rail: #1e2639;
+  --rail-h: #28324a;
+  --rail-on: #2f3a55;
+  --rail-cur: #3a4665;
+  --rail-cur-h: #414d6e;
+  --rail-ic: #8794ae;
+  --rail-ic-on: #eef1f8;
+  --rail-line: #1e2639;
+  --rail-ring: #a5b4fc;
+  --rail-badge: #818cf8;
+  --rail-badge-ink: #0d0f1c;
+
+  /* Shadow */
+  --sh: 0 1px 2px rgba(16,20,38,.05), 0 1px 1px rgba(16,20,38,.03);
+  --sh-tip: 0 4px 14px -2px rgba(16,20,38,.12), 0 1px 3px rgba(16,20,38,.06);
+  --sh-pop: 0 18px 44px -12px rgba(16,20,38,.22), 0 2px 8px rgba(16,20,38,.06);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surface */
+  --app: #0b0f1a;
+  --surf: #181f30;
+  --surf-3: #232b3e;
+  --float: #1e2638;
+  --panel: #121828;
+
+  /* Line */
+  --line: #2a3348;
+  --hair: #252e40;
+  --panel-line: #222a3b;
+
+  /* State */
+  --hover: #212939;
+  --press: #283146;
+  --track: #262e44;
+  --ring: #8e88ff;
+  --sb: #333d54;
+  --sb-h: #43506c;
+  --scrim: rgba(3,5,10,.66);
+
+  /* Text */
+  --ink: #eaedf5;
+  --ink-2: #a3abc1;
+  --ink-3: #8e98b1;
+
+  /* Accent */
+  --acc: #7d75f2;
+  --acc-h: #8f88f7;
+  --acc-a: #a29bfa;
+  --acc-soft: #262a52;
+  --acc-soft-h: #303461;
+  --acc-on: #0d0f1c;
+  --acc-ink: #b4afff;
+
+  /* Semantic */
+  --pos-ink: #34d399;
+  --neg-bg: #4a2226;
+  --neg-ink: #fca5a5;
+  /* one step lighter here, the direction --acc takes to --acc-h in this block; the fill is light, so
+     its text is the dark ink --acc-on uses */
+  --neg-h: #fecaca;
+  --neg-on: #0d0f1c;
+  --warn-bg: #3b2c11;
+  --warn: #fbbf24;
+  --ok-bg: #10362d;
+  --ok: #34d399;
+  --blue-bg: #16294a;
+  --blue: #93c5fd;
+
+  /* Decorative hue ramp — re-picked for the dark ground, not inverted. Same rule as in light:
+     no meaning, one luminance, so a row of cards reads as a set. */
+  --h-ind: #b4afff;
+  --h-ind-bg: #262a52;
+  --h-red: #fca5a5;
+  --h-red-bg: #4a2226;
+  --h-grn: #34d399;
+  --h-grn-bg: #10362d;
+  --h-vio: #c4b5fd;
+  --h-vio-bg: #2d2450;
+  --h-blu: #93c5fd;
+  --h-blu-bg: #16294a;
+  --h-amb: #fbbf24;
+  --h-amb-bg: #3b2c11;
+
+  /* Chart series ramp — re-picked for the dark ground, not inverted: the deep end clears 3.3:1 on
+     the card and the two steps above it are re-spaced to ~1.7x each, so the three lines are as far
+     apart here as they are in light. Same rule as in light: a lightness ramp, not a hue one. */
+  --s1: #c6c2ff;
+  --s2: #948cf7;
+  --s3: #6862d2;
+
+  /* Chart furniture */
+  --grid: #2a3245;
+  --axis: #36405a;
+  --tick: #8e98b1;
+  --cross: #5b6b91;
+
+  /* Chart area gradient: opacity at the line, and where it hands off to nothing */
+  --fill-a: .34;
+  --fill-b: .10;
+
+  /* Banner — a deep indigo ground on the dark page, the wave a step lighter than it (M:229-232) */
+  --banner: #1a1d38;
+  --banner-line: #2a2c55;
+  --wave: #242554;
+  --wave-2: #1f2148;
+
+  /* Rail */
+  --rail: #090d17;
+  --rail-h: #182033;
+  --rail-on: #1f2840;
+  --rail-cur: #2a3452;
+  --rail-cur-h: #323d5e;
+  --rail-ic: #8794ae;
+  --rail-ic-on: #eef1f8;
+  --rail-line: #1c2436;
+  --rail-ring: #a5b4fc;
+  --rail-badge: #7d75f2;
+  --rail-badge-ink: #0d0f1c;
+
+  /* Shadow */
+  --sh: 0 1px 2px rgba(0,0,0,.45);
+  --sh-tip: 0 6px 18px -4px rgba(0,0,0,.6), 0 1px 3px rgba(0,0,0,.45);
+  --sh-pop: 0 22px 52px -14px rgba(0,0,0,.75), 0 2px 8px rgba(0,0,0,.5);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Player skin (admin UI kit, 2026-10-17; plan docs/superpowers/plans/2026-10-17-admin-ui-kit-integration.md).
+   The admin in the player panel's look: charcoal chrome, red for the action and the current place, flat
+   white panels, Roboto Condensed. Values come from user/src/styles/matchbook-tokens.css (--mb-*).
+
+   It is ON by default. <html data-skin="classic"> brings back the indigo look above: index.html sets
+   it when localStorage 'admin-skin' is 'classic'. Every selector here starts with
+   :root:not([data-skin="classic"]) so it outranks the blocks above (0,1,0); the descendant form covers
+   portalled regions that carry their own data-theme (Popover copies the trigger region's theme).
+   Module CSS that needs more than tokens uses :global(html:not([data-skin='classic'])) .class.
+   --------------------------------------------------------------------------------------------- */
+:root:not([data-skin="classic"]) {
+  --r-card: var(--ui-radius);
+  --r-ctl: var(--ui-radius);
+  --r-tile: var(--ui-radius);
+  --r-tile-s: var(--ui-radius);
+  --r-row: var(--ui-radius);
+  --r-pill: var(--ui-radius);
+  --panel-w: 224px;
+  --card-pad: 14px;
+  --font-ui: 'Roboto Condensed', 'Arial Narrow', system-ui, sans-serif;
+
+  /* Chrome: the rail, the topbar and the panel title bar are charcoal in both themes. */
+  --chrome: #2B2F35;
+  --chrome-2: #383B41;
+  --chrome-3: #43444A;
+  --chrome-4: #53555B;
+  --chrome-line: #3A3D43;
+  --chrome-line-2: #4A4D53;
+  --chrome-edge: #1F2226;
+  --chrome-soft: #E2E3E3;
+  --chrome-muted: #AEB0B6;
+  --chrome-link: #7CC4F5;
+  --chrome-red: #FF6A6B;
+  /* Exchange colours stay light blue / pink in both themes. */
+  --back: #8DCDF3;
+  --lay: #F6AABA;
+  --odds-ink: #141518;
+  --odds-muted: #45474D;
+  /* Price depth: the cells next to the best back / lay step lighter (the event ladder). */
+  --back-2: #B5DEF7;
+  --back-3: #D6ECFA;
+  --lay-2: #F9C6D2;
+  --lay-3: #FCE0E6;
+}
+
+:root:not([data-skin="classic"]):not([data-theme="dark"]),
+:root:not([data-skin="classic"]) [data-theme="light"] {
+  --app: #ECECED;
+  --surf: #FFFFFF;
+  --surf-3: #F2F2F3;
+  --float: #FFFFFF;
+  --panel: #FFFFFF;
+
+  --line: #DDDDDD;
+  --hair: #E8E8EA;
+  --panel-line: #DDDDDD;
+
+  --hover: #F5F5F5;
+  --press: #ECECED;
+  --track: #E2E3E3;
+  --ring: #1B6FAE;
+  --sb: #CFCFD3;
+  --sb-h: #A3A1A7;
+  --scrim: rgba(12, 13, 16, .62);
+
+  --ink: #141518;
+  --ink-2: #333333;
+  --ink-3: #66656B;
+
+  --acc: #C51A1B;
+  --acc-h: #A81516;
+  --acc-a: #8E1213;
+  /* Soft accent is a neutral wash here (hovers, tiles, focus halos read grey as in the kit); a real
+     red tint is --acc-tint (calendar range, upload drag-over). */
+  --acc-soft: #F0F0F2;
+  --acc-soft-h: #E4E4E7;
+  --acc-tint: #FCE7E6;
+  --acc-tint-h: #F9D9D7;
+  --acc-on: #FFFFFF;
+  --acc-ink: #C51A1B;
+
+  --pos-ink: #09763B;
+  --neg-bg: #FCE7E6;
+  --neg-ink: #A61B1B;
+  --neg-h: #8A1515;
+  --neg-on: #FFFFFF;
+  --warn-bg: #FDF1DC;
+  --warn: #8A4F00;
+  --ok-bg: #E3F4EA;
+  --ok: #0B6B36;
+  --blue-bg: #E4EFF8;
+  --blue: #17598C;
+
+  /* Decorative / categorical ramp: charcoal leads, then muted hues that do not read as status (green
+     is not "good", rose is not "loss"). Lines and segments clear 3:1 on the panel; each ink clears
+     4.5:1 on its own -bg tint (avatar initials, hue pills). */
+  --h-ind: #43444A;
+  --h-ind-bg: #ECECED;
+  --h-red: #A04E57;
+  --h-red-bg: #F5E5E7;
+  --h-grn: #357266;
+  --h-grn-bg: #E2EFEC;
+  --h-vio: #6B5B95;
+  --h-vio-bg: #ECE8F3;
+  --h-blu: #3E6A93;
+  --h-blu-bg: #E3EAF2;
+  --h-amb: #82612A;
+  --h-amb-bg: #F4ECDD;
+
+  /* Data is charcoal, as a lightness ramp; red is kept for the action and "now". */
+  --s1: #2B2F35;
+  --s2: #5A5B61;
+  --s3: #8D8C92;
+  --grid: #E6E6E8;
+  --axis: #CFCFD3;
+  --tick: #66656B;
+  --cross: #8D8C92;
+  --fill-a: .22;
+  --fill-b: .05;
+
+  --banner: #F2F2F3;
+  --banner-line: #DDDDDD;
+  --wave: #E2E3E3;
+  --wave-2: #ECECED;
+
+  --rail: #2B2F35;
+  --rail-h: #53555B;
+  --rail-on: #43444A;
+  --rail-cur: #C51A1B;
+  --rail-cur-h: #A81516;
+  --rail-ic: #E2E3E3;
+  --rail-ic-on: #FFFFFF;
+  --rail-line: #1F2226;
+  --rail-ring: #FFFFFF;
+  --rail-badge: #C51A1B;
+  --rail-badge-ink: #FFFFFF;
+
+  /* Charcoal: the stat tile and a pressed pill (--bar), and muted ink on charcoal (--bar-muted). */
+  --bar: #43444A;
+  --bar-muted: #D0D2D7;
+  /* Head bars on cards, panels, popovers, dialogs and drawers are light in this theme (owner 2026-10-29):
+     a pale band with a hairline under it, page ink on it, a darker wash for hover and press. */
+  --head-bg: #F5F6F7;
+  --head-line: #E2E3E3;
+  --head-hover: rgba(20, 21, 24, .06);
+  --head-press: rgba(20, 21, 24, .1);
+
+  /* Dashboard colour (owner 2026-10-29, "thoda colorful"): vivid accents for the Overview's tiles,
+     sparklines, bars and section chips. Each ink clears 3:1 on --surf (icons and large figures); each -bg
+     is its soft tint; --viz-on is the glyph on a solid accent tile. */
+  --viz-blue: #2563EB;
+  --viz-blue-bg: #E8EFFD;
+  --viz-green: #059669;
+  --viz-green-bg: #E1F5EC;
+  --viz-violet: #7C3AED;
+  --viz-violet-bg: #F0E9FE;
+  --viz-amber: #C2410C;
+  --viz-amber-bg: #FDEEE3;
+  --viz-rose: #E11D48;
+  --viz-rose-bg: #FDE8EC;
+  --viz-cyan: #0E7490;
+  --viz-cyan-bg: #E0F3F7;
+  --viz-on: #FFFFFF;
+
+  /* Kit-only tokens the components use (no classic equivalent). */
+  --line-2: #CFCFD3;
+  --line-3: #A3A1A7;
+  --panel-2: #FAFAFB;
+  --field: #FFFFFF;
+  --link: #1B6FAE;
+  --disabled-bg: #E2E3E3;
+  --disabled-fg: #8D8C92;
+  --focus-border: #2B2F35;
+  --focus-ring: rgba(43, 47, 53, .12);
+  --sw-on: #0B8040;
+  --sh-dlg: 0 18px 48px rgba(16, 18, 22, .22);
+  --back-text: #17699E;
+  --lay-text: #B0304E;
+
+  --sh: 0 1px 2px rgba(16, 18, 22, .06);
+  --sh-tip: 0 4px 12px rgba(16, 18, 22, .18);
+  --sh-pop: 0 10px 28px rgba(16, 18, 22, .16);
+}
+
+:root:not([data-skin="classic"])[data-theme="dark"],
+:root:not([data-skin="classic"]) [data-theme="dark"] {
+  --app: #141619;
+  --surf: #1E2125;
+  --surf-3: #272A30;
+  --float: #23262B;
+  --panel: #1E2125;
+
+  --line: #32363D;
+  --hair: #2B2F35;
+  --panel-line: #32363D;
+
+  --hover: #2B2F35;
+  --press: #32363D;
+  --track: #2C2F34;
+  --ring: #5DB1F0;
+  --sb: #454A52;
+  --sb-h: #5F646C;
+  --scrim: rgba(0, 0, 0, .7);
+
+  --ink: #F3F4F6;
+  --ink-2: #D6D8DC;
+  --ink-3: #A3A6AD;
+
+  --acc: #C51A1B;
+  --acc-h: #D8282A;
+  --acc-a: #E23B3C;
+  --acc-soft: #2A2D33;
+  --acc-soft-h: #33373E;
+  --acc-tint: rgba(255, 107, 97, .14);
+  --acc-tint-h: rgba(255, 107, 97, .2);
+  --acc-on: #FFFFFF;
+  --acc-ink: #FF6A6B;
+
+  --pos-ink: #3FD08A;
+  --neg-bg: rgba(255, 107, 97, .14);
+  --neg-ink: #FF8A82;
+  --neg-h: #FFB3AD;
+  --neg-on: #141518;
+  --warn-bg: rgba(240, 180, 76, .15);
+  --warn: #F5C46A;
+  --ok-bg: rgba(63, 208, 138, .14);
+  --ok: #5FE0A0;
+  --blue-bg: rgba(93, 177, 240, .14);
+  --blue: #8CCBFA;
+
+  --h-ind: #C2C5CB;
+  --h-ind-bg: #2C2F34;
+  --h-red: #D9A0A6;
+  --h-red-bg: rgba(217, 160, 166, .14);
+  --h-grn: #86BFB3;
+  --h-grn-bg: rgba(134, 191, 179, .14);
+  --h-vio: #B3A6D6;
+  --h-vio-bg: rgba(179, 166, 214, .14);
+  --h-blu: #8DB0D3;
+  --h-blu-bg: rgba(141, 176, 211, .14);
+  --h-amb: #D6B57F;
+  --h-amb-bg: rgba(214, 181, 127, .14);
+
+  --s1: #E2E3E3;
+  --s2: #A3A6AD;
+  --s3: #6F737B;
+  --grid: #2C3036;
+  --axis: #3A3F47;
+  --tick: #A3A6AD;
+  --cross: #6F737B;
+  --fill-a: .30;
+  --fill-b: .08;
+
+  --banner: #22252A;
+  --banner-line: #32363D;
+  --wave: #2B2F35;
+  --wave-2: #262A30;
+
+  --rail: #2B2F35;
+  --rail-h: #53555B;
+  --rail-on: #43444A;
+  --rail-cur: #C51A1B;
+  --rail-cur-h: #D8282A;
+  --rail-ic: #E2E3E3;
+  --rail-ic-on: #FFFFFF;
+  --rail-line: #1F2226;
+  --rail-ring: #FFFFFF;
+  --rail-badge: #C51A1B;
+  --rail-badge-ink: #FFFFFF;
+
+  --bar: #30333A;
+  --bar-muted: #B9BCC3;
+  /* Head bars stay charcoal in this theme; each head's dark rule switches its tokens to on-charcoal values. */
+  --head-bg: #30333A;
+  --head-line: transparent;
+  --head-hover: rgba(255, 255, 255, .08);
+  --head-press: rgba(255, 255, 255, .14);
+
+  --viz-blue: #60A5FA;
+  --viz-blue-bg: rgba(96, 165, 250, .14);
+  --viz-green: #34D399;
+  --viz-green-bg: rgba(52, 211, 153, .14);
+  --viz-violet: #A78BFA;
+  --viz-violet-bg: rgba(167, 139, 250, .16);
+  --viz-amber: #FB923C;
+  --viz-amber-bg: rgba(251, 146, 60, .14);
+  --viz-rose: #FB7185;
+  --viz-rose-bg: rgba(251, 113, 133, .14);
+  --viz-cyan: #22D3EE;
+  --viz-cyan-bg: rgba(34, 211, 238, .14);
+  --viz-on: #0E1116;
+
+  --line-2: #454A52;
+  --line-3: #5F646C;
+  --panel-2: #22252A;
+  --field: #17191C;
+  --link: #5DB1F0;
+  --disabled-bg: #2C2F34;
+  --disabled-fg: #7D8087;
+  --focus-border: #A3A6AD;
+  --focus-ring: rgba(255, 255, 255, .14);
+  --sw-on: #0B8040;
+  --sh-dlg: 0 18px 48px rgba(0, 0, 0, .55);
+  --back-text: #6CC0F0;
+  --lay-text: #F28CA2;
+
+  --sh: 0 1px 2px rgba(0, 0, 0, .3);
+  --sh-tip: 0 4px 12px rgba(0, 0, 0, .45);
+  --sh-pop: 0 10px 28px rgba(0, 0, 0, .45);
+}
+
+/* An element marked data-accent takes one of the dashboard accents as --accent / --accent-bg, for the
+   component styles that read them (Stat, ListRow, the Overview's cards). Decorative: an accent names a
+   card's family, never a status. */
+[data-accent='blue'] { --accent: var(--viz-blue); --accent-bg: var(--viz-blue-bg); }
+[data-accent='green'] { --accent: var(--viz-green); --accent-bg: var(--viz-green-bg); }
+[data-accent='violet'] { --accent: var(--viz-violet); --accent-bg: var(--viz-violet-bg); }
+[data-accent='amber'] { --accent: var(--viz-amber); --accent-bg: var(--viz-amber-bg); }
+[data-accent='rose'] { --accent: var(--viz-rose); --accent-bg: var(--viz-rose-bg); }
+[data-accent='cyan'] { --accent: var(--viz-cyan); --accent-bg: var(--viz-cyan-bg); }
+
+/* Phone step-down (mockup M:1589-1594). One token moves every card inset at once — head,
+   legend, plot, feed, snapshot, strip and the outer table cells all step in together, so the
+   tile and the figure fit one 360px card. Geometry only, so it sits outside the two theme
+   blocks. */
+@media (max-width: 767px) {
+  :root {
+    --card-pad: 14px;
+  }
+}

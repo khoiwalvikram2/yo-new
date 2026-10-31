@@ -1,0 +1,477 @@
+/* Row metrics promote `.card-tools` (M:867): 8px gap, wrapping controls, and 30px small
+   controls. The width decision belongs to this stretching wrapper because the shell context panel
+   changes available page width; it must never be inferred from the viewport. */
+.container {
+  width: 100%;
+  min-width: 0;
+  container: filter-bar / inline-size;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  font-family: var(--font-ui);
+}
+
+.bar:focus {
+  outline: none;
+}
+
+.search {
+  flex: 1 1 220px;
+  min-width: 160px;
+  max-width: 360px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.clear {
+  flex: none;
+}
+
+/* BEYOND-MOCKUP: the result count (kit .fs-count) closes the row, muted with its figures in ink. */
+.summary {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary :is(b, strong) {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.compact {
+  display: none;
+  margin-left: auto;
+}
+
+.filterTrigger {
+  gap: 7px;
+}
+
+/* the count badge (the only element in the button's label, after the word) keeps clear of the word */
+.filterTrigger > :last-child > * {
+  margin-left: 6px;
+}
+
+/* The folded Filters sheet (the kit's sheet anatomy in a popover): a head with the title, how many filters
+   are on and a close button; the controls, one per line at full width; a foot with Clear all and Done. */
+.popover {
+  width: min(360px, calc(100vw - 18px));
+  overflow: hidden;
+}
+
+.popoverBody {
+  display: flex;
+  flex-direction: column;
+}
+
+.popoverHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 6px 6px 6px 14px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.popoverTitle {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.popoverCount {
+  padding: 1px 8px;
+  border-radius: var(--ui-radius);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.popoverClose {
+  margin-left: auto;
+}
+
+.popoverControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+}
+
+.popoverControls > * {
+  width: 100%;
+  max-width: none;
+}
+
+.popoverFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--hair);
+  background: var(--surf-3);
+}
+
+.popoverHint {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* Player skin: the head is the kit's bar, as a drawer's and a card's. Light in the light theme (owner 2026-10-29): --head-bg with a hairline under it, page ink on it. In the
+   dark theme the bar stays charcoal and the rule after this one switches its tokens to on-charcoal values,
+   so the controls placed on it follow without rules of their own (the Topbar.module.css trick). */
+:global(html:not([data-skin='classic'])) .popoverHead {
+  --hover: var(--head-hover);
+  --press: var(--head-press);
+  border-bottom: 1px solid var(--head-line);
+  background: var(--head-bg);
+}
+
+:global(html:not([data-skin='classic'])[data-theme='dark']) .popoverHead,
+:global(html:not([data-skin='classic']) [data-theme='dark']) .popoverHead {
+  --ink: #FFFFFF;
+  --hover: rgb(255 255 255 / 8%);
+  --press: rgb(255 255 255 / 14%);
+  --ring: #FFFFFF;
+}
+
+:global(html:not([data-skin='classic'])) .popoverCount {
+  background: var(--press);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .popoverClose.popoverClose {
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .popoverFoot {
+  background: var(--panel-2, var(--surf-3));
+}
+
+.status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@container filter-bar (width < 1024px) {
+  .controls,
+  .bar:not(.panel) > .clear {
+    display: none;
+  }
+
+  .compact {
+    display: block;
+  }
+
+  .search {
+    max-width: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). The kit's .fstrip: one --surf strip in a
+   --line border whose cells (the search, each filter control, Clear all, the compact Filters trigger) are
+   split by 1px hairlines. The strip paints --line and every cell paints --surf over it across a 1px gap;
+   the search cell grows, so no bare strip shows between the cells, and in a bar without a search (or a
+   summary, which grows too) the controls share the whole row, as the kit's strip always fills its width.
+   The summary is the last cell, right-aligned in whatever room is left. A cell is 46px tall and centres
+   its field; the focused cell carries a 2px red underline and a hovered one goes --panel-2. Values read
+   as the kit's .fs-sel (15px 600 --ink), placeholders stay 400 --ink-3 and an inline label steps back.
+   The fields are other modules' components, so their own borders are not removed by rule here: inside a
+   cell the tokens they draw their face from (border, hover border, focus ring, surface, radius, shadow)
+   are re-declared transparent / 0, and Select, SearchField, TextField, DateField, Combobox and the
+   DateRangeField pill go flat on their own. A cell holding a checkbox, radio or switch is left alone,
+   because those draw their box from the same tokens. Two things tokens cannot reach are set by rule: a
+   classic focus border in --acc, and the text field's own focus outline, which the cell underline
+   replaces. The compact popover portals to <body>, so its fields keep their borders. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) {
+  align-items: stretch;
+  gap: 1px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--line);
+  /* The strip owns its two rounded ends; cells meet with straight separators.
+     Select lists and the compact Filters sheet portal outside this clip. */
+  overflow: hidden;
+}
+
+/* The shared radius policy reads this token on each box. Flatten only the
+   joined cells and their field faces, while the outer strip keeps its 5px.
+   Portalled dropdowns and the separate panel variant retain their own radius. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > :is(.search, .controls, .compact, .clear, .summary) {
+  --ui-radius: 0px;
+}
+
+/* This button sits inside a padded compact cell rather than joining its edge. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .compact .filterTrigger {
+  --ui-radius: 5px;
+}
+
+/* No search or summary to take the slack: the controls fill the row (each cell grows), and so does the
+   compact Filters cell, so no bare --line strip and no empty cell show. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel):not(:has(.search, .summary)) > .controls,
+:global(html:not([data-skin='classic'])) .bar:not(.panel):not(:has(.search, .summary)) > .compact {
+  flex: 1 1 auto;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .search {
+  display: flex;
+  align-items: center;
+  flex: 1 1 250px;
+  box-sizing: border-box;
+  max-width: none;
+  min-height: 46px;
+  padding: 0 4px;
+  background: var(--surf);
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .search > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The controls shrink-wrap; when they wrap, each row's cells grow to fill it. Cells centre their field
+   both ways, whatever its own display (inline-flex row, grid). */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls {
+  flex: 0 1 auto;
+  align-items: stretch;
+  gap: 1px;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls:empty {
+  display: none;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > * {
+  flex-grow: 1;
+  justify-content: center;
+  align-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 46px;
+  padding-right: 6px;
+  padding-left: 6px;
+  background: var(--surf);
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .compact {
+  box-sizing: border-box;
+  padding: 8px;
+  align-content: center;
+  background: var(--surf);
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .search > *,
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :not(:has(input[type='checkbox'], input[type='radio'], [role='switch'])) > * {
+  --surf: transparent;
+  --field: transparent;
+  --line: transparent;
+  --line-2: transparent;
+  --line-3: transparent;
+  --hair: transparent;
+  --acc-soft: transparent;
+  --acc-soft-h: transparent;
+  --focus-border: transparent;
+  --focus-ring: transparent;
+  --sh: none;
+  --r-ctl: var(--ui-radius);
+  --r-row: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .search:hover,
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :hover,
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .compact:hover {
+  background: var(--panel-2);
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .search:focus-within,
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :focus-within {
+  box-shadow: inset 0 -2px 0 var(--acc-ink);
+}
+
+/* (0,4,1) / (0,4,2): above a field's own :focus-within border and ring (0,2,0) and a skin re-statement of
+   it (0,3,1). The cell itself is not a descendant, so its underline stays. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .search :focus-within,
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :not(:has(input[type='checkbox'], input[type='radio'], [role='switch'])) :focus-within {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* A popover trigger (the DateRangeField pill) is its cell's whole face, as the kit's date .fs-sel is: it
+   fills the cell and its icon starts where the fields' text does, in the value face below. (0,4,2) is
+   above Button's size and variant rules. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > * > button[aria-haspopup] {
+  flex: 1 1 auto;
+  align-self: stretch;
+  justify-content: flex-start;
+  height: auto;
+  padding: 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* A segmented control passed as a cell (SegmentedControl, Tabs, a segmented RadioGroup) is the cell: its
+   own trough border and fill give way to the cell's, and its options start at the left like a field's text. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :is([role='group'], [role='tablist'], [role='radiogroup']) {
+  justify-content: flex-start;
+  padding-right: 10px;
+  padding-left: 10px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: none;
+}
+
+/* A Button passed as a cell (a Presets menu, a "Filters" / "Advanced" toggle) is a flat cell like the
+   others rather than a bordered button inside one; an open toggle (aria-expanded) carries the red underline
+   and red ink. (0,3,2) / (0,4,2): above Button's size, variant and hover rules. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > button {
+  align-self: stretch;
+  height: auto;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: none;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > button:not(:disabled):hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > button[aria-expanded='true'] {
+  box-shadow: inset 0 -2px 0 var(--acc-ink);
+  color: var(--acc-ink);
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > button:focus-visible {
+  outline-offset: -3px;
+}
+
+/* Values in the kit's .fs-sel face; the placeholder stays 400, and a visible inline label steps back to
+   14px 400 --ink-3 so the value leads. The search cell keeps its plain typed text. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls :is(input:not([type='checkbox'], [type='radio']), select) {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls input::placeholder {
+  font-weight: 400;
+}
+
+/* A field that shows its label (Combobox, MultiSelect, TextField, DateField) lays it out inline, as Select's
+   inline layout does: the label, then the control filling the rest, so every cell stays one 46px row. A
+   visually hidden label is absolutely positioned and takes no part in the row. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :not(:has(input[type='checkbox'], input[type='radio'], [role='switch'])):has(> label) {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :not(:has(input[type='checkbox'], input[type='radio'], [role='switch'])):has(> label) > label {
+  flex: none;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :not(:has(input[type='checkbox'], input[type='radio'], [role='switch'])):has(> label) > :not(label) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* margin-left: the label starts where the other cells' text does (about 16px in from the cell edge) */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .controls > :not(:has(input[type='checkbox'], input[type='radio'], [role='switch'])) label {
+  margin-left: 10px;
+  color: var(--ink-3);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* the cell underline is the focus indicator for a text field or select; buttons keep their own ring */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) :is(input:not([type='checkbox'], [type='radio']), select, textarea):focus-visible {
+  outline: none;
+}
+
+/* Clear all: a link cell at the end of the strip. Doubled class (0,4,1) over the Button module's link
+   variant and any skin re-statement of it. In the compact layout it lives in the portalled popover, which
+   `.bar:not(.panel) >` does not reach. */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .clear.clear {
+  align-self: stretch;
+  height: auto;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--link);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .clear.clear:hover {
+  background: var(--panel-2);
+  color: var(--link);
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .clear.clear:focus-visible {
+  outline-offset: -3px;
+}
+
+/* .fs-count: the strip's last cell, filling what the other cells leave and right-aligning its text */
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 0 auto;
+  min-height: 46px;
+  margin-left: 0;
+  padding: 0 16px;
+  background: var(--surf);
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .bar:not(.panel) > .summary :is(b, strong) {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Account directories opt into separate, labelled controls on a calm surface. */
+.bar.panel { align-items: flex-end; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf); }
+.panel > .search { flex: 1 1 240px; max-width: 420px; }
+.panel > .controls { flex: 1 1 auto; align-items: flex-end; justify-content: flex-end; gap: 10px; }
+.panel > .controls > * { min-width: 125px; max-width: 200px; }
+.panel > .compact { align-self: center; }
+.panel > .clear { align-self: center; }

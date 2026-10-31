@@ -1,0 +1,76 @@
+/* Matka's directory and navigation, inside the existing player shell. */
+.m99-kit.gw-matka-refresh { --md-accent-ink: #B21E29; --md-accent-soft: #FBEAEC; }
+.m99-kit.gw-matka-refresh[data-theme='dark'] { --md-accent-ink: #FF9BA4; --md-accent-soft: #3B282F; }
+.gw-matka-refresh .gw-matka-nav { align-items: center; gap: 4px; margin: 14px 0 18px; padding: 5px; border-radius: 7px; }
+.gw-matka-refresh .gw-matka-nav > a { display: inline-flex; align-items: center; gap: 8px; min-height: 39px; padding: 9px 15px; border: 0; border-radius: 4px; color: var(--m99-muted); font-size: 14px; }
+.gw-matka-refresh .gw-matka-nav > a:hover { color: var(--m99-ink); background: var(--m99-soft); }
+.gw-matka-refresh .gw-matka-nav > a[aria-current='page'] { color: var(--md-accent-ink); background: var(--md-accent-soft); }
+.gw-matka-refresh .gw-matka-nav > div { min-height: 39px; padding: 0 6px 0 14px; border-left: 1px solid var(--m99-border); }
+.gw-matka-refresh .gw-matka-nav > div > strong { font-size: 17px; letter-spacing: -.2px; }
+.gw-matka-refresh .gw-matka-nav select { min-height: 30px; padding: 3px 7px; border-radius: 3px; font-size: 12px; }
+.gw-matka-refresh .gw-matka-nav > div > .m99-button { min-height: 32px; }
+.gw-matka-refresh .gw-matka-directory { position: relative; min-width: 0; container: matka-directory / inline-size; }
+/* One filter strip, as the admin panel draws its filters: the search and the three dropdowns (market type, which
+   markets to show, grid or table) are cells of one bordered row, split by hairlines (the strip paints the border
+   colour and each cell paints the surface over it across a 1px gap). The search cell takes the spare width; a
+   dropdown cell shows its value in bold ink with a chevron, the whole cell its button. The focused or open cell
+   carries the red underline. The strip clips its rounded ends, so the open list is placed against the directory
+   (FilterSelect.tsx) and no cell or strip is positioned. */
+.gw-matka-refresh .gw-matka-filterbar { display: flex; flex-wrap: wrap; align-items: stretch; gap: 1px; margin: 0 0 16px; border: 1px solid var(--m99-border); border-radius: 5px; background: var(--m99-border); overflow: hidden; }
+/* The shared radius policy rounds every box by --ui-radius; the cells meet with straight hairlines, so they and
+   their fields take 0 while the strip keeps its rounded ends. The policy is !important, so the open list sets its
+   radius through the same token. */
+.gw-matka-refresh .gw-matka-filterbar > * { --ui-radius: 0px; display: flex; align-items: center; box-sizing: border-box; min-width: 0; min-height: 48px; background: var(--m99-surface); transition: background .15s; }
+.gw-matka-refresh .gw-matka-filterbar > :hover { background: var(--m99-soft); }
+.gw-matka-refresh .gw-matka-filterbar > :focus-within { background: var(--m99-surface); box-shadow: inset 0 -2px 0 var(--md-accent-ink); }
+.gw-matka-refresh .gw-matka-filter-search { flex: 999 1 220px; gap: 9px; padding: 0 14px; }
+.gw-matka-refresh .gw-matka-filter-search > svg { flex: 0 0 16px; color: var(--m99-muted); }
+.gw-matka-refresh .gw-matka-filter-search input { flex: 1 1 auto; align-self: stretch; min-width: 0; padding: 0; border: 0; outline: none; background: transparent; color: var(--m99-ink); font: 400 14px/1.3 var(--m99-font); }
+.gw-matka-refresh .gw-matka-filter-search input::placeholder { color: var(--m99-muted); }
+.gw-matka-refresh .gw-matka-filter-search button { display: grid; flex: 0 0 22px; width: 22px; height: 22px; place-items: center; border-radius: 3px; color: var(--m99-muted); background: var(--m99-soft); }
+.gw-matka-refresh .gw-matka-filter-select { flex: 0 0 auto; }
+.gw-matka-refresh .gw-matka-filter-select > button { display: flex; flex: 1 1 auto; align-items: center; justify-content: space-between; gap: 14px; align-self: stretch; min-width: 160px; padding: 0 16px 0 18px; color: var(--m99-ink); font: 600 15px/1.2 var(--m99-font); white-space: nowrap; outline: none; }
+.gw-matka-refresh .gw-matka-filter-select > button > svg { flex: 0 0 16px; color: var(--m99-muted); transition: transform .15s; }
+.gw-matka-refresh .gw-matka-filter-select[data-open] { background: var(--m99-surface); box-shadow: inset 0 -2px 0 var(--md-accent-ink); }
+.gw-matka-refresh .gw-matka-filter-select[data-open] > button > svg { transform: rotate(180deg); }
+/* The open list: the admin's floating list (surface, hairline border, small radius, raised shadow), 38px rows in
+   14px ink; the pointed-at row takes the soft tint and a 2px red bar on its leading edge, the chosen one a red tick. */
+.gw-matka-refresh .gw-matka-filter-list { position: absolute; z-index: 40; display: grid; gap: 2px; max-height: 320px; margin: 0; padding: 4px; overflow-y: auto; list-style: none; --ui-radius: 5px; border: 1px solid var(--m99-border); background: var(--m99-surface); box-shadow: 0 10px 28px rgb(15 18 22 / 14%), 0 2px 6px rgb(15 18 22 / 8%); }
+.m99-kit.gw-matka-refresh[data-theme='dark'] .gw-matka-filter-list { box-shadow: 0 12px 30px rgb(0 0 0 / 45%); }
+.gw-matka-refresh .gw-matka-filter-list > li { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 38px; padding: 0 10px; --ui-radius: 4px; color: var(--m99-ink); font: 500 14px/1.3 var(--m99-font); white-space: nowrap; cursor: pointer; }
+.gw-matka-refresh .gw-matka-filter-list > li[data-active] { background: var(--m99-soft); box-shadow: inset 2px 0 0 var(--m99-brand); }
+.gw-matka-refresh .gw-matka-filter-list > li[aria-selected='true'] { font-weight: 600; }
+.gw-matka-refresh .gw-matka-filter-list > li > svg { flex: 0 0 15px; color: var(--md-accent-ink); }
+/* Narrower pages put the search on a row of its own above the three dropdowns, and then the market type on a
+   row of its own above the other two; each row's cells share its width. */
+@container matka-directory (width < 760px) {
+  .gw-matka-refresh .gw-matka-filter-search { flex-basis: 100%; }
+  .gw-matka-refresh .gw-matka-filter-select { flex-grow: 1; }
+}
+@container matka-directory (width < 520px) {
+  .gw-matka-refresh .gw-matka-filter-type { flex-basis: 100%; }
+}
+.gw-matka-refresh .gw-matka-toolbar { justify-content: space-between; gap: 12px; margin-bottom: 15px; padding: 0; }
+.gw-matka-refresh .gw-matka-directory-more { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 24px; padding: 16px; border: 1px solid var(--m99-border); border-radius: 5px; background: var(--m99-surface); }
+.gw-matka-refresh .gw-matka-directory-more > span { color: var(--m99-muted); font-size: 12px; }
+.gw-matka-refresh .gw-matka-directory-more .m99-button { display: inline-flex; gap: 8px; }
+/* The header's help popup: the rules a player needs before placing an entry. */
+.m99-kit.gw-matka-modal .gw-matka-help { display: grid; gap: 10px; margin: 0; padding: 0 0 4px 18px; color: var(--m99-text); font-size: 13px; line-height: 1.55; list-style: disc; }
+.m99-kit.gw-matka-modal .gw-matka-help li::marker { color: var(--m99-brand); }
+.gw-matka-refresh .gw-matka-footnote { display: flex; gap: 8px; margin-top: 20px; padding: 12px 14px; border: 1px solid var(--m99-border); border-radius: 5px; color: var(--m99-muted); background: var(--m99-sidebar); font-size: 11px; line-height: 1.5; }
+.gw-matka-refresh :is(.gw-matka-filterbar button, .gw-matka-nav a):focus-visible { outline: 2px solid var(--md-accent-ink); outline-offset: -2px; }
+@media (max-width: 760px) {
+  .m99-kit.gw-matka-refresh { padding-inline: 12px; }
+  .gw-matka-refresh .gw-matka-nav { gap: 3px; margin: 12px 0; }
+  .gw-matka-refresh .gw-matka-nav > a { flex: 1 1 0; justify-content: center; gap: 6px; padding: 8px 5px; font-size: 12px; white-space: nowrap; }
+  .gw-matka-refresh .gw-matka-nav > div { width: auto; flex: 0 0 auto; justify-content: space-between; margin: 0; padding: 0 0 0 5px; border-left: 1px solid var(--m99-border); border-top: 0; }
+  .gw-matka-refresh .gw-matka-nav > div:has(select) { flex: 1 0 100%; width: 100%; margin-top: 3px; padding: 8px 4px 2px; border-left: 0; border-top: 1px solid var(--m99-border); }
+  .gw-matka-refresh .gw-matka-nav > div > .m99-button { padding-inline: 10px; font-size: 11px; }
+  .gw-matka-refresh .gw-matka-toolbar { gap: 9px; }
+  .gw-matka-refresh .gw-matka-directory-more { flex-direction: column; gap: 10px; margin-top: 18px; }
+}
+@media (max-width: 360px) {
+  .gw-matka-refresh .gw-matka-nav > a { gap: 5px; padding-inline: 5px; }
+  .gw-matka-refresh .gw-matka-nav > a > svg { display: none; }
+  .gw-matka-refresh .gw-matka-toolbar { flex-direction: column; align-items: stretch; }
+}

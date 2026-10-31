@@ -1,0 +1,548 @@
+/* Withdrawal (/withdrawal) in the matchbook theme: a charcoal step bar over a white flow panel, flat preset
+   chips, saved-account cards, hairline summary rows and a dense history table. Page parts are scoped under
+   .nova-acct (MainLayout); the modals render in a portal outside it and are scoped by .wd-modal instead,
+   which every ModalSurface on this page receives through its className. Behaviour lives in the components. */
+
+/* ------------------------------------------------------------------ page */
+.nova-acct .wd-page { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding-bottom: 24px; }
+.nova-acct .wd-page > .user-account-header { margin: 0; }
+.nova-acct .wd-page :is(h3, h4, p) { margin: 0; }
+
+/* Notices: white with a coloured left rule (info blue, warning amber, error red). */
+:is(.nova-acct, .wd-modal) .wd-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--acct-line);
+  border-left: 3px solid var(--acct-muted);
+  border-radius: var(--ui-radius);
+  color: var(--acct-text);
+  background: var(--mb-panel);
+  font-size: 14px;
+  line-height: 1.45;
+}
+:is(.nova-acct, .wd-modal) .wd-notice > svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+:is(.nova-acct, .wd-modal) .wd-notice-copy { display: grid; gap: 2px; min-width: 0; }
+:is(.nova-acct, .wd-modal) .wd-notice-title { color: var(--acct-ink); font-size: 15px; font-weight: 700; }
+:is(.nova-acct, .wd-modal) .wd-notice-text { color: var(--acct-muted); font-size: 13px; }
+:is(.nova-acct, .wd-modal) .wd-notice.is-info { border-left-color: var(--acct-link); }
+:is(.nova-acct, .wd-modal) .wd-notice.is-info > svg { color: var(--acct-link); }
+:is(.nova-acct, .wd-modal) .wd-notice.is-warn { border-color: var(--mb-amber-line); border-left-color: var(--acct-amber); background: var(--mb-amber-bg); }
+:is(.nova-acct, .wd-modal) .wd-notice.is-warn > svg,
+:is(.nova-acct, .wd-modal) .wd-notice.is-warn .wd-notice-title { color: var(--mb-amber-ink); }
+:is(.nova-acct, .wd-modal) .wd-notice.is-error { border-color: var(--mb-red-line); border-left-color: var(--acct-error); color: var(--mb-red-ink); background: var(--mb-red-bg); }
+:is(.nova-acct, .wd-modal) .wd-notice.is-error > svg,
+:is(.nova-acct, .wd-modal) .wd-notice.is-error .wd-notice-title { color: var(--acct-error); }
+
+/* Buttons: red solid primary (grey while not ready), white outline secondary, blue text back-links. */
+:is(.nova-acct, .wd-modal) .wd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  font-family: var(--font-inter);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+:is(.nova-acct, .wd-modal) .wd-btn svg { flex: none; width: 18px; height: 18px; }
+:is(.nova-acct, .wd-modal) .wd-btn-primary { width: 100%; border-color: #B21718; color: #FFFFFF; background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%); }
+:is(.nova-acct, .wd-modal) .wd-btn-primary:hover:not(:disabled) { border-color: var(--acct-red-hover); background: var(--acct-red-hover); }
+:is(.nova-acct, .wd-modal) .wd-btn-primary:disabled { border-color: var(--mb-line); color: var(--mb-faint); background: var(--mb-disabled-bg); cursor: not-allowed; }
+:is(.nova-acct, .wd-modal) .wd-btn-secondary { border-color: var(--acct-field); color: var(--acct-ink); background: var(--mb-panel); }
+:is(.nova-acct, .wd-modal) .wd-btn-secondary:hover:not(:disabled) { border-color: var(--mb-line-3); background: var(--mb-panel-2); }
+:is(.nova-acct, .wd-modal) .wd-btn-secondary:disabled { color: var(--mb-faint); cursor: not-allowed; }
+.nova-acct .wd-back {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  color: var(--acct-link);
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.nova-acct .wd-back:hover { text-decoration: underline; }
+.nova-acct .wd-back svg { width: 16px; height: 16px; }
+.nova-acct .wd-spin { width: 16px; height: 16px; border: 2px solid rgb(255 255 255 / 35%); border-top-color: #FFFFFF; border-radius: 50%; animation: wd-spin .8s linear infinite; }
+.nova-acct .wd-btn-primary:disabled .wd-spin { border-color: rgb(141 140 146 / 35%); border-top-color: var(--mb-line-3); }
+
+/* Small uppercase label used over chip rows and inside summary boxes. */
+:is(.nova-acct, .wd-modal) .wd-label { color: var(--acct-muted); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+/* Default / primary account badge: a charcoal tag. */
+:is(.nova-acct, .wd-modal) .wd-badge { display: inline-flex; align-items: center; flex: none; padding: 2px 8px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar); font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+
+/* --------------------------------------------------------- withdraw flow */
+.nova-acct .wd-flow { min-width: 0; border: 1px solid var(--acct-line); background: var(--mb-panel); }
+
+/* Step bar: charcoal head with numbered squares (active red, done green) joined by a line that fills green. */
+.nova-acct .wd-steps { display: flex; align-items: center; min-height: 54px; padding: 0 16px; color: #FFFFFF; background: var(--acct-bar); }
+.nova-acct .wd-step-item { display: flex; flex: 1 1 0; align-items: center; min-width: 0; }
+.nova-acct .wd-step-item:last-child { flex: 0 0 auto; }
+.nova-acct .wd-step { display: flex; flex: none; align-items: center; gap: 8px; }
+.nova-acct .wd-step-num {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 34%);
+  border-radius: var(--ui-radius);
+  color: #C9CBD1;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: background-color .2s, border-color .2s, color .2s;
+}
+.nova-acct .wd-step-num svg { width: 15px; height: 15px; stroke-width: 3; }
+.nova-acct .wd-step-label { color: #C9CBD1; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.nova-acct .wd-step.is-active .wd-step-num { border-color: var(--acct-red); color: #FFFFFF; background: var(--acct-red); }
+.nova-acct .wd-step.is-done .wd-step-num { border-color: var(--acct-green); color: #FFFFFF; background: var(--acct-green); }
+.nova-acct .wd-step:is(.is-active, .is-done) .wd-step-label { color: #FFFFFF; }
+.nova-acct .wd-step.is-active .wd-step-label { font-weight: 700; }
+.nova-acct .wd-step-line { position: relative; flex: 1 1 auto; min-width: 14px; height: 1px; margin: 0 12px; overflow: hidden; background: rgb(255 255 255 / 22%); }
+.nova-acct .wd-step-line::after { content: ""; position: absolute; inset: 0; background: #3E9C68; transform: scaleX(0); transform-origin: left; transition: transform .35s ease; }
+.nova-acct .wd-step-line.is-filled::after { transform: scaleX(1); }
+
+.nova-acct .wd-flow-body { padding: 16px; }
+@media (min-width: 1024px) { .nova-acct .wd-flow-body { padding: 18px 20px 20px; } }
+.nova-acct .wd-pane { display: grid; gap: 16px; min-width: 0; }
+.nova-acct .wd-title { color: var(--acct-ink); font-size: 20px; font-weight: 700; line-height: 1.2; }
+.nova-acct .wd-sub { margin-top: 3px; color: var(--acct-muted); font-size: 14px; }
+
+/* Amount field: a ₹ prefix cell inside the hairline box; green when the value is acceptable, red when not. */
+.nova-acct .wd-amount { position: relative; }
+.nova-acct .wd-amount-prefix {
+  position: absolute;
+  z-index: 1;
+  top: 1px;
+  bottom: 1px;
+  left: 1px;
+  display: grid;
+  width: 52px;
+  place-items: center;
+  border-right: 1px solid var(--acct-line);
+  border-radius: var(--ui-radius);
+  color: var(--acct-muted);
+  background: var(--mb-soft);
+  pointer-events: none;
+  transition: color .15s;
+}
+.nova-acct .wd-amount-prefix svg { width: 20px; height: 20px; }
+.nova-acct .wd-amount-prefix.is-focus { color: var(--acct-ink); }
+.nova-acct .wd-amount-prefix.is-valid { color: var(--acct-green); }
+.nova-acct .wd-amount input.wd-amount-input {
+  width: 100%;
+  height: 58px;
+  padding: 0 120px 0 66px;
+  border: 1px solid var(--acct-field);
+  border-radius: var(--ui-radius);
+  color: var(--acct-ink);
+  background: var(--mb-panel);
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.nova-acct .wd-amount input.wd-amount-input:hover:not(:disabled, :focus) { border-color: var(--mb-line-3); }
+.nova-acct .wd-amount input.wd-amount-input:focus { border-color: var(--acct-dark); outline: none; box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.nova-acct .wd-amount.is-valid input.wd-amount-input { border-color: var(--acct-green); }
+.nova-acct .wd-amount.is-valid input.wd-amount-input:focus { box-shadow: 0 0 0 3px rgb(11 128 64 / 14%); }
+.nova-acct .wd-amount.is-invalid input.wd-amount-input { border-color: var(--acct-error); }
+.nova-acct .wd-amount.is-invalid input.wd-amount-input:focus { box-shadow: 0 0 0 3px rgb(196 39 28 / 14%); }
+.nova-acct .wd-amount input.wd-amount-input:disabled { color: var(--mb-faint); background: var(--mb-soft); cursor: not-allowed; }
+.nova-acct .wd-amount-ok {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: var(--ui-radius);
+  color: var(--mb-green-ink);
+  background: var(--mb-green-bg);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  transform: translateY(-50%);
+}
+.nova-acct .wd-amount-ok svg { width: 14px; height: 14px; }
+
+/* Preset chips: white with a hairline; the chosen amount gets a red border and a light red tint. */
+.nova-acct .wd-presets-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.nova-acct .wd-tag { padding: 2px 7px; border-radius: var(--ui-radius); color: var(--mb-muted); background: var(--mb-neutral-bg); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.nova-acct .wd-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
+.nova-acct .wd-chip {
+  height: 46px;
+  padding: 0 8px;
+  border: 1px solid var(--acct-field);
+  border-radius: var(--ui-radius);
+  color: var(--acct-ink);
+  background: var(--mb-panel);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s, color .15s;
+}
+.nova-acct .wd-chip:hover:not(:disabled) { border-color: var(--mb-line-3); }
+.nova-acct .wd-chip.is-active { border-color: var(--acct-red); color: var(--mb-red-text); background: var(--mb-red-bg); box-shadow: inset 0 0 0 1px var(--acct-red); font-weight: 700; }
+.nova-acct .wd-chip:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Inline validation under the amount. */
+.nova-acct .wd-field-alert { display: flex; align-items: center; gap: 6px; margin-top: -4px; }
+.nova-acct .wd-field-alert svg { flex: none; width: 15px; height: 15px; color: var(--acct-error); }
+.nova-acct .wd-field-alert p { color: var(--acct-error); font-size: 14px; font-weight: 600; }
+
+/* Limits / summary rows: label left and muted, amounts right in tabular figures. */
+.nova-acct .wd-limits { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); background: var(--mb-soft); font-size: 14px; }
+.nova-acct .wd-limits-label { color: var(--acct-muted); }
+.nova-acct .wd-limits-values { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--acct-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-acct .wd-limits-sep { color: var(--mb-faint); font-weight: 400; }
+
+:is(.nova-acct, .wd-modal) .wd-rows { min-width: 0; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); background: var(--mb-panel); }
+:is(.nova-acct, .wd-modal) .wd-rows-head { padding: 9px 12px; border-bottom: 1px solid var(--acct-line); color: var(--acct-muted); background: var(--acct-soft); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+:is(.nova-acct, .wd-modal) .wd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 8px 12px; font-size: 15px; }
+:is(.nova-acct, .wd-modal) .wd-row + .wd-row { border-top: 1px solid var(--mb-line); }
+:is(.nova-acct, .wd-modal) .wd-row-label { flex: none; color: var(--acct-muted); }
+:is(.nova-acct, .wd-modal) .wd-row-value { min-width: 0; color: var(--acct-ink); font-weight: 700; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+:is(.nova-acct, .wd-modal) .wd-row-value.is-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; font-weight: 600; }
+:is(.nova-acct, .wd-modal) .wd-row-value.is-name { text-transform: capitalize; }
+:is(.nova-acct, .wd-modal) .wd-row.is-total { min-height: 52px; }
+:is(.nova-acct, .wd-modal) .wd-row.is-total .wd-row-value { font-size: 20px; }
+
+/* The amount carried into the account step. */
+.nova-acct .wd-sum { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-soft); }
+.nova-acct .wd-sum-icon { display: grid; flex: none; order: -1; place-items: center; color: var(--mb-faint); }
+.nova-acct .wd-sum-icon svg { width: 18px; height: 18px; }
+.nova-acct .wd-sum-main { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; min-width: 0; }
+.nova-acct .wd-sum-label { color: var(--acct-muted); font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.nova-acct .wd-sum-amount { color: var(--acct-ink); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Account cards in the selector: charcoal icon tile, name, holder, hairline detail rows; red when chosen. */
+.nova-acct .wd-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.nova-acct .wd-acc {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--acct-line);
+  border-radius: var(--ui-radius);
+  color: var(--acct-text);
+  background: var(--mb-panel);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+.nova-acct .wd-acc:hover:not(:disabled) { border-color: var(--mb-line-3); }
+.nova-acct .wd-acc.is-selected { border-color: var(--acct-red); background: color-mix(in srgb, var(--mb-red) 5%, var(--mb-panel)); box-shadow: inset 0 0 0 1px var(--acct-red); }
+.nova-acct .wd-acc:disabled { opacity: .55; cursor: not-allowed; }
+.nova-acct .wd-acc-check { position: absolute; top: 10px; right: 10px; display: grid; width: 22px; height: 22px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--acct-red); }
+.nova-acct .wd-acc-check svg { width: 15px; height: 15px; }
+.nova-acct .wd-acc-head { display: flex; align-items: center; gap: 10px; min-width: 0; padding-right: 28px; }
+:is(.nova-acct, .wd-modal) .wd-acc-icon { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--acct-bar); }
+:is(.nova-acct, .wd-modal) .wd-acc-icon svg { width: 20px; height: 20px; }
+.nova-acct .wd-acc.is-selected .wd-acc-icon { background: var(--acct-red); }
+.nova-acct .wd-acc-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nova-acct .wd-acc-name h4 { min-width: 0; overflow: hidden; color: var(--acct-ink); font-size: 16px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.nova-acct .wd-acc-holder { margin-top: 1px; overflow: hidden; color: var(--acct-muted); font-size: 14px; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
+.nova-acct .wd-acc-rows { display: grid; gap: 5px; padding-top: 9px; border-top: 1px solid var(--mb-line); }
+.nova-acct .wd-acc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
+.nova-acct .wd-acc-row > :first-child { flex: none; color: var(--acct-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.nova-acct .wd-acc-row > :last-child { min-width: 0; color: var(--acct-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; text-align: right; overflow-wrap: anywhere; }
+.nova-acct .wd-acc-row > .is-text { font-family: var(--font-inter); font-size: 14px; font-weight: 600; }
+
+/* Loading spinner for the account list. */
+.nova-acct .wd-loading { display: grid; justify-items: center; gap: 12px; padding: 40px 16px; color: var(--acct-muted); font-size: 14px; }
+.nova-acct .wd-loading::before { content: ""; width: 34px; height: 34px; border: 3px solid var(--acct-line); border-top-color: var(--acct-red); border-radius: 50%; animation: wd-spin .8s linear infinite; }
+
+/* Empty / error states: centred icon tile, title, text. */
+.nova-acct .wd-empty { display: grid; justify-items: center; gap: 8px; padding: 40px 16px; text-align: center; }
+.nova-acct .wd-flow .wd-empty { padding: 24px 12px; }
+.nova-acct .wd-empty-icon { display: grid; width: 56px; height: 56px; place-items: center; margin-bottom: 4px; border-radius: var(--ui-radius); color: var(--mb-faint); background: var(--acct-soft); }
+.nova-acct .wd-empty-icon svg { width: 26px; height: 26px; }
+.nova-acct .wd-empty-title { color: var(--acct-ink); font-size: 18px; font-weight: 700; }
+.nova-acct .wd-empty-text { max-width: 360px; color: var(--acct-muted); font-size: 14px; }
+.nova-acct .wd-empty.is-error .wd-empty-icon { color: var(--acct-error); background: var(--mb-red-bg); }
+.nova-acct .wd-empty.is-error .wd-empty-title { color: var(--mb-red-ink); font-size: 16px; }
+
+/* ---------------------------------------------------------- accounts tab */
+.nova-acct .wd-accounts { display: grid; gap: 12px; min-width: 0; }
+.nova-acct .wd-section { min-width: 0; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); background: var(--mb-panel); }
+.nova-acct .wd-section-head { gap: 12px; min-height: 56px; padding: 8px 14px; }
+.nova-acct .wd-section-icon { display: grid; flex: none; width: 34px; height: 34px; place-items: center; border-radius: var(--ui-radius); background: rgb(255 255 255 / 10%); }
+.nova-acct .wd-section-icon svg { width: 18px; height: 18px; color: #FFFFFF; }
+.nova-acct .wd-section-titles { min-width: 0; }
+.nova-acct .wd-section-title { display: flex; align-items: center; gap: 8px; color: #FFFFFF; font-size: 18px; font-weight: 700; line-height: 1.2; }
+.nova-acct .wd-section-sub { margin-top: 1px; color: #C9CBD1; font-size: 13px; }
+.nova-acct .wd-count { min-width: 24px; padding: 1px 7px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar); font-size: 13px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.nova-acct .wd-section-hint { margin-left: auto; color: #C9CBD1; font-size: 13px; text-align: right; }
+.nova-acct .wd-section-body { padding: 12px; }
+.nova-acct .wd-saved-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; }
+
+/* Saved account card. */
+.nova-acct .wd-saved { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); background: var(--mb-panel); transition: border-color .15s; }
+.nova-acct .wd-saved:hover { border-color: var(--mb-line-2); }
+.nova-acct .wd-saved.is-disabled { opacity: .6; pointer-events: none; }
+.nova-acct .wd-saved-top { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.nova-acct .wd-saved-main { flex: 1 1 auto; min-width: 0; }
+.nova-acct .wd-saved-label { color: var(--acct-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.nova-acct .wd-saved-value { overflow: hidden; color: var(--acct-ink); font-size: 17px; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.nova-acct .wd-saved-value.is-name { text-transform: capitalize; }
+.nova-acct .wd-saved-sub { color: var(--acct-muted); font-size: 14px; }
+.nova-acct .wd-saved-rows { display: grid; gap: 5px; padding-top: 9px; border-top: 1px solid var(--mb-line); }
+.nova-acct .wd-saved-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; font-size: 14px; }
+.nova-acct .wd-saved-row > :first-child { flex: none; color: var(--acct-muted); }
+.nova-acct .wd-saved-row > :last-child { min-width: 0; overflow: hidden; color: var(--acct-ink); font-weight: 700; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nova-acct .wd-saved-row > .is-name { text-transform: capitalize; }
+.nova-acct .wd-saved-row > .is-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 600; }
+.nova-acct .wd-saved-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.nova-acct .wd-saved-badges .nova-acct-chip { max-width: 100%; white-space: normal; }
+.nova-acct .wd-set-primary {
+  flex: none;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--acct-field);
+  border-radius: var(--ui-radius);
+  color: var(--acct-ink);
+  background: var(--mb-panel);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.nova-acct .wd-set-primary:hover { border-color: var(--acct-red); color: var(--mb-red-text); }
+
+/* Add tile: dashed hairline with a red plus; alone in an empty section it spans the row. */
+.nova-acct .wd-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 92px;
+  padding: 14px;
+  border: 1px dashed #B9B8BD;
+  border-radius: var(--ui-radius);
+  color: var(--acct-ink);
+  background: var(--mb-panel-2);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+.nova-acct .wd-add:hover { border-color: var(--acct-red); background: var(--mb-panel); }
+.nova-acct .wd-add-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--acct-red); }
+.nova-acct .wd-add-icon svg { width: 18px; height: 18px; }
+.nova-acct .wd-add:only-child { grid-column: 1 / -1; min-height: 110px; }
+
+/* ------------------------------------------------------------- history */
+.nova-acct .wd-history { min-width: 0; border: 1px solid var(--acct-line); background: var(--mb-panel); }
+.nova-acct .wd-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 180px 180px auto; gap: 8px; padding: 12px; border-bottom: 1px solid var(--acct-line); }
+.nova-acct .wd-control { position: relative; min-width: 0; }
+.nova-acct .wd-control > svg { position: absolute; top: 50%; left: 12px; width: 16px; height: 16px; color: var(--mb-faint); transform: translateY(-50%); pointer-events: none; }
+.nova-acct .wd-control :is(input, select).wd-control-input { width: 100%; height: 42px; padding: 0 12px 0 38px; border: 1px solid var(--acct-field); border-radius: var(--ui-radius); color: var(--acct-ink); background: var(--mb-panel); font-size: 15px; }
+.nova-acct .wd-control select.wd-control-input { padding-right: 34px; background: var(--mb-panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238D8C92' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center; font-weight: 600; appearance: none; cursor: pointer; }
+.nova-acct .wd-control :is(input, select).wd-control-input:hover:not(:focus) { border-color: var(--mb-line-3); }
+.nova-acct .wd-control :is(input, select).wd-control-input:focus { border-color: var(--acct-dark); outline: none; box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.nova-acct .wd-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 42px; height: 42px; padding: 0 14px; border: 1px solid var(--acct-field); border-radius: var(--ui-radius); color: var(--acct-ink); background: var(--mb-panel); font-size: 15px; font-weight: 700; cursor: pointer; }
+.nova-acct .wd-refresh:hover:not(:disabled) { border-color: var(--mb-line-3); }
+.nova-acct .wd-refresh:disabled { color: var(--mb-faint); cursor: not-allowed; }
+.nova-acct .wd-refresh svg { width: 16px; height: 16px; }
+.nova-acct .wd-results { padding: 8px 14px; border-bottom: 1px solid var(--acct-line); color: var(--acct-muted); background: var(--mb-panel-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* The table itself is the shared statements WalletTable (components/statements/statements-ui.css paints it:
+   grey header row, hairline rows, tabular amounts, status chips). The loading skeleton reuses its classes. */
+.nova-acct .wd-table { min-width: 0; }
+
+@keyframes wd-spin { to { transform: rotate(360deg); } }
+
+/* --------------------------------------------------------------- phones */
+@media (max-width: 767px) {
+  .nova-acct .wd-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .nova-acct .wd-toolbar { padding: 10px; }
+  .nova-acct .wd-toolbar > .wd-control:first-child { grid-column: 1 / -1; }
+  .nova-acct .wd-control > svg { left: 10px; }
+  .nova-acct .wd-control select.wd-control-input { padding: 0 24px 0 32px; background-position: right 8px center; font-size: 14px; }
+  .nova-acct .wd-section-hint { display: none; }
+}
+@media (max-width: 639px) {
+  /* The Refresh label hides below 640px, leaving a square icon button. */
+  .nova-acct .wd-refresh { width: 42px; padding: 0; }
+}
+@media (max-width: 560px) {
+  .nova-acct .wd-steps { padding: 0 12px; }
+  .nova-acct .wd-step { gap: 6px; }
+  .nova-acct .wd-step-label { font-size: 14px; }
+  .nova-acct .wd-step-line { min-width: 8px; margin: 0 6px; }
+  .nova-acct .wd-flow-body { padding: 12px; }
+  .nova-acct .wd-title { font-size: 18px; }
+  .nova-acct .wd-presets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .nova-acct .wd-chip { padding: 0 4px; font-size: 15px; }
+  .nova-acct .wd-amount input.wd-amount-input { padding-right: 104px; font-size: 24px; }
+  .nova-acct .wd-acc-grid, .nova-acct .wd-saved-grid { grid-template-columns: minmax(0, 1fr); }
+  .nova-acct .wd-section-body { padding: 10px; }
+  /* Every row is a withdrawal, so the type column gives way and View becomes an icon button (its label was
+     phone-hidden before the shared table was restyled), keeping the table inside the phone width. */
+  .nova-acct .wd-table .nova-stmt-table :is(th, td).c-kind,
+  .nova-acct .wd-table .nova-stmt-table tr.animate-pulse > td:nth-child(2) { display: none; }
+  .nova-acct .wd-table .nova-stmt-table :is(th, td) { padding-inline: 8px; }
+  .nova-acct .wd-table .nova-stmt-table :is(th, td):first-child { padding-left: 12px; }
+  .nova-acct .wd-table .nova-stmt-table :is(th, td):last-child { padding-right: 12px; }
+  .nova-acct .wd-table .nova-stmt-view-btn { justify-content: center; width: 34px; height: 34px; padding: 0; }
+  .nova-acct .wd-table .nova-stmt-view-label { display: none; }
+}
+@media (max-width: 360px) {
+  .nova-acct .wd-step:not(.is-active) .wd-step-label { display: none; }
+  .nova-acct .wd-btn { padding: 0 12px; font-size: 15px; }
+  .nova-acct .wd-toolbar > .wd-control:not(:first-child) > svg { display: none; }
+  .nova-acct .wd-control select.wd-control-input { padding-left: 10px; }
+}
+
+/* --------------------------------------------------------------- modals */
+/* Add UPI / Add bank, withdrawal details, the receipt and the help sheet: a charcoal title bar over a flat
+   white body. The workspace palette does not reach the portal, so it is restated here. */
+.nova-modal-surface.wd-modal {
+  --acct-red: #C51A1B;
+  --acct-red-hover: #A81516;
+  --acct-ink: var(--mb-ink);
+  --acct-text: var(--mb-text);
+  --acct-muted: var(--mb-muted);
+  --acct-line: var(--mb-line);
+  --acct-field: var(--mb-line-2);
+  --acct-soft: var(--mb-soft);
+  --acct-bar: var(--mb-bar);
+  --acct-dark: var(--mb-focus-border);
+  --acct-link: var(--mb-link);
+  --acct-green: var(--mb-green);
+  --acct-amber: var(--mb-amber);
+  --acct-error: var(--mb-error);
+  --surface: var(--mb-panel);
+  --surface-2: var(--mb-soft);
+  --border: var(--mb-line);
+  --text: var(--mb-text);
+  --subtle: var(--mb-muted);
+  --nova-accent: #C51A1B;
+  --brand-primary: #C51A1B;
+  --ds-color-slate-100: var(--mb-text);
+  --ds-color-slate-200: var(--mb-muted);
+  --ds-color-slate-300: var(--mb-muted);
+  --ds-color-slate-400: var(--mb-muted);
+  --ds-color-slate-450: var(--mb-muted);
+  --ds-color-slate-600: var(--mb-line);
+  --ds-color-slate-650: var(--mb-line);
+  --ds-color-slate-700: var(--mb-soft);
+  --ds-color-slate-750: var(--mb-soft);
+  --ds-color-slate-800: var(--mb-panel-2);
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--acct-text);
+  background: var(--mb-panel);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 45%);
+  font-family: var(--font-inter);
+}
+.nova-modal-layer:has(.wd-modal)::backdrop { background: rgb(12 13 16 / 72%); backdrop-filter: blur(3px); }
+.wd-modal :is(h2, h3, p) { margin: 0; }
+.wd-modal :is(button, a):focus-visible { outline: 2px solid var(--acct-link); outline-offset: 2px; }
+.wd-modal .wd-form .field__control:focus-visible { outline: none; }
+.wd-modal .nova-modal-header { align-items: center; min-height: 58px; padding: 9px 10px 9px 18px; border: 0; color: #FFFFFF; background: var(--acct-bar); }
+.wd-modal .nova-modal-header h2 { color: #FFFFFF; font: 700 21px/1.2 var(--font-inter); letter-spacing: -.01em; }
+.wd-modal .nova-modal-header p { margin-top: 2px; color: #C9CBD1; font-size: 13px; line-height: 1.4; }
+.wd-modal .nova-modal-close { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+.wd-modal .nova-modal-close:hover { color: #FFFFFF; background: rgb(255 255 255 / 12%); }
+.wd-modal .nova-modal-body { padding: 18px; }
+.wd-modal .nova-modal-footer, .wd-modal .nova-modal-actions { gap: 8px; padding: 12px 18px 14px; border-top: 1px solid var(--acct-line); background: var(--mb-panel); }
+.wd-modal .nova-modal-actions .nova-button { min-height: 46px; padding: 0 18px; border: 1px solid #B21718; border-radius: var(--ui-radius); color: #FFFFFF; background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%); font-size: 16px; font-weight: 700; filter: none; }
+.wd-modal .nova-modal-actions .nova-button:hover:not(:disabled) { border-color: var(--acct-red-hover); background: var(--acct-red-hover); }
+.wd-modal .nova-modal-actions .nova-button:disabled { border-color: var(--mb-line); color: var(--mb-faint); background: var(--mb-disabled-bg); }
+.wd-modal .nova-modal-actions .nova-button.nova-button-secondary { border-color: var(--acct-field); color: var(--acct-ink); background: var(--mb-panel); }
+.wd-modal .nova-modal-actions .nova-button.nova-button-secondary:hover { border-color: var(--mb-line-3); background: var(--mb-panel-2); }
+.wd-modal .nova-modal-actions .nova-button svg { width: 17px; height: 17px; }
+.wd-modal .wd-modal-spin { width: 16px; height: 16px; border: 2px solid rgb(20 21 24 / 25%); border-top-color: var(--acct-ink); border-radius: 50%; animation: wd-spin .8s linear infinite; }
+
+/* Forms (Add UPI / Add bank): flat white fields like the sign-in modal; red border and message when invalid. */
+.wd-modal .nova-modal-form-mark { display: none; }
+.wd-modal .wd-form { display: grid; gap: 14px; }
+.wd-modal .wd-form .form-field > label { margin-bottom: 6px; color: var(--acct-text); font-size: 14px; font-weight: 600; }
+.wd-modal .wd-form .field { min-height: 48px; border: 1px solid var(--acct-field); border-radius: var(--ui-radius); background: var(--mb-panel); box-shadow: none; }
+.wd-modal .wd-form .field:hover { border-color: var(--mb-line-3); }
+.wd-modal .wd-form .field:focus-within { border-color: var(--acct-dark); box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.wd-modal .wd-form .field__control { min-height: 46px; border: 0; border-radius: var(--ui-radius); color: var(--acct-ink); background: transparent; font-size: 16px; }
+.wd-modal .wd-form .field__control:focus { box-shadow: none; }
+.wd-modal .wd-form .field__control::placeholder { color: var(--mb-faint); opacity: 1; }
+.wd-modal .wd-form .field__icon { color: var(--mb-faint); }
+.wd-modal .wd-form .field:focus-within .field__icon { color: var(--acct-ink); }
+.wd-modal .wd-form .form-field:has(+ .wd-field-error) .field { border-color: var(--acct-error); }
+.wd-modal .wd-form .form-field:has(+ .wd-field-error) .field:focus-within { box-shadow: 0 0 0 3px rgb(196 39 28 / 14%); }
+.wd-modal .wd-form .form-field:has(+ .wd-field-error) > label { color: var(--acct-error); }
+.wd-modal .wd-field-error { margin-top: -8px; color: var(--acct-error); font-size: 13px; font-weight: 600; }
+.wd-modal .wd-form-actions { padding-top: 4px; }
+
+/* Amount summary and hairline detail rows (details modal: two columns on wide screens; receipt: one). */
+.wd-modal .nova-modal-summary { margin: 0; padding: 14px 16px; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); background: var(--mb-soft); }
+.wd-modal .nova-modal-summary > p:first-child { margin: 0; color: var(--acct-muted); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.wd-modal .nova-modal-summary > p + p { margin-top: 4px; color: var(--acct-ink); font-size: 30px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.wd-modal .wd-modal-section { overflow: hidden; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); }
+.wd-modal .wd-modal-section-title { padding: 8px 12px; border-bottom: 1px solid var(--acct-line); color: var(--acct-ink); background: var(--acct-soft); font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.wd-modal .wd-modal-section .nova-modal-detail-grid { border: 0; border-radius: var(--ui-radius); }
+.wd-modal .nova-modal-detail-grid { grid-template-columns: minmax(0, 1fr); gap: 0; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); }
+.wd-modal .nova-modal-detail-grid > div { gap: 12px; min-height: 42px; padding: 8px 12px; }
+.wd-modal .nova-modal-detail-grid > div + div { border-top: 1px solid var(--mb-line); }
+.wd-modal .nova-modal-detail-grid > div > span:first-child { flex: none; color: var(--acct-muted); font-size: 14px; }
+.wd-modal .nova-modal-detail-grid > div > :last-child { min-width: 0; color: var(--acct-ink); font-size: 14px; font-weight: 600; text-align: right; }
+.wd-modal .nova-modal-detail-grid .font-mono { font-size: 13px; }
+.wd-modal .wd-copy { display: grid; flex: none; width: 28px; height: 28px; place-items: center; border: 1px solid var(--acct-field); border-radius: var(--ui-radius); color: var(--acct-muted); background: var(--mb-panel); cursor: pointer; }
+.wd-modal .wd-copy:hover { border-color: var(--mb-line-3); color: var(--acct-ink); }
+.wd-modal .wd-copy svg { width: 14px; height: 14px; }
+.wd-modal .wd-copy.is-copied { border-color: var(--acct-green); color: var(--acct-green); }
+.wd-modal .nova-acct-chip { white-space: nowrap; }
+@media (min-width: 640px) {
+  .wd-details .nova-modal-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wd-details .nova-modal-detail-grid > div + div { border-top: 0; }
+  .wd-details .nova-modal-detail-grid > div:nth-child(n + 3) { border-top: 1px solid var(--mb-line); }
+  .wd-details .nova-modal-detail-grid > div:nth-child(odd) { border-right: 1px solid var(--mb-line); }
+}
+
+/* Receipt: status tile, title and message, amount, rows, actions and the status notice. */
+.wd-modal .wd-receipt { display: grid; gap: 14px; }
+.wd-modal .wd-receipt-hero { display: grid; justify-items: center; gap: 6px; padding: 6px 0 2px; text-align: center; }
+.wd-modal .wd-receipt-icon { display: grid; width: 60px; height: 60px; place-items: center; margin-bottom: 6px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--acct-amber); }
+.wd-modal .wd-receipt-icon svg { width: 30px; height: 30px; }
+.wd-modal .wd-receipt-icon.is-success { background: var(--acct-green); }
+.wd-modal .wd-receipt-icon.is-processing { background: var(--acct-link); }
+.wd-modal .wd-receipt-icon.is-failed { background: var(--acct-error); }
+.wd-modal .wd-receipt-icon.is-processing svg { animation: wd-spin 1.2s linear infinite; }
+.wd-modal .wd-receipt-title { color: var(--acct-ink); font-size: 22px; font-weight: 700; line-height: 1.2; }
+.wd-modal .wd-receipt-msg { max-width: 340px; color: var(--acct-muted); font-size: 14px; }
+.wd-modal .wd-receipt .nova-modal-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; border: 0; background: transparent; }
+
+/* Help sheet: hairline list with small red square markers. */
+.wd-modal .wd-info-list { display: grid; gap: 0; margin: 0; list-style: none; }
+.wd-modal .wd-info-list > li { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; color: var(--acct-text); font-size: 15px; line-height: 1.45; }
+.wd-modal .wd-info-list > li + li { border-top: 1px solid var(--mb-line); }
+.wd-modal .wd-info-list > li:first-child { padding-top: 0; }
+.wd-modal .wd-info-list > li:last-child { padding-bottom: 0; }
+.wd-modal .wd-info-mark { flex: none; width: 7px; height: 7px; margin-top: 8px; border-radius: var(--ui-radius); background: var(--acct-red); }
+
+@media (max-width: 480px) {
+  .wd-modal .nova-modal-header { padding-left: 14px; }
+  .wd-modal .nova-modal-body { padding: 14px; }
+  .wd-modal .nova-modal-footer, .wd-modal .nova-modal-actions { padding: 12px 14px; }
+  .wd-modal .nova-modal-summary > p + p { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-acct .wd-step-line::after, .nova-acct :is(.wd-chip, .wd-acc, .wd-add) { transition: none; }
+}

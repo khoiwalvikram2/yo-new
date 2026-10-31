@@ -1,0 +1,165 @@
+/* Fixed layout vocabulary promoted from the mockup's .grid/.gcol/.pair and the Overview section
+   grids (M:897-899, M:1574-1605). There are no arbitrary-value props or inline styles. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inline {
+  display: flex;
+  min-width: 0;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+.alignStart {
+  align-items: flex-start;
+}
+
+.alignCenter {
+  align-items: center;
+}
+
+.alignEnd {
+  align-items: flex-end;
+}
+
+.alignBaseline {
+  align-items: baseline;
+}
+
+.justifyStart {
+  justify-content: flex-start;
+}
+
+.justifyCenter {
+  justify-content: center;
+}
+
+.justifyEnd {
+  justify-content: flex-end;
+}
+
+.justifyBetween {
+  justify-content: space-between;
+}
+
+.grid {
+  display: grid;
+  align-items: start;
+  min-width: 0;
+}
+
+.gap6 {
+  gap: 6px;
+}
+
+.gap8 {
+  gap: 8px;
+}
+
+.gap12 {
+  gap: 12px;
+}
+
+.gap16 {
+  gap: 16px;
+}
+
+.gap20 {
+  gap: 20px;
+}
+
+.base1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.base2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.base3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.base4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* M:1605. The mockup's roomy 20px vertical/grid rhythm steps down on a phone. */
+@media (max-width: 767px) {
+  .stack.gap20,
+  .grid.gap20 {
+    gap: 16px;
+  }
+}
+
+@media (min-width: 768px) {
+  .md1 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .md2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .md3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .md4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg1 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lg2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lg3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .lg4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .xl1 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xl2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .xl3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .xl4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit rhythm (p2): panels stack 12px apart (.screen, .stack, .g2) and a field grid is 14px by 16px
+   (.fgrid). Only the roomy 20px step moves — it is Stack's and FormSection's default, and Grid's 20 is
+   used only by FormSection's field grid; the 6-16px steps are already kit-sized. (0,3,1) outranks the
+   base .gap20 (0,1,0) and its phone step .stack.gap20 / .grid.gap20 (0,2,0). */
+:global(html:not([data-skin='classic'])) .stack.gap20 {
+  gap: 12px;
+}
+
+:global(html:not([data-skin='classic'])) .grid.gap20 {
+  gap: 14px 16px;
+}

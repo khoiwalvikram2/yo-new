@@ -1,0 +1,13 @@
+/* BEYOND-MOCKUP: product-specific bet histories use existing kit metrics, filters and wide table primitives. */
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+.stack > * { min-width: 0; }
+.lines { display: grid; gap: 3px; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }
+.secondary { color: var(--ink-3); font-size: 12px; }
+.text { color: var(--ink); font-size: 12px; }
+.strong { font-weight: 600; }
+.mono { font-variant-numeric: tabular-nums; }
+.pos { color: var(--pos-ink); }
+.neg { color: var(--neg-ink); }
+.details { display: grid; gap: 12px; max-width: 300px; overflow-wrap: anywhere; }
+.truncate { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

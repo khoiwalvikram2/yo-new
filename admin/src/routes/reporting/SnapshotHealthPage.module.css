@@ -1,0 +1,224 @@
+/* Snapshot health (/reporting/snapshot-health). The mockup draws no page for it, so it is composed from
+   the generic page recipe: the page head (M:753-760), cards (M:853-867), the table idiom
+   (M:961-1007) and the status pill (M:1018-1028). Rules the mockup does not draw are marked
+   BEYOND-MOCKUP and name the idiom they derive from. */
+
+/* The page's groups stack with the mockup's column gap (.gcol M:898). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the legacy group titles (Overview, Gaps & backfill, ...) sit above their cards as the
+   mockup's section rule label (.dr-sec M:1151), so each card keeps the page's only h2. */
+.groupLabel {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+/* An inline identifier inside a note (snapshot_date, pgboss.job): the flat --surf-3 chip the kit's
+   CodeBlock grounds code on. */
+.code {
+  padding: 0 4px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- pipeline status ---------- */
+
+/* BEYOND-MOCKUP: the four status figures sit in one card (bare Stats, no card inside a card). The
+   frame is the container the grid measures, so the panel opening or closing re-flows it. */
+.statsFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+/* A 24px `2026-10-08 05:30` needs about 255px with its 40px tile; two or four columns open only when
+   every column keeps that room with a margin (272px and 263px at the two thresholds). */
+@container (min-width: 560px) {
+  .statGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1100px) {
+  .statGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- gaps and backfill ---------- */
+
+/* BEYOND-MOCKUP: the backfill form sits between the card head and its table, in the slot and inset the
+   mockup gives a card's above-the-table extras (.strip M:1097). */
+.backfill {
+  min-width: 0;
+  padding: 0 var(--card-pad) 16px;
+}
+
+.rangeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.rangeInputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+.backfillActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- table cells ---------- */
+
+/* The legacy columns cut long identifiers with an ellipsis; the full text stays in the cell's title. */
+.truncate {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wideTruncate {
+  display: block;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Raw instants and run summaries keep the legacy monospace, at the dim cell colour (td.dim M:998). */
+.mono {
+  color: var(--ink-3);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+}
+
+/* BEYOND-MOCKUP: an event's reporting day offers its timezone note as a tooltip; the dotted rule says
+   there is more, and the day is focusable so the note reaches keyboard users too. */
+.dayHint {
+  border-radius: var(--ui-radius);
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ink-3);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.dayHint:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ---------- runs, events and pg-boss ---------- */
+
+/* BEYOND-MOCKUP: the tab strip takes the card's above-the-table slot (.strip M:1097) and scrolls rather
+   than wrapping when a phone-width card cannot hold it, as the Exposure page's domain strip does. */
+.tabScroller {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 var(--card-pad) 14px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.tabScroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tabScroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  border-radius: var(--ui-radius);
+}
+
+.tabs {
+  width: max-content;
+}
+
+.tabPanel {
+  min-width: 0;
+}
+
+.eventsTools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 var(--card-pad) 12px;
+}
+
+.loadMore {
+  padding: 12px var(--card-pad) 0;
+}
+
+.panelNotice {
+  padding: 0 var(--card-pad) 14px;
+}
+
+.panelText {
+  margin: 0;
+  padding: 0 var(--card-pad) 10px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* The schedules note opens the second table, a group gap below the first (.gcol M:898). */
+.panelTextSpaced {
+  padding-top: 20px;
+}
+
+/* BEYOND-MOCKUP: the run drawer's table reaches the drawer edges and keeps the card gutter in its own
+   cells (.tbl-pad M:1007), as the Withdrawals history dialog does, instead of a second inset. */
+.drawerTable {
+  min-width: 0;
+  margin: 0 calc(-1 * var(--card-pad));
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+
+  .truncate {
+    max-width: 160px;
+  }
+
+  .wideTruncate {
+    max-width: 220px;
+  }
+}

@@ -1,0 +1,247 @@
+.field {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease, background var(--t-1) ease;
+}
+
+.field:not(.disabled):hover {
+  border-color: var(--acc-soft-h);
+}
+
+.field:focus-within {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+
+.sm {
+  height: 30px;
+  border-radius: var(--ui-radius);
+}
+
+.error {
+  border-color: var(--neg-ink);
+}
+
+.success {
+  border-color: var(--pos-ink);
+}
+
+.disabled {
+  border-color: var(--hair);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.input {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0 11px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.sm .input {
+  padding-inline: 9px;
+  font-size: 12.5px;
+}
+
+.input::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+.input:read-only:not(:disabled) {
+  cursor: default;
+}
+
+.prefix,
+.suffix {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+  height: 100%;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.prefix {
+  padding-left: 10px;
+}
+
+.suffix {
+  padding-right: 10px;
+}
+
+.clearButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.clearButton:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.clearButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field,
+  .clearButton {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .ctl: 44px (sm 36px), 1px --line-2, 3px, --field fill, 15px ink. Hover --line-3; focus --focus-border
+   with the 3px --focus-ring; invalid --neg-ink (kept through hover and focus, as the kit's later rule does);
+   disabled --disabled-bg/--disabled-fg on --line; read-only dashed on --panel-2. Also worn by PasswordField,
+   DateTimeField and TimeField. Every state selector restates the base one with the skin prefix in front,
+   so each rule here out-ranks its base twin by (0,1,1). */
+:global(html:not([data-skin='classic'])) .field {
+  height: 44px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .sm {
+  height: 36px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .field:not(.disabled):hover {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .field:not(.disabled):focus-within {
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .field.success {
+  border-color: var(--pos-ink);
+}
+
+:global(html:not([data-skin='classic'])) .field.error,
+:global(html:not([data-skin='classic'])) .field.error:not(.disabled):hover,
+:global(html:not([data-skin='classic'])) .field.error:not(.disabled):focus-within {
+  border-color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .field:has(.input:read-only:not(:disabled)) {
+  border-style: dashed;
+  background: var(--panel-2);
+}
+
+:global(html:not([data-skin='classic'])) .field.disabled {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .input {
+  padding: 0 12px;
+  font-size: 15px;
+}
+
+:global(html:not([data-skin='classic'])) .sm .input {
+  padding-inline: 10px;
+  font-size: 14px;
+}
+
+/* kit .ctl gap: 8px between an affix and the text */
+:global(html:not([data-skin='classic'])) .prefix + .input {
+  padding-left: 8px;
+}
+
+:global(html:not([data-skin='classic'])) .input:has(+ .suffix) {
+  padding-right: 8px;
+}
+
+:global(html:not([data-skin='classic'])) .input::placeholder {
+  color: var(--ink-3);
+}
+
+/* DateTimeField / TimeField: the browser's picker button */
+:global(html:not([data-skin='classic'])) .input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+:global(html:not([data-skin='classic'])) .input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* kit .ctl__affix: ₹, %, units */
+:global(html:not([data-skin='classic'])) .prefix,
+:global(html:not([data-skin='classic'])) .suffix {
+  color: var(--ink-3);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .sm .prefix,
+:global(html:not([data-skin='classic'])) .sm .suffix {
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .prefix {
+  padding-left: 12px;
+}
+
+:global(html:not([data-skin='classic'])) .suffix {
+  padding-right: 12px;
+}
+
+/* kit .ctl__clear: a 26px square, 3px radius */
+:global(html:not([data-skin='classic'])) .clearButton {
+  width: 26px;
+  height: 26px;
+  margin-right: 6px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .clearButton:hover {
+  background: var(--surf-3);
+  color: var(--ink);
+}

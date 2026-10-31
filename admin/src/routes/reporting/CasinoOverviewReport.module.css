@@ -1,0 +1,177 @@
+/* /reporting/casino (page migration C, W3 Task 130). The mockup draws this report through its generic
+   template (M:2477-2485 rendered by M:3361-3409): the page head and one table card whose first column
+   is the key cell. The legacy page adds totals, a drill-down path, filters, view tabs and a contributors
+   column; those compose kit and drill-down pieces (modules/reporting/ui), and this file only lays them
+   out and styles what a breakdown cell holds. Tokens only. */
+
+/* The report and its contributors column. The legacy page put them side by side from a 1024px
+   viewport; the shell's rail and context panel take up to 269px of that, so the split answers to the
+   page's own width instead (definition of done item 17). BEYOND-MOCKUP: the mockup has no second
+   column on a report; the 360px column is the legacy one. */
+.layout {
+  container: casino-report / inline-size;
+  min-width: 0;
+}
+
+/* Stacked, the contributors follow the report, as the legacy narrow layout did. 20px between them, the
+   mockup's column gap (.grid M:897), 16px on a phone (M:1605). */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  min-width: 0;
+}
+
+/* Side by side once the report keeps 720px beside the column: the wide table's own minimum
+   (.tw.wide M:972) plus the 20px gap and the 360px column. */
+@container casino-report (width >= 1100px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+
+/* The report's sections stack like the mockup's content column (.gcol M:898). */
+.main {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.aside {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .columns,
+  .main {
+    gap: 16px; /* .grid, .gcol M:1604-1605 */
+  }
+}
+
+/* The four totals (.kpis M:808-810). The mockup steps them by viewport; this row answers to its own
+   width, because the context panel and the contributors column both take some of it (definition of
+   done item 17). A ₹99,99,99,999.00 figure at 24px/700 needs about 290px of tile, so two across from
+   600px and four from 1200px. */
+.statsZone {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px; /* .kpis gap M:808 */
+}
+
+@container (min-width: 600px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1200px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .stats {
+    gap: 14px; /* .kpis M:1603 */
+  }
+}
+
+/* BEYOND-MOCKUP: the view tabs keep their one-line shape and scroll sideways in their own row when the
+   column is narrower than they are, with the mockup's thin scrollbar (M:488-495). */
+.scroller {
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.scroller::-webkit-scrollbar {
+  height: 10px;
+}
+
+.scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: var(--ui-radius);
+}
+
+.scroller::-webkit-scrollbar-thumb:hover {
+  background-color: var(--sb-h);
+}
+
+/* the strip keeps its natural width inside the scroller (.seg is inline-flex, M:778) */
+.rail {
+  width: max-content;
+}
+
+.panel {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .panel {
+    gap: 16px; /* M:1605 */
+  }
+}
+
+/* The first cell is the mockup's key cell (td.k M:997): the vendor or game name in --ink at 600. A game
+   keeps its vendor on a second, dimmer line (td.dim M:998), as the legacy cell did. */
+.nameCell {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* --ink-2, not td.dim's --ink-3: the drilled game's row is the kit's open row on --press, where 12px
+   --ink-3 is 4.41:1 in light (--ink-2 is 5.14:1 there, 5.66:1 in dark). */
+.subLine {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+/* GGR keeps the legacy bold and its signed colours as the KPI delta draws them (.kpi-d.up / .down,
+   M:839-840); a loss also carries its minus sign in the text, so colour is never the only signal. */
+.gain,
+.loss {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gain {
+  color: var(--pos-ink);
+}
+
+.loss {
+  color: var(--neg-ink);
+}
+
+/* Read by assistive tech only: which game is the selected one. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

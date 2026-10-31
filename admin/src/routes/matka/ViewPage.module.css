@@ -1,0 +1,32 @@
+/* Matka detail (/matka/:id). The mockup draws no matka detail page: details live in its drawer
+   (.dr-body/.dr-sec/.dl M:1150-1157), so this page is that drawer's content on a head-less card
+   (.card M:853-856), with the kit DescriptionList for the .dl rows and the kit CodeBlock for the three
+   JSON settings. Everything here is BEYOND-MOCKUP in placement and derives from those rules, as the
+   notification and task detail pages (Tasks 108, 109) do. */
+
+/* A head-less card body: the drawer body's rhythm (.dr-body M:1150) at the card inset. The first .dl
+   row brings 10px of its own, so 8px here lands the first term on the card's 18px inset. */
+.details {
+  padding: 8px var(--card-pad) var(--card-pad);
+}
+
+/* Schedule, Limits and Settings under the facts: the .dr-sec spacing above a block (18px, M:1151)
+   rounded to the kit's 16px step, and 12px between blocks. */
+.blocks {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 16px;
+}
+
+/* Each block is the containing block of its copy button's absolutely positioned announcement, so the
+   announcement can never escape and widen the page (the CopyButton lesson of Task 101). */
+.code {
+  position: relative;
+  min-width: 0;
+}
+
+/* The failed-load notice takes the card's full inset (--card-pad). */
+.state {
+  padding: var(--card-pad);
+}

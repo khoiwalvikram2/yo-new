@@ -1,0 +1,50 @@
+/* Pagination in the matchbook theme: a results count on the left, flat square page buttons on the right with
+   the current page in theme red. Visibility per width is handled here (not with utilities) because these
+   rules set display on the same elements. */
+.nova-pager { width: 100%; min-width: 0; color: var(--mb-text); font-family: var(--font-inter); }
+.nova-pager-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; min-width: 0; }
+.nova-pager-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.nova-pager-count { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0; color: var(--mb-muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.nova-pager :is(.is-strong, .is-total) { color: var(--mb-ink); font-weight: 700; }
+.nova-pager-page { display: none; margin: 0; color: var(--mb-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.nova-pager-controls { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.nova-pager-pages { display: flex; align-items: center; min-width: 0; }
+.nova-pager-numbers { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; }
+.nova-pager-mobile { display: none; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; color: var(--mb-muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.nova-pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.nova-pager-btn svg { width: 16px; height: 16px; }
+.nova-pager-btn:hover:not(:disabled, .is-current) { border-color: var(--mb-line-3); background: var(--mb-soft); }
+.nova-pager-btn.is-current { border-color: #C51A1B; color: #FFFFFF; background: #C51A1B; cursor: default; }
+.nova-pager-btn:disabled { border-color: var(--mb-line); color: #C4C3C8; background: var(--mb-panel-2); cursor: not-allowed; }
+.nova-pager-ellipsis { min-width: 22px; color: var(--mb-faint); font-size: 14px; text-align: center; }
+
+@media (max-width: 767.98px) {
+  .nova-pager-btn.is-edge { display: none; }
+}
+@media (max-width: 639.98px) {
+  .nova-pager-bar { flex-direction: column; align-items: stretch; }
+  .nova-pager-word, .nova-pager-numbers { display: none; }
+  .nova-pager-page { display: block; }
+  .nova-pager-mobile { display: inline-flex; }
+  .nova-pager-controls { justify-content: space-between; }
+  .nova-pager-btn { min-width: 44px; height: 40px; }
+}

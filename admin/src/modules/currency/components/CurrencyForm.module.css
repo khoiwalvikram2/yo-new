@@ -1,0 +1,23 @@
+/* The create / edit currency form (W7 Task 199). The mockup has no form design (O8); the fields wear the kit
+   control face (.searchfield M:693-701) in the form idiom Create Bonus set (Task 027). The layout below is
+   BEYOND-MOCKUP. */
+
+/* One column of fields, as the legacy vertical antd form; a little tighter than the kit's page-form gap
+   because it sits in a dialog. */
+.form {
+  gap: 16px;
+}
+
+/* The legacy code input was monospace. */
+.codeInput {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+}
+
+/* Submit then Cancel, start-aligned, as the legacy Space; they wrap on a narrow dialog. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}

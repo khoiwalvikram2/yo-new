@@ -1,0 +1,395 @@
+/* No mockup select. The control face is .searchfield's (M:692-700): --surf, 1px --line, --r-ctl, 36px,
+   hover border --acc-soft-h. Disabled palette from button:disabled (M:479-483). The chevron is a Tabler
+   icon in currentColor, not a background-image data URI, so no colour literal is needed. */
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--font-ui);
+}
+
+.control {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 5px;
+  min-width: 0;
+}
+
+.inline {
+  flex-direction: row;
+}
+
+.stacked {
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.label {
+  flex: none;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.required {
+  margin-left: 3px;
+  color: var(--neg-ink);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.field {
+  position: relative;
+  display: inline-flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.md {
+  height: 36px;
+}
+
+.sm {
+  height: 30px;
+}
+
+.sm .select {
+  padding: 0 28px 0 10px;
+  border-radius: var(--ui-radius);
+  font-size: 12.5px;
+}
+
+.select:not(:disabled):hover {
+  border-color: var(--acc-soft-h);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* the themed list is open: the face keeps Combobox's open look (Listbox.module.css .field:focus-within),
+   also while focus is in the list's search box */
+.open .select {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+
+/* the open list on Windows / Firefox paints <option> backgrounds; keep them on the theme */
+.select option {
+  background: var(--float);
+  color: var(--ink);
+}
+
+.select:disabled {
+  cursor: not-allowed;
+  color: var(--ink-3);
+  background: var(--surf-3);
+  border-color: var(--hair);
+}
+
+.select[aria-busy='true'] {
+  cursor: progress;
+}
+
+.error .select {
+  border-color: var(--neg-ink);
+}
+
+.help,
+.errorText {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.help {
+  color: var(--ink-3);
+}
+
+.errorText {
+  color: var(--neg-ink);
+  font-weight: 500;
+}
+
+.chevron {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  display: flex;
+  color: var(--ink-3);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.sm .chevron {
+  right: 8px;
+}
+
+/* The themed list's search box (kit .dd-search), above more than six options. It is portalled with the
+   list, so it takes the list's tokens; its focus look is the field face's. */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink-3);
+  cursor: text;
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease;
+}
+
+.search:focus-within {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+
+.searchIcon {
+  flex: none;
+}
+
+.searchInput {
+  flex: 1;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.searchInput::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .select,
+  .search {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* The closed box is the kit .ctl select: 44px (sm 36px), 1px --line-2, 3px, --field, 15px ink, chevron in
+   --ink-3 12px in from the edge. Hover --line-3; focus --focus-border plus the 3px --focus-ring (a
+   transparent outline stays for forced-colours mode); invalid --neg-ink through hover and focus;
+   disabled --disabled-bg/--disabled-fg on --line. Label, help and error take the kit .fld faces.
+   The OPEN list is ListboxPopup (kit .dd-pop, Listbox.module.css) for mouse and pen; while it is open the
+   face shows the focus look and the chevron turns over (kit .ctl.is-open). Touch still gets the native
+   popup (the .select option rule above keeps it on the theme colours). The search box is kit .dd-search. */
+:global(html:not([data-skin='classic'])) .control {
+  gap: 6px;
+}
+
+:global(html:not([data-skin='classic'])) .label {
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+:global(html:not([data-skin='classic'])) .required {
+  color: var(--acc-ink);
+}
+
+:global(html:not([data-skin='classic'])) .error .label {
+  color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .md {
+  height: 44px;
+}
+
+:global(html:not([data-skin='classic'])) .sm {
+  height: 36px;
+}
+
+:global(html:not([data-skin='classic'])) .select {
+  padding: 0 38px 0 12px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 400;
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease, background var(--t-1) ease;
+}
+
+:global(html:not([data-skin='classic'])) .sm .select {
+  padding: 0 32px 0 10px;
+  border-radius: var(--ui-radius);
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .select:not(:disabled):hover {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .select:not(:disabled):focus {
+  border-color: var(--focus-border);
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .open .select {
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .error .select,
+:global(html:not([data-skin='classic'])) .error .select:not(:disabled):hover,
+:global(html:not([data-skin='classic'])) .error .select:not(:disabled):focus {
+  border-color: var(--neg-ink);
+}
+
+:global(html:not([data-skin='classic'])) .select:disabled {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .chevron {
+  right: 12px;
+  color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .sm .chevron {
+  right: 10px;
+}
+
+:global(html:not([data-skin='classic'])) .field:has(.select:disabled) .chevron {
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .chevron > svg {
+  transition: transform 0.15s ease;
+}
+
+:global(html:not([data-skin='classic'])) .open .chevron > svg {
+  transform: rotate(180deg);
+}
+
+/* kit .dd-search: 36px, 1px --line-2, 3px, --field; focus --focus-border plus the 3px --focus-ring */
+:global(html:not([data-skin='classic'])) .search {
+  height: 36px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+}
+
+:global(html:not([data-skin='classic'])) .search:focus-within {
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .searchInput {
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .help,
+:global(html:not([data-skin='classic'])) .errorText {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+:global(html:not([data-skin='classic'])) .errorText {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  color: var(--neg-ink);
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .errorText::before {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  background: currentColor;
+  content: '';
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-skin='classic'])) .select,
+  :global(html:not([data-skin='classic'])) .chevron > svg {
+    transition: none;
+  }
+}
+
+/* In the FilterBar's folded Filters sheet a select whose label the bar hid shows it as a caption over a
+   full-width field: the bar's inline labels do not come along into the sheet. */
+:global([data-filter-popover]) .root {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+}
+
+:global([data-filter-popover]) label.visuallyHidden {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  white-space: normal;
+}

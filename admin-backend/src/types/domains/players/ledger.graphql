@@ -1,0 +1,38 @@
+# Player Wallet Ledger (wallet_ledger table) — separate from ledger_entries / Transactions tab
+
+type WalletLedgerEntry {
+  id: Int!
+  walletType: String!
+  category: String!
+  direction: String!
+  amount: Float!
+  balanceBefore: Float
+  balanceAfter: Float
+  description: String
+  referenceType: String
+  referenceId: String
+  meta: JSON
+  createdAt: String!
+}
+
+input WalletLedgerFilter {
+  walletType: String!
+  category: String
+  categories: [String]
+  direction: String
+  includeAdjustmentDirection: String
+  dateFrom: String
+  dateTo: String
+  limit: Int
+  offset: Int
+}
+
+type WalletLedgerResult {
+  items: [WalletLedgerEntry!]!
+  total: Int!
+  hasMore: Boolean!
+}
+
+extend type Query {
+  playerWalletLedger(playerId: ID!, filter: WalletLedgerFilter!): WalletLedgerResult!
+}

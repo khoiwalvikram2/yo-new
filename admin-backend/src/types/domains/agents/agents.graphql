@@ -1,0 +1,713 @@
+enum AgentScheme {
+  COMMISSION
+  SHARING
+  CREDIT
+}
+
+enum AgentDomain {
+  sports
+  casino
+  matka
+}
+
+enum PlayerType {
+  REGULAR
+  AGENT_CREDIT
+  WHITELABEL_CREDIT
+  SHARING_AGENT_PLAYER
+  COMMISSION_AGENT_PLAYER
+}
+
+enum CreditTransactionType {
+  ALLOCATION
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+  USAGE
+  RELEASE
+  ADJUSTMENT
+  CREDIT_LIMIT_ADJUSTMENT
+  CREDIT_USED_INCREASE
+  CREDIT_USED_DECREASE
+}
+
+type AgentDomainRate {
+  domain: AgentDomain!
+  rate: Float!
+}
+
+type AgentBasicInfo {
+  id: ID!
+  username: String
+  schemeType: AgentScheme!
+  rate: Float
+}
+
+type AgentAccount {
+  id: ID!
+  tenantId: ID!
+  username: String
+  phone: String
+  schemeType: AgentScheme!
+  allowedDomains: [AgentDomain!]!
+  status: String!
+  parentAgentId: ID
+  parentAgent: AgentAccount
+  levelIndex: Int
+  tallyEnabled: Boolean
+  tallyDomains: [AgentDomain!]
+  commissionRates: [AgentDomainRate!]
+  sharingRates: [AgentDomainRate!]
+  creditLimit: Float
+  creditUsed: Float
+  creditAvailable: Float
+  creditAlertThreshold: Float
+  settlementBalance: Float
+  settlementBalanceSports: Float
+  settlementBalanceCasino: Float
+  settlementBalanceMatka: Float
+  settlementBalanceByDomain: [DomainSettlement!]!
+  createdAt: String!
+}
+
+type AgentWallet {
+  agentId: ID!
+  currency: String!
+  balance: Float!
+  lockedBalance: Float!
+  updatedAt: String!
+}
+
+type CommissionConfig {
+  id: ID!
+  agentId: ID!
+  domain: AgentDomain!
+  commissionRate: Float!
+  effectiveFrom: String!
+  effectiveTo: String
+}
+
+type SharingConfig {
+  id: ID!
+  agentId: ID!
+  domain: AgentDomain!
+  shareRate: Float!
+  basis: String!
+  effectiveFrom: String!
+  effectiveTo: String
+}
+
+type AgentLedgerLine {
+  id: ID!
+  agentId: ID!
+  domain: AgentDomain!
+  periodFrom: String!
+  periodTo: String!
+  lineType: String!
+  amount: Float!
+  currency: String!
+  refKey: String
+  createdAt: String!
+}
+
+type AgentSettlement {
+  id: ID!
+  agentId: ID!
+  periodFrom: String!
+  periodTo: String!
+  totalAmount: Float!
+  direction: String! # TO_AGENT = platform pays to agent, FROM_AGENT = platform collects from agent
+  currency: String!
+  status: String!
+  postedAt: String
+  postedBy: ID
+  createdAt: String!
+  notes: String
+  """ When present, the agent who was settled (e.g. for downline history, the sub-agent). """
+  agent: AgentBasicInfo
+}
+
+input CreateAgentInput {
+  schemeType: AgentScheme!
+  allowedDomains: [AgentDomain!]!
+  status: String
+  parentAgentId: ID
+  levelIndex: Int
+  tallyEnabled: Boolean
+  tallyDomains: [AgentDomain!]
+  username: String!
+  password: String!
+  phone: String
+  currency: String!
+  # CREDIT agents only: credit limit at creation (root: whitelabel pool; sub-agent: parent's available credit).
+  creditLimit: Float
+}
+
+input UpdateAgentInput {
+  id: ID!
+  allowedDomains: [AgentDomain!]
+  status: String
+  parentAgentId: ID
+  levelIndex: Int
+  tallyEnabled: Boolean
+  tallyDomains: [AgentDomain!]
+}
+
+input SetCredentialsInput {
+  agentId: ID!
+  username: String!
+  password: String!
+}
+
+input SetCommissionConfigInput {
+  agentId: ID!
+  domain: AgentDomain!
+  commissionRate: Float!
+  effectiveFrom: String!
+  effectiveTo: String
+}
+
+input SetSharingConfigInput {
+  agentId: ID!
+  domain: AgentDomain!
+  shareRate: Float!
+  effectiveFrom: String!
+  effectiveTo: String
+}
+
+input SettleInput {
+  agentId: ID!
+  periodFrom: String!
+  periodTo: String!
+  currency: String!
+}
+
+input AllocateCreditToPlayerInput {
+  agentId: ID!
+  playerId: ID!
+  amount: Float!
+  reason: String
+}
+
+input CreditOperationInput {
+  agentId: ID!
+  targetEntityType: String!
+  targetEntityId: ID!
+  amount: Float!
+  reason: String
+}
+
+input AdjustAgentCreditInput {
+  agentId: ID!
+  adjustmentType: String! # INCREASE | DECREASE | LIMIT_CHANGE
+  amount: Float!
+  notes: String
+}
+
+input TransferCreditInput {
+  parentAgentId: ID!
+  fromSubAgentId: ID!
+  toSubAgentId: ID!
+  amount: Float!
+  reason: String
+}
+
+input SettlementInput {
+  agentId: ID!
+  periodFrom: String!
+  periodTo: String!
+  resetPlayerBalances: Boolean!
+}
+
+input AgentLoginInput {
+  username: String!
+  password: String!
+}
+
+type AgentAuthPayload {
+  token: String!
+  agent: AgentAccount!
+  permissions: [Permission!]!
+  tenant: String
+  isReadOnly: Boolean
+}
+
+type AgentGGRSummary {
+  sportsGGR: Float!
+  casinoGGR: Float!
+  matkaGGR: Float!
+  totalGGR: Float!
+}
+
+type AgentListStats {
+  # Common for all scheme types
+  activePlayers: Int!
+  lastLogin: String
+  daysSinceLastBet: Int
+  
+  # For SHARING and CREDIT agents
+  totalDeposits: Float
+  totalWithdrawals: Float
+  ggr: Float
+  totalExposure: Float
+  profitLoss: Float
+  plTrend: String
+  betCount: Int
+  pendingSettlement: Float
+  totalSettled: Float
+  lastSettlementDate: String
+  
+  # For COMMISSION agents
+  turnover: Float
+  commissionEarned: Float
+  commissionTrend: String
+}
+
+type AgentWithStats {
+  agent: AgentAccount!
+  stats: AgentListStats!
+}
+
+type AgentsPageResult {
+  items: [AgentAccount!]!
+  itemsWithStats: [AgentWithStats!]
+  total: Int!
+}
+
+type CreditAllocation {
+  agentId: ID!
+  creditLimit: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+  creditAlertThreshold: Float!
+  settlementBalance: Float!
+  settlementBalanceSports: Float!
+  settlementBalanceCasino: Float!
+  settlementBalanceMatka: Float!
+  usagePercentage: Float!
+  isOverLimit: Boolean!
+  isNearThreshold: Boolean!
+}
+
+type AgentActivityEvent {
+  id: ID!
+  type: String!
+  timestamp: String!
+  playerName: String!
+  playerId: String!
+  amount: Float
+  currency: String
+  domain: String
+  details: String
+}
+
+type AgentDashboardStats {
+  totalPlayers: Int!
+  activePlayers24h: Int!
+  newPlayersToday: Int!
+  pendingDeposits: Int!
+  pendingDepositsAmount: Float!
+  pendingWithdrawals: Int!
+  pendingWithdrawalsAmount: Float!
+  totalDeposits: Float!
+  totalWithdrawals: Float!
+  directDeposits: Float!
+  directWithdrawals: Float!
+  manualDeposits: Float!
+  manualWithdrawals: Float!
+  ggr: Float!
+  profitLoss: Float!
+  ggrByWalletType: WalletTypeBreakdown!
+  plByWalletType: WalletTypeBreakdown!
+  directPlayerCount: Int
+  subAgentPlayerCount: Int
+  totalSubAgents: Int
+  totalDownlineBalance: Float
+  totalDownlineExposure: Float
+  sportsGgr: Float
+  sportsPl: Float
+  casinoGgr: Float
+  casinoPl: Float
+  matkaGgr: Float
+  matkaPl: Float
+}
+
+"Tally rules metadata: whether cross-domain offset is enabled and which domains are included."
+type TallyApplied {
+  enabled: Boolean!
+  domains: [AgentDomain!]!
+}
+
+type CommissionSummary {
+  totalEarned: Float!
+  calculatedTotal: Float
+  pending: Float!
+  paid: Float!
+  sportsCommission: Float!
+  casinoCommission: Float!
+  matkaCommission: Float!
+  currency: String!
+  sportsGGR: Float
+  casinoGGR: Float
+  matkaGGR: Float
+  "GGR from agent's direct players only (for Apna / retained display)."
+  directSportsGGR: Float
+  directCasinoGGR: Float
+  directMatkaGGR: Float
+  sportsCommissionRate: Float
+  casinoCommissionRate: Float
+  matkaCommissionRate: Float
+  "Net commission (retained by this agent after sub-agent payables). Present when caller is admin."
+  netSportsCommission: Float
+  netCasinoCommission: Float
+  netMatkaCommission: Float
+  "Settlement total after tally rules (used for pending/payable)."
+  effectiveCalculatedTotal: Float!
+  effectiveSportsCommission: Float!
+  effectiveCasinoCommission: Float!
+  effectiveMatkaCommission: Float!
+  tallyApplied: TallyApplied!
+  "GROSS whatever the caller: what the agent's payer owes it (rate x subtree GGR, cycle by cycle), before tally rules."
+  grossSportsCommission: Float
+  grossCasinoCommission: Float
+  grossMatkaCommission: Float
+  "GROSS after tally rules, per cycle (the Receivable; what payCommission pays the agent)."
+  grossEffectiveSportsCommission: Float
+  grossEffectiveCasinoCommission: Float
+  grossEffectiveMatkaCommission: Float
+  grossEffectiveCalculatedTotal: Float
+  "NET after tally (My Share): grossEffective minus what the agent owes its direct sub-agents (their grossEffective)."
+  netEffectiveSportsCommission: Float
+  netEffectiveCasinoCommission: Float
+  netEffectiveMatkaCommission: Float
+  netEffectiveCalculatedTotal: Float
+  "Loss carried into the period's weeks from the week before each (one week only, from the week of 2026-10-19 IST). The totals are after it; the per-domain figures are before it."
+  carriedLoss: Float
+  "The part of carriedLoss taken off the gross (never below 0); the rest is forgiven."
+  carryApplied: Float
+  "The latest week's loss (what the floor removed from its gross), which carries into the next week."
+  lossThisCycle: Float
+}
+
+type CommissionHistoryEntry {
+  id: ID!
+  date: String!
+  playerId: String!
+  playerName: String!
+  domain: AgentDomain!
+  betAmount: Float!
+  ggr: Float!
+  commissionRate: Float!
+  commissionEarned: Float!
+  currency: String!
+  status: String
+  # Sports-specific
+  eventName: String
+  marketName: String
+  selectionName: String
+  side: String
+  odds: Float
+  liability: Float
+  # Casino-specific
+  gameName: String
+  vendorName: String
+  payout: Float
+  winAmount: Float
+  # Matka-specific
+  matkaType: String
+  bidType: String
+  betNumbers: String
+  payoutMultiplier: Float
+  potentialWin: Float
+  actualWin: Float
+  marketSession: String
+}
+
+type CommissionHistoryResult {
+  entries: [CommissionHistoryEntry!]!
+  total: Int!
+}
+
+type DirectPlayerCommissionSummary {
+  playerId: ID!
+  playerName: String!
+  subAgentId: ID
+  subAgentUsername: String
+  subAgentSportsRate: Float
+  subAgentCasinoRate: Float
+  subAgentMatkaRate: Float
+  sportsGGR: Float
+  casinoGGR: Float
+  matkaGGR: Float
+  sportsCommission: Float
+  casinoCommission: Float
+  matkaCommission: Float
+  totalGGR: Float
+  totalCommission: Float
+}
+
+type CommissionReport {
+  summary: CommissionSummary!
+  history: CommissionHistoryResult!
+}
+
+type SettlementSummary {
+  netPL: Float!
+  sharePercentage: Float!
+  "SHARING: signed like the SHARE/SETTLEMENT lines - positive = TO_AGENT (the agent is paid), negative = FROM_AGENT (the agent pays)."
+  settlementDue: Float!
+  "Who pays settlementDue: TO_AGENT, FROM_AGENT or NONE."
+  settlementDirection: String
+  lastSettlementDate: String
+  lastSettlementAmount: Float
+  currency: String!
+  # Domain-wise breakdown
+  sportsPL: Float!
+  casinoPL: Float!
+  matkaPL: Float!
+  sportsShare: Float!
+  casinoShare: Float!
+  matkaShare: Float!
+  # Domain breakdown array (for frontend)
+  settlementBreakdownByDomain: [SettlementDomainBreakdownItem!]!
+  # New fields for contributions
+  directPlayersContribution: Float!
+  subAgentsContribution: Float!
+  directPlayersCount: Int!
+  subAgentsCount: Int!
+  topPlayers: [PlayerSettlementContribution!]!
+  subAgents: [SubAgentSettlementContribution!]!
+}
+
+type CreditTransaction {
+  id: ID!
+  fromEntityType: String!
+  fromEntityId: ID!
+  toEntityType: String!
+  toEntityId: ID!
+  transactionType: CreditTransactionType!
+  amount: Float!
+  currency: String!
+  balanceBefore: Float!
+  balanceAfter: Float!
+  reason: String
+  createdBy: ID
+  betId: ID
+  settlementId: ID
+  cashoutId: ID
+  createdByType: String
+  metadata: String
+  createdAt: String!
+}
+
+type PlayerCreditSummary {
+  playerId: ID!
+  playerName: String!
+  creditLimit: Float!
+  currentBalance: Float!
+  openExposure: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+}
+
+type CreditRecalculationResult {
+  playerId: ID!
+  currentUsed: Float!
+  calculatedUsed: Float!
+  delta: Float!
+  currentBalance: Float!
+  openExposure: Float!
+}
+
+type AgentCreditRecalculationResult {
+  agentId: ID!
+  currentUsed: Float!
+  calculatedUsed: Float!
+  delta: Float!
+  affectedPlayers: [CreditRecalculationResult!]!
+  subAgentAllocations: Float!
+}
+
+type AgentCreditAlert {
+  id: ID!
+  agentId: ID!
+  alertType: String!
+  threshold: Float
+  currentValue: Float
+  isActive: Boolean!
+  notifiedAt: String
+  createdAt: String!
+}
+
+type WhitelabelCreditPlayer {
+  id: ID!
+  name: String!
+  email: String
+  phone: String
+  creditLimit: Float!
+  creditUsed: Float!
+  creditAvailable: Float!
+}
+
+type AgentCreditAdjustment {
+  id: ID!
+  agentId: ID!
+  adjustmentType: String!
+  amount: Float!
+  previousLimit: Float!
+  newLimit: Float!
+  previousUsed: Float!
+  newUsed: Float!
+  notes: String
+  createdAt: String!
+}
+
+type AgentCreditAdjustmentPayload {
+  success: Boolean!
+  message: String!
+  adjustment: AgentCreditAdjustment
+}
+
+type AdjustSubAgentCreditPayload {
+  success: Boolean!
+  message: String!
+  agent: AgentAccount
+}
+
+type AgentSharingInfo {
+  sharingRates: [AgentDomainRate!]!
+  allTimeTotals: [DomainTotal!]!
+  currentPeriodTotals: [DomainTotal!]!
+  currency: String!
+}
+
+type AgentCommissionInfo {
+  commissionRates: [AgentDomainRate!]!
+  allTimeTotals: [DomainTotal!]!
+  currentPeriodTotals: [DomainTotal!]!
+  currency: String!
+}
+
+input AdjustWhitelabelPlayerCreditInput {
+  playerId: ID!
+  creditLimit: Float!
+  reason: String
+}
+
+input WhitelabelCreditOperationInput {
+  playerId: ID!
+  amount: Float!
+  reason: String
+}
+
+type AgentsQuery {
+  agentMe: AgentAccount
+  agentProfile(id: ID!): AgentAccount
+  agentTree(rootId: ID!, depth: Int = 5): [AgentAccount!]!
+  agentDescendantIds(agentId: ID!): [ID!]!
+  agentRootIds: [ID!]!
+  agentRootAgents: [AgentBasicInfo!]!
+  agentsPage(
+    query: String
+    schemeType: AgentScheme
+    status: String
+    parentAgentId: ID
+    directOnly: Boolean
+    offset: Int
+    limit: Int
+    includeStats: Boolean
+  ): AgentsPageResult!
+  checkAgentUsernameAvailable(username: String!, excludeAgentId: String): CheckAvailabilityResult!
+  agentLedgers(agentId: ID!, periodFrom: String!, periodTo: String!): [AgentLedgerLine!]!
+  agentSettlements(agentId: ID!, periodFrom: String!, periodTo: String!): [AgentSettlement!]!
+  """ Settlements done by the logged-in agent to their direct sub-agents (downline - "maine sub-agents ko settle kiya"). """
+  downlineSettlementHistory(periodFrom: String!, periodTo: String!): [AgentSettlement!]!
+  agentKPIs(agentId: ID!, periodFrom: String!, periodTo: String!): AgentGGRSummary!
+  agentDashboardStats(agentId: ID!, dateFrom: String, dateTo: String): AgentDashboardStats!
+  commissionSummary(agentId: ID!, periodFrom: String!, periodTo: String!): CommissionSummary!
+  commissionHistory(
+    agentId: ID!
+    periodFrom: String!
+    periodTo: String!
+    currency: String
+    domain: AgentDomain
+    playerId: ID
+    limit: Int
+    offset: Int
+  ): CommissionHistoryResult!
+  commissionReport(
+    agentId: ID!
+    periodFrom: String!
+    periodTo: String!
+    currency: String
+    domain: AgentDomain
+    limit: Int
+    offset: Int
+  ): CommissionReport!
+  directPlayerCommissionSummaries(
+    agentId: ID
+    periodFrom: String!
+    periodTo: String!
+  ): [DirectPlayerCommissionSummary!]!
+  settlementSummary(agentId: ID!, periodFrom: String!, periodTo: String!): SettlementSummary!
+  creditAllocation(agentId: ID!): CreditAllocation
+  agentActivity(agentId: ID!, limit: Int = 10): [AgentActivityEvent!]!
+  agentSecurityAudit(agentId: ID!, limit: Int): [PlayerSecurityEvent!]!
+  creditTransactionHistory(
+    entityType: String!
+    entityId: ID!
+    transactionTypes: [CreditTransactionType!]
+    from: String
+    to: String
+    limit: Int
+  ): [CreditTransaction!]!
+  agentCreditTransactions(agentId: ID!, limit: Int, offset: Int): [CreditTransaction!]!
+  agentCreditTransactionsCount(agentId: ID!): Int!
+  agentPlayerCredits(agentId: ID!): [PlayerCreditSummary!]!
+  previewCreditReconciliation(agentId: ID!): AgentCreditRecalculationResult!
+  agentCreditAlerts(agentId: ID!, isActive: Boolean): [AgentCreditAlert!]!
+  whitelabelCreditPlayers: [WhitelabelCreditPlayer!]!
+}
+
+type AgentsMutation {
+  createAgent(input: CreateAgentInput!): AgentAccount!
+  updateAgent(input: UpdateAgentInput!): AgentAccount!
+  setAgentCredentials(input: SetCredentialsInput!): Boolean!
+  setCommissionConfig(input: SetCommissionConfigInput!): CommissionConfig!
+  setSharingConfig(input: SetSharingConfigInput!): SharingConfig!
+  settleAgent(input: SettleInput!): AgentSettlement! @deprecated(reason: "Use top-level settleAgent mutation (SettleAgentInput) instead")
+  postSettlement(settlementId: ID!): AgentSettlement!
+  agentLogin(input: AgentLoginInput!): AgentAuthPayload!
+  # Status management
+  updateAgentStatus(agentId: ID!, status: String!): AgentAccount!
+  # Hierarchy management mutations
+  adjustSubAgentCredit(agentId: ID!, creditLimit: Float!): AdjustSubAgentCreditPayload!
+  adjustAgentCredit(input: AdjustAgentCreditInput!): AgentCreditAdjustmentPayload!
+  suspendSubAgent(agentId: ID!, reason: String): AgentAccount!
+  blockSubAgent(agentId: ID!, reason: String): AgentAccount!
+  # Credit management mutations
+  allocateCreditToPlayer(input: AllocateCreditToPlayerInput!): PlayerCreditSummary!
+  depositCredit(input: CreditOperationInput!): CreditAllocation!
+  withdrawCredit(input: CreditOperationInput!): CreditAllocation!
+  transferCredit(input: TransferCreditInput!): Boolean!
+  settleSharingAgent(input: SettlementInput!): AgentSettlement!
+  applyCreditReconciliation(agentId: ID!): Boolean!
+  setAgentCreditAlertThreshold(agentId: ID!, threshold: Float!): CreditAllocation!
+  resolveAgentCreditAlert(alertId: ID!): Boolean!
+  changeAgentPassword(currentPassword: String!, newPassword: String!): MessageResponse!
+  adminResetAgentPassword(agentId: ID!, newPassword: String!, adminPassword: String!): MessageResponse!
+  # Whitelabel credit player mutations
+  adjustWhitelabelPlayerCredit(input: AdjustWhitelabelPlayerCreditInput!): WhitelabelCreditPlayer!
+  depositCreditToWhitelabelPlayer(input: WhitelabelCreditOperationInput!): WhitelabelCreditPlayer!
+  withdrawCreditFromWhitelabelPlayer(input: WhitelabelCreditOperationInput!): WhitelabelCreditPlayer!
+}
+
+extend type Query {
+  agents: AgentsQuery!
+}
+
+extend type Mutation {
+  agents: AgentsMutation!
+}
+
+

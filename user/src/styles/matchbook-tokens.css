@@ -1,0 +1,192 @@
+/* Matchbook content tokens for the player panel: light by default, dark under html.dark (ThemeSwitch).
+   Every redesigned stylesheet paints content with these (--mb-*), and the older design-system variables
+   (--ds-color-slate-*, --surface, --text, --border, ...) are mapped onto them below, so one switch flips the
+   whole panel: page, panels, tables, fields, modals and drawers. The chrome (topbar, sidebar, rail, footer) is
+   charcoal in both themes and keeps its own colours. */
+:root {
+  --mb-page: #ECECED;
+  --mb-panel: #FFFFFF;
+  --mb-panel-2: #FAFAFB;
+  --mb-soft: #F2F2F3;
+  --mb-hover: #F5F5F5;
+  --mb-line: #DDDDDD;
+  --mb-line-2: #CFCFD3;
+  --mb-line-3: #A3A1A7;
+  --mb-ink: #141518;
+  --mb-text: #333333;
+  --mb-muted: #66656B;
+  --mb-faint: #6F6E74;
+  --mb-field: #FFFFFF;
+  --mb-disabled-bg: #E2E3E3;
+  --mb-disabled-fg: #8D8C92;
+  --mb-bar: #43444A;
+  --mb-bar-2: #2B2F35;
+  --mb-bar-text: #FFFFFF;
+  --mb-bar-muted: #C9CBD1;
+  --mb-red: #C51A1B;
+  --mb-red-hover: #A81516;
+  --mb-red-text: #C51A1B;
+  --mb-link: #1B6FAE;
+  --mb-green: #0B8040;
+  --mb-amber: #A15C00;
+  --mb-error: #C4271C;
+  --mb-green-bg: #E3F4EA;
+  --mb-amber-bg: #FDF1DC;
+  --mb-red-bg: #FCE7E6;
+  --mb-blue-bg: #E4EFF8;
+  --mb-neutral-bg: #ECECED;
+  --mb-green-ink: #0B6B36;
+  --mb-amber-ink: #8A4F00;
+  --mb-red-ink: #A61B1B;
+  --mb-blue-ink: #17598C;
+  --mb-neutral-ink: #53555B;
+  --mb-focus: #1B6FAE;
+  --mb-focus-border: #2B2F35;
+  --mb-focus-ring: rgb(43 47 53 / 12%);
+  --mb-green-line: #BFE3CD;
+  --mb-amber-line: #F2D9AE;
+  --mb-red-line: #F1C4C0;
+  --mb-shadow: 0 1px 2px rgb(16 18 22 / 6%);
+  --mb-shadow-lg: 0 18px 48px rgb(16 18 22 / 22%);
+  --mb-backdrop: rgb(12 13 16 / 62%);
+  /* Ink on the back/lay odds colours, which stay light blue / pink in both themes. */
+  --mb-odds-ink: #141518;
+  --mb-odds-muted: #45474D;
+  --mb-back-text: #17699E;
+  --mb-lay-text: #B0304E;
+  --mb-fancy-ink: #5B33A6;
+  /* Text on the charcoal chrome (topbar, sidebar, rail, section bars), the same in both themes. */
+  --mb-chrome-link: #7CC4F5;
+  --mb-chrome-red: #FF6A6B;
+  /* Drawers (rail panels, profile sheet) and their rows. Dark lifts the drawer off the page and sinks its rows. */
+  --mb-drawer: #FFFFFF;
+  --mb-drawer-row: #FFFFFF;
+  --mb-drawer-row-hover: #FAFAFB;
+}
+html.dark {
+  --mb-page: #141619;
+  --mb-panel: #1E2125;
+  --mb-panel-2: #22252A;
+  --mb-soft: #272A30;
+  --mb-hover: #2B2F35;
+  --mb-line: #32363D;
+  --mb-line-2: #454A52;
+  --mb-line-3: #5F646C;
+  --mb-ink: #F3F4F6;
+  --mb-text: #D6D8DC;
+  --mb-muted: #A3A6AD;
+  --mb-faint: #9A9DA4;
+  --mb-field: #17191C;
+  --mb-disabled-bg: #2C2F34;
+  --mb-disabled-fg: #7D8087;
+  --mb-bar: #30333A;
+  --mb-bar-2: #24272C;
+  --mb-bar-text: #FFFFFF;
+  --mb-bar-muted: #B9BCC3;
+  --mb-red: #C51A1B;
+  --mb-red-hover: #D8282A;
+  --mb-red-text: #FF6A6B;
+  --mb-link: #5DB1F0;
+  --mb-green: #3FD08A;
+  --mb-amber: #F0B44C;
+  --mb-error: #FF6B61;
+  --mb-green-bg: rgb(63 208 138 / 14%);
+  --mb-amber-bg: rgb(240 180 76 / 15%);
+  --mb-red-bg: rgb(255 107 97 / 14%);
+  --mb-blue-bg: rgb(93 177 240 / 14%);
+  --mb-neutral-bg: #2C2F34;
+  --mb-green-ink: #5FE0A0;
+  --mb-amber-ink: #F5C46A;
+  --mb-red-ink: #FF8A82;
+  --mb-blue-ink: #8CCBFA;
+  --mb-neutral-ink: #C2C5CB;
+  --mb-focus: #5DB1F0;
+  --mb-focus-border: #A3A6AD;
+  --mb-focus-ring: rgb(255 255 255 / 14%);
+  --mb-green-line: rgb(63 208 138 / 38%);
+  --mb-amber-line: rgb(240 180 76 / 40%);
+  --mb-red-line: rgb(255 107 97 / 40%);
+  --mb-shadow: 0 1px 2px rgb(0 0 0 / 30%);
+  --mb-shadow-lg: 0 18px 48px rgb(0 0 0 / 55%);
+  --mb-backdrop: rgb(0 0 0 / 70%);
+  --mb-back-text: #6CC0F0;
+  --mb-lay-text: #F28CA2;
+  --mb-fancy-ink: #B79CF0;
+  --mb-drawer: #2A2E35;
+  --mb-drawer-row: #1E2125;
+  --mb-drawer-row-hover: #33373F;
+  color-scheme: dark;
+}
+
+/* The shell's content palette (panel-refresh.css used literals; these replace them with tokens). The chrome
+   blocks in panel-refresh.css (topbar, sidebar, rail) still override these for the charcoal bars. */
+html .nova-shell-matchbook {
+  --background: var(--mb-page);
+  --surface: var(--mb-panel);
+  --surface-2: var(--mb-soft);
+  --surface-3: var(--mb-line);
+  --muted: var(--mb-line);
+  --border: var(--mb-line);
+  --border-2: var(--mb-line-3);
+  --border-3: var(--mb-faint);
+  --text: var(--mb-text);
+  --subtle: var(--mb-muted);
+  --subtle-2: var(--mb-muted);
+}
+/* Content and everything that renders outside the shell in a portal or the top layer: modals (ModalSurface),
+   the profile drawer, the search dialog, toasts' hosts. */
+html .nova-shell-matchbook > .nova-workspace,
+html .nova-shell-matchbook .nova-panel,
+.nova-modal-layer,
+.nova-profile-dialog,
+.nova-search-dialog {
+  --background: var(--mb-page);
+  --surface: var(--mb-panel);
+  --surface-2: var(--mb-soft);
+  --surface-3: var(--mb-line);
+  --border: var(--mb-line);
+  --text: var(--mb-text);
+  --subtle: var(--mb-muted);
+  --nova-accent: #C51A1B;
+  --brand-primary: #C51A1B;
+  --brand-primary-dark: #A01516;
+  --ds-color-slate-50: var(--mb-ink);
+  --ds-color-slate-100: var(--mb-text);
+  --ds-color-slate-150: var(--mb-muted);
+  --ds-color-slate-200: var(--mb-muted);
+  --ds-color-slate-250: var(--mb-muted);
+  --ds-color-slate-300: var(--mb-muted);
+  --ds-color-slate-350: var(--mb-muted);
+  --ds-color-slate-400: var(--mb-muted);
+  --ds-color-slate-450: var(--mb-muted);
+  --ds-color-slate-500: var(--mb-muted);
+  --ds-color-slate-550: var(--mb-muted);
+  --ds-color-slate-600: var(--mb-line);
+  --ds-color-slate-650: var(--mb-line);
+  --ds-color-slate-700: var(--mb-line);
+  --ds-color-slate-750: var(--mb-soft);
+  --ds-color-slate-800: var(--mb-panel-2);
+  --ds-color-slate-850: var(--mb-panel);
+  --ds-color-slate-900: var(--mb-panel);
+  --ds-color-slate-950: var(--mb-page);
+  --ds-color-slate-975: var(--mb-page);
+  color: var(--mb-text);
+}
+/* In light mode slate-50 was white (used for white text on tinted tiles); keep that where it is a background. */
+html:not(.dark) .nova-shell-matchbook > .nova-workspace,
+html:not(.dark) .nova-modal-layer { --ds-color-slate-50: #FFFFFF; }
+html .nova-shell-matchbook > .nova-workspace { background: var(--mb-page); }
+
+/* Status colours written as Tailwind palette classes in the older components. Most were picked for a dark page
+   (the -400 shades), a few for a light one (-600), so each reads in one theme only. These remap the TEXT utilities
+   to the theme's status tokens; backgrounds and borders keep the palette. Same for the brand red used as text. */
+html:not(.dark) :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-sky-300, .text-sky-400, .text-sky-500, .text-blue-400, .text-cyan-400) { color: var(--mb-link); }
+html:not(.dark) :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-emerald-400, .text-emerald-500, .text-green-400, .text-green-500) { color: var(--mb-green); }
+html:not(.dark) :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-rose-400, .text-rose-500, .text-red-400, .text-red-500) { color: var(--mb-error); }
+html:not(.dark) :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-amber-400, .text-yellow-400, .text-orange-400, .text-orange-500) { color: var(--mb-amber); }
+html.dark :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-rose-500, .text-rose-600, .text-red-500, .text-red-600, .text-red-700) { color: var(--mb-error); }
+html.dark :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-emerald-600, .text-green-600) { color: var(--mb-green); }
+html.dark :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-sky-600, .text-blue-600) { color: var(--mb-link); }
+html.dark :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-\[color\:var\(--brand-primary\)\], .text-\[var\(--brand-primary\)\]) { color: var(--mb-red-text); }
+/* The focused field's label turns brand red on the pages (index.css); modals keep it ink (nova-modals.css). */
+html.dark .nova-shell-matchbook > .nova-workspace :is(.form-field:has(.field:focus-within) > label, .field:focus-within .field__label) { color: var(--mb-red-text); }

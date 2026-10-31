@@ -1,0 +1,56 @@
+/* Referral Program Settings (/referrals/program, W6 Task 176; mockup M:2336-2345). The mockup lists the
+   programme's settings as a key/value table in the generic template (M:3361-3409) and draws no form
+   (O8); this page edits the program, so it composes the form idiom Create Bonus set (Task 027) and the
+   rules below are BEYOND-MOCKUP unless a mockup rule is cited. */
+
+/* The notice, the attribution card and the form card stack with the mockup's card rhythm: 20px
+   (.grid M:897), 16px on phones (M:1604). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+}
+
+/* As on Create Bonus: the card's body is flush and the form owns the --card-pad gutter, so FormActions'
+   edge-to-edge bleed stays inside the form's box; the card clips to its corners for that sticky footer
+   (`clip` creates no scroll container, so the footer still sticks to the shell's scrolling main). */
+.card {
+  overflow: clip;
+}
+
+.form {
+  padding: var(--card-pad);
+}
+
+/* ---------- footer ---------- */
+
+/* The required-fields hint on the left and the two actions at their own width on the right, as the
+   legacy footer card laid them out; a phone stacks all three in reading order. */
+.footer {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.footerHint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The required mark FieldShell and FormField use (--neg-ink). */
+.requiredMark {
+  color: var(--neg-ink);
+}
+
+@media (max-width: 767px) {
+  .footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

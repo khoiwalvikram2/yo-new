@@ -1,0 +1,162 @@
+/* A full-width cover fading into the page canvas, with inset navigation and masked torch light. */
+.nova-ex-hero {
+  --promo-bleed: clamp(28px, 4cqi, 44px);
+  --promo-feather: 12px;
+  position: relative;
+  min-width: 0;
+  padding-bottom: var(--promo-bleed);
+  overflow: clip;
+  isolation: isolate;
+}
+/* Keep the extended fade below the artwork. The blurred continuation overlaps the feathered
+   image edge, so there is no crisp reflection boundary at the join. */
+.nova-ex-hero::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -12px;
+  left: 0;
+  z-index: 1;
+  height: calc(var(--promo-bleed) + 36px);
+  background: var(--promo-bleed-art) center bottom / 100% auto no-repeat;
+  transform: scaleY(-1);
+  filter: blur(12px);
+  pointer-events: none;
+}
+.nova-ex-hero::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  height: calc(var(--promo-bleed) + 20px);
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--mb-page) 32%, transparent) 40%, var(--mb-page) 90%);
+  pointer-events: none;
+}
+.nova-promo-stage {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  aspect-ratio: var(--promo-ratio);
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  background: #0E1015;
+  -webkit-mask-image: linear-gradient(180deg, #000000 calc(100% - var(--promo-feather)), transparent);
+  mask-image: linear-gradient(180deg, #000000 calc(100% - var(--promo-feather)), transparent);
+  touch-action: pan-y;
+  user-select: none;
+  isolation: isolate;
+}
+.nova-promo-stage:focus { outline: none; }
+.nova-promo-stage:focus-visible { outline: 2px solid var(--ex-link); outline-offset: -2px; }
+.nova-ex-hero-ad { position: absolute; inset: 0; display: block; overflow: hidden; visibility: hidden; }
+.nova-ex-hero-ad img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; -webkit-user-drag: none; }
+.nova-ex-hero-ad.is-active { z-index: 2; visibility: visible; animation: nova-promo-arrive .65s ease-out both; }
+.nova-ex-hero-ad.is-leaving { z-index: 1; transition: visibility 0s linear .65s; }
+
+/* Two soft cone masks sweep independently; the artwork never disappears outside the light. */
+.nova-promo-lighting {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.nova-promo-beam {
+  position: absolute;
+  bottom: -36%;
+  left: -22%;
+  width: 100%;
+  height: 180%;
+  background: linear-gradient(0deg, transparent 4%, rgb(255 220 160 / 7%) 40%, rgb(255 243 210 / 18%) 100%);
+  -webkit-mask-image: conic-gradient(from -25deg at 50% 100%, transparent 0deg, #000000 5deg 45deg, transparent 50deg);
+  mask-image: conic-gradient(from -25deg at 50% 100%, transparent 0deg, #000000 5deg 45deg, transparent 50deg);
+  transform-origin: 50% 100%;
+  animation: nova-promo-torch-left 7.5s ease-in-out infinite alternate;
+}
+.nova-promo-beam.is-right { left: 22%; animation-name: nova-promo-torch-right; animation-delay: -3.75s; animation-direction: alternate-reverse; }
+.nova-promo-touch-light {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 32% 78% at var(--torch-x, 50%) var(--torch-y, 50%), rgb(255 245 220 / 17%), transparent 75%);
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+.nova-promo-stage[data-torch-active='true'] .nova-promo-touch-light { opacity: 1; }
+@supports not (mask-image: conic-gradient(#000000, transparent)) {
+  .nova-promo-beam { clip-path: polygon(48% 100%, 52% 100%, 100% 0, 0 0); }
+}
+
+/* Inset arrows stay above the light layer and preserve 44px touch targets on every device. */
+.nova-promo-previous,
+.nova-promo-next {
+  position: absolute;
+  top: calc((100% - var(--promo-bleed)) / 2);
+  z-index: 4;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: rgb(18 20 27 / 90%);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 18%);
+  transform: translateY(-50%);
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+.nova-promo-previous { left: 12px; }
+.nova-promo-next { right: 12px; }
+.nova-promo-previous svg,
+.nova-promo-next svg { width: 19px; height: 19px; }
+.nova-promo-previous:hover,
+.nova-promo-next:hover { border-color: rgb(255 255 255 / 65%); background: #282A32; }
+.nova-promo-count {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--promo-bleed) + 8px);
+  z-index: 4;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 4px 7px;
+  border-radius: var(--ui-radius);
+  color: #D4D5DA;
+  background: rgb(14 16 22 / 85%);
+  font-size: 10px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.nova-promo-count strong { color: #FFFFFF; font-size: 12px; font-weight: 700; }
+.nova-promo-count > span { opacity: .5; }
+@keyframes nova-promo-arrive { from { opacity: 0; } to { opacity: 1; } }
+@keyframes nova-promo-torch-left { from { transform: rotate(-30deg); } to { transform: rotate(8deg); } }
+@keyframes nova-promo-torch-right { from { transform: rotate(30deg); } to { transform: rotate(-8deg); } }
+@container exmain (max-width: 639px) {
+  .nova-ex-hero { --promo-feather: 8px; }
+  .nova-promo-previous { left: 8px; }
+  .nova-promo-next { right: 8px; }
+  .nova-promo-count { right: 8px; bottom: calc(var(--promo-bleed) + 7px); }
+}
+/* Reopen the shared shape layer so the canvas can join flush despite its global 5px policy.
+   Individual controls keep their normal rounded shape. */
+@layer ui-radius-policy {
+  body .nova-ex-main > .nova-ex-hero,
+  body .nova-ex-main > .nova-ex-hero .nova-promo-stage,
+  body .nova-ex-main > .nova-ex-hero .nova-ex-hero-ad,
+  body .nova-ex-main > .nova-ex-hero .nova-ex-hero-ad > img,
+  body .nova-ex-main > .nova-ex-hero + .nova-ex-sport-tabs-wrap,
+  body .nova-ex-main > .nova-ex-hero + .nova-ex-sport-tabs-wrap .nova-ex-sport-tabs { border-radius: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-ex-hero-ad.is-active, .nova-promo-beam { animation: none; }
+  .nova-promo-lighting { display: none; }
+  .nova-ex-hero-ad.is-leaving,
+  .nova-promo-previous,
+  .nova-promo-next { transition: none; }
+}

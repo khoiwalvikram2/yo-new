@@ -1,0 +1,48 @@
+/* BEYOND-MOCKUP: player management's dense account controls use kit surfaces, type, and semantic tokens. */
+.stack { display: grid; gap: 16px; min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.secondary { color: var(--ink-2); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; margin: 0; }
+.cell { display: grid; gap: 4px; min-width: 160px; font-size: 12px; }
+.person { display: flex; align-items: center; gap: 12px; }
+.name { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.mono { font-variant-numeric: tabular-nums; }
+.positive { color: var(--pos-ink); }
+.negative { color: var(--neg-ink); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.row > :first-child { min-width: 0; }
+.section { border-bottom: 1px solid var(--line); padding-block: 8px; }
+.sectionButton { appearance: none; border: 0; width: 100%; border-radius: var(--ui-radius); background: transparent; color: var(--ink); font: inherit; text-align: left; padding: 10px 4px; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+.sectionButton:hover { background: var(--hover); }
+.sectionButton:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.sectionButton svg { flex-shrink: 0; }
+.sectionBody { padding: 12px 4px; }
+.sectionCopy { display: grid; gap: 3px; text-align: left; }
+.rates { display: grid; gap: 8px; }
+.footer { padding: var(--card-pad); border-top: 1px solid var(--line); }
+.fullscreen { background: var(--app); min-width: 0; }
+.fullscreen:fullscreen { overflow-y: auto; }
+.link { appearance: none; border: 0; background: transparent; color: var(--link, var(--acc-ink)); font: inherit; padding: 0; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.link:hover { text-decoration: underline; }
+.link:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: var(--ui-radius); }
+@media (max-width: 1050px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .two, .three { grid-template-columns: minmax(0, 1fr); } .metrics { gap: 8px; } .actions { gap: 6px; } }
+
+/* Account directory cells keep financial figures prominent and supporting details quiet. */
+.cell { gap: 5px; min-width: 125px; font-size: 13px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+.cell > :first-child { font-weight: 600; }
+.cell:has(.person) { max-width: 300px; min-width: 220px; }
+.cell .person { gap: 10px; margin-bottom: 4px; }
+.cell .person .link { font-size: 15px; font-weight: 650; }
+.cell .row { gap: 8px; }
+.cell .row .secondary { font-size: 12px; }
+.cell .row button { opacity: .55; }
+.cell .row button, .username button { width: 22px; height: 22px; padding: 2px; }
+.username { display: flex; align-items: center; gap: 5px; color: var(--ink-3); font-size: 12px; font-weight: 400; }
+.cell:hover .row button, .cell .row button:focus-visible { opacity: 1; }
+.cell .actions { gap: 5px; }
+.footer { padding: 14px 18px; background: var(--surf); border-radius: var(--ui-radius); }
+@media (hover: none) { .cell .row button { opacity: 1; } }

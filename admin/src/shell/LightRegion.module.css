@@ -1,0 +1,10 @@
+.root {
+  min-height: 100vh;
+  background: var(--app);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}

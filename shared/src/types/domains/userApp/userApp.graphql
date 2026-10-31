@@ -1,0 +1,951 @@
+# Shared user app domain schema
+
+type ApiMeta {
+  code: Int!
+  message: String
+  total: Int
+  page: Int
+  hasMore: Boolean
+}
+
+type UserDetail {
+  id: ID!
+  name: String
+  username: String
+  mobileNo: String
+  balance: Float
+  bonus: Float
+  wallet: String
+  affiliateCode: String
+  refBonus: Float
+  referralBalance: Float
+  referralBonusBalance: Float
+}
+
+type UserDetailResponse {
+  meta: ApiMeta!
+  data: UserDetail
+}
+
+type TransactionItem {
+  id: ID!
+  amount: Float!
+  type: String!
+  transactionType: String
+  description: String
+  createdAt: String!
+  status: String
+  bonusCampaignName: String
+  bonusCampaignType: String
+  stake: Float
+  pl: Float
+  price: Float
+  side: String
+  oddsSize: Float
+  liability: Float
+  selectionName: String
+  eventId: TransactionEvent
+  marketId: TransactionMarket
+  sportName: String
+  leagueName: String
+  provider: String
+  walletType: String
+  eventResult: String
+  result: String
+  currency: String
+  runDate: String
+  session: String
+  bidType: String
+  payoutMultiplier: Float
+  payout: Float
+  settledAt: String
+}
+
+type TransactionEvent {
+  id: ID!
+  name: String
+}
+
+type TransactionMarket {
+  id: ID!
+  marketName: String
+  marketType: String
+}
+
+type TransactionListResponse {
+  meta: ApiMeta!
+  data: [TransactionItem!]!
+}
+
+type AppSettingItem {
+  key: String!
+  value: String
+}
+
+type AppSettingsResponse {
+  version: String
+  meta: ApiMeta!
+  data: [AppSettingItem!]!
+}
+
+type Advertisement {
+  id: ID!
+  title: String
+  subtitle: String
+  image: String
+  type: String
+  url: String
+  order: Int
+  deviceType: String
+}
+
+type AdvertisementResponse {
+  meta: ApiMeta!
+  data: [Advertisement!]!
+}
+
+type WithdrawalRequest {
+  id: ID!
+  amount: Float!
+  status: String!
+  accountId: String
+  accountNumber: String
+  accountHolderName: String
+  method: String
+  ifscCode: String
+  currency: String
+  note: String
+  createdAt: String!
+}
+
+type WithdrawalRequestResponse {
+  meta: ApiMeta!
+  data: [WithdrawalRequest!]!
+}
+
+type AdminAccount {
+  id: ID!
+  type: String!
+  accountNumber: String
+  ifscCode: String
+  bankName: String
+  accountHolderName: String
+  branch: String
+  upiId: String
+  displayName: String
+  qrKey: String
+  qrUrl: String
+  minAmount: Float
+  maxAmount: Float
+  weight: Float
+  source: String
+}
+
+type AdminAccountResponse {
+  meta: ApiMeta!
+  data: [AdminAccount!]!
+}
+
+type DepositRequest {
+  id: ID!
+  amount: Float!
+  status: String!
+  createdAt: String!
+  utr: String
+  method: String
+  provider: String
+  expiresAt: String
+}
+
+type DepositRequestResponse {
+  meta: ApiMeta!
+  data: [DepositRequest!]!
+}
+
+type UploadUrl {
+  url: String!
+  key: String!
+}
+
+type UploadUrlResponse {
+  meta: ApiMeta!
+  data: UploadUrl
+}
+
+type AccountDetail {
+  id: ID!
+  accountNumber: String!
+  ifscCode: String
+  accountType: String
+  type: String
+  bankName: String
+  accountHolderName: String
+  isPrimary: Boolean
+  approvalStatus: String
+  rejectionReason: String
+}
+
+type AccountDetailResponse {
+  meta: ApiMeta!
+  data: [AccountDetail!]!
+}
+
+input CasinoGamesInput {
+  slots: Boolean
+  category: String
+  categoryType: String
+  provider: String
+  providers: [String!]
+  search: String
+  page: Int
+  limit: Int
+  sort: String
+  liveOnly: Boolean
+  cursor: String
+}
+
+type CasinoGame {
+  id: ID!
+  title: String!
+  provider: String!
+  category: String
+  imageUrl: String
+  gameId: String
+}
+
+type CasinoGameResponse {
+  meta: ApiMeta!
+  data: [CasinoGame!]!
+}
+
+type CasinoCategory {
+  name: String!
+  type: String
+  slug: String
+  subtitle: String
+  order: Int
+  iconData: String
+}
+
+type CasinoCategoryResponse {
+  meta: ApiMeta!
+  data: [CasinoCategory!]!
+}
+
+type CasinoProvider {
+  name: String!
+  slug: String
+}
+
+type CasinoProviderResponse {
+  meta: ApiMeta!
+  data: [CasinoProvider!]!
+}
+
+type CasinoSummaryResponse {
+  meta: ApiMeta!
+  data: [CasinoGame!]!
+}
+
+type CasinoRedirect {
+  redirectUrl: String!
+}
+
+type CasinoRedirectResponse {
+  meta: ApiMeta!
+  data: CasinoRedirect
+}
+
+scalar JSON
+
+type SportsBookmark {
+  eventId: String!
+  meta: JSON
+}
+
+type SportsBookmarksResponse {
+  meta: ApiMeta!
+  data: [SportsBookmark!]!
+}
+
+type FancyOddsItem {
+  marketCode: String!
+  selectionId: String!
+  selection: String!
+  odds: Float!
+  updatedAt: String!
+}
+
+type FancyOddsResponse {
+  meta: ApiMeta!
+  data: [FancyOddsItem!]!
+}
+
+input SportsBetLegInput {
+  eventId: ID!
+  leagueId: ID
+  sportId: ID
+  marketId: ID!
+  marketCode: String
+  selectionId: String!
+  selection: String
+  selectionType: String!
+  odds: Float!
+  stake: Float!
+  marketType: String
+  oddsSize: Float
+  isLive: Boolean
+}
+
+input PlaceSportsBetInput {
+  type: String
+  currency: String
+  stake: Float
+  oddsDriftTolerance: Float
+  legs: [SportsBetLegInput!]
+}
+
+type PlacedBet {
+  id: ID!
+  slipId: ID!
+  eventId: ID!
+  leagueId: ID
+  sportId: ID
+  marketId: ID!
+  selectionId: String!
+  selection: String
+  side: String!
+  marketType: String
+  odds: Float!
+  stake: Float!
+  liability: Float!
+  currency: String!
+  status: String!
+  createdAt: String!
+  # Backward-compat fields for existing clients
+  amount: Float!
+  type: String!
+}
+
+type SportsBetResponse {
+  meta: ApiMeta!
+  data: [PlacedBet!]!
+}
+
+type BonusCampaignDetails {
+  id: ID!
+  name: String!
+  type: String!
+  domain: String!
+  status: String!
+  currency: String
+  distributionType: String
+  amountType: String
+  percentage: Float
+  wagering: Float
+  depositConditionType: String
+  depositConditionAmount: Float
+  releaseType: String
+  expiryBonusDays: Int
+}
+
+type BonusItem {
+  id: ID!
+  bonusAmount: Float!
+  depositAmount: Float
+  createdAt: String!
+  awardedAt: String
+  completedAt: String
+  claimedAt: String
+  expiresAt: String
+  wageringAmount: Float!
+  fulfilledAmount: Float
+  status: String!
+  firstDepositRequired: Boolean
+  firstDepositMade: Boolean
+  campaignDetails: BonusCampaignDetails
+  currency: String
+  distributionType: String
+  domain: String
+  type: String
+}
+
+type BonusResponse {
+  meta: ApiMeta!
+  data: [BonusItem!]!
+}
+
+type BonusHistoryItem {
+  id: ID!
+  name: String!
+  amount: Float!
+  status: String!
+  awardedAt: String!
+  completedAt: String
+  claimedAt: String
+  currency: String
+  domain: String
+  type: String
+  distributionType: String
+  depositAmount: Float
+  wageringAmount: Float
+  fulfilledAmount: Float
+  expiresAt: String
+  amountType: String
+  percentage: Float
+  wagering: Float
+  releaseType: String
+  expiryBonusDays: Int
+}
+
+type BonusHistoryResponse {
+  meta: ApiMeta!
+  data: [BonusHistoryItem!]!
+}
+
+type BonusCampaignItem {
+  id: ID!
+  name: String!
+  domain: String!
+  type: String!
+  currency: String
+  codeMode: String
+  validFrom: String
+  validTo: String
+  rulesJson: JSON
+  limitsJson: JSON
+  amountType: String
+  amount: Float
+  percentage: Float
+  distributionType: String
+  wagering: Float
+  depositConditionType: String
+  depositConditionAmount: Float
+}
+
+type BonusCampaignResponse {
+  meta: ApiMeta!
+  data: [BonusCampaignItem!]!
+}
+
+type ReferralProgram {
+  id: ID!
+  name: String!
+  enabledRewardTypes: [String!]!
+  maxTierDepth: Int!
+  attributionModel: String
+  status: String!
+  minReferralBalanceForCashTransfer: Float
+}
+
+type ReferralProgramResponse {
+  meta: ApiMeta!
+  data: ReferralProgram
+}
+
+type ReferralRule {
+  id: ID!
+  ruleType: String!
+  description: String
+  tierRates: JSON
+  fixedAmount: Float
+  cap: Float
+  threshold: Float
+  status: String!
+}
+
+type ReferralRuleResponse {
+  meta: ApiMeta!
+  data: [ReferralRule!]!
+}
+
+type ReferralUser {
+  id: ID!
+  name: String
+  mobileNo: String
+  createdAt: String
+  totalPl: Float
+  pl: Float
+  percentage: Float
+  status: String
+  reason: String
+  tier: Int
+  referralCode: String
+  firstClickAt: String
+  utmSource: String
+  utmCampaign: String
+  utmMedium: String
+}
+
+type ReferralUserResponse {
+  meta: ApiMeta!
+  data: [ReferralUser!]!
+}
+
+type ReferralTxn {
+  id: ID!
+  userName: String
+  mobileNo: String
+  pl: Float
+  bonusAmount: Float
+  weekStartDate: String
+  weekEndDate: String
+  createdAt: String
+  ruleType: String
+  tier: Int
+  currency: String
+}
+
+type ReferralTxnResponse {
+  meta: ApiMeta!
+  data: [ReferralTxn!]!
+}
+
+type ReferralSummary {
+  weekStartDate: String!
+  weekEndDate: String!
+  pl: Float!
+  bonusAmount: Float!
+  createdAt: String!
+  ruleType: String
+  tier: Int
+  currency: String
+}
+
+type ReferralSummaryResponse {
+  meta: ApiMeta!
+  data: [ReferralSummary!]!
+}
+
+type ReferralAggregate {
+  ruleType: String
+  tier: Int
+  currency: String
+  totalPl: Float!
+  totalBonus: Float!
+  count: Int!
+}
+
+type ReferralAggregateResponse {
+  meta: ApiMeta!
+  data: [ReferralAggregate!]!
+}
+
+type MyReferralLink {
+  code: String!
+  url: String!
+}
+
+type MyReferralLinkResponse {
+  meta: ApiMeta!
+  data: MyReferralLink
+}
+
+type ClaimReferralBonusResult {
+  count: Int!
+  totalCash: Float!
+  totalBonus: Float!
+}
+
+type ClaimReferralBonusResponse {
+  meta: ApiMeta!
+  data: ClaimReferralBonusResult
+}
+
+type SportsMarket {
+  marketId: ID!
+  marketName: String
+  type: String
+  marketStatus: String
+  inplay: Boolean
+}
+
+type SportsEvent {
+  id: ID!
+  """Provider (feed) event id. The odds socket keys bookmaker-/fancy- channels by this, not by id."""
+  eventCode: String
+  name: String
+  slugName: String
+  date: String
+  """Event start time formatted in whitelabel timezone (e.g. Asia/Kolkata). Prefer this for display."""
+  dateDisplay: String
+  markets: [SportsMarket!]!
+}
+
+type SportsLeague {
+  id: ID!
+  name: String
+  slugName: String
+  events: [SportsEvent!]!
+}
+
+type SportsItem {
+  id: ID!
+  name: String
+  slugName: String
+  leagues: [SportsLeague!]!
+}
+
+type SportsListResponse {
+  meta: ApiMeta!
+  data: [SportsItem!]!
+}
+
+# Sports event detail (exchange-only)
+type SportsRunner {
+  selectionId: String!
+  name: String!
+  sort: Int
+  status: String
+}
+
+type SportsEventMarketDetail {
+  marketId: ID!
+  marketCode: String
+  name: String
+  type: String
+  marketStatus: String
+  inplay: Boolean
+  runners: [SportsRunner!]!
+}
+
+type SportsEventDetailItem {
+  id: ID!
+  name: String
+  slugName: String
+  date: String
+  """Event start time formatted in whitelabel timezone. Prefer this for display."""
+  dateDisplay: String
+  leagueId: ID
+  leagueName: String
+  sportId: ID
+  sportName: String
+  eventCode: String
+}
+
+type SportsEventDetailData {
+  leagueEvents: [TransactionEvent!]
+  event: SportsEventDetailItem!
+  markets: [SportsEventMarketDetail!]!
+}
+
+type SportsEventDetailResponse {
+  meta: ApiMeta!
+  data: SportsEventDetailData
+}
+
+# VIP Types
+type VIPTier {
+  id: ID!
+  name: String!
+  level: Int!
+  minMonthlyDeposit: Int!
+  color: String!
+  benefits: [String!]!
+  perks: [VIPPerk!]!
+}
+
+type VIPPerk {
+  name: String!
+  description: String!
+  icon: String
+}
+
+type VIPMember {
+  id: ID!
+  tierId: ID!
+  tierName: String!
+  tierLevel: Int!
+  tierColor: String!
+  currentPoints: Int!
+  lifetimePoints: Int!
+  monthlyDeposits: Int!
+  nextTier: VIPTier
+  pointsToNextTier: Int
+  joinedAt: String!
+  benefits: [String!]!
+  perks: [VIPPerk!]!
+}
+
+type VIPResponse {
+  meta: ApiMeta!
+  data: VIPMember
+}
+
+type VIPTiersResponse {
+  meta: ApiMeta!
+  data: [VIPTier!]!
+}
+
+type UserBet {
+  id: ID!
+  eventId: ID!
+  eventName: String
+  marketId: ID
+  marketName: String
+  marketType: String
+  market: String
+  selectionId: String!
+  selection: String
+  side: String!
+  oddsSize: Float
+  type: String!
+  odds: Float!
+  stake: Float!
+  status: String!
+  createdAt: String!
+  pl: Float
+  liability: Float
+  payout: Float
+  currency: String!
+}
+
+type UserBetsResponse {
+  meta: ApiMeta!
+  data: [UserBet!]!
+}
+
+type StakeLimits {
+  dailyTotal: Float!
+  weeklyTotal: Float!
+  dailyLimit: Float
+  weeklyLimit: Float
+  dailyRemaining: Float
+  weeklyRemaining: Float
+}
+
+type StakeLimitsResponse {
+  meta: ApiMeta!
+  data: StakeLimits
+}
+
+type MarketSettings {
+  minStake: Float
+  maxStake: Float
+  minOdds: Float
+  maxOdds: Float
+}
+
+type SportsSettings {
+  exchange: MarketSettings!
+  bookmaker: MarketSettings!
+  fancy: MarketSettings!
+}
+
+type SportsSettingsResponse {
+  meta: ApiMeta!
+  data: SportsSettings
+}
+
+"""Live TV and Score Card URLs; only returned for tenants that have this feature (e.g. grandwinn-com). kondareddi-com and others get null."""
+type SportsExtraUrls {
+  liveTvUrl: String
+  scoreCardUrl: String
+}
+
+type SportsExtraUrlsResponse {
+  meta: ApiMeta!
+  data: SportsExtraUrls
+}
+
+extend type Query {
+  cashoutConfig(eventId: ID!): Boolean!
+  welivepayConfig: WelivepayConfig!
+  userDetail: UserDetailResponse!
+  accountStatement(startDate: String!, endDate: String!, isChecked: Boolean): TransactionListResponse!
+  resultTransactions(startDate: String!, endDate: String!, isChecked: Boolean): TransactionListResponse!
+  appSettings: AppSettingsResponse!
+  allAppSettings: AppSettingsResponse!
+  advertisements: AdvertisementResponse!
+  withdrawalRequests(startDate: String, endDate: String): WithdrawalRequestResponse!
+  adminAccounts: AdminAccountResponse!
+  adminDepositRequests(startDate: String, endDate: String): DepositRequestResponse!
+  accountDetails: AccountDetailResponse!
+  casinoGames(input: CasinoGamesInput): CasinoGameResponse!
+  casinoCategories(liveOnly: Boolean, slotsOnly: Boolean): CasinoCategoryResponse!
+  casinoProviders(category: String, liveOnly: Boolean): CasinoProviderResponse!
+  casinoSummary(input: CasinoGamesInput): CasinoSummaryResponse!
+  recentCasinoGames(limit: Int): CasinoGameResponse!
+  likedCasinoGames(limit: Int): CasinoGameResponse!
+  gapCasinoUrl(gameId: ID!): CasinoRedirectResponse!
+  casinoUrl(gameId: ID!): CasinoRedirectResponse!
+  bonusData: BonusResponse!
+  bonusHistory(status: String, fromDate: String, toDate: String): BonusHistoryResponse!
+  availableBonusCampaigns: BonusCampaignResponse!
+  referralProgram: ReferralProgramResponse!
+  activeReferralRules: ReferralRuleResponse!
+  referralUsers: ReferralUserResponse!
+  referralTransactions: ReferralTxnResponse!
+  weeklyReferralSummary(startDate: String!, endDate: String!): ReferralSummaryResponse!
+  referralAggregate: ReferralAggregateResponse!
+  myReferralLink: MyReferralLinkResponse!
+  sportsList: SportsListResponse!
+  sportsBookmarks: SportsBookmarksResponse!
+  recentSports: SportsBookmarksResponse!
+  sportsEventDetail(eventId: ID!): SportsEventDetailResponse!
+  vipStatus: VIPResponse!
+  vipTiers: VIPTiersResponse!
+  userBets(eventId: ID, marketIds: [ID!], openOnly: Boolean): UserBetsResponse!
+  sportsSettings(sportId: String!, leagueId: String!, eventId: String!): SportsSettingsResponse!
+  myStakeLimits: StakeLimitsResponse!
+  """Live TV and Score Card URLs. Only works for grandwinn-com; returns null for kondareddi-com and other tenants."""
+  sportsExtraUrls: SportsExtraUrlsResponse!
+}
+
+type WelivepayDepositData {
+  paymentLink: String!
+  qrImage: String!
+  orderId: String!
+}
+
+type WelivepayDepositResponse {
+  meta: ApiMeta!
+  data: WelivepayDepositData
+}
+
+type WelivepayConfig {
+  enabled: Boolean!
+  displayName: String!
+  minAmount: Float
+  maxAmount: Float
+}
+
+type ExposureRecalculateResponse {
+  success: Boolean!
+  message: String!
+  exposure: Float!
+}
+
+type MarketExposureItem {
+  marketId: ID!
+  marketType: String!
+  exposure: Float!
+  betsCount: Int!
+}
+
+type ExposureBreakdown {
+  totalExposure: Float!
+  markets: [MarketExposureItem!]!
+}
+
+type ExposureBreakdownResponse {
+  meta: ApiMeta!
+  data: ExposureBreakdown!
+}
+
+extend type Mutation {
+  recalculateExposure: ExposureRecalculateResponse!
+  getExposureBreakdown: ExposureBreakdownResponse!
+  createWithdrawalRequest(accountId: String!, amount: Float!): WithdrawalRequestResponse!
+  getWithdrawalRequests(startDate: String, endDate: String): WithdrawalRequestResponse!
+  getAdminAccounts: AdminAccountResponse!
+  getDepositProofUploadUrl(fileName: String!, contentType: String!): UploadUrlResponse!
+  createAdminDeposit(accountId: String!, amount: Float!, txnRef: String, proofKey: String, type: String): DepositRequestResponse!
+  createDeposit(amount: Float!): CasinoRedirectResponse!
+  getAdminDepositRequests(startDate: String, endDate: String): DepositRequestResponse!
+  createAccountDetails(accountNumber: String!, ifscCode: String!, accountType: String, type: String, bankName: String, accountHolderName: String!): AccountDetailResponse!
+  updateAccountDetails(accountId: String!, accountNumber: String, ifscCode: String, accountType: String, bankName: String, accountHolderName: String): AccountDetailResponse!
+  deleteAccountDetails(accountId: String!): AccountDetailResponse!
+  setPrimaryAccount(accountId: String!): AccountDetailResponse!
+  changeWallet(selectedWallet: String!): UserDetailResponse!
+  likeCasinoGame(gameId: ID!): CasinoRedirectResponse!
+  unlikeCasinoGame(gameId: ID!): CasinoRedirectResponse!
+  activateBonus(bonusId: ID!): BonusResponse!
+  forfeitBonus: BonusResponse!
+  claimBonus: BonusResponse!
+  redeemBonusCode(code: String!): BonusResponse!
+  claimBonusCampaign(campaignId: ID!): BonusResponse!
+  switchBonus(newBonusId: ID!): BonusResponse!
+  claimReferralBonus(amount: Float!): ClaimReferralBonusResponse!
+  trackReferralClick(code: String!, utmSource: String, utmMedium: String, utmCampaign: String): ApiMeta!
+  placeSportsBet(
+    input: PlaceSportsBetInput
+    eventId: String
+    leagueId: String
+    sportId: String
+    marketId: String
+    selectionId: String
+    selection: String
+    selectionType: String!
+    odds: Float!
+    stake: Float!
+    marketType: String
+    marketCode: String
+    odds_size: Float
+  ): SportsBetResponse!
+  placeFancyBet(
+    stake: Float!
+    selectionType: String!
+    odds: String!
+    selection: String!
+    marketType: String!
+    marketId: String
+    marketCode: String!
+    selectionId: String!
+    odds_size: Float!
+    eventId: String!
+    leagueId: String!
+    sportId: String!
+  ): SportsBetResponse!
+  addRecentSports(eventId: String!): SportsListResponse!
+  toggleBookmarkSports(eventId: String!): SportsListResponse!
+  completeWithdrawal(requestId: ID!, status: String!): WithdrawalRequestResponse!
+  fancyOdds(eventId: String!, marketCode: String!): FancyOddsResponse!
+  createWelivepayDeposit(amount: Float!): WelivepayDepositResponse!
+}
+
+enum StatementDomain { WALLET SPORTS CASINO MATKA }
+input StatementPageInput {
+  domain: StatementDomain!
+  startDate: String!
+  endDate: String!
+  page: Int
+  pageSize: Int
+  search: String
+  status: String
+  type: String
+}
+type StatementPageResponse {
+  meta: ApiMeta!
+  data: [TransactionItem!]!
+  walletTypes: [String!]!
+}
+extend type Query { statementPage(input: StatementPageInput!): StatementPageResponse! }
+
+extend type Query { appSettingsVersion: String! }
+
+# Matka player API: market state is server-derived; mutations never accept odds.
+enum PlayerMatkaKind { WORLI STARLINE JACKPOT SATTA_MATKA }
+enum PlayerMatkaSession { OPEN CLOSE }
+enum PlayerMatkaWallet { CASH BONUS REFERRAL_BONUS }
+type PlayerMatkaSessionState { side: PlayerMatkaSession! enabled: Boolean! accepting: Boolean! resultAt: String! lockAt: String! startsAt: String! status: String! }
+type PlayerMatkaRate { bidType: String! label: String! payoutMultiplier: Float! }
+type PlayerMatkaResult { date: String! openResult: String closeResult: String openDigit: String closeDigit: String jodi: String complete: Boolean! }
+type PlayerMatkaMarket {
+  id: ID! code: String! name: String! kind: PlayerMatkaKind! description: String timezone: String!
+  runDate: String! status: String! message: String minStake: Float! maxStake: Float! featured: Boolean!
+  quoteVersion: String! sessions: [PlayerMatkaSessionState!]! rates: [PlayerMatkaRate!]! result: PlayerMatkaResult!
+}
+type PlayerMatkaMarketsResponse { meta: ApiMeta! data: [PlayerMatkaMarket!]! }
+type PlayerMatkaMarketResponse { meta: ApiMeta! data: PlayerMatkaMarket }
+type PlayerMatkaChartResponse { meta: ApiMeta! data: [PlayerMatkaResult!]! }
+type PlayerMatkaBet {
+  id: ID! batchId: ID marketId: ID! marketName: String! runDate: String! bidType: String! selection: String!
+  session: PlayerMatkaSession! amount: Float! payoutMultiplier: Float! potentialWin: Float! actualWin: Float
+  netProfit: Float status: String! result: String walletType: String! currency: String! createdAt: String! settledAt: String
+}
+type PlayerMatkaBetsResponse { meta: ApiMeta! data: [PlayerMatkaBet!]! }
+type PlayerMatkaWalletBalance { walletType: PlayerMatkaWallet! label: String! balance: Float! currency: String! }
+type PlayerMatkaWalletResponse { meta: ApiMeta! data: [PlayerMatkaWalletBalance!]! canBet: Boolean! message: String }
+input PlayerMatkaEntryInput { bidType: String! selection: String! session: PlayerMatkaSession! amount: Float! }
+input PlaceMatkaEntriesInput { marketId: ID! runDate: String! requestKey: String! quoteVersion: String accountId: ID walletType: PlayerMatkaWallet! entries: [PlayerMatkaEntryInput!]! }
+type PlayerMatkaPlacement { batchId: ID! totalStake: Float! replayed: Boolean! bets: [PlayerMatkaBet!]! }
+type PlaceMatkaEntriesResponse { meta: ApiMeta! data: PlayerMatkaPlacement }
+extend type Query {
+  matkaMarkets(kind: PlayerMatkaKind, search: String, page: Int, limit: Int): PlayerMatkaMarketsResponse!
+  matkaMarket(id: ID!): PlayerMatkaMarketResponse!
+  matkaChart(marketId: ID!, from: String!, to: String!): PlayerMatkaChartResponse!
+  myMatkaBets(marketId: ID, status: String, from: String, to: String, page: Int, limit: Int): PlayerMatkaBetsResponse!
+  matkaWallet: PlayerMatkaWalletResponse!
+}
+extend type Mutation { placeMatkaEntries(input: PlaceMatkaEntriesInput!): PlaceMatkaEntriesResponse! }

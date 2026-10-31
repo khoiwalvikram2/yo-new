@@ -1,0 +1,88 @@
+.footer {
+  padding: 12px 8px;
+  border-top: 1px solid var(--panel-line);
+}
+
+.envCard {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.envTile {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: var(--ui-radius);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.envText {
+  flex: 1;
+  min-width: 0;
+}
+
+.envName {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.envMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  text-transform: capitalize;
+}
+
+.envDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+
+.envChevron { flex: none; color: var(--ink-3); display: flex; }
+
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">): a flat field-like card with a red
+   brand tile, like the kit's "Viewing" switch. */
+:global(html:not([data-skin='classic'])) .footer {
+  padding: 12px;
+}
+
+:global(html:not([data-skin='classic'])) .envCard {
+  padding: 8px 10px;
+  border-color: var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+:global(html:not([data-skin='classic'])) .envTile {
+  border-radius: var(--ui-radius);
+  background: var(--acc);
+  color: var(--acc-on);
+  font-weight: 800;
+}
+
+:global(html:not([data-skin='classic'])) .envName {
+  font-weight: 700;
+}

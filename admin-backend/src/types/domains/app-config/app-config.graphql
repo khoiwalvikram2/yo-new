@@ -1,0 +1,344 @@
+enum CMSStatus { DRAFT PUBLISHED }
+
+type DomainsConfig { 
+  cdnBaseUrl: String 
+  assetBasePath: String 
+  canonicalBaseUrl: String 
+  sitemapBaseUrl: String 
+  robotsTxt: String 
+  robotsEnabled: Boolean 
+}
+input DomainsConfigInput { 
+  cdnBaseUrl: String 
+  assetBasePath: String 
+  canonicalBaseUrl: String 
+  sitemapBaseUrl: String 
+  robotsTxt: String 
+  robotsEnabled: Boolean 
+}
+
+type AppFeatures { 
+  sportsEnabled: Boolean! 
+  casinoEnabled: Boolean! 
+  matkaEnabled: Boolean! 
+  agentsEnabled: Boolean! 
+  referralsEnabled: Boolean!
+  bonusesEnabled: Boolean!
+  registerEnabled: Boolean!
+}
+input AppFeaturesInput {
+  sportsEnabled: Boolean
+  casinoEnabled: Boolean
+  matkaEnabled: Boolean
+  agentsEnabled: Boolean
+  referralsEnabled: Boolean
+  bonusesEnabled: Boolean
+  registerEnabled: Boolean
+}
+
+type PaymentsConfig { 
+  depositMin: Float 
+  depositMax: Float 
+  withdrawalMin: Float 
+  withdrawalMax: Float 
+  depositFeePercent: Float 
+  withdrawalFeePercent: Float 
+  kycRequiredToWithdraw: Boolean 
+  roundingStrategy: String 
+  upiPayoutsDisabled: Boolean
+  bankPayoutsDisabled: Boolean
+  hideAddUpi: Boolean
+  hideAddBank: Boolean
+  maxDailyWithdrawalRequests: Int
+}
+input PaymentsConfigInput { 
+  depositMin: Float 
+  depositMax: Float 
+  withdrawalMin: Float 
+  withdrawalMax: Float 
+  depositFeePercent: Float 
+  withdrawalFeePercent: Float 
+  kycRequiredToWithdraw: Boolean 
+  roundingStrategy: String 
+  upiPayoutsDisabled: Boolean
+  bankPayoutsDisabled: Boolean
+  hideAddUpi: Boolean
+  hideAddBank: Boolean
+  maxDailyWithdrawalRequests: Int
+}
+
+type RiskDefaults { 
+  overallExposureCap: Float 
+  dailyStakeLimit: Float 
+  weeklyStakeLimit: Float 
+  cashoutEnabled: Boolean 
+}
+input RiskDefaultsInput { 
+  overallExposureCap: Float 
+  dailyStakeLimit: Float 
+  weeklyStakeLimit: Float 
+  cashoutEnabled: Boolean 
+}
+
+type SmtpConfig { host: String port: Int username: String fromEmail: String alertRecipients: [String!] }
+input SmtpConfigInput { host: String port: Int username: String password: String fromEmail: String alertRecipients: [String!] }
+
+type SmsConfig { provider: String senderId: String }
+input SmsConfigInput { provider: String apiKey: String senderId: String }
+
+type WebhooksConfig { endpointUrl: String events: [String!] }
+input WebhooksConfigInput { endpointUrl: String secret: String events: [String!] }
+
+type ObservabilityConfig { sentryDsn: String logLevel: String metricsEnabled: Boolean }
+input ObservabilityConfigInput { sentryDsn: String logLevel: String metricsEnabled: Boolean }
+
+type PwaConfig { shortName: String themeColor: String backgroundColor: String }
+input PwaConfigInput { shortName: String themeColor: String backgroundColor: String }
+
+type DefaultCommission {
+  exchange: Float
+  bookmaker: Float
+  fancy: Float
+}
+input DefaultCommissionInput {
+  exchange: Float
+  bookmaker: Float
+  fancy: Float
+}
+
+type DefaultStakeLimits {
+  exchangeMin: Float
+  exchangeMax: Float
+  bookmakerMin: Float
+  bookmakerMax: Float
+  fancyMin: Float
+  fancyMax: Float
+}
+input DefaultStakeLimitsInput {
+  exchangeMin: Float
+  exchangeMax: Float
+  bookmakerMin: Float
+  bookmakerMax: Float
+  fancyMin: Float
+  fancyMax: Float
+}
+
+type DefaultBetDelays {
+  exchange: Int
+  bookmaker: Int
+  fancy: Int
+}
+input DefaultBetDelaysInput {
+  exchange: Int
+  bookmaker: Int
+  fancy: Int
+}
+
+type DefaultBetCooldowns {
+  exchange: Int
+  bookmaker: Int
+  fancy: Int
+}
+input DefaultBetCooldownsInput {
+  exchange: Int
+  bookmaker: Int
+  fancy: Int
+}
+
+type SportsGlobalConfig {
+  oddsFormat: String
+  showFancy: Boolean
+  showBookmaker: Boolean
+  showExchange: Boolean
+  defaultCommission: DefaultCommission
+  defaultStakeLimits: DefaultStakeLimits
+  defaultBetDelays: DefaultBetDelays
+  defaultBetCooldowns: DefaultBetCooldowns
+}
+input SportsGlobalConfigInput {
+  oddsFormat: String
+  showFancy: Boolean
+  showBookmaker: Boolean
+  showExchange: Boolean
+  defaultCommission: DefaultCommissionInput
+  defaultStakeLimits: DefaultStakeLimitsInput
+  defaultBetDelays: DefaultBetDelaysInput
+  defaultBetCooldowns: DefaultBetCooldownsInput
+}
+
+type AdminUiNotificationsConfig { 
+  enabled: Boolean 
+  placement: String 
+  durationMs: Int 
+  showSuccess: Boolean 
+  showError: Boolean 
+  showInfo: Boolean 
+  showWarning: Boolean 
+  muteCategories: [String!] 
+  soundEnabled: Boolean 
+}
+input AdminUiNotificationsConfigInput { 
+  enabled: Boolean 
+  placement: String 
+  durationMs: Int 
+  showSuccess: Boolean 
+  showError: Boolean 
+  showInfo: Boolean 
+  showWarning: Boolean 
+  muteCategories: [String!]
+  soundEnabled: Boolean 
+}
+
+type AppDisplayConfig {
+  baseCurrency: String
+  timeZone: String
+  defaultLocale: String
+}
+
+type AppConfig {
+  whitelabelId: ID!
+  # Identity & locale (use whitelabel.name for app name)
+  supportEmail: String
+  supportPhone: String
+  whatsappSupportPhone: String
+  defaultLocale: String
+  timeZone: String
+  baseCurrency: String
+  domains: DomainsConfig
+  maintenance: Boolean!
+  maintenanceMessage: String
+  newsTicker: String
+  seoTitle: String
+  seoDescription: String
+  ogImageUrl: String
+  socialLinks: JSON
+  analytics: JSON
+  features: AppFeatures!
+  payments: PaymentsConfig
+  risk: RiskDefaults
+  notifications: SmtpConfig
+  sms: SmsConfig
+  adminUiNotifications: AdminUiNotificationsConfig
+  webhooks: WebhooksConfig
+  observability: ObservabilityConfig
+  pwa: PwaConfig
+  theme: WhitelabelTheme
+  sportsGlobalConfig: SportsGlobalConfig
+  preLoginBannerUrl: String
+  postLoginBannerUrl: String
+  updatedAt: String!
+}
+
+input UpdateAppConfigInput {
+  # Identity & locale (use whitelabel.name for app name)
+  supportEmail: String
+  supportPhone: String
+  whatsappSupportPhone: String
+  defaultLocale: String
+  timeZone: String
+  baseCurrency: String
+  domains: DomainsConfigInput
+  maintenance: Boolean
+  maintenanceMessage: String
+  newsTicker: String
+  seoTitle: String
+  seoDescription: String
+  ogImageUrl: String
+  socialLinks: JSON
+  analytics: JSON
+  features: AppFeaturesInput
+  payments: PaymentsConfigInput
+  risk: RiskDefaultsInput
+  notifications: SmtpConfigInput
+  sms: SmsConfigInput
+  adminUiNotifications: AdminUiNotificationsConfigInput
+  webhooks: WebhooksConfigInput
+  observability: ObservabilityConfigInput
+  pwa: PwaConfigInput
+  theme: WhitelabelThemeInput
+  sportsGlobalConfig: SportsGlobalConfigInput
+  preLoginBannerUrl: String
+  postLoginBannerUrl: String
+}
+
+type CMSPage { 
+  id: ID! 
+  slug: String! 
+  title: String! 
+  locale: String! 
+  status: CMSStatus! 
+  body: String 
+  seoTitle: String 
+  seoDescription: String 
+  updatedAt: String! 
+}
+input UpsertCMSPageInput { 
+  id: ID 
+  slug: String! 
+  title: String! 
+  locale: String 
+  body: String 
+  seoTitle: String 
+  seoDescription: String 
+}
+
+enum AdvertisementType {
+  BANNER
+  PROMOTIONAL
+  FEATURED
+}
+
+enum AdvertisementStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AdvertisementDeviceType {
+  DESKTOP
+  MOBILE
+  BOTH
+}
+
+type Advertisement {
+  id: ID!
+  title: String!
+  subtitle: String
+  imageUrl: String
+  type: AdvertisementType!
+  url: String
+  order: Int!
+  status: AdvertisementStatus!
+  deviceType: AdvertisementDeviceType!
+  createdAt: String!
+  updatedAt: String!
+}
+
+input CreateAdvertisementInput {
+  title: String!
+  subtitle: String
+  imageUrl: String!
+  type: AdvertisementType!
+  url: String
+  order: Int
+  status: AdvertisementStatus
+  deviceType: AdvertisementDeviceType
+}
+
+input UpdateAdvertisementInput {
+  id: ID!
+  title: String
+  subtitle: String
+  imageUrl: String
+  type: AdvertisementType
+  url: String
+  order: Int
+  status: AdvertisementStatus
+  deviceType: AdvertisementDeviceType
+}
+
+input ReorderAdvertisementInput {
+  id: ID!
+  order: Int!
+}
+
+

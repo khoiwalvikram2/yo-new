@@ -1,0 +1,423 @@
+type Draw { 
+  id: ID!
+  tenant: String
+  type: String!
+  openAt: String!
+  cutoffAt: String!
+  timezone: String!
+  status: String!
+}
+
+type RateKV { 
+  key: String!
+  value: Float!
+}
+
+type RateVersion { 
+  id: ID!
+  tenant: String
+  effectiveFrom: String!
+  createdBy: String!
+  status: String!
+  rates: [RateKV!]!
+}
+
+type Result { 
+  id: ID!
+  tenant: String
+  drawId: ID!
+  value: String!
+  enteredBy: String!
+  verifiedBy: String
+  enteredAt: String!
+  verifiedAt: String
+}
+
+type SettlementBatch { 
+  id: ID!
+  tenant: String
+  drawId: ID!
+  status: String!
+  createdAt: String!
+}
+
+type ResultApproval { 
+  id: ID!
+  tenant: String
+  drawId: ID!
+  value: String!
+  status: String!
+  requestedBy: String!
+  approvedBy: String
+  reason: String
+  requestedAt: String!
+  decidedAt: String
+}
+
+# Matka entity management
+
+enum MatkaStatus { ACTIVE INACTIVE SUSPEND }
+
+type MatkaRateEntry { betType: String! payoutMultiplier: Float! minOdds: Float maxOdds: Float }
+
+type MatkaRateVersion { id: ID! tenant: String matkaId: ID! versionTag: String! entries: [MatkaRateEntry!]! effectiveFrom: String! effectiveTo: String createdBy: String createdAt: String! }
+
+# Tenant-wide default rates
+type MatkaDefaultRates { tenant: String! entries: [MatkaRateEntry!]! updatedBy: String updatedAt: String! }
+
+input MatkaDefaultRatesInputEntry { betType: String! payoutMultiplier: Float! minOdds: Float maxOdds: Float }
+
+type Matka {
+  id: ID!
+  tenant: String
+  name: String!
+  code: String!
+  description: String
+  timezone: String!
+  schedule: JSON!
+  status: MatkaStatus!
+  limits: JSON!
+  visibility: JSON!
+  priority: Int!
+  settings: JSON!
+  createdBy: String
+  updatedBy: String
+  reason: String
+  createdAt: String!
+  updatedAt: String!
+  deletedAt: String
+}
+
+# Generic mutation payload for Matka domain operations that don't return an entity
+type MatkaMutationPayload {
+  success: Boolean!
+  message: String!
+}
+
+# Bid Rule Types
+type MatkaBidRule {
+  id: ID!
+  tenant: String
+  matkaId: ID!
+  matkaType: String!
+  marketName: String!
+  marketSession: String
+  bidType: String!
+  percentage: Float!
+  includeAll: Boolean!
+  includedPlayers: JSON
+  minStake: Float
+  maxStake: Float
+  exposureCap: Float
+  status: String!
+  priority: Int!
+  notes: String
+  createdBy: String
+  updatedBy: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+input MatkaBidRuleFilters { matkaId: ID, search: String, page: Int, limit: Int }
+type MatkaBidRulePage { items: [MatkaBidRule!]!, total: Int! }
+
+input MatkaBidRuleInput {
+  matkaId: ID!
+  matkaType: String!
+  marketName: String!
+  marketSession: String
+  bidType: String!
+  percentage: Float!
+  includeAll: Boolean!
+  includedPlayers: JSON
+  minStake: Float
+  maxStake: Float
+  exposureCap: Float
+  status: String
+  priority: Int
+  notes: String
+}
+
+input MatkaBidRulePatch {
+  matkaType: String
+  marketName: String
+  marketSession: String
+  bidType: String
+  percentage: Float
+  includeAll: Boolean
+  includedPlayers: JSON
+  minStake: Float
+  maxStake: Float
+  exposureCap: Float
+  status: String
+  priority: Int
+  notes: String
+}
+
+input MatkaFilters { query: String status: MatkaStatus timezone: String page: Int limit: Int sort: String }
+
+type MatkasPage { items: [Matka!]! total: Int! }
+
+input MatkaCreateInput { name: String! code: String! description: String timezone: String! status: MatkaStatus schedule: JSON! limits: JSON! visibility: JSON! priority: Int settings: JSON! reason: String }
+
+input MatkaUpdateInput { id: ID! name: String description: String timezone: String schedule: JSON limits: JSON visibility: JSON priority: Int settings: JSON status: MatkaStatus reason: String }
+
+input MatkaReorderInput { id: ID! priority: Int! }
+
+input MatkaRateVersionInput { matkaId: ID! versionTag: String! entries: [MatkaRateEntryInput!]! effectiveFrom: String! effectiveTo: String }
+input MatkaRateEntryInput { betType: String! payoutMultiplier: Float! minOdds: Float maxOdds: Float }
+
+# Import result types
+type MatkaImportError { line: Int! error: String! }
+type MatkaImportResult { inserted: Int! updated: Int! errors: [MatkaImportError!]! }
+
+# Unified mutation payloads for Matka domain
+type MatkaPayload {
+  success: Boolean!
+  message: String!
+  matka: Matka!
+}
+
+# Matka Bets
+enum MatkaBetStatus { pending active won lost cancelled void }
+enum MatkaType { worli starline jackpot }
+
+type MatkaBet {
+  id: ID!
+  tenant: String
+  whitelabelId: String!
+  userId: String!
+  userName: String
+  userPhone: String
+  matkaId: ID!
+  "The matka's own name, joined from `matkas`. Null if that matka is gone."
+  matkaName: String
+  matkaType: MatkaType!
+  "The market the bet went into. Stored on the bet, unlike matkaName."
+  marketName: String!
+  marketSession: String
+  bidType: String!
+  betNumbers: String!
+  betAmount: Float!
+  payoutMultiplier: Float!
+  potentialWin: Float
+  actualWin: Float
+  status: MatkaBetStatus!
+  result: String
+  settledAt: String
+  currency: String!
+  createdAt: String!
+  updatedAt: String!
+  walletType: String
+  campaign: BetCampaignDetail
+}
+
+input MatkaBetsQuery {
+  tenant: String
+  whitelabelId: String
+  userId: String
+  matkaId: ID
+  matkaType: MatkaType
+  marketName: String
+  marketSession: String
+  bidType: String
+  status: MatkaBetStatus
+  statuses: [MatkaBetStatus!]
+  dateFrom: String
+  dateTo: String
+  limit: Int
+  offset: Int
+}
+
+type MatkaBetsPage {
+  items: [MatkaBet!]!
+  total: Int!
+}
+
+# --- Live Matka Analytics (Subscriptions) ---
+
+"""
+Rolling-window KPIs for live Matka activity.
+All monetary fields are raw numbers; clients must format via currency rules.
+"""
+type MatkaLiveKpis {
+  at: String!
+  betsPerMin: Float!
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  rtp: Float!
+  activePlayers: Int!
+}
+
+type MatkaTypeStat {
+  matkaType: String!
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+}
+
+type MatkaMarketStat {
+  marketName: String!
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+}
+
+type MatkaBidTypeStat {
+  bidType: String!
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+}
+
+type MatkaEntityStat {
+  matkaId: ID!
+  matkaName: String
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+}
+
+type MatkaSessionStat {
+  marketSession: String
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+}
+
+type MatkaDigitStat {
+  digit: String!
+  wagered: Float!
+  payouts: Float!
+  exposure: Float!
+  bets: Int!
+}
+
+type MatkaSelectionStat {
+  selection: String!
+  matkaId: ID!
+  matkaName: String
+  marketName: String!
+  marketSession: String
+  bidType: String!
+  wagered: Float!
+  payouts: Float!
+  exposure: Float!
+  bets: Int!
+}
+
+type MatkaLiveBreakdown {
+  byType: [MatkaTypeStat!]!
+  byMarket: [MatkaMarketStat!]!
+  byBidType: [MatkaBidTypeStat!]!
+  byMatka: [MatkaEntityStat!]!
+  bySession: [MatkaSessionStat!]!
+  byDigit: [MatkaDigitStat!]!
+  bySelection: [MatkaSelectionStat!]!
+}
+
+type MatkaPlayerEvent {
+  id: ID!
+  userId: String!
+  userName: String
+  matkaId: ID!
+  matkaName: String
+  matkaType: String!
+  marketName: String!
+  bidType: String!
+  betAmount: Float!
+  potentialWin: Float
+  status: MatkaBetStatus!
+  at: String!
+}
+
+type MatkaLiveDashboard {
+  kpis: MatkaLiveKpis!
+  breakdown: MatkaLiveBreakdown!
+}
+
+extend type Subscription {
+  matkaLiveDashboard(scope: LiveScope): MatkaLiveDashboard!
+  matkaPlayerEvents(scope: LiveScope): MatkaPlayerEvent!
+  matkaExposureBook(scope: LiveScope): MatkaExposureBook!
+  matkaRiskAlerts(scope: LiveScope): MatkaRiskAlerts!
+}
+
+# Test bet creation (dev/testing)
+input CreateTestMatkaBetInput {
+  userId: Int!
+  matkaId: ID!
+  matkaType: MatkaType!
+  marketName: String!
+  marketSession: String
+  bidType: String!
+  betNumbers: String!
+  betAmount: Float!
+  payoutMultiplier: Float!
+  potentialWin: Float
+  status: MatkaBetStatus
+}
+
+extend type Mutation {
+  createTestMatkaBet(input: CreateTestMatkaBetInput!): MatkaBet!
+}
+
+# --- Exposure Book (Open Bets) ---
+
+"""
+Aggregate exposure for open bets (pending/active) grouped by market/session and selection.
+"""
+type MatkaExposureSelection {
+  marketName: String!
+  marketSession: String
+  bidType: String!
+  selectionKey: String!
+  bets: Int!
+  totalStake: Float!
+  potentialPayout: Float!
+  exposure: Float!
+}
+
+type MatkaMarketExposure {
+  marketName: String!
+  marketSession: String
+  bets: Int!
+  totalStake: Float!
+  potentialPayout: Float!
+  exposure: Float!
+  selections: [MatkaExposureSelection!]!
+}
+
+type MatkaExposureBook {
+  at: String!
+  markets: [MatkaMarketExposure!]!
+}
+
+# --- Risk Alerts (Server-evaluated) ---
+
+enum MatkaRiskSeverity { critical warning info }
+enum MatkaRiskType { rtp volume behavior concentration exposure }
+
+type MatkaRiskAlert {
+  id: ID!
+  type: MatkaRiskType!
+  severity: MatkaRiskSeverity!
+  title: String!
+  description: String!
+  entity: String!
+  value: Float!
+  threshold: Float!
+  at: String!
+}
+
+type MatkaRiskAlerts {
+  at: String!
+  items: [MatkaRiskAlert!]!
+}
+

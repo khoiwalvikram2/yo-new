@@ -1,0 +1,470 @@
+/* Matka Results (/matka/results). The mockup has no page for it (its catalog stops at the matka
+   reports), so the page follows the generic table template (M:3361-3409) the sibling list pages use:
+   statistics, a filter row, one table card. The declare drawer follows the approved queue drawer
+   (M:1136-1167) and the rollback dialog the kit Dialog. Everything the mockup does not draw is marked
+   BEYOND-MOCKUP and built from the existing tokens (D7). */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The pending-bets notice's second half: the legacy grey "across N results" beside the title, in the
+   card-sub tone (M:866). */
+.noticeAside {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+/* Visually hidden text that a screen reader still reads (the hints the legacy tooltips carried). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- filters ---------- */
+
+/* BEYOND-MOCKUP: the mockup draws no filter row for this page, so these are the legacy row's control
+   widths (market 192, type 128, status 144). They apply only while the controls sit in the kit
+   FilterBar's own row, a container named filter-bar; in the compact Filters popover (portalled outside
+   that container) the kit stretches each control instead. */
+@container filter-bar (width >= 1024px) {
+  .marketField {
+    width: 192px;
+  }
+
+  .typeField {
+    width: 128px;
+  }
+
+  .statusField {
+    width: 144px;
+  }
+}
+
+/* ---------- table cells ---------- */
+
+/* Market: the open/close tile, the name with its pending-bets flag and copy action, then the day line.
+   Tile and name follow the mockup's identity cell (.who-cell M:1008, td.k M:997); the tile is
+   BEYOND-MOCKUP (the legacy sun/moon square). */
+.marketCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.typeTile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--ui-radius);
+}
+
+.typeTileOpen {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.typeTileClose {
+  color: var(--ink-2);
+  background: var(--surf-3);
+}
+
+.marketText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.marketLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.marketName {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The CopyButton's visually hidden announcement is absolutely positioned; this wrapper is its containing
+   block so it cannot escape the table's horizontal scroller (Task 101 lesson). */
+.copySlot {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.marketMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* BEYOND-MOCKUP: the legacy day and bet chips, shaped as the mockup's .flag (M:1029-1033) at caption
+   size; Today on the info pair (.pill.open M:1027), bets on the warning pair (.pill.pending M:1024). */
+.todayTag,
+.betsTag,
+.betFlag,
+.rbTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.todayTag {
+  color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.betsTag,
+.betFlag {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+/* The flag carries its hint as visually hidden text, which is absolutely positioned: the flag is its
+   containing block, so it stays inside the table's horizontal scroller (the Task 101 lesson). */
+.betFlag {
+  position: relative;
+}
+
+/* The rolled-back mark keeps the legacy red on the negative pair (.flag M:1029-1033). */
+.rbTag {
+  color: var(--neg-ink);
+  background: var(--neg-bg);
+}
+
+/* Date: the legacy blue day chip, .flag's shape (M:1029-1033) on the info pair (M:1027). */
+.dateChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius);
+  color: var(--blue);
+  background: var(--blue-bg);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.dateValue {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dateDay {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Type: OPEN on the ok pair (.pill.active M:1025), CLOSE on the neutral pill ground (.pill M:1018-1022),
+   in .flag's shape (M:1029-1033). */
+.typeTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.typeTagOpen {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.typeTagClose {
+  color: var(--ink-2);
+  background: var(--surf-3);
+}
+
+.typeDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* BEYOND-MOCKUP: the declared number is the row's figure, larger than a key cell (td.k M:997); an open
+   result keeps the legacy green on --ok. */
+.resultCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resultValue {
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.resultOpen {
+  color: var(--ok);
+}
+
+/* Two-line cells (declared by, declared at): the second line takes the dim cell colour (td.dim M:998). */
+.stack {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.primaryLine {
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* The "declared within the last hour" dot: the mockup's live dot (.live i M:869). */
+.recentDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+/* BEYOND-MOCKUP: the legacy red rollback action, the kit icon button on the negative ink. The hover
+   ground is the negative pair's (.flag M:1029). */
+.rollbackButton {
+  color: var(--neg-ink);
+}
+
+.rollbackButton:hover {
+  color: var(--neg-ink);
+  background: var(--neg-bg);
+}
+
+/* ---------- rollback dialog (BEYOND-MOCKUP: the mockup draws no rollback) ---------- */
+
+.dialogBody {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.dialogFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+/* ---------- declare drawer ---------- */
+
+/* BEYOND-MOCKUP: the legacy form's three titled blocks, drawn as the Withdrawals drawer sections
+   (Task 101), with the section label anatomy of .dr-sec (M:1151) at sentence case. */
+.declareForm {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.formBlock {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.blockHeader {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.blockIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--ui-radius);
+}
+
+.blockIconNeutral {
+  color: var(--ink-2);
+  background: var(--surf-3);
+}
+
+.blockIconViolet {
+  color: var(--h-vio);
+  background: var(--h-vio-bg);
+}
+
+.blockIconAmber {
+  color: var(--h-amb);
+  background: var(--h-amb-bg);
+}
+
+.blockHeading {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Portalled outside Page's heading/paragraph neutraliser, so these zero their own margins. */
+.blockTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.blockSub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.blockFields {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* The live preview of the typed result: the legacy grey panel on the raised ground. */
+.preview {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.previewTitle,
+.previewLine,
+.previewNote {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.previewTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.previewTitle svg {
+  color: var(--ok);
+}
+
+.previewLine {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.previewLine strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.previewNote {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* The drawer footer: the legacy hint at the start, the three actions at the end (.dr-foot M:1165). */
+.drawerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.footerHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.footerHint svg {
+  flex: none;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+@media (max-width: 767px) {
+  .drawerFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .footerActions {
+    flex-wrap: wrap;
+  }
+
+  .footerActions > * {
+    flex: 1 1 auto;
+  }
+}

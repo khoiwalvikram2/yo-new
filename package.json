@@ -1,0 +1,43 @@
+{
+  "name": "gw-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GrandWinn platform monorepo â€” shared schema, admin/user backends, admin/user frontends",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "workspaces": [
+    "shared",
+    "admin-backend",
+    "user-backend",
+    "admin",
+    "user",
+    "crm"
+  ],
+  "scripts": {
+    "seed": "npm run seed -w @gd/shared",
+    "seed:vip": "npm run seed:vip -w @gd/shared",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck:admin-backend": "npm run typecheck -w backend",
+    "typecheck:user-backend": "npm run typecheck -w user-backend",
+    "build": "npm run build --workspaces --if-present",
+    "build:backends": "npm run build -w backend && npm run build -w user-backend",
+    "build:frontends": "npm run build -w admin && npm run build -w stakex-ui && npm run build -w crm",
+    "dev:admin-backend": "npm run dev -w backend",
+    "dev:user-backend": "npm run dev -w user-backend",
+    "dev:admin": "npm run dev -w admin",
+    "dev:user": "npm run dev -w stakex-ui",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:all": "npm run test:all --workspaces --if-present",
+    "dev:crm": "npm run dev -w crm"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2"
+  },
+  "overrides": {
+    "drizzle-orm": "0.45.2",
+    "uuid": "^11.1.1"
+  }
+}

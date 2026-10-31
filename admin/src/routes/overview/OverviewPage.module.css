@@ -1,0 +1,241 @@
+/* Executive Dashboard — page frame additions.
+
+   The shared transcription lives in ./dashboard.module.css (card, cardHead, grid, pair, feed,
+   snap, page header). This file holds ONLY what that stylesheet has no rule for: chrome the
+   page needs because a real page carries widgets the mockup's static markup never had — the
+   date-range picker's shell, the notices that replace antd's Alert, the card body inset, and
+   the two column shapes (a 3-up row) the mockup does not ship.
+
+   Tokens only (contracts §3.2): no raw colour appears here, every colour resolves through a
+   custom property defined in src/ui/styles/tokens.css. Each transition below is answered in
+   the prefers-reduced-motion block at the foot of the file, as the shell's modules do. */
+
+/* ===================== PAGE ===================== */
+/* dashboard.module.css .page brings the gutters and the type metrics; the old page's
+   max-width is the one thing it does not carry, so it stays here. */
+.pageRoot {
+  max-width: 1600px;
+}
+
+/* ===================== HEADER — PERIOD ===================== */
+/* The kit popover surface deliberately carries no inner spacing ("content controls its own
+   insets", Popover.module.css), and the picker's panel layout brings its own: a 12px (p-3)
+   inset round the preset grid, the custom dates and Apply/Reset. So this root gives only a
+   width: 346px, the width the surface was first sized to (its 360px cap less 1px of border a
+   side and .menu's 6px inset, M:1206), or the viewport less 28px below 374px. The chip grid
+   fits its columns to that width at 73px or more each (DateRangePicker.tsx PANEL_CHIP_MIN_PX:
+   the pressed "This Month" is 60.69px in Inter 700): four columns from 362px (76px wide from
+   374px), three below. Four fixed columns were only 62.5px at 320px, where that label ran
+   4.19px past its chip's inner edge. Measured in headless Chromium, both themes, at 320, 340,
+   360, 362, 375, 414, 768 and 1280px: every label now ends at least 5.16px inside its chip
+   (at 362px, the narrowest four-column width). */
+.periodPopoverBody {
+  width: min(346px, calc(100vw - 28px));
+  padding: 0;
+}
+
+/* ===================== HEADER ACTIONS ===================== */
+/* The period button, the four-preset seg and Refresh on the PageHeader's charcoal bar (kit .ph__actions:
+   the bar's own tokens dress them). They wrap as one group; on a phone the seg takes its own row. */
+.headActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* the applied range is a figure that must not re-measure as it changes */
+.rangeText {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ===================== COLUMNS ===================== */
+/* A 3-up row. The mockup ships .grid (2.2fr/1fr) and .pair (1.15fr/1fr) only, so the three
+   equal columns the Financial charts and the Activity feed need are declared here, stepping
+   down on the mockup's own breakpoints (M:1574-1607). */
+.cols3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1279px) {
+  .cols3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1023px) {
+  .cols3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The activity feed's column split, used only inside the grid's left column (M:1753-1810).
+   Two columns, not the three this card used when it spanned the page. Measured at the width
+   that actually binds — 1280px, the narrowest viewport where the two-column grid is still
+   active — the left column's card is ~612px inside its padding, so three columns would leave
+   only ~190px each and two leave ~296px. (At the .pageRoot 1600px cap the same two columns
+   reach ~498px, but that is the comfortable end, not the constraint.) The mockup never draws a
+   feed row narrower than ~428px inside — its own feed card sits in the left column's .pair.
+   The Pending column is the binding case: its age is a full "dd MMM yyyy HH:mm" at flex:none
+   (~110px), so at three columns the title and the resourceId below it would share well under
+   half the row and every one would ellipsis on contact. */
+.feedCols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+  padding: 0 var(--card-pad) 14px;
+}
+
+/* Shared ListRow emits native li elements; these lists own reset/inset, never another surface. */
+.rowList,
+.rowListInset {
+  margin: 0;
+  list-style: none;
+}
+
+.rowList {
+  padding: 0;
+}
+
+.rowListInset {
+  padding: 0 var(--card-pad) 14px;
+}
+
+/* All three groups are conditional, so one or three of them may render. An orphaned last
+   group takes the whole row rather than sitting at half width beside an empty half-card. */
+.feedCols > div:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* .grid has already collapsed to one column by here (dashboard.module.css:461), so the card
+   is full width again and two columns still read; this is the .pair step (M:1578), where the
+   page gives up side-by-side content altogether. */
+@media (max-width: 1023px) {
+  .feedCols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The vertical rhythm between a tab's sections — the mockup's .gcol gap (M:897). */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* Five tabs, and .seg is content-sized, so below ~560px the strip is wider than the page: it
+   scrolls in its own track rather than widening the page — which is what the control it
+   replaces did (DashboardSegmented wraps itself in overflow-x-auto scrollbar-hide). overflow-x
+   makes the block clip on both axes, so the 4px the focus ring needs outside a button is added
+   here as padding and taken straight back off as margin. */
+.tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px;
+  margin: -4px -4px 16px;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .cols3 {
+    gap: 16px;
+  }
+
+  .feedCols {
+    gap: 16px;
+  }
+
+  .stack {
+    gap: 16px;
+  }
+
+  .tabs {
+    margin-bottom: 12px;
+  }
+
+  /* M:1615-1616 — the header's period control takes the full width and divides it between
+     its four segments. The tab strip is deliberately left out: five buttons cannot divide a
+     360px row and still read, so that one keeps scrolling instead. */
+  .periodSeg {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  .headActions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .rangeButton {
+    flex: 1;
+  }
+}
+
+/* ===================== COLUMN LABEL ===================== */
+/* "Alerts" / "Pending" / "Recent" head the three feed columns inside one card. The mockup has
+   no sub-heading inside a card, so this takes the .eyebrow metrics (M:755-758) — the one
+   treatment it does ship for a label above a list. */
+.colLabel {
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink-3);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+/* ===================== NOTICES ===================== */
+/* The notice itself is the kit Notice (ui/components/Notice) since page migration W0; what stays here
+   is only the gap a page-level notice keeps */
+/* the gap a notice keeps from the tab strip below it, on the .stack rhythm */
+.noticeBlock {
+  margin-bottom: 20px;
+}
+
+@media (max-width: 767px) {
+  .noticeBlock {
+    margin-bottom: 16px;
+  }
+}
+
+/* ===================== CHART FALLBACK ===================== */
+/* The Suspense boundary's placeholder. Takes the card's inner surface so a chart resolving
+   in place does not flash a different ground. The kit Spinner draws in currentColor. */
+.chartFallback {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+
+/* On a phone the period button and Refresh share one row: Refresh keeps its glyph and its name for
+   assistive tech, and drops the visible word. */
+@media (max-width: 767px) {
+  .refreshLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}

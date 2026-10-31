@@ -1,0 +1,50 @@
+/* BEYOND-MOCKUP: Audit controls, removable filter chips and responsive four-chart workspace
+   derive from the kit's card, typography, categorical hue and chart tokens. No theme override. */
+.stack { display: grid; gap: 16px; min-width: 0; }
+.sectionTitle { margin: 0; color: var(--ink); font-size: 15px; font-weight: 650; }
+.secondary { color: var(--ink-3); font-size: 12px; margin: 4px 0 0; }
+.actions, .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-width: 0; }
+.chips > button { max-width: 100%; height: auto; min-height: 30px; }
+.chips > button > span { white-space: normal; overflow-wrap: anywhere; text-align: start; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.order { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.order > li { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: var(--ink-2); font-size: 13px; }
+.workspace { container: audit-stats / inline-size; min-width: 0; }
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
+.charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+.plot { min-width: 0; width: 100%; }
+.plot :global(.recharts-cartesian-grid) line { stroke: var(--grid); }
+.plot :global(.recharts-cartesian-axis-line), .plot :global(.recharts-cartesian-axis-tick-line) { stroke: var(--axis); }
+.plot :global(.recharts-cartesian-axis-tick-value), .plot :global(.recharts-pie-label-text) { fill: var(--tick); font-family: var(--font-ui); font-size: 11px; }
+.plot .ind { fill: var(--h-ind); }
+.plot .red { fill: var(--h-red); }
+.plot .grn { fill: var(--h-grn); }
+.plot .vio { fill: var(--h-vio); }
+.plot .blu { fill: var(--h-blu); }
+.plot .amb { fill: var(--h-amb); }
+.line :global(.recharts-line-curve) { stroke: var(--h-blu); }
+.line :global(.recharts-dot), .dot { fill: var(--h-blu); stroke: var(--surf); }
+.bar :global(.recharts-rectangle) { fill: var(--h-grn); }
+.summary { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+@container audit-stats (width >= 760px) {
+  .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 400px) { .metrics { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .plot :global(.recharts-tooltip-wrapper) { transition: none !important; } }
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 6: filter chips are the kit's
+   square chips, and the one-series charts draw their data in charcoal (--s1); the pie keeps its categories. */
+:global(html:not([data-skin='classic'])) .chips > button {
+  border-radius: var(--ui-radius);
+}
+:global(html:not([data-skin='classic'])) .line :global(.recharts-line-curve) {
+  stroke: var(--s1);
+}
+:global(html:not([data-skin='classic'])) .line :global(.recharts-dot),
+:global(html:not([data-skin='classic'])) .dot {
+  fill: var(--s1);
+}
+:global(html:not([data-skin='classic'])) .bar :global(.recharts-rectangle) {
+  fill: var(--s1);
+}

@@ -1,0 +1,362 @@
+/* Executive Dashboard — the five recharts plots, re-themed onto the approved mockup's chart
+   tokens. Sources: CHART (M:901-960), the gradient stop shape from the mockup's own plot builder
+   (M:3550-3553) and its KPI sparkline defs (M:2998-3003 — the app's own KPI sparkline has since
+   been removed, but these stops still paint RevenueChart), and the tooltip recipe (M:942-958).
+
+   Tokens only (contracts §3.2): no raw colour appears here, every colour resolves through a custom
+   property defined in src/ui/styles/tokens.css.
+
+   WHY THIS FILE IS MOSTLY :global() SELECTORS
+   recharts cannot read a CSS custom property from a JS prop, so the colours are put on the SVG
+   elements themselves rather than resolved in JS. That is possible because recharts merges a
+   caller's className into every series layer (Area.js:392, Bar.js:474, Pie.js:571), spreads a
+   <Cell>'s props onto the shape it renders (Pie.js:378, Bar.js:685) and accepts
+   cursor={{className}} (Cursor.js:92-99). The legend is our own HTML (ChartLegend, see LEGEND).
+   A CSS declaration beats an SVG presentation attribute, which is what lets a class override the
+   stroke/fill recharts writes. The payoff is that a plot re-themes itself when <html data-theme>
+   flips — no getComputedStyle, no theme subscription, no re-render.
+
+   The mockup's .tip is hand-positioned (M:942-950: absolute, opacity, transform) because the
+   mockup moves it itself. recharts owns placement and show/hide, so only the tip's visual recipe
+   is transcribed here — its mechanics are not. */
+
+/* ===================== PLOT ===================== */
+/* No inset of its own: a chart sits in a card body that already carries --card-pad
+   (OverviewPage.module.css .cardBody), which is the same inset the mockup's .chartwrap uses
+   (M:912). Padding here would stack a second one on top of it. */
+.plot {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+/* The body inset for the two charts that carry their own card rather than sitting in a
+   SectionCard — the same value .cardBody uses, from the same source (M:912, M:1059). */
+.body {
+  padding: 0 var(--card-pad) var(--card-pad);
+}
+
+/* ===================== AXES, GRID, CROSSHAIR ===================== */
+/* M:915-918. The mockup states these once for its single plot; here each rule is scoped to .plot
+   so it can never leak into a chart on another page. */
+.plot :global(.recharts-cartesian-grid) line {
+  stroke: var(--grid);
+}
+
+.plot :global(.recharts-cartesian-axis-line),
+.plot :global(.recharts-cartesian-axis-tick-line) {
+  stroke: var(--axis);
+}
+
+.plot :global(.recharts-cartesian-axis-tick-value),
+.plot :global(.recharts-label) {
+  fill: var(--tick);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The crosshair. A line chart's cursor is a stroked Curve, a bar chart's is a filled Rectangle,
+   so the two take different properties off the same token (M:918). */
+.cursorLine {
+  stroke: var(--cross);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.cursorBar {
+  fill: var(--cross);
+  fill-opacity: 0.1;
+  stroke: none;
+}
+
+/* ===================== SERIES — THE INDIGO RAMP ===================== */
+/* M:919-924. One indigo in three steps, taken in order. The class lands on the series layer, so
+   the descendant selector reaches the path recharts draws inside it. */
+.s1 :global(.recharts-area-curve) {
+  stroke: var(--s1);
+}
+
+.s2 :global(.recharts-area-curve) {
+  stroke: var(--s2);
+}
+
+.s3 :global(.recharts-area-curve) {
+  stroke: var(--s3);
+}
+
+.s1 :global(.recharts-rectangle) {
+  fill: var(--s1);
+}
+
+.s2 :global(.recharts-rectangle) {
+  fill: var(--s2);
+}
+
+.s3 :global(.recharts-rectangle) {
+  fill: var(--s3);
+}
+
+/* ===================== SERIES — THE DECORATIVE HUE RAMP ===================== */
+/* For a chart whose segments are categorical rather than a ramp. Carries no meaning: it is the
+   mockup's own decorative order (M:931-934, M:938-941). Set on a <Cell>, so it colours one bar
+   or one pie slice. */
+.hInd :global(.recharts-rectangle),
+.hInd :global(.recharts-sector),
+.plot .hInd {
+  fill: var(--h-ind);
+}
+
+.hRed :global(.recharts-rectangle),
+.hRed :global(.recharts-sector),
+.plot .hRed {
+  fill: var(--h-red);
+}
+
+.hGrn :global(.recharts-rectangle),
+.hGrn :global(.recharts-sector),
+.plot .hGrn {
+  fill: var(--h-grn);
+}
+
+.hVio :global(.recharts-rectangle),
+.hVio :global(.recharts-sector),
+.plot .hVio {
+  fill: var(--h-vio);
+}
+
+/* ===================== SERIES — SEMANTIC SIGN ===================== */
+/* Growth bars encode the sign of a delta, which is a state and not a decoration, so they take the
+   semantic pair rather than the ramp: "a delta that moved up" / "a delta that moved down". */
+.barPos :global(.recharts-rectangle),
+.plot .barPos {
+  fill: var(--ok);
+}
+
+.barNeg :global(.recharts-rectangle),
+.plot .barNeg {
+  fill: var(--neg-ink);
+}
+
+/* ===================== AREA GRADIENTS ===================== */
+/* M:926-937 with the stop shape at M:3553: one colour per gradient, three stops of alpha. The mid
+   stop keeps the fill from reading as a flat wash halfway down the plot. */
+.gr1 stop {
+  stop-color: var(--s1);
+}
+
+.gr2 stop {
+  stop-color: var(--s2);
+}
+
+.gr3 stop {
+  stop-color: var(--s3);
+}
+
+.gA {
+  stop-opacity: var(--fill-a);
+}
+
+.gB {
+  stop-opacity: var(--fill-b);
+}
+
+.gC {
+  stop-opacity: 0;
+}
+
+/* ===================== LEGEND ===================== */
+/* The mockup's .legend row of .lg entries (M:903-911): an 8px pill swatch and the series name.
+   ChartLegend draws it as recharts <Legend content>, from the chart's own series declaration
+   (chartLegendModel.ts): entries in declared order, each swatch on its own series' slot through
+   the .k* swatches under TOOLTIP, the ones the tip rows use. recharts' default legend cannot be
+   coloured by class reliably: recharts 3.10 sorts its payload by name (Legend itemSorter 'value')
+   and numbers legend-item-N after sorting, so the position-based swatch rules that stood here
+   painted GGR in Turnover's colour and every pie slice name in another slice's hue (task 410).
+   The row keeps the default legend's place, under the plot and centred, with each chart's own
+   wrapperStyle gap above it (BEYOND-MOCKUP: the mockup puts its legend above the plot, just under
+   the card head and flush right, M:1777-1780). */
+.legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  /* BEYOND-MOCKUP row gap: the mockup's legend never wraps (16px is its column gap, M:904); a
+     wrapped row here closes up to the 4px the tip rows keep between them (M:952) */
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lgKey {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--ui-radius-circle);
+  flex: none;
+}
+
+.lgText {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+/* M:1621-1624: the entries close up on the narrowest phones. */
+@media (max-width: 400px) {
+  .legend {
+    column-gap: 12px;
+  }
+}
+
+/* ===================== PIE ===================== */
+/* The share each slice carries, set inside the slice. --acc-on is the ink that sits on a filled
+   accent surface in both themes: white on a light theme's saturated slice, near-black on a dark
+   theme's pale one. */
+.pieLabel {
+  fill: var(--acc-on);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===================== TOOLTIP ===================== */
+/* M:942-958, visual recipe only — see the file header. */
+.tip {
+  min-width: 172px;
+  padding: 10px 12px;
+  background: var(--float);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--sh-tip);
+  font-family: var(--font-ui);
+}
+
+.tipLabel {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tipRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.tipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.tipName {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.tipValue {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the swatch that ties a tooltip row to its series (M:954-956), and the same for a categorical
+   chart, whose rows follow the decorative ramp instead; a legend entry's swatch takes the same
+   class by its series' slot (M:908-911, chartSlotClasses.ts KEY_CLASS) */
+.k1 { background: var(--s1); }
+.k2 { background: var(--s2); }
+.k3 { background: var(--s3); }
+.kInd { background: var(--h-ind); }
+.kRed { background: var(--h-red); }
+.kGrn { background: var(--h-grn); }
+.kVio { background: var(--h-vio); }
+.kPos { background: var(--ok); }
+.kNeg { background: var(--neg-ink); }
+
+/* ===================== METRIC ROWS ===================== */
+/* Growth's three figures. The mockup has no card-inside-a-card, so these take its snapshot row
+   (M:1077-1081, transcribed in dashboard.module.css as .snapRow) and only the tile carries the
+   sign, as the value keeps the row's own ink. */
+.metrics {
+  margin-bottom: 4px;
+}
+
+.tilePos {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.tileNeg {
+  background: var(--neg-bg);
+  color: var(--neg-ink);
+}
+
+/* ===================== FOOTNOTE ROW ===================== */
+/* The per-product GGR figures under the distribution plot. */
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hair);
+}
+
+.footItem {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.footName {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ===================== STATES ===================== */
+/* Failure, on the same tokens the page's own notices use. */
+.error {
+  padding: 14px 16px;
+  border-radius: var(--ui-radius);
+  background: var(--neg-bg);
+  color: var(--neg-ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* ===================== REDUCED MOTION ===================== */
+/* This module declares no transition of its own, and the one transition that reaches these charts —
+   the one recharts puts on the tooltip wrapper — recharts already suppresses by itself:
+   component/TooltipBoundingBox.js drops it when prefers-reduced-motion is set and isAnimationActive
+   is 'auto', which is the Tooltip default (recharts 3.10.1) that none of these five charts
+   overrides. So the rule below is belt-and-braces, not a necessary override; it is kept because the
+   house rule is that each module answers reduced motion on its own terms. The mockup kills motion
+   globally at M:1629-1635; a module has to say so itself. */
+@media (prefers-reduced-motion: reduce) {
+  .plot :global(.recharts-tooltip-wrapper) {
+    transition: none !important;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">): under the charcoal title bar the
+   body takes the card inset on top too, as Card's padded body does. */
+:global(html:not([data-skin='classic'])) .body {
+  padding-top: var(--card-pad);
+}

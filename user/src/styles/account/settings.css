@@ -1,0 +1,29 @@
+/* Settings in the matchbook theme: one full-width column of flat rows (icon tile, title, help text, control),
+   as wide as the other account pages. */
+.nova-acct .user-settings-page { max-width: none; gap: 10px; }
+/* Tailwind's space-y-6 on the page adds margins to the children; the grid gap spaces them instead. */
+.nova-acct .user-settings-page > * { margin: 0; }
+.nova-acct .user-settings-page { display: grid; }
+.nova-acct .user-settings-card { padding: 16px 18px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-panel); box-shadow: none; }
+.nova-acct .user-settings-card:hover { border-color: var(--mb-line-2); }
+/* The sync row lifted on hover (Tailwind v4 hover:-translate-y sets `translate`); rows stay put. */
+.nova-acct .user-settings-card > div { translate: none; }
+.nova-acct .user-settings-card .font-medium { color: var(--mb-ink); font-size: 17px; font-weight: 700; }
+.nova-acct .user-settings-card .text-xs { color: var(--mb-muted); font-size: 14px; }
+/* Icon tiles: charcoal squares like the rest of the shell. */
+.nova-acct .user-settings-card .grid.place-items-center { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); background: var(--mb-bar); }
+.nova-acct .user-settings-card .grid.place-items-center svg { width: 19px; height: 19px; color: #FFFFFF; }
+/* Change password: an outline button. */
+.nova-acct .user-settings-card button:not(.nova-switch, .nova-theme-toggle) {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
+  font-size: 15px;
+  font-weight: 700;
+}
+.nova-acct .user-settings-card button:not(.nova-switch, .nova-theme-toggle):hover { border-color: var(--mb-line-3); background: var(--mb-panel-2); }
+.nova-acct .user-settings-card select { width: 180px; min-height: 42px; font-size: 15px; }
+.nova-acct .user-settings-page > p { color: var(--mb-muted); font-size: 13px; }

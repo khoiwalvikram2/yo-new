@@ -1,0 +1,77 @@
+type Currency {
+  code: String!
+  name: String!
+  symbol: String!
+  decimals: Int!
+  isActive: Boolean!
+  exchangeRate: Float
+}
+
+type CurrencyConversion {
+  from: String!
+  to: String!
+  rate: Float!
+  amount: Float!
+  convertedAmount: Float!
+  timestamp: String!
+}
+
+input CurrencyConversionInput {
+  amount: Float!
+  from: String!
+  to: String!
+}
+
+input CreateCurrencyInput {
+  code: String!
+  name: String!
+  symbol: String!
+  decimals: Int!
+  exchangeRate: Float
+}
+
+input UpdateCurrencyInput {
+  code: String!
+  name: String
+  symbol: String
+  decimals: Int
+  isActive: Boolean
+  exchangeRate: Float
+}
+
+input UpdateExchangeRatesInput {
+  rates: [ExchangeRateInput!]!
+}
+
+input ExchangeRateInput {
+  currency: String!
+  rate: Float!
+}
+
+type CurrencyOperationResult {
+  success: Boolean!
+  message: String!
+  currency: Currency
+}
+
+type ExchangeRateUpdateResult {
+  success: Boolean!
+  message: String!
+  updatedRates: [Currency!]!
+}
+
+extend type Query {
+  currencies: [Currency!]!
+  currency(code: String!): Currency
+  convertCurrency(input: CurrencyConversionInput!): CurrencyConversion!
+  exchangeRates: [Currency!]!
+}
+
+extend type Mutation {
+  createCurrency(input: CreateCurrencyInput!): CurrencyOperationResult!
+  updateCurrency(input: UpdateCurrencyInput!): CurrencyOperationResult!
+  deleteCurrency(code: String!): CurrencyOperationResult!
+  updateExchangeRates(input: UpdateExchangeRatesInput!): ExchangeRateUpdateResult!
+  activateCurrency(code: String!): CurrencyOperationResult!
+  deactivateCurrency(code: String!): CurrencyOperationResult!
+}

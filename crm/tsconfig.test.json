@@ -1,0 +1,30 @@
+{
+  /*
+   * Tests, and only tests.
+   *
+   * They need Node's and Vitest's types; the app must not have Node's. Giving
+   * the browser bundle access to `node:fs` to make a test compile would be a
+   * poor trade, so the two are compiled separately: tsconfig.app.json excludes
+   * these files and this config is the only place they are seen.
+   *
+   * `vite/client` comes along because the modules under test read
+   * `import.meta.env`, which is Vite's, not Node's.
+   */
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "../node_modules/.cache/tsbuildinfo/crm/tsconfig.test.tsbuildinfo",
+    "types": ["node", "vite/client", "vitest/globals"],
+    "noEmit": true
+  },
+  /* tsconfig.app.json excludes test files; `extends` would inherit that and
+     leave this config with nothing to compile. */
+  "exclude": [],
+  "include": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "vitest.setup.ts",
+    "vitest.config.ts",
+    "e2e/**/*.ts",
+    "playwright.config.ts"
+  ]
+}

@@ -1,0 +1,45 @@
+type OtpProvider {
+  id: ID!
+  tenant: String!
+  provider: String!
+  senderId: String
+  templateId: String
+  region: String
+  baseUrl: String
+  active: Boolean!
+  priority: Int!
+  accountSidMasked: String
+  accessKeyMasked: String
+  authTokenMasked: String
+  secretKeyMasked: String
+  apiKeyMasked: String
+  apiSecretMasked: String
+  createdAt: String
+  updatedAt: String
+}
+
+input OtpProviderInput {
+  tenant: String
+  provider: String!
+  senderId: String
+  templateId: String
+  region: String
+  baseUrl: String
+  accountSid: String
+  authToken: String
+  accessKey: String
+  secretKey: String
+  apiKey: String
+  apiSecret: String
+  active: Boolean
+  priority: Int
+}
+
+extend type Query {
+  otpProviders(tenant: String): [OtpProvider!]!
+}
+
+extend type Mutation {
+  upsertOtpProvider(input: OtpProviderInput!): MessageResponse!
+}
+

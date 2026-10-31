@@ -1,0 +1,91 @@
+/* Status is always visible in text. Motion adds emphasis to open markets only. */
+.m99-kit .m99-market-card.m99-market-tile {
+  --m99-market-accent: #9095a0;
+  --m99-market-wash: #9095a009;
+  isolation: isolate;
+  aspect-ratio: auto;
+  border-radius: var(--ui-radius);
+  background: radial-gradient(ellipse at 100% 0, var(--m99-market-wash), transparent 62%), var(--m99-surface);
+  box-shadow: 0 2px 5px #20232b04;
+  transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+  animation: m99-market-arrive .42s ease-out backwards;
+  animation-delay: var(--m99-market-delay, 0ms);
+}
+.m99-kit .m99-market-tile[data-status='Open'] {
+  --m99-market-accent: #119364;
+  --m99-market-wash: #24b98412;
+  border-color: #9fcdbb;
+  box-shadow: 0 2px 7px #148b6209;
+}
+.m99-kit .m99-market-tile[data-status='Upcoming'] { --m99-market-accent: #bd8b34; --m99-market-wash: #d5a54810; }
+.m99-kit .m99-market-tile::before { left: 0; top: 0; width: 100%; height: 3px; border-radius: var(--ui-radius); background: var(--m99-market-accent); opacity: .7; }
+.m99-kit .m99-market-tile[data-status='Open']::before { background: var(--m99-market-accent); opacity: 1; }
+.m99-kit .m99-market-tile[data-status='Closed']::before { background: var(--m99-market-accent); }
+.m99-kit .m99-market-tile[data-status='Upcoming']::before { background: var(--m99-market-accent); }
+.m99-kit .m99-market-tile[data-status='Open']::after { content: ''; position: absolute; z-index: 1; top: 0; left: 0; width: 40%; height: 3px; pointer-events: none; background: linear-gradient(90deg, transparent, #95f4cd 45%, #edfff6 60%, transparent); opacity: 0; animation: m99-market-sweep 4.8s ease-in-out infinite; animation-delay: var(--m99-market-delay, 0ms); }
+.m99-kit .m99-market-card.m99-market-tile:hover, .m99-kit .m99-market-card.m99-market-tile:focus-within { transform: translateY(-3px); border-color: var(--m99-market-accent); box-shadow: 0 7px 20px #1b333312; }
+.m99-kit .m99-market-grid > :nth-child(2) { --m99-market-delay: 45ms; }
+.m99-kit .m99-market-grid > :nth-child(3) { --m99-market-delay: 90ms; }
+.m99-kit .m99-market-grid > :nth-child(4) { --m99-market-delay: 135ms; }
+.m99-kit .m99-market-grid > :nth-child(5) { --m99-market-delay: 180ms; }
+.m99-kit .m99-market-grid > :nth-child(6) { --m99-market-delay: 225ms; }
+.m99-kit .m99-market-grid > :nth-child(7) { --m99-market-delay: 270ms; }
+.m99-kit .m99-market-grid > :nth-child(8) { --m99-market-delay: 315ms; }
+.m99-kit .m99-tile-meta .m99-badge { padding: 3px 7px; border-radius: var(--ui-radius); }
+.m99-kit .m99-market-tile[data-status='Open'] .m99-tile-meta .m99-badge { gap: 6px; background: #e3f5ec; color: #087544; border: 1px solid #b7e3ce; }
+.m99-kit .m99-market-tile[data-status='Open'] .m99-tile-meta .m99-badge > i, .m99-kit .m99-home-market-count .m99-badge-green > i { position: relative; flex-shrink: 0; }
+.m99-kit .m99-market-tile[data-status='Open'] .m99-tile-meta .m99-badge > i::after, .m99-kit .m99-home-market-count .m99-badge-green > i::after { content: ''; position: absolute; inset: -1px; border: 1px solid currentColor; border-radius: 50%; opacity: 0; animation: m99-market-pulse 2.6s ease-out infinite; }
+.m99-kit .m99-tile-heading > .m99-market-avatar { position: relative; border-radius: var(--ui-radius); box-shadow: inset 0 0 0 1px #00000004; }
+.m99-kit .m99-tile-heading > .m99-market-avatar::after { content: ''; position: absolute; inset: 3px; border: 1px solid currentColor; opacity: .12; border-radius: var(--ui-radius); }
+.m99-kit .m99-tile-result { position: relative; min-height: 65px; padding: 4px 3px; margin: 3px 0; border: 1px solid #9298a00c; border-radius: var(--ui-radius); background: linear-gradient(120deg, #9298a004, var(--m99-market-wash)); }
+.m99-kit .m99-tile-result > span { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 5px; }
+.m99-kit .m99-tile-result > span::before, .m99-kit .m99-tile-result > span::after { content: ''; width: 13px; height: 1px; background: var(--m99-market-accent); opacity: .3; }
+.m99-kit .m99-tile-result .m99-tile-digit { font-weight: inherit; }
+.m99-kit .m99-tile-result .is-jodi { color: var(--m99-brand); }
+.m99-kit .m99-tile-result .is-jodi > .m99-tile-digit { padding: 3px 6px; border: 1px solid #c51a1b16; border-radius: var(--ui-radius); background: #c51a1b09; }
+.m99-kit .m99-session-schedule { position: relative; flex-shrink: 0; border-radius: var(--ui-radius); }
+.m99-kit .m99-tile-chart-links > button { border-radius: var(--ui-radius); transition: color .18s ease, background .18s ease; }
+.m99-kit .m99-tile-chart-links > button:hover { text-decoration: none; color: var(--m99-ink); background: var(--m99-soft); }
+.m99-kit .m99-tile-open { position: relative; border-radius: var(--ui-radius); background: linear-gradient(115deg, #c51a1b, #b31620); box-shadow: inset 0 1px 0 #ffffff20; transition: background .2s ease, box-shadow .2s ease; }
+.m99-kit .m99-tile-open:hover { background: #a81516; box-shadow: 0 3px 8px #b3162025; }
+.m99-kit .m99-tile-open > svg { transition: transform .22s ease; }
+.m99-kit .m99-market-tile:hover .m99-tile-open > svg, .m99-kit .m99-tile-open:focus-visible > svg { transform: translateX(3px); }
+.m99-kit .m99-tile-cta-label { display: inline-flex; align-items: center; gap: 7px; }
+.m99-kit .m99-market-signal { display: inline-flex; align-items: center; gap: 2px; width: 12px; height: 12px; }
+.m99-kit .m99-market-signal > i { width: 2px; height: 8px; border-radius: var(--ui-radius); background: #fff; transform-origin: center; animation: m99-market-signal 1.2s ease-in-out infinite; }
+.m99-kit .m99-market-signal > i:nth-child(2) { height: 12px; animation-delay: -.35s; }
+.m99-kit .m99-market-signal > i:nth-child(3) { height: 6px; animation-delay: -.7s; }
+.m99-kit .m99-home-market-count .m99-badge-green { padding: 5px 9px; border-radius: var(--ui-radius); border: 1px solid #a3d7bc; }
+.m99-kit[data-theme='dark'] .m99-market-tile[data-status='Open'] { --m99-market-accent: #3ac28b; --m99-market-wash: #2eb57d15; border-color: #32654f; box-shadow: 0 2px 8px #0002; }
+.m99-kit[data-theme='dark'] .m99-market-tile[data-status='Open'] .m99-tile-meta .m99-badge { color: #74e5b2; background: #173e30; border-color: #2d6b4f; }
+.m99-kit[data-theme='dark'] .m99-tile-result { border-color: #ffffff08; }
+.m99-kit[data-theme='dark'] .m99-tile-result .is-jodi > .m99-tile-digit { color: #ff8587; background: #ef505314; border-color: #ef505324; }
+.m99-kit[data-theme='dark'] .m99-home-market-count .m99-badge-green { border-color: #32654f; }
+@keyframes m99-market-arrive { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes m99-market-sweep { 0%, 12% { opacity: 0; transform: translateX(-110%); } 24% { opacity: 1; } 68% { opacity: .9; transform: translateX(360%); } 78%, 100% { opacity: 0; transform: translateX(360%); } }
+@keyframes m99-market-pulse { 0% { opacity: .55; transform: scale(1); } 65%, 100% { opacity: 0; transform: scale(2.8); } }
+@keyframes m99-market-signal { 0%, 100% { transform: scaleY(.45); opacity: .65; } 50% { transform: scaleY(1); opacity: 1; } }
+@media (max-width: 580px) {
+  .m99-kit .m99-market-card.m99-market-tile { border-radius: var(--ui-radius); }
+  .m99-kit .m99-tile-meta .m99-badge { padding: 2px 5px; }
+  .m99-kit .m99-market-tile[data-status='Open'] .m99-tile-meta .m99-badge { gap: 5px; }
+  .m99-kit .m99-tile-result { min-height: 55px; padding: 5px 1px; margin: 4px 0 6px; }
+  .m99-kit .m99-tile-result > span { font-size: 7px; gap: 4px; margin-bottom: 3px; }
+  .m99-kit .m99-tile-result > span::before, .m99-kit .m99-tile-result > span::after { width: 8px; }
+  .m99-kit .m99-tile-result strong { font-size: 22px; gap: 3px; }
+  .m99-kit .m99-tile-result strong > span { gap: 3px; }
+  .m99-kit .m99-tile-result .is-jodi > .m99-tile-digit { padding: 2px 4px; border-radius: var(--ui-radius); }
+  .m99-kit .m99-tile-cta-label { gap: 5px; }
+  .m99-kit .m99-market-signal { gap: 1px; width: 9px; height: 10px; }
+  .m99-kit .m99-market-signal > i:nth-child(2) { height: 10px; }
+  .m99-kit .m99-home-market-count .m99-badge-green { padding: 4px 6px; }
+}
+@media (hover: none) {
+  .m99-kit .m99-market-card.m99-market-tile:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .m99-kit .m99-market-card.m99-market-tile { animation: none; transition: none; }
+  .m99-kit .m99-market-card.m99-market-tile:hover, .m99-kit .m99-market-card.m99-market-tile:focus-within { transform: none; }
+  .m99-kit .m99-market-tile[data-status='Open']::after { opacity: 0; }
+  .m99-kit .m99-market-signal > i { animation: none; }
+}

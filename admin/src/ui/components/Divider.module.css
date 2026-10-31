@@ -1,0 +1,30 @@
+/* The mockup's neutral --hair rule. A horizontal divider uses hr; the vertical form is limited
+   to the space between adjacent controls and therefore stretches only to its control row. */
+.divider {
+  flex: none;
+}
+
+.horizontal {
+  width: 100%;
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--hair);
+}
+
+.vertical {
+  align-self: stretch;
+  width: 1px;
+  min-height: 1em;
+  background: var(--hair);
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .hr: the --line hairline (the classic uses the fainter --hair). */
+:global(html:not([data-skin='classic'])) .horizontal {
+  border-top-color: var(--line);
+}
+
+:global(html:not([data-skin='classic'])) .vertical {
+  background: var(--line);
+}

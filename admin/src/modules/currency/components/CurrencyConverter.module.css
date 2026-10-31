@@ -1,0 +1,134 @@
+/* The currency converter on /currency (W7 Task 199). The mockup draws no converter; every rule here is
+   BEYOND-MOCKUP, built from the kit control face (.searchfield M:693-701) and the card's tokens. */
+
+/* The legacy 600px centred column. Its rows are spaced by margins rather than a grid gap, so the empty
+   result region (kept in the page so it can announce a result) adds no space. */
+.converter {
+  display: grid;
+  width: 100%;
+  max-width: 600px;
+  min-width: 0;
+  margin: 0 auto;
+  container-type: inline-size;
+}
+
+.converter > * + * {
+  margin-top: 20px;
+}
+
+.converter > .resultRegion:empty {
+  margin-top: 0;
+}
+
+/* From, swap, To on one row (the legacy 10/4/10 columns); the swap sits on the fields' baseline under
+   their labels. Below 420px of converter width they stack, as the legacy columns did on phones. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pairField {
+  min-width: 0;
+}
+
+/* The bordered 30px tile, centred on the 36px field row. */
+.swap {
+  margin-bottom: 3px;
+}
+
+@container (max-width: 419px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .swap {
+    justify-self: center;
+    margin-bottom: 0;
+  }
+}
+
+.convert {
+  display: grid;
+  gap: 8px;
+}
+
+/* Why Convert is unavailable, in the dim help colour of a field's help text. */
+.hint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.resultRegion {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* The legacy result panel: a quiet ground with a hairline, the two amounts side by side and the rate
+   underneath. */
+.result {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--hair);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@container (max-width: 419px) {
+  .sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.side {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+}
+
+.sideCode {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.sideAmount {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+/* The converted figure took the legacy accent blue. */
+.converted {
+  color: var(--acc-ink);
+}
+
+.rateLine {
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--hair);
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,74 @@
+"""
+A change the assistant has queued. It has not been applied: an operator must
+confirm it, and only then does it run under that operator's own permissions.
+"""
+type AiActionProposal {
+  id: ID!
+  toolName: String!
+  "Plain-language description of exactly what will change."
+  summary: String!
+  expiresAt: String!
+}
+
+type AiTurn {
+  conversationId: ID!
+  reply: String!
+  "Changes awaiting confirmation, produced by this turn."
+  proposals: [AiActionProposal!]!
+  "Tools consulted, for transparency in the UI."
+  toolsUsed: [String!]!
+}
+
+type AiActionResult {
+  "confirmed | rejected | expired | failed | already_resolved"
+  status: String!
+  message: String!
+}
+
+type AiMessage {
+  id: ID!
+  role: String!
+  content: String
+  createdAt: String!
+}
+
+type AiConversation {
+  id: ID!
+  title: String
+  messages: [AiMessage!]!
+  pendingProposals: [AiActionProposal!]!
+}
+
+type AiAvailability {
+  enabled: Boolean!
+  reason: String
+}
+
+"""
+Per-whitelabel control over the assistant. Owned by Super Admin.
+Both gates default closed: a whitelabel with no settings cannot chat at all.
+"""
+type AiWhitelabelSettings {
+  tenant: String!
+  enabled: Boolean!
+  "Messages allowed per period. 0 means none."
+  chatLimit: Int!
+  "monthly | daily | total"
+  limitPeriod: String!
+  "Messages already sent in the current period."
+  used: Int!
+  remaining: Int!
+  updatedBy: String
+  updatedAt: String
+}
+
+"What the signed-in operator's own whitelabel is allowed to do."
+type AiEntitlement {
+  enabled: Boolean!
+  chatLimit: Int!
+  limitPeriod: String!
+  used: Int!
+  remaining: Int!
+  "Null when chatting is allowed; otherwise why it is not."
+  blockedReason: String
+}

@@ -1,0 +1,62 @@
+/* BEYOND-MOCKUP: dedicated Matka live intelligence panels use the admin kit tokens.
+   The workspace owns available width; no viewport-height assumptions or forced-light surfaces. */
+.stack { display: grid; gap: 20px; min-width: 0; align-content: start; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; min-width: 0; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.item { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf-3); min-width: 0; }
+.list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.rank { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; color: var(--h-ind); background: var(--h-ind-bg); font-size: 12px; font-weight: 700; }
+.heading { margin: 0; color: var(--ink); font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.text { margin: 0; color: var(--ink-2); font-size: 13px; overflow-wrap: anywhere; }
+.muted { color: var(--ink-3); font-size: 12px; overflow-wrap: anywhere; }
+.amount { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.positive { color: var(--pos-ink); }
+.negative { color: var(--neg-ink); }
+.footer { border-top: 1px solid var(--hair); margin-top: 20px; padding-top: 16px; }
+.heatGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.heatCell { display: grid; gap: 6px; text-align: center; border: 1px solid var(--line); border-radius: var(--ui-radius); padding: 14px 8px; min-width: 0; font-variant-numeric: tabular-nums; }
+.heatCell:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.heatNumber { font-size: 22px; font-weight: 700; }
+.heatNeutral { color: var(--ink-3); background: var(--surf-3); }
+.heatLow { color: var(--h-blu); background: var(--h-blu-bg); }
+.heatModerate { color: var(--h-grn); background: var(--h-grn-bg); }
+.heatElevated { color: var(--h-amb); background: var(--h-amb-bg); }
+.heatHigh { color: var(--warn); background: var(--warn-bg); }
+.heatCritical { color: var(--neg-ink); background: var(--neg-bg); }
+.heatActive { border-color: currentColor; }
+.chart { min-width: 0; height: 260px; }
+.chart :global(.recharts-cartesian-grid line) { stroke: var(--grid); }
+.chart :global(.recharts-cartesian-axis-line), .chart :global(.recharts-cartesian-axis-tick-line) { stroke: var(--axis); }
+.chart :global(.recharts-cartesian-axis-tick-value), .chart :global(.recharts-pie-label-text) { fill: var(--tick); }
+.chartTooltip { background: var(--float); color: var(--ink); border: 1px solid var(--line); border-radius: var(--ui-radius); padding: 10px 12px; box-shadow: var(--sh-pop); font-size: 12px; }
+.activity { flex: none; width: 320px; max-width: 100%; padding: 16px 12px 16px 0; }
+.activityCollapsed { width: 88px; }
+.rail { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; padding-bottom: 8px; touch-action: pan-x; }
+.rail:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.railItems { display: grid; grid-auto-flow: column; grid-auto-columns: 220px; gap: 14px; }
+.railRows { grid-template-rows: repeat(2, auto); }
+.carouselItems { display: flex; gap: 16px; }
+.carouselItem { flex: 0 0 260px; min-width: 0; display: grid; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf-3); }
+.dragging { cursor: grabbing; user-select: none; }
+.journeyColumns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 20px; min-width: 0; }
+.timeline { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; max-height: 680px; overflow-y: auto; }
+/* Live Activity rail (kit Event detail Bets rail): under the skin it sits in the workspace's 12px gap, the
+   fold glyph takes the bar's white, and the rows run edge to edge. */
+:global(html:not([data-skin='classic'])) .activity { padding: 0; }
+:global(html:not([data-skin='classic'])) .activityCollapsed { width: 64px; }
+.headIcon.headIcon { color: var(--ink); }
+.actEmpty { padding: 12px; }
+.actList { display: grid; margin: 0; padding: 0; list-style: none; min-width: 0; max-height: 680px; overflow-y: auto; scrollbar-width: thin; }
+.actItem { display: grid; gap: 6px; min-width: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.actTop { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.actPlayer { overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.actTime { flex: none; margin-left: auto; color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.actWhat { margin: 0; color: var(--ink-2); font-size: 13px; overflow-wrap: anywhere; }
+.actNums { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--ink-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+.actNums b { color: var(--ink); font-weight: 700; }
+.actStatus { margin-left: auto; }
+@media (max-width: 1279px) { .activity { display: none; } }
+@container (max-width: 900px) { .grid2, .journeyColumns { grid-template-columns: 1fr; } }
+@media (max-width: 767px) { .grid2 { grid-template-columns: 1fr; } .grid3 { grid-template-columns: 1fr; } .heatGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

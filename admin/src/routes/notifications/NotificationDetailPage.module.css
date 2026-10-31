@@ -1,0 +1,154 @@
+/* Notification detail (/notifications/:id). The mockup draws no detail page: details live in its drawer
+   (.dr-body/.dr-sec/.dl M:1150-1157), so this page is that drawer's content on a card (M:853-856), with the
+   kit DescriptionList for the .dl rows. Everything here is BEYOND-MOCKUP in placement and derives from
+   those rules. */
+
+/* The tags under the title (the legacy Tag row): a wrapping row with the card tools' 8px gap
+   (.card-tools M:867). */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* A category tag: the status pill's shape (.pill M:1018-1023) on the decorative tile hues
+   (.ftile.g/.i/.a/.v/.b M:1065-1069, red from the same ramp). Not a status: the text carries it. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.hueNeutral {
+  background: var(--surf-3);
+  color: var(--ink-2);
+}
+
+.hueGrn {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.hueAmb {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+.hueBlu {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.hueVio {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.hueInd {
+  background: var(--h-ind-bg);
+  color: var(--h-ind);
+}
+
+.hueRed {
+  background: var(--h-red-bg);
+  color: var(--h-red);
+}
+
+/* A head-less card body: the drawer body's rhythm (.dr-body M:1150) at the card inset. The first .dl
+   row brings 10px of its own, so 8px here lands the first term on the card's 18px inset. */
+.details {
+  padding: 8px var(--card-pad) var(--card-pad);
+}
+
+/* The failed-load notice takes the card's full inset (--card-pad M:32). */
+.state {
+  padding: var(--card-pad);
+}
+
+.created {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.createdIcon {
+  display: flex;
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* The relative age in the dim cell colour (td.dim M:998). */
+.relative {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.metaList {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.metaLine {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.metaTerm {
+  margin-right: 6px;
+  font-weight: 600;
+}
+
+/* "Show all metadata" is a native disclosure. It is the containing block of the code block's copy
+   announcement, which is absolutely positioned. */
+.disclosure {
+  position: relative;
+  min-width: 0;
+}
+
+/* The summary is the mockup's text link (.linkbtn M:879-886) in the dim ink the legacy toggle used. */
+.summary {
+  width: fit-content;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--t-1) ease;
+}
+
+.summary:hover {
+  color: var(--link, var(--acc-ink));
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.code {
+  margin-top: 8px;
+}
+
+/* The call to action under the rows; the legacy page set it 24px below the list. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary {
+    transition: none;
+  }
+}

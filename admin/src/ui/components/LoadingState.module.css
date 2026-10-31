@@ -1,0 +1,54 @@
+/* The block a region shows while it waits for its first data. Promoted from the overview's table
+   states (routes/overview/components/tables.module.css `.state` / `.stateSm`), whose heights are the
+   ones the old antd blocks reserved, so a card does not resize as its data lands. The mockup has no
+   loading state of its own (BEYOND-MOCKUP); the colour is the muted ink every other placeholder uses. */
+.state {
+  /* the containing block of the visually hidden .label: without it the label positions against the
+     nearest positioned ancestor, which inside a DataTable is the region outside the table's scroller, and
+     at the centre of a table wider than twice its card it pokes out of the card (bet-list 1100-loading) */
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+
+/* the two reserved heights: a table card (h-64) and a small card (h-48) */
+.md {
+  min-height: 256px;
+}
+
+.sm {
+  min-height: 192px;
+}
+
+/* the exact height of the content it stands in for, from the numeric-only `height` prop */
+.exact {
+  min-height: var(--loading-height);
+}
+
+/* the route-level fallback: fill the content column instead of reserving a fixed height, so the page
+   does not jump when the lazy chunk lands. `.main` is already a flex column that fills the content
+   area (shell/AppShell.module.css), which is why no viewport height appears here. */
+.fill {
+  flex: 1;
+  min-height: 192px;
+}
+
+/* the accessible name sits in the DOM for assistive tech only: the spinner beside it is decorative */
+.label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .loading (kit p2) is a centred muted ring, which this block already is: its colour is --ink-3 and its
+   reserved heights must not change (loading keeps content height). The ring itself is Spinner's, so
+   nothing is restated here. */

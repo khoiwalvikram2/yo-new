@@ -1,0 +1,274 @@
+/* Task detail (/notifications/tasks/:id). The mockup draws no detail page: details live in its drawer
+   (.dr-body/.dr-sec/.dl M:1150-1157), so this page is that drawer's content on cards (M:853-856), with the
+   kit DescriptionList for the .dl rows. The two-step status has no mockup drawing and no kit Stepper yet;
+   it is BEYOND-MOCKUP, built from the feed tile (.ftile M:1064) and the status pill tones (.pill M:1018-1028). */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The tags under the title (the legacy Tag row): a wrapping row with the card tools' 8px gap
+   (.card-tools M:867). */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* A category tag: the status pill's shape (.pill M:1018-1023) on the decorative tile hues
+   (.ftile.g/.i/.a/.v/.b M:1065-1069, red from the same ramp). Not a status: the text carries it. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.hueNeutral {
+  background: var(--surf-3);
+  color: var(--ink-2);
+}
+
+.hueGrn {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.hueAmb {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+.hueBlu {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.hueVio {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.hueInd {
+  background: var(--h-ind-bg);
+  color: var(--h-ind);
+}
+
+.hueRed {
+  background: var(--h-red-bg);
+  color: var(--h-red);
+}
+
+/* ---------- Task Status ---------- */
+
+/* The step row measures its own card, not the viewport: the context panel moves the card by 269px. */
+.stepsFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.steps {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* The feed tile (.ftile M:1064). A finished step takes the ok pair and the step in progress the
+   in-flight blue pair (.pill.approved / .pill.processing M:1025, M:1027): done and under way. */
+.stepIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ui-radius);
+}
+
+.finish .stepIcon {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.process .stepIcon {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+.stepBody {
+  flex: 1;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+/* The step title, with the tail rule antd drew from it to the next step, in --line. */
+.stepTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.step:not(:last-child) .stepTitle::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* The step's line under its title (.fbody span M:1072, wrapping). */
+.stepDescription {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* Narrow cards stack the steps, as antd did below its responsive width; the tail rule goes. */
+@container (max-width: 480px) {
+  .steps {
+    flex-direction: column;
+  }
+
+  .step:not(:last-child) .stepTitle::after {
+    display: none;
+  }
+}
+
+/* ---------- details ---------- */
+
+/* A head-less card body: the drawer body's rhythm (.dr-body M:1150) at the card inset. The first .dl
+   row brings 10px of its own, so 8px here lands the first term on the card's 18px inset. */
+.details {
+  padding: 8px var(--card-pad) var(--card-pad);
+}
+
+/* The failed-load notice takes the card's full inset (--card-pad M:32). */
+.state {
+  padding: var(--card-pad);
+}
+
+.created {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.createdIcon {
+  display: flex;
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* The relative age in the dim cell colour (td.dim M:998). */
+.relative {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.metaList {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.metaLine {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.metaTerm {
+  margin-right: 6px;
+  font-weight: 600;
+}
+
+/* "Show all metadata" is a native disclosure. It is the containing block of the code block's copy
+   announcement, which is absolutely positioned. */
+.disclosure {
+  position: relative;
+  min-width: 0;
+}
+
+/* The summary is the mockup's text link (.linkbtn M:879-886) in the dim ink the legacy toggle used. */
+.summary {
+  width: fit-content;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--t-1) ease;
+}
+
+.summary:hover {
+  color: var(--link, var(--acc-ink));
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.code {
+  margin-top: 8px;
+}
+
+/* The legacy inline code (antd Text code) for the raw action URL: the code block's ground (--surf-3,
+   CodeBlock.module.css) at text size, wrapping anywhere so a long URL never widens the card. */
+.inlineCode {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* The call to action under the rows; the legacy page set it 24px below the list. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 6: the inline URL wears the
+   charcoal code block's ground, as it mirrors it. */
+:global(html:not([data-skin='classic'])) .inlineCode {
+  border-color: var(--chrome);
+  border-radius: var(--ui-radius);
+  background: var(--chrome);
+  color: var(--chrome-soft);
+}

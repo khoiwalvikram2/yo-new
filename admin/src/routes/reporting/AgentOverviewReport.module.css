@@ -1,0 +1,117 @@
+/* /reporting/agent-overview has no mockup page. It is composed from the generic recipe: the page head
+   (M:753-763) carrying the period pill where the mockup draws its range control (M:1736-1746), the
+   segmented rail (.seg M:777-794), the KPI tiles (.kpis/.kpi M:808-850), the card (M:853-867), the table
+   cells (M:984-1006) and the empty state (M:1050-1056). Everything else is marked BEYOND-MOCKUP. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the view tabs and the domain rail keep their one-line shape and scroll sideways in
+   their own row when the column is narrower than they are (the Exposure report's domain scroller). */
+.scroller {
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.scroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  border-radius: var(--ui-radius);
+}
+
+.rail {
+  width: max-content;
+}
+
+/* A domain's glyph sits beside its name as the tab strip's do (.seg button M:781-785). */
+.optionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.optionIcon {
+  display: flex;
+  flex: none;
+}
+
+/* BEYOND-MOCKUP: one failed query per line inside the error notice, as the legacy alert listed them. */
+.errorLine {
+  display: block;
+}
+
+.panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The four totals (.kpis M:808-810). The mockup steps them by viewport; here the row answers to its own
+   width, because the context panel takes 205px of it (definition of done item 17). A ₹99,99,99,999.00
+   figure at 24px/700 needs about 290px of tile, so two across from 600px and four from 1200px. */
+.statsZone {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px; /* .kpis gap M:808 */
+}
+
+@container (min-width: 600px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1200px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* The agent and player cells: the name as a key cell (td.k M:996) over a dim id line (td.dim M:997). */
+.entity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.entityName {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.entityId {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* BEYOND-MOCKUP: commission earned keeps the legacy green emphasis on the semantic positive ink, the
+   mockup's own up colour (.kpi-d.up b M:839). */
+.commission {
+  color: var(--pos-ink);
+  font-weight: 600;
+}
+
+/* the phone step of the page's vertical rhythm (M:1603-1606) */
+@media (max-width: 767px) {
+  .content,
+  .panel,
+  .stats {
+    gap: 14px;
+  }
+}

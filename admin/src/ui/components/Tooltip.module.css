@@ -1,0 +1,94 @@
+.positioner {
+  z-index: var(--z-tip);
+  pointer-events: none;
+}
+
+.tooltip {
+  position: relative;
+  max-width: 260px;
+  padding: 6px 10px;
+  background: var(--float);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--sh-tip);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity var(--t-2) ease, transform var(--t-2) ease;
+}
+
+.tooltip[data-status='open'] {
+  opacity: 1;
+  transform: none;
+}
+
+/* The arrow: a 7px square turned 45deg, centred on the edge facing the trigger (data-placement is the side
+   flip() settled on), so a 10px x 5px point shows past the bubble. It takes the bubble's own fill, and its
+   two outer sides carry the bubble's hairline; its inner half covers the bubble's border where they meet.
+   arrow() sets `left` (top/bottom) or `top` (left/right) to aim it at the trigger. */
+.arrow {
+  position: absolute;
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  border: 0 solid var(--line);
+  background: inherit;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.tooltip[data-placement='top'] .arrow {
+  bottom: -4px;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+}
+
+.tooltip[data-placement='bottom'] .arrow {
+  top: -4px;
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+
+.tooltip[data-placement='left'] .arrow {
+  right: -4px;
+  border-top-width: 1px;
+  border-right-width: 1px;
+}
+
+.tooltip[data-placement='right'] .arrow {
+  left: -4px;
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .tip-pop: a charcoal bubble with white 12px 600 text, in both themes. Opacity and transform are left
+   to the base [data-status] and reduced-motion rules. The arrow (.tip-pop::after, is-below) inherits the
+   charcoal fill; the bubble has no border, so neither has the arrow. */
+:global(html:not([data-skin='classic'])) .tooltip {
+  max-width: 240px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: var(--chrome);
+  color: #FFFFFF;
+  box-shadow: var(--sh-tip);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* (0,3,1) over the base placement rules (0,3,0) */
+:global(html:not([data-skin='classic'])) .tooltip .arrow {
+  border-width: 0;
+}

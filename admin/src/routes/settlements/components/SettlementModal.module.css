@@ -1,0 +1,16 @@
+/* BEYOND-MOCKUP: two-step settlement details use token surfaces and semantic amounts. */
+.stack { display: grid; gap: 20px; min-width: 0; }
+.actions, .head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.head { justify-content: space-between; }
+.title { margin: 0; color: var(--ink); font-size: 13px; font-weight: 600; }
+.note { display: block; margin: 8px 0 0; color: var(--ink-3); font-size: 12px; line-height: 1.6; }
+.breakdown { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.domain { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf-3); color: var(--ink); font-size: 12px; }
+.positive { color: var(--pos-ink); }
+.negative { color: var(--neg-ink); }
+@media (max-width: 599px) { .breakdown { grid-template-columns: minmax(0, 1fr); } }
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 6: the kit's 3px corner in place of the classic rounding. */
+:global(html:not([data-skin='classic'])) .domain {
+  border-radius: var(--ui-radius);
+}

@@ -1,0 +1,499 @@
+type AgentSettlementTransactionsPage {
+  items: [AgentSettlementTransaction!]!
+  total: Int!
+  totalAmount: Float!
+  toAgent: Float!
+  fromAgent: Float!
+  toCount: Int!
+  fromCount: Int!
+}
+
+# Settlement System GraphQL Schema
+
+type AgentSettlementTransaction {
+  id: ID!
+  tenant: String!
+  agentId: ID!
+  agent: AgentBasic
+  settlementType: String! # P_L | CREDIT
+  amount: Float!
+  direction: String! # TO_AGENT | FROM_AGENT
+  previousBalance: Float
+  newBalance: Float
+  notes: String
+  settledBy: ID
+  createdAt: String!
+}
+
+type CommissionPayout {
+  id: ID!
+  tenant: String!
+  agentId: ID!
+  agent: AgentBasic
+  amount: Float!
+  periodFrom: String
+  periodTo: String
+  turnover: Float
+  notes: String
+  paidBy: ID
+  createdAt: String!
+}
+
+# Paginated commission settlement history for self and downline
+type CommissionSettlementHistoryResult {
+  items: [CommissionPayout!]!
+  total: Int!
+}
+
+type PlayerCreditAdjustment {
+  id: ID!
+  tenant: String!
+  playerId: ID!
+  player: User
+  adjustmentType: String! # INCREASE | DECREASE | LIMIT_CHANGE
+  amount: Float!
+  previousLimit: Float
+  newLimit: Float
+  previousUsed: Float
+  newUsed: Float
+  notes: String
+  adjustedBy: ID
+  createdAt: String!
+  balanceBefore: Float
+  balanceAfter: Float
+}
+
+# Pending settlement info for dashboard
+type PendingSettlement {
+  agentId: ID!
+  agent: AgentBasic!
+  schemeType: AgentScheme!
+  "SHARING: signed like the SHARE/SETTLEMENT lines the settlement posts — positive = TO_AGENT (pay the agent), negative = FROM_AGENT (collect from the agent). CREDIT: the absolute settlement balance (see settlementDirection)."
+  pendingAmount: Float!
+  "Who pays: TO_AGENT (you pay the agent), FROM_AGENT (the agent pays you) or NONE. SHARING and CREDIT rows; null for COMMISSION."
+  settlementDirection: String
+  "SHARING: start of the open settlement window (half-open [periodFrom, periodTo))."
+  periodFrom: String
+  "SHARING: end of the window these figures cover; pass it as SettleAgentInput.periodTo to settle exactly this window."
+  periodTo: String
+  settlementType: String! # P_L | CREDIT | COMMISSION
+  lastSettlementDate: String
+  settlementBreakdownByDomain: [SettlementDomainBreakdownItem!]!
+}
+
+# Per-domain amount, % of total, share rate, agent share (without cut), and cut (whitelabel)
+type SettlementDomainBreakdownItem {
+  domain: AgentDomain!
+  amount: Float!
+  percentage: Float!
+  shareRate: Float!       # Agent share rate as % (e.g. 20 for 20%)
+  agentShare: Float!      # Agent's share (without cut) = amount * rate
+  cutAmount: Float!
+  cutPercentage: Float!
+}
+
+# Domain contribution for a player/sub-agent
+type DomainContribution {
+  domain: AgentDomain!
+  pl: Float!
+  share: Float!
+  cutAmount: Float!
+}
+
+# Player contribution to settlement
+type PlayerSettlementContribution {
+  playerId: ID!
+  playerName: String
+  playerUsername: String
+  pl: Float!
+  share: Float!
+  domainBreakdown: [DomainContribution!]!
+  contributionPercentage: Float!
+  isDirectPlayer: Boolean!
+  subAgentId: ID
+  subAgentName: String
+}
+
+# Sub-agent contribution to settlement
+type SubAgentSettlementContribution {
+  subAgentId: ID!
+  subAgentName: String
+  subAgentUsername: String
+  totalPL: Float!
+  totalShare: Float!
+  playerCount: Int!
+  domainBreakdown: [DomainContribution!]!
+  contributionPercentage: Float!
+  players: [PlayerSettlementContribution!]!
+}
+
+# Enhanced settlement details
+type SettlementDetails {
+  id: ID!
+  agentId: ID!
+  agent: AgentBasic
+  periodFrom: String!
+  periodTo: String!
+  totalAmount: Float!
+  direction: String!
+  status: String!
+  currency: String!
+  notes: String
+  postedBy: ID
+  postedAt: String
+  createdAt: String!
+  # New fields
+  directPlayersContribution: Float!
+  subAgentsContribution: Float!
+  directPlayersCount: Int!
+  subAgentsCount: Int!
+  domainBreakdown: [SettlementDomainBreakdownItem!]!
+  playerContributions: [PlayerSettlementContribution!]!
+  subAgentContributions: [SubAgentSettlementContribution!]!
+}
+
+# Enhanced pending settlement
+type EnhancedPendingSettlement {
+  agentId: ID!
+  agent: AgentBasic!
+  schemeType: AgentScheme!
+  "SHARING: signed like the SHARE/SETTLEMENT lines the settlement posts — positive = TO_AGENT (pay the agent), negative = FROM_AGENT (collect from the agent). CREDIT: the absolute settlement balance (see settlementDirection)."
+  pendingAmount: Float!
+  "Who pays: TO_AGENT (you pay the agent), FROM_AGENT (the agent pays you) or NONE. SHARING and CREDIT rows; null for COMMISSION."
+  settlementDirection: String
+  "SHARING: start of the open settlement window (half-open [periodFrom, periodTo))."
+  periodFrom: String
+  "SHARING: end of the window these figures cover; pass it as SettleAgentInput.periodTo to settle exactly this window."
+  periodTo: String
+  "Amount already settled in this period (partial + full); for SHARING shows sum of SETTLEMENT lines in period."
+  settledThisPeriod: Float!
+  "Total share for this period (SHARING only); so UI can show 'Settled X of Y'."
+  totalShareForPeriod: Float
+  "Total amount settled to this agent (all time)."
+  totalSettledToAgent: Float!
+  settlementType: String!
+  lastSettlementDate: String
+  settlementBreakdownByDomain: [SettlementDomainBreakdownItem!]!
+  # New fields
+  directPlayersContribution: Float!
+  subAgentsContribution: Float!
+  directPlayersCount: Int!
+  subAgentsCount: Int!
+  topPlayers: [PlayerSettlementContribution!]!
+  subAgents: [SubAgentSettlementContribution!]!
+}
+
+# Domain settlement breakdown
+type DomainSettlement {
+  domain: AgentDomain!
+  settlementBalance: Float!
+}
+
+# Monthly trend (settled + commission)
+type SettlementMonthlyTrendItem {
+  month: String!
+  totalSettled: Float!
+  commissionPaid: Float!
+}
+
+# Sub-agent commission summary (for parent commission agents to settle their direct sub-agents)
+type SubAgentCommissionSummary {
+  agentId: ID!
+  username: String
+  pendingCommission: Float!
+  totalPaid: Float!
+  lastPaidAt: String
+  # All-time domain breakdown (GGR, commission, rate as decimal 0..1)
+  sportsGGR: Float!
+  casinoGGR: Float!
+  matkaGGR: Float!
+  sportsCommission: Float!
+  casinoCommission: Float!
+  matkaCommission: Float!
+  sportsCommissionRate: Float!
+  casinoCommissionRate: Float!
+  matkaCommissionRate: Float!
+  currency: String
+  # Tally and effective settlement (same rules as CommissionSummary)
+  tallyEnabled: Boolean!
+  tallyDomains: [AgentDomain!]!
+  effectiveCalculatedTotal: Float!
+  effectiveSportsCommission: Float!
+  effectiveCasinoCommission: Float!
+  effectiveMatkaCommission: Float!
+}
+
+# Dashboard stats
+type SettlementDashboard {
+  "SHARING pending of the agents the caller settles (root agents for an admin), NET: pay minus collect. Positive = you pay agents overall."
+  pendingSharingSettlements: Float!
+  "SHARING: total you still pay agents (TO_AGENT), same agents as pendingSharingSettlements."
+  pendingSharingToAgents: Float
+  "SHARING: total agents still pay you (FROM_AGENT), as a positive number."
+  pendingSharingFromAgents: Float
+  pendingCreditSettlements: Float!
+  pendingCommissionPayouts: Float!
+  pendingDirectCreditAdjustments: Int!
+  "Paid plus collected settlement volume this month."
+  totalSettledThisMonth: Float!
+  "Paid plus collected settlement volume in the last 30 days."
+  totalSettledLast30Days: Float!
+  totalCommissionPaidThisMonth: Float!
+  "Inclusive local calendar days used for the activity totals."
+  periodFrom: String!
+  periodTo: String!
+  "Paid plus collected settlements completed during the selected period."
+  totalSettledInPeriod: Float!
+  totalPaidToAgentsInPeriod: Float!
+  totalCollectedFromAgentsInPeriod: Float!
+  "Commission payments posted during the period, based on payment date."
+  totalCommissionPaidInPeriod: Float!
+  domainBreakdown: [DomainSettlement!]!
+  monthlyTrend: [SettlementMonthlyTrendItem!]!
+}
+
+# Mutation inputs
+input SettleAgentInput {
+  agentId: ID!
+  settlementType: String! # P_L | CREDIT
+  amount: Float!
+  direction: String! # TO_AGENT | FROM_AGENT
+  notes: String!
+  # Period dates (optional). SHARING: periodFrom is ignored (derived "since last settlement");
+  # periodTo may be the pending row's periodTo so exactly the displayed window is settled
+  # (clamped to now; omitted = now). amount 0 = settle the whole remaining amount.
+  periodFrom: String
+  periodTo: String
+}
+
+input PayCommissionInput {
+  agentId: ID!
+  amount: Float!
+  periodFrom: String
+  periodTo: String
+  notes: String!
+}
+
+input AdjustPlayerCreditInput {
+  playerId: ID!
+  adjustmentType: String! # INCREASE | DECREASE | LIMIT_CHANGE
+  amount: Float!
+  notes: String
+}
+
+# Mutation payloads
+type AgentSettlementPayload {
+  success: Boolean!
+  message: String!
+  settlement: AgentSettlementTransaction
+}
+
+type CommissionPayoutPayload {
+  success: Boolean!
+  message: String!
+  payout: CommissionPayout
+}
+
+# IST Monday->Monday cycle status (COMMISSION agents only)
+enum CommissionCycleStatus {
+  OPEN
+  CLOSED_UNSETTLED
+  SETTLED
+  BLOCKED
+}
+
+type CommissionCycleInfo {
+  from: String!
+  to: String!
+  status: CommissionCycleStatus!
+  paidAmount: Float
+  "Still payable for the cycle: gross after tally + applied adjustments - paid (0 once paid; null while OPEN)."
+  payableAmount: Float
+  "The cycle's gross commission after tally rules (running total while OPEN)."
+  calculatedTotal: Float
+  "Applied adjustments targeting the cycle."
+  adjustmentAmount: Float
+  "SETTLED with no payout because nothing was payable."
+  zeroCommission: Boolean
+  "IST calendar date of the cycle start (Monday), YYYY-MM-DD. Send back as periodFrom/cycleFrom."
+  fromDate: String
+  "IST calendar date of the cycle end (next Monday), YYYY-MM-DD. Send back as periodTo/cycleTo."
+  toDate: String
+  "Loss carried into this week from the week before (0 when none)."
+  carriedLoss: Float
+  "The part of carriedLoss taken off this week's gross; calculatedTotal is after it."
+  carryApplied: Float
+  "This week's loss, which carries into the next week (0 before the week of 2026-10-19 IST)."
+  lossThisCycle: Float
+}
+
+type CommissionCycleCurrent {
+  from: String!
+  to: String!
+  status: String!
+  "IST dates (YYYY-MM-DD) of the open cycle and of the last closed one."
+  fromDate: String
+  toDate: String
+  previousFromDate: String
+  previousToDate: String
+}
+
+type CommissionCycleReadiness {
+  ready: Boolean!
+  reasons: [String!]!
+  calculatedTotal: Float!
+  postedTotal: Float!
+  paidInCycle: Float!
+  payableAmount: Float!
+  currency: String!
+  "Bets placed in the cycle by the agent's players that are still open (MISSING_BETS)."
+  openBets: Int
+  "PENDING adjustments raised against the cycle (UNRESOLVED_ADJUSTMENT)."
+  unresolvedAdjustments: Int
+  "Bets placed in the previous week that are still open; its loss carries into this week (MISSING_BETS)."
+  previousCycleOpenBets: Int
+  "Loss carried into this week from the week before."
+  carriedLoss: Float
+  "The part of carriedLoss taken off this week's gross; calculatedTotal is after it."
+  carryApplied: Float
+}
+
+type CommissionAdjustment {
+  id: ID!
+  agentId: ID!
+  amount: Float!
+  sourceCycleFrom: String!
+  sourceCycleTo: String!
+  targetCycleFrom: String
+  targetCycleTo: String
+  reason: String!
+  "PENDING (blocks its source week's payout), APPLIED (counted in the target week's payable) or CANCELLED (final, never counted)."
+  status: String!
+  createdAt: String!
+  appliedAt: String
+}
+
+input CreateCommissionAdjustmentInput {
+  agentId: ID!
+  amount: Float!
+  sourceCycleFrom: String!
+  sourceCycleTo: String!
+  reason: String!
+  refMeta: String
+}
+
+type CreateCommissionAdjustmentPayload {
+  success: Boolean!
+  message: String!
+  adjustment: CommissionAdjustment
+}
+
+input ApplyCommissionAdjustmentInput {
+  adjustmentId: ID!
+  targetCycleFrom: String!
+  targetCycleTo: String!
+}
+
+type ApplyCommissionAdjustmentPayload {
+  success: Boolean!
+  message: String!
+  adjustment: CommissionAdjustment
+}
+
+type CancelCommissionAdjustmentPayload {
+  success: Boolean!
+  message: String!
+  adjustment: CommissionAdjustment
+}
+
+type PlayerCreditAdjustmentPayload {
+  success: Boolean!
+  message: String!
+  adjustment: PlayerCreditAdjustment
+}
+
+type BulkSettlementResult {
+  success: Boolean!
+  message: String!
+  settledCount: Int!
+  failedCount: Int!
+  settlements: [AgentSettlementTransaction!]!
+}
+
+# Settlement history item for admin view
+type SettlementHistoryItem {
+  id: ID!
+  agentId: ID!
+  agent: AgentBasic
+  periodFrom: String!
+  periodTo: String!
+  totalAmount: Float!
+  direction: String!
+  status: String!
+  currency: String!
+  notes: String
+  postedBy: ID
+  postedAt: String
+  createdAt: String!
+}
+
+# Extend Query
+extend type Query {
+  "Completed activity uses inclusive local calendar days in the whitelabel timezone; pending balances remain live. Pass both dates or neither."
+  settlementDashboard(fromDate: String, toDate: String): SettlementDashboard!
+  agentSettlementTransactionsPage(agentId: ID, limit: Int, offset: Int, fromDate: String, toDate: String): AgentSettlementTransactionsPage!
+  commissionPayoutsPage(agentId: ID, limit: Int, offset: Int, fromDate: String, toDate: String): CommissionSettlementHistoryResult!
+  agentSettlementTransactions(agentId: ID, limit: Int, offset: Int, fromDate: String, toDate: String): [AgentSettlementTransaction!]!
+  commissionPayouts(agentId: ID, limit: Int, offset: Int, fromDate: String, toDate: String): [CommissionPayout!]!
+  myCommissionSettlementHistory(limit: Int, offset: Int, fromDate: String, toDate: String): CommissionSettlementHistoryResult!
+  downlineCommissionSettlementHistory(subAgentId: ID, limit: Int, offset: Int, fromDate: String, toDate: String): CommissionSettlementHistoryResult!
+  subAgentCommissionSummaries(agentId: ID, periodFrom: String, periodTo: String, lastPaidBefore: String): [SubAgentCommissionSummary!]!
+  "Admin/whitelabel only: commission summaries for all COMMISSION agents in tenant for the given period (cycle)."
+  whitelabelCommissionSummaries(periodFrom: String!, periodTo: String!): [SubAgentCommissionSummary!]!
+  playerCreditAdjustments(playerId: ID, limit: Int, offset: Int, fromDate: String, toDate: String): [PlayerCreditAdjustment!]!
+  pendingSettlements(schemeType: AgentScheme): [PendingSettlement!]!
+  enhancedPendingSettlements(schemeType: AgentScheme): [EnhancedPendingSettlement!]!
+  subAgentsPendingSettlements(schemeType: AgentScheme): [EnhancedPendingSettlement!]!
+  commissionCyclesForAgent(agentId: ID!): [CommissionCycleInfo!]!
+  currentCommissionCycle: CommissionCycleCurrent!
+  commissionAdjustmentsPage(agentId: ID!, limit: Int, offset: Int): CommissionAdjustmentsPage!
+  commissionAdjustments(agentId: ID!, limit: Int): [CommissionAdjustment!]!
+  commissionCycleReadiness(agentId: ID!, cycleFrom: String!, cycleTo: String!): CommissionCycleReadiness!
+  settlementDetails(settlementId: ID!): SettlementDetails!
+  agentSettlementContributions(agentId: ID!, periodFrom: String!, periodTo: String!): AgentSettlementContributions!
+  # Admin settlement history - returns all settlements for tenant
+  allSettlementHistory(limit: Int, offset: Int, fromDate: String, toDate: String): [SettlementHistoryItem!]!
+}
+
+# Agent settlement contributions response
+type AgentSettlementContributions {
+  directPlayers: [PlayerSettlementContribution!]!
+  subAgents: [SubAgentSettlementContribution!]!
+  totals: ContributionTotals!
+}
+
+# Contribution totals
+type ContributionTotals {
+  directPL: Float!
+  subAgentPL: Float!
+  directShare: Float!
+  subAgentShare: Float!
+  directPlayersCount: Int!
+  subAgentsCount: Int!
+}
+
+# Extend Mutation
+# Commission payouts are create-only (payCommission); no update/delete mutations. Backend enforces immutability.
+extend type Mutation {
+  settleAgent(input: SettleAgentInput!): AgentSettlementPayload!
+  payCommission(input: PayCommissionInput!): CommissionPayoutPayload!
+  createCommissionAdjustment(input: CreateCommissionAdjustmentInput!): CreateCommissionAdjustmentPayload!
+  applyCommissionAdjustment(input: ApplyCommissionAdjustmentInput!): ApplyCommissionAdjustmentPayload!
+  "Admin only (settlements.commission:create). A PENDING adjustment becomes CANCELLED; the reason goes to the audit row."
+  cancelCommissionAdjustment(adjustmentId: ID!, reason: String): CancelCommissionAdjustmentPayload!
+  adjustPlayerCredit(input: AdjustPlayerCreditInput!): PlayerCreditAdjustmentPayload!
+  bulkSettleAgents(agentIds: [ID!]!): BulkSettlementResult!
+}
+
+
+type CommissionAdjustmentsPage { items: [CommissionAdjustment!]! total: Int! }

@@ -1,0 +1,283 @@
+/* No mockup rule. Sized for a 34-36px topbar row; tokens chosen for >= 3:1 non-text contrast in both themes
+   (off track --ink-3 vs --app 4.9 / 6.6; on track --acc vs --app 5.9 / 5.2; thumbs 5.1+ on their track). */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.track {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  width: 32px;
+  height: 18px;
+  border-radius: var(--ui-radius);
+  background: var(--ink-3);
+  transition: background var(--t-1) ease;
+}
+
+.thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surf);
+  box-shadow: var(--sh);
+  transition: transform var(--t-1) var(--ease), background var(--t-1) ease;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.switch:not(:disabled, [aria-disabled='true']):hover .track {
+  background: var(--ink-2);
+}
+
+.switch[aria-checked='true'] .track {
+  background: var(--acc);
+}
+
+.switch[aria-checked='true']:not(:disabled, [aria-disabled='true']):hover .track {
+  background: var(--acc-h);
+}
+
+.switch[aria-checked='true'] .thumb {
+  transform: translateX(14px);
+  background: var(--acc-on);
+}
+
+.sm {
+  gap: 6px;
+  font-size: 12px;
+}
+
+.sm .track {
+  width: 26px;
+  height: 16px;
+}
+
+.sm .thumb {
+  width: 12px;
+  height: 12px;
+}
+
+.sm[aria-checked='true'] .thumb {
+  transform: translateX(10px);
+}
+
+.danger[aria-checked='true'] .track {
+  background: var(--neg-ink);
+}
+
+.danger[aria-checked='true']:not(:disabled, [aria-disabled='true']):hover .track {
+  background: var(--neg-h);
+}
+
+.danger[aria-checked='true'] .thumb {
+  background: var(--neg-on);
+}
+
+.switch:not(:disabled, [aria-disabled='true']):hover .label {
+  color: var(--ink);
+}
+
+/* the ring goes round the track, not round track + label */
+.switch:focus-visible {
+  outline: none;
+}
+
+.switch:focus-visible .track {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.switch:disabled,
+.switch[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .thumb {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* The kit's square switch (.sw). Track 46x26 (sm 38x22), 3px, 1px --line-2, --disabled-bg with an inset
+   shadow when off; on is the green gradient with a #086B35 edge. The knob is .thumb: 20px (sm 16px),
+   2px radius, white with a faint token-tinted gradient, three grip lines and a lift shadow; it widens
+   while pressed. The marks are .track::before (the base CSS leaves the track's pseudo-elements unused):
+   a ring on the empty right side when off, a white check on the empty left side when on. Hover darkens
+   the edge. Danger keeps a red "on" (--acc) instead of the green. The knob is white in both themes, so
+   its grip and gradient tints are mixed from white with --ink-3; shadows are neutral black alphas. */
+:global(html:not([data-skin='classic'])) .switch {
+  gap: 10px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+:global(html:not([data-skin='classic'])) .sm {
+  gap: 8px;
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .track {
+  width: 46px;
+  height: 26px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--disabled-bg);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 14%);
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+/* off mark: a small ring on the empty side */
+:global(html:not([data-skin='classic'])) .track::before {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border: 2px solid var(--line-3);
+  border-radius: 50%;
+  content: '';
+  transform: translateY(-50%);
+}
+
+:global(html:not([data-skin='classic'])) .thumb {
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--ui-radius);
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, #FFFFFF 58%, var(--ink-3)) 0 1px, transparent 1px 3px) center / 7px 8px no-repeat,
+    linear-gradient(180deg, #FFFFFF 0%, color-mix(in srgb, #FFFFFF 94%, var(--ink-3)) 100%);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 32%), 0 0 0 1px rgb(0 0 0 / 8%);
+  transition: transform 0.2s cubic-bezier(0.3, 0.7, 0.4, 1), width 0.15s ease;
+}
+
+:global(html:not([data-skin='classic'])) .switch:not(:disabled, [aria-disabled='true']):hover .track {
+  border-color: var(--line-3);
+  background: var(--disabled-bg);
+}
+
+/* on */
+:global(html:not([data-skin='classic'])) .switch[aria-checked='true'] .track {
+  border-color: #086B35;
+  background: linear-gradient(180deg, #13934D 0%, #0B8040 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+
+:global(html:not([data-skin='classic'])) .switch[aria-checked='true']:not(:disabled, [aria-disabled='true']):hover .track {
+  border-color: color-mix(in srgb, #086B35 80%, black);
+  background: linear-gradient(180deg, #13934D 0%, #0B8040 100%);
+}
+
+:global(html:not([data-skin='classic'])) .switch[aria-checked='true'] .track::before {
+  right: auto;
+  left: 8px;
+  width: 5px;
+  height: 10px;
+  border: solid #FFFFFF;
+  border-width: 0 2px 2px 0;
+  /* Border-drawn checkmark geometry, independent of the control's outer radius. */
+  border-radius: 0;
+  transform: translateY(-62%) rotate(45deg);
+}
+
+:global(html:not([data-skin='classic'])) .switch[aria-checked='true'] .thumb {
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, #FFFFFF 58%, var(--ink-3)) 0 1px, transparent 1px 3px) center / 7px 8px no-repeat,
+    linear-gradient(180deg, #FFFFFF 0%, color-mix(in srgb, #FFFFFF 94%, var(--ink-3)) 100%);
+  transform: translateX(20px);
+}
+
+/* danger: a red "on" */
+:global(html:not([data-skin='classic'])) .danger[aria-checked='true'] .track {
+  border-color: var(--acc-h);
+  background: var(--acc);
+}
+
+:global(html:not([data-skin='classic'])) .danger[aria-checked='true']:not(:disabled, [aria-disabled='true']):hover .track {
+  border-color: var(--acc-a);
+  background: var(--acc);
+}
+
+/* pressed: the knob widens toward the far side */
+:global(html:not([data-skin='classic'])) .switch:not(:disabled, [aria-disabled='true']):active .thumb {
+  width: 24px;
+}
+
+:global(html:not([data-skin='classic'])) .switch[aria-checked='true']:not(:disabled, [aria-disabled='true']):active .thumb {
+  transform: translateX(16px);
+}
+
+/* sm */
+:global(html:not([data-skin='classic'])) .sm .track {
+  width: 38px;
+  height: 22px;
+}
+
+:global(html:not([data-skin='classic'])) .sm .track::before {
+  right: 5px;
+  width: 5px;
+  height: 5px;
+}
+
+:global(html:not([data-skin='classic'])) .sm[aria-checked='true'] .track::before {
+  right: auto;
+  left: 7px;
+  width: 4px;
+  height: 8px;
+}
+
+:global(html:not([data-skin='classic'])) .sm .thumb {
+  width: 16px;
+  height: 16px;
+  background-size: 7px 6px, auto;
+}
+
+:global(html:not([data-skin='classic'])) .sm[aria-checked='true'] .thumb {
+  background-size: 7px 6px, auto;
+  transform: translateX(16px);
+}
+
+:global(html:not([data-skin='classic'])) .sm:not(:disabled, [aria-disabled='true']):active .thumb {
+  width: 19px;
+}
+
+:global(html:not([data-skin='classic'])) .sm[aria-checked='true']:not(:disabled, [aria-disabled='true']):active .thumb {
+  transform: translateX(13px);
+}
+
+:global(html:not([data-skin='classic'])) .switch:disabled,
+:global(html:not([data-skin='classic'])) .switch[aria-disabled='true'] {
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-skin='classic'])) .track,
+  :global(html:not([data-skin='classic'])) .thumb {
+    transition: none;
+  }
+}

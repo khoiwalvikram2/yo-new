@@ -1,0 +1,120 @@
+/* Referral Earnings (/referrals/earnings, mockup mkt-earnings M:2357-2364). The mockup draws this page with
+   the generic table template (M:3361-3409): a page head, then one table card. Its per-referrer figures
+   (referrals, qualified, earned, paid) have no data in the page's queries (D13), so the table keeps the
+   legacy per-earning columns. The filter row and the three totals are the legacy page's and are not drawn
+   there, so they are BEYOND-MOCKUP where noted and borrow the nearest mockup idiom. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- filters ---------- */
+
+/* BEYOND-MOCKUP: the legacy row's control widths (referrer and referee 208, rule type 160). They apply
+   only while the controls sit in the kit FilterBar's own row, a container named filter-bar; in the
+   compact Filters popover (portalled outside that container) the kit stretches each control instead.
+   The two table filters (D5) take the rule type's width. */
+@container filter-bar (width >= 1024px) {
+  .personField {
+    width: 208px;
+  }
+
+  .ruleTypeField,
+  .columnField {
+    width: 160px;
+  }
+}
+
+/* ---------- totals ---------- */
+
+/* BEYOND-MOCKUP: the three legacy totals in the KPI anatomy (.kpis/.kpi M:808-816). One column, two from a
+   520px page column, three from 860px; the test is on the page's own column, not the viewport, because the
+   shell's context panel changes that column by 205px. */
+.statsFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+@container (min-width: 520px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 860px) {
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The legacy head's right-hand total, in the card subtitle's metrics (.card-sub M:866). */
+.cardTotal {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- table cells ---------- */
+
+/* Three-line person cell: the name in the key colour (td.k M:997), phone and ID dim (td.dim M:998). */
+.person {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.personName {
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.personPhone {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.personId {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* BEYOND-MOCKUP: the tier and rule type are categories, not statuses, so they take the .flag shape
+   (M:1029-1033) on the decorative hue ramp (.av.a1-a5 M:1013-1017), as the Bet List's categorical badges
+   do (legacy purple and blue tags). */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.hueVio {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.hueBlu {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}

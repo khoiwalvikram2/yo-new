@@ -1,0 +1,83 @@
+/* Shared shape policy for both panels: UI surfaces are 5px; fixed shell frames
+   explicitly marked data-ui-radius="square" remain flush at 0px.
+   This stylesheet is imported first by both apps. Important declarations in its
+   first cascade layer also cover component/utility overrides and body portals. */
+@layer ui-radius-policy;
+:root {
+  --ui-radius: 5px;
+  --ui-radius-circle: 50%;
+}
+
+@layer base {
+  :where(button, [role='button'], input:not([type='radio'], [type='range']), select, textarea, dialog, [role='dialog']) {
+    border-radius: var(--ui-radius);
+  }
+}
+
+/* The owner requires 5px UI surfaces throughout both panels. Apply it even when a
+   component has no radius declaration. SVG drawing primitives and pseudo-element
+   glyphs retain their drawing geometry. First-layer !important wins over later
+   utilities, unlayered component !important rules and ordinary inline styles. */
+@layer ui-radius-policy {
+  body :where(*):not(svg *) {
+    border-radius: var(--ui-radius, 5px) !important;
+  }
+
+  /* Only the marked frame itself is square. Its controls/cards still use 5px. */
+  body [data-ui-radius='square'] {
+    border-radius: 0 !important;
+  }
+
+  /* Attached header strips round only their outside top edge. Their bottom edge
+     joins the content flush; controls inside keep their independent 5px shape.
+     Public player-kit selectors also cover lazy pages and portalled dialogs. */
+  body :is(
+    [data-ui-radius='panel-head'],
+    .nova-acct-panel-head,
+    .nova-mb-group-bar,
+    .nova-stmt-section-head,
+    .nova-ex-section-head:not([data-page-header]),
+    .nova-ex-games-head,
+    .nova-desk-heading,
+    .nova-ev-market-head,
+    .nova-modal-header,
+    .nova-mb-modal-head,
+    .nova-dp-head,
+    .nova-wallet-head,
+    .gw-widget-header,
+    .wd-steps,
+    .m99-compact-panel-title,
+    .m99-detail-heading,
+    .m99-activity-panel > .m99-section-heading,
+    .nova-market-centre > .nova-section-heading,
+    .nova-home-schedule > header,
+    .nova-panel-content > header,
+    .nova-event-analysis-surface > div:first-child
+  ) {
+    border-radius: 5px 5px 0 0 !important;
+  }
+
+  /* Table sections, rows and cells form one continuous surface. Rounding each
+     cell creates notches between column headings and along row separators.
+     The outer table/scroll frame owns the 5px corners; nested controls and
+     badges keep their own radius because this rule does not reach descendants. */
+  body :is(thead, tbody, tfoot, tr, th, td,
+    [role='rowgroup'], [role='row'], [role='columnheader'],
+    [role='rowheader'], [role='cell'], [role='gridcell']) {
+    border-radius: 0 !important;
+  }
+
+  /* These account tables become independent card rows on phones. Their card
+     edges and labelled metric tiles keep 5px rather than table-cell geometry. */
+  @media (max-width: 639.98px) {
+    body .nova-acct :is(.nova-mb-table, .nova-stmt-table) tbody tr,
+    body .nova-acct :is(.nova-mb-table, .nova-stmt-table) td[data-label] {
+      border-radius: var(--ui-radius, 5px) !important;
+    }
+  }
+
+  /* A rotating CSS border is a loader drawing, not a panel/control surface. */
+  body :is(.animate-spin, [class*='_spinner_'], [class*='_loadingSpinner_']) {
+    border-radius: var(--ui-radius-circle) !important;
+  }
+}

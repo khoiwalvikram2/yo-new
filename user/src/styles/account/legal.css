@@ -1,0 +1,71 @@
+/* Terms and Privacy as one document: on wide screens a sticky contents panel on the left and every section
+   in a single white panel on the right, split by hairlines. Pure layout and type; the legal text is untouched.
+   The page root carries .nova-legal; its children are the header, the contents (a <nav>, or a <section>
+   wrapping it), twelve <section id> blocks and a closing "Also see" line. */
+.nova-acct .nova-legal { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; color: var(--mb-text); }
+.nova-acct .nova-legal > * { margin: 0; }
+
+/* Contents panel. */
+.nova-acct .nova-legal > :is(nav, section:has(> nav)) {
+  margin-bottom: 12px;
+  padding: 0;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  background: var(--mb-panel);
+}
+.nova-acct .nova-legal > section:has(> nav) > nav { padding: 0; border: 0; border-radius: var(--ui-radius); background: transparent; }
+.nova-acct .nova-legal nav > div:first-child {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  color: #FFFFFF;
+  background: var(--mb-bar);
+  font-size: 16px;
+  font-weight: 700;
+}
+.nova-acct .nova-legal nav ul { display: grid; gap: 0; padding: 6px 0; }
+.nova-acct .nova-legal nav a {
+  display: block;
+  padding: 7px 14px;
+  border-left: 3px solid transparent;
+  color: var(--mb-text);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.nova-acct .nova-legal nav a:hover { border-left-color: #C51A1B; color: var(--mb-red-text); background: var(--mb-panel-2); text-decoration: none; }
+
+/* Sections: one continuous document; adjoining borders overlap by a pixel. */
+.nova-acct .nova-legal > section[id] { scroll-margin-top: calc(var(--header-height, 68px) + 12px); }
+.nova-acct .nova-legal > section[id] + section[id] { margin-top: -1px; }
+.nova-acct .nova-legal > section[id] > div { padding: 22px 26px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-panel); box-shadow: none; }
+.nova-acct .nova-legal h2 { color: var(--mb-ink); font-size: 21px; font-weight: 700; line-height: 1.25; }
+.nova-acct .nova-legal section[id] :is(p, li) { color: var(--mb-text); font-size: 16px; line-height: 1.6; }
+.nova-acct .nova-legal section[id] ul { padding-left: 20px; }
+.nova-acct .nova-legal section[id] li::marker { color: var(--mb-red-text); }
+.nova-acct .nova-legal section[id] a:not([href='#top']) { color: var(--mb-red-text); font-weight: 600; }
+.nova-acct .nova-legal section[id] .text-right a { color: var(--mb-muted); font-size: 13px; }
+.nova-acct .nova-legal > div:last-child { padding-top: 14px; color: var(--mb-muted); font-size: 15px; }
+.nova-acct .nova-legal > div:last-child a { color: var(--mb-red-text); font-weight: 700; }
+
+/* Wide screens: contents pinned on the left, so the per-section "Back to top" links are not needed. */
+@media (min-width: 1100px) {
+  .nova-acct .nova-legal { grid-template-columns: 260px minmax(0, 1fr); align-items: start; column-gap: 12px; }
+  .nova-acct .nova-legal > .user-account-header { grid-column: 1 / -1; }
+  .nova-acct .nova-legal > :is(nav, section:has(> nav)) {
+    position: sticky;
+    top: calc(var(--header-height, 68px) + 12px);
+    grid-column: 1;
+    grid-row: 2 / span 40;
+    margin-bottom: 0;
+  }
+  .nova-acct .nova-legal nav ul { grid-template-columns: minmax(0, 1fr); }
+  .nova-acct .nova-legal > section[id], .nova-acct .nova-legal > div:last-child { grid-column: 2; }
+  .nova-acct .nova-legal > section[id] .text-right { display: none; }
+}
+@media (max-width: 640px) {
+  .nova-acct .nova-legal > section[id] > div { padding: 18px 16px; }
+  .nova-acct .nova-legal h2 { font-size: 19px; }
+}

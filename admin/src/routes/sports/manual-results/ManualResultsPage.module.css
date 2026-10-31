@@ -1,0 +1,552 @@
+/* Generic table-page rhythm (M:3361-3409). */
+.content {
+  display: grid;
+  gap: 16px;
+  container-type: inline-size;
+}
+
+.headerActions,
+.footerActions,
+.rowInline,
+.secondary,
+.openBetsTitle,
+.switchRow,
+.tabLabel {
+  display: flex;
+  align-items: center;
+}
+
+.headerActions,
+.footerActions {
+  gap: 8px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.filterControl {
+  min-width: 138px;
+  flex: 1 1 138px;
+}
+
+.eventFilter,
+.dateFilter {
+  min-width: 190px;
+  flex-basis: 190px;
+}
+
+/* Entity and result anatomy follows the sibling list recipes (M:2167-2223). */
+.scopeCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 280px;
+}
+
+.typeTile,
+.blockIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--ink-2);
+  background: var(--surf-3);
+  border: 1px solid var(--line);
+}
+
+.typeTile {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ui-radius);
+}
+
+.typeTileExchange {
+  color: var(--h-blu);
+  background: var(--h-blu-bg);
+}
+
+.typeTileBookmaker {
+  color: var(--h-grn);
+  background: var(--h-grn-bg);
+}
+
+.typeTileFancy {
+  color: var(--h-amb);
+  background: var(--h-amb-bg);
+}
+
+.scopeText,
+.stack {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.scopeLine,
+.primaryLine,
+.marketName,
+.resultValue {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.scopeLine {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowInline {
+  gap: 6px;
+  min-width: 0;
+}
+
+.copySlot {
+  flex: none;
+}
+
+.flag,
+.typeTag,
+.rbTag,
+.openBetsChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.flag,
+.typeTag,
+.rbTag {
+  min-height: 22px;
+  padding: 0 8px;
+}
+
+.todayTag {
+  color: var(--h-blu);
+  background: var(--h-blu-bg);
+}
+
+.globalTag {
+  color: var(--ink-2);
+  background: var(--surf-3);
+}
+
+.rbTag {
+  color: var(--neg-ink);
+  background: var(--neg-bg);
+  border-color: var(--neg-h);
+}
+
+.typeExchange {
+  color: var(--h-blu);
+  background: var(--h-blu-bg);
+}
+
+.typeBookmaker {
+  color: var(--h-grn);
+  background: var(--h-grn-bg);
+}
+
+.typeFancy {
+  color: var(--h-amb);
+  background: var(--h-amb-bg);
+}
+
+.resultCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.resultValue {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.resultExchange {
+  color: var(--h-blu);
+}
+
+.resultBookmaker {
+  color: var(--h-grn);
+}
+
+.resultFancy {
+  color: var(--h-amb);
+}
+
+.secondary {
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.recentDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.rollbackInfo {
+  color: var(--neg-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rollbackTag {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.rollbackButton {
+  color: var(--neg-ink);
+}
+
+.rollbackButton:hover {
+  color: var(--neg-ink);
+  background: var(--neg-bg);
+}
+
+.tooltipDetails {
+  display: grid;
+  gap: 4px;
+  max-width: 260px;
+}
+
+.tooltipLine {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Dialog and drawer forms follow the approved queue drawer idiom (M:1136-1167). */
+.dialogBody,
+.drawerStack,
+.formStack,
+.settingsPanel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.dialogFooter,
+.drawerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.facts {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.footerHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.footerHint svg {
+  flex: none;
+}
+
+.quickSearch {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--h-blu);
+  border-radius: var(--ui-radius);
+  background: var(--h-blu-bg);
+}
+
+.quickSearchTitle,
+.sectionTitle,
+.openBetsTitle,
+.switchTitle {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.quickSearchTitle,
+.sectionTitle,
+.switchTitle {
+  font-size: 13px;
+}
+
+.quickSearchHint,
+.fieldHint,
+.switchSub,
+.foundText,
+.emptyText {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.quickSearchHint {
+  color: var(--ink-2);
+}
+
+.foundText {
+  color: var(--pos-ink);
+  font-weight: 600;
+}
+
+.emptyText {
+  color: var(--warn);
+}
+
+.formPanel,
+.openBets,
+.switchPanel,
+.settingsTable {
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.formPanel,
+.switchPanel {
+  padding: 12px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wideField {
+  grid-column: 1 / -1;
+}
+
+.openBets {
+  overflow: hidden;
+}
+
+.openBetsHeader {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surf-3);
+}
+
+.openBetsTitle {
+  gap: 6px;
+  font-size: 12px;
+}
+
+.openBetsSub {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.openBetsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+}
+
+.openBetsChip {
+  gap: 6px;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 0 10px;
+  color: var(--h-blu);
+  background: var(--h-blu-bg);
+}
+
+.chipName {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipCount {
+  min-width: 20px;
+  min-height: 20px;
+  padding: 4px;
+  border-radius: var(--ui-radius);
+  color: var(--acc-on);
+  background: var(--acc);
+}
+
+.switchPanel {
+  background: var(--warn-bg);
+  border-color: var(--warn);
+}
+
+.switchRow {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.switchCopy {
+  display: grid;
+  gap: 3px;
+}
+
+.blockHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.blockIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius);
+}
+
+.blockIconBlue {
+  color: var(--h-blu);
+  background: var(--h-blu-bg);
+}
+
+.blockIconViolet {
+  color: var(--h-vio);
+  background: var(--h-vio-bg);
+}
+
+.blockIconAmber {
+  color: var(--h-amb);
+  background: var(--h-amb-bg);
+}
+
+.marketSwitches {
+  display: grid;
+  gap: 8px;
+}
+
+.marketSwitch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.tabs {
+  width: 100%;
+  min-width: 0;
+}
+
+.tabPanel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding-top: 16px;
+}
+
+.tabLabel {
+  gap: 6px;
+}
+
+.settingsTable {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.scopeSetting {
+  min-width: 220px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.switchCell,
+.actionCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deleteButton {
+  color: var(--neg-ink);
+}
+
+@container (max-width: 920px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 560px) {
+  .stats,
+  .formGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wideField {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .headerActions,
+  .drawerFooter,
+  .dialogFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .headerActions > *,
+  .footerActions > * {
+    flex: 1 1 auto;
+  }
+
+  .footerActions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .filterControl,
+  .eventFilter,
+  .dateFilter {
+    min-width: 100%;
+    flex-basis: 100%;
+  }
+}

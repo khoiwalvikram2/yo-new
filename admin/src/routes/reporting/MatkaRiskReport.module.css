@@ -1,0 +1,100 @@
+/* /reporting/matka (page migration C, W3 Task 131). The mockup draws this page through its generic
+   template (rep-matka M:2486-2494 rendered by M:3361-3409): the page head and one table card. The page
+   composes the kit and the drill-down pieces in modules/reporting/ui; this file only stacks them and
+   styles what a cell holds. Colours are tokens. */
+
+/* The sections stack like the content column .gcol (M:898): 20px apart, 16px on a phone (M:1605). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* The four figures (.kpis M:808-810). The mockup steps them by viewport; this row answers to its own
+   width, because the context panel takes 205px of it (definition of done item 17). A ₹99,99,99,999.00
+   figure needs about 290px of tile, so two across from 600px and four from 1200px (Task 127's measure). */
+.statsZone {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px; /* .kpis gap M:808 */
+}
+
+@container (min-width: 600px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1200px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* BEYOND-MOCKUP: the drill-down path (the mockup draws none) keeps its own line, and its box keeps
+   the width of its crumbs instead of stretching across the column. */
+.path {
+  display: flex;
+  min-width: 0;
+}
+
+/* The wrapper only delegates row clicks; the table, its gutter (M:975-983) and its overflow cue
+   (M:961-974) are the kit's. min-width 0 lets the table's own scroller take a narrow column. */
+.tableHost {
+  min-width: 0;
+}
+
+/* A name in the key cell's ink and weight (td.k M:997) over a dim caption (td.dim M:998). */
+.entity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.entityName {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.entityCaption {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* GGR keeps the legacy signed colours on the semantic inks, as the KPI delta draws them
+   (.kpi-d.up / .kpi-d.down M:839-840); a loss also carries its minus sign, so colour is never the
+   only signal. */
+.amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gain {
+  color: var(--pos-ink);
+}
+
+.loss {
+  color: var(--neg-ink);
+}
+
+/* the phone step of the page's vertical rhythm (.gcol M:1605, .kpis M:1603) */
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+
+  .stats {
+    gap: 14px;
+  }
+}
+
+/* While the rows drill down, the name reads in the link blue so it says it can be clicked (the owner,
+   2026-10-21); the last level keeps the ink. */
+.tableHost[data-drillable] .entityName {
+  color: var(--link, var(--acc-ink));
+}

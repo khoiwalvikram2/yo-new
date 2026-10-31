@@ -1,0 +1,457 @@
+/* Executive Dashboard — page-level stylesheet, transcribed from the approved mockup.
+   Sources: SCROLL AREA + PAGE HEADER (M:751-796), CARDS (M:852-896), GRID (M:896-901),
+   ACTIVITY FEED (M:1058-1073), SNAPSHOT (M:1075-1081) and the responsive steps that touch
+   them (M:1574-1627). Flat mockup class names are translated to camelCase CSS-Module names;
+   every declared value is the mockup's own.
+
+   Tokens only (contracts §3.2): no raw colour appears here, every colour resolves through a
+   custom property defined in src/ui/styles/tokens.css.
+
+   Two house rules the mockup does not need but a module does, because there is no global
+   rule to inherit: each interactive class carries its own :focus-visible (the mockup gets it
+   once at M:477), and each transition is answered in the prefers-reduced-motion block at the
+   foot of this file (the mockup gets that once at M:1629). */
+
+/* ===================== PAGE ===================== */
+/* The mockup's .scroll (M:752) is two things at once: the shell's scroll container and the
+   page's gutters. Here the shell already owns the scrolling (AppShell .main, deliberately
+   without gutters — "pages bring their own"), so this wrapper takes only the padding, and
+   its two responsive steps (M:1579, M:1607). Type metrics repeat the shell's, as every page
+   root in this codebase does. */
+.page {
+  padding: 28px 24px 40px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The mockup zeroes the block margins once, globally (M:474, h1,h2,h3,h4,p{margin:0}), and every
+   gap on this page is then a class's own. Here the nearest global is antd's reset.css (:38-51),
+   which gives h1-h6 margin-bottom .5em and p 1em, unlayered, so it beats Tailwind preflight's
+   zeroing in @layer base: 29px under the page header (114.09 against the mockup's 85.09), 8.5px
+   under every card title, 13px under every card sub and notice line. :where() holds this at
+   0,0,1, a tie with antd's element rules that wins on source order (the route CSS loads after
+   index.css); every class-based margin (0,1,0) still wins over it, and if the order ever flipped
+   the page would only fall back to antd's margins. The shared Dialog owns its portalled heading
+   reset outside .page. */
+:where(.page) :is(h1, h2, h3, h4, h5, h6, p, ul, ol, dl, figure, blockquote) {
+  margin: 0;
+}
+
+/* ===================== PAGE HEADER ===================== */
+/* The page opens with the kit PageHeader (ui/components/PageHeader), the charcoal bar every admin
+   page has; its period controls are dressed by that bar's tokens. */
+
+/* ===================== CARDS ===================== */
+.card {
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--sh);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* top-aligned, not centred: every card title in the grid then starts at the same 16px from
+   its card's top edge whether or not the head carries a 30px tool beside it (M:857-859) */
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px var(--card-pad) 14px;
+}
+
+.cardHeadLeft {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.cardTitle {
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: var(--ink);
+}
+
+.cardSub {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.cardTools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* the head's live marker (M:868-869) — semantic --ok, not the decorative ramp */
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+
+.ghost {
+  height: 30px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-1) ease, border-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.ghost:hover {
+  background: var(--hover);
+  border-color: var(--acc-soft-h);
+  color: var(--ink);
+}
+
+.ghost:active {
+  background: var(--press);
+  border-color: var(--acc-soft-h);
+  color: var(--ink);
+}
+
+.ghost:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.linkButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--acc-ink);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.linkButton:hover {
+  text-decoration-color: currentColor;
+}
+
+.linkButton:active {
+  color: var(--acc-h);
+  text-decoration-color: currentColor;
+}
+
+.linkButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The card-body class for a card holding a table — the mockup's .tbl-pad (M:1007). A table
+   owns its own outer gutter: its first and last cells step out to --card-pad so the outer
+   columns line up with the card head above them (M:980-983). That only works if the body
+   around it adds no horizontal padding of its own, so this replaces the default .cardBody
+   inset, exactly as .feed and .snap already do for the two row idioms. */
+.tblPad {
+  padding: 0 0 12px;
+}
+
+/* ===================== GRID ===================== */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.gcol {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+/* ===================== SNAPSHOT ===================== */
+.snap {
+  padding: 0 var(--card-pad) 14px;
+}
+
+.snapRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.snapRow:last-child {
+  border-bottom: 0;
+}
+
+.snapTile {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius);
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+/* A row's accent (data-accent; the owner's colour pass): the glyph in the accent on its tint. */
+.snapRow[data-accent] .snapTile {
+  background: var(--accent-bg, var(--surf-3));
+  color: var(--accent, var(--ink-3));
+}
+
+.snapLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.snapValue {
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The mockup's .srow is label + value (M:1078-1080). Most of this page's rows carry a qualifier
+   their old cards showed ("Available", "Lifetime value", "12 requests"), and dropping it would lose
+   content, so the label becomes the feed's two-line block (M:1071-1072). One definition for the
+   page: OverviewPage, AdvancedMetricsCards, EngagementMetricsCard and EnhancedDashboardSections all
+   build their rows from these three. .snapText takes the slack .snapLabel takes in a one-line row. */
+.snapText {
+  flex: 1;
+  min-width: 0;
+}
+
+/* .srow's own label metrics (M:1079), taken here because the label is now the first line of a
+   two-line block rather than the flex child that takes the slack — .snapText does that. */
+.snapName {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the feed's meta line (M:1072), tabular as it is there and in .feedBody span above, so a
+   qualifier that carries a count ("12 requests", "3.2 sessions/user") keeps its digit widths */
+.snapSub {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===================== RESPONSIVE ===================== */
+/* M:1574-1627. The gutter steps and the grid collapses are the mockup's own; --card-pad steps
+   down in tokens.css, not here, so every card inset moves at once. */
+@media (max-width: 1279px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1023px) {
+  .page {
+    padding: 22px 18px 36px;
+  }
+
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: 18px 14px 32px;
+  }
+
+  .grid {
+    gap: 16px;
+  }
+
+  .gcol {
+    gap: 16px;
+  }
+
+  .pair {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 400px) {
+  .cardHead {
+    padding-top: 14px;
+    padding-bottom: 12px;
+  }
+}
+
+/* ===================== REDUCED MOTION ===================== */
+/* The mockup kills motion globally (M:1629-1635); a module has to answer for its own
+   transitions, so every transition declared above is listed here. */
+@media (prefers-reduced-motion: reduce) {
+  .ghost,
+  .linkButton {
+    transition: none;
+  }
+}
+
+/* ===================== PLAYER SKIN ===================== */
+/* Player skin (admin UI kit; off under <html data-skin="classic">), at the owner's request (2026-10-21)
+   that this page match the rest of the admin. The cards this page draws itself (Real-time snapshot,
+   Exposure by market, Player Segmentation, Growth Metrics) take the kit Card's panel: flat, under the
+   same title bar (light in the light theme, charcoal in the dark one, where its tokens switch to
+   on-charcoal values so the Live marker, "View all" and the expand buttons follow), and the sub sits beside the title on the bar's one line (Card.module.css's
+   skin block, which this mirrors). */
+/* Match the shared Page frame (ui/components/Page.module.css), including the phone inset. */
+:global(html:not([data-skin='classic'])) .page {
+  padding: 12px 16px 28px;
+}
+
+@media (max-width: 767px) {
+  :global(html:not([data-skin='classic'])) .page {
+    padding: 12px 12px 24px;
+  }
+}
+
+:global(html:not([data-skin='classic'])) .card {
+  box-shadow: none;
+}
+
+/* Light in the light theme (owner 2026-10-29): --head-bg with a hairline under it, page ink on it. In the
+   dark theme the bar stays charcoal and the rule after this one switches its tokens to on-charcoal values,
+   so the controls placed on it follow without rules of their own (the Topbar.module.css trick). */
+:global(html:not([data-skin='classic'])) .cardHead {
+  --hover: var(--head-hover);
+  --press: var(--head-press);
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 46px;
+  padding: 7px var(--card-pad);
+  border-bottom: 1px solid var(--head-line);
+  background: var(--head-bg);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])[data-theme='dark']) .cardHead,
+:global(html:not([data-skin='classic']) [data-theme='dark']) .cardHead {
+  --surf: var(--chrome-2);
+  --surf-3: rgba(255, 255, 255, .1);
+  --panel-2: rgba(255, 255, 255, .08);
+  --track: rgba(0, 0, 0, .18);
+  --line: rgba(255, 255, 255, .3);
+  --line-2: rgba(255, 255, 255, .3);
+  --line-3: rgba(255, 255, 255, .6);
+  --hair: rgba(255, 255, 255, .18);
+  --hover: rgba(255, 255, 255, .08);
+  --press: rgba(255, 255, 255, .14);
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft);
+  --ink-3: var(--bar-muted);
+  --acc-soft: rgba(255, 255, 255, .1);
+  --acc-soft-h: rgba(255, 255, 255, .18);
+  --acc-ink: var(--chrome-link);
+  --link: var(--chrome-link);
+  --ring: #FFFFFF;
+  color-scheme: dark;
+}
+
+:global(html:not([data-skin='classic'])) .cardHeadLeft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+:global(html:not([data-skin='classic'])) .cardTitle {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+:global(html:not([data-skin='classic'])) .cardSub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* .live on the bar: muted text, the theme's green dot (Card's .live). */
+:global(html:not([data-skin='classic'])) .cardHead .live {
+  gap: 7px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+:global(html:not([data-skin='classic'])) .cardHead .liveDot {
+  width: 8px;
+  height: 8px;
+  background: var(--pos-ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pos-ink) 24%, transparent);
+}
+
+:global(html:not([data-skin='classic'])) .cardHead .linkButton {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* the bar has no bottom inset, so the rows under it take a little room on top */
+:global(html:not([data-skin='classic'])) .cardHead + .snap {
+  padding-top: 6px;
+}
+
+/* the kit's 16px rhythm between panels (.screen, .g2) */
+:global(html:not([data-skin='classic'])) .grid,
+:global(html:not([data-skin='classic'])) .gcol,
+:global(html:not([data-skin='classic'])) .pair {
+  gap: 16px;
+}

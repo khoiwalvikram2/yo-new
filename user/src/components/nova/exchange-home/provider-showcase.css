@@ -1,0 +1,58 @@
+/* Game providers (ProviderShowcase): the active studios we hold an original logo for. The plates are light in both
+   themes, the logos being dark ink, and dim a little in dark. Rows are centred so a short last row looks intended:
+   seven a row on a wide column (14 studios fill two rows), five on a mid one, three on phones. Hover: the tile lifts,
+   a light sweeps the plate and a red rule runs along the foot. */
+.pv { display: grid; gap: 10px; min-width: 0; }
+
+.pv-grid { --pv-per-row: 7; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.pv-grid > li { flex: 0 0 calc((100% - 8px * (var(--pv-per-row) - 1)) / var(--pv-per-row)); min-width: 0; }
+.pv-tile {
+  position: relative;
+  display: block;
+  height: 76px;
+  padding: 5px;
+  overflow: hidden;
+  border: 1px solid var(--mb-line);
+  background: var(--mb-panel);
+  text-decoration: none;
+  transition: transform .2s cubic-bezier(.2, .7, .2, 1), box-shadow .2s, border-color .2s;
+}
+.pv-tile::before { content: ''; position: absolute; right: 0; bottom: 0; left: 0; z-index: 1; height: 3px; background: #C51A1B; transform: scaleX(0); transform-origin: left center; transition: transform .25s ease; }
+.pv-plate { position: relative; display: grid; height: 100%; place-items: center; padding: 4px 8px; overflow: hidden; background: linear-gradient(180deg, #FFFFFF, #F5F5F7); box-shadow: inset 0 0 0 1px rgb(20 21 24 / 6%); }
+.pv-plate img { width: auto; max-width: 100%; height: auto; max-height: 48px; object-fit: contain; transition: transform .3s cubic-bezier(.2, .7, .2, 1); }
+.pv-plate::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, rgb(255 255 255 / 0%) 35%, rgb(255 255 255 / 75%) 50%, rgb(255 255 255 / 0%) 65%); transform: translateX(-120%); transition: transform .6s ease; pointer-events: none; }
+/* Two providers sharing one logo (Evolution, Evolution Gaming): the logo moves up and the name sits under it. */
+.pv-plate:has(.pv-tag) { padding-bottom: 18px; }
+.pv-plate:has(.pv-tag) img { max-height: 34px; }
+.pv-tag { position: absolute; right: 4px; bottom: 3px; left: 4px; overflow: hidden; color: #53555B; font-size: 10px; font-weight: 800; letter-spacing: .03em; text-align: center; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.pv-busy { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: rgb(255 255 255 / 55%); }
+.pv-busy svg { width: 22px; height: 22px; color: #C51A1B; animation: nova-ex-spin 1s linear infinite; }
+
+.pv-tile:hover { border-color: #C51A1B; box-shadow: 0 12px 24px -14px rgb(197 26 27 / 60%); transform: translateY(-3px); }
+.pv-tile:hover::before { transform: scaleX(1); }
+.pv-tile:hover .pv-plate::after { transform: translateX(120%); }
+.pv-tile:hover .pv-plate img { transform: scale(1.06); }
+.pv-tile:focus-visible { outline: 2px solid var(--mb-link); outline-offset: 2px; }
+html.dark .pv-plate { background: linear-gradient(180deg, #EDEEF1, #DADBDF); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 25%); }
+html.dark .pv-plate::after { background: linear-gradient(105deg, rgb(255 255 255 / 0%) 35%, rgb(255 255 255 / 45%) 50%, rgb(255 255 255 / 0%) 65%); }
+
+.pv-grid.is-skeleton .pv-tile { border-color: var(--mb-line); background: var(--mb-soft); }
+.pv-note { display: grid; justify-items: center; gap: 10px; margin: 0; padding: 28px 16px; border: 1px solid var(--mb-line); color: var(--mb-muted); background: var(--mb-panel); font-size: 15px; text-align: center; }
+.pv-note p { margin: 0; }
+.pv-note button { padding: 8px 22px; border: 0; color: #FFFFFF; background: #C51A1B; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+
+@container exmain (max-width: 759px) {
+  .pv-grid { --pv-per-row: 5; }
+}
+@container exmain (max-width: 559px) {
+  .pv-grid { --pv-per-row: 3; gap: 6px; }
+  .pv-grid > li { flex-basis: calc((100% - 6px * 2) / 3); }
+  .pv-tile { height: 64px; padding: 4px; }
+  .pv-plate img { max-height: 40px; }
+  .pv-plate:has(.pv-tag) img { max-height: 28px; }
+  .pv-tag { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv-tile, .pv-tile::before, .pv-plate img, .pv-plate::after { transition: none; }
+  .pv-busy svg { animation: none; }
+}

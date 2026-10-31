@@ -1,0 +1,96 @@
+/* Market directory scorecards. Shared home and entry components keep their own styles. */
+.gw-matka .m99-market-board-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; align-items: stretch; }
+.gw-matka .m99-market-board-grid.m99-mobile-market-grid { display: none; }
+.gw-matka .m99-market-board-card { position: relative; min-width: 0; display: flex; flex-direction: column; padding: 17px 17px 0; border: 1px solid var(--m99-border); border-radius: var(--m99-radius); background: var(--m99-surface); overflow: hidden; transition: border-color .18s ease, box-shadow .18s ease; }
+.gw-matka .m99-market-board-card::before { content: ''; position: absolute; width: 28px; height: 3px; top: 0; left: 17px; background: var(--m99-brand); }
+.gw-matka .m99-market-board-card:hover { border-color: var(--m99-muted); box-shadow: 0 5px 15px #00000006; }
+.gw-matka .m99-market-board-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 23px; }
+.gw-matka .m99-market-board-rules-button { display: grid; flex: 0 0 28px; width: 28px; height: 28px; margin: -3px -6px -3px 0; place-items: center; color: var(--m99-muted); }
+.gw-matka .m99-market-board-rules-button:hover { color: var(--m99-ink); background: var(--m99-soft); }
+.gw-matka .m99-market-board-rules-button[aria-expanded='true'] { color: var(--m99-brand); }
+.gw-matka .m99-market-board-card-header .m99-badge { flex-shrink: 0; font-size: 9px; padding: 3px 7px; letter-spacing: .2px; }
+.gw-matka .m99-market-board-name { margin: 8px 0 0; color: var(--m99-ink); font-size: 23px; font-weight: 700; letter-spacing: -.35px; line-height: 1.15; }
+.gw-matka .m99-market-board-name > button { display: block; width: 100%; color: inherit; text-align: left; font: inherit; overflow-wrap: anywhere; }
+.gw-matka .m99-market-board-name > button:hover { color: var(--m99-link); }
+.gw-matka .m99-market-board-result { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px; min-height: 89px; margin-top: 13px; padding: 12px 8px; background: var(--m99-sidebar); border-top: 1px solid var(--m99-border); border-bottom: 1px dashed var(--m99-border); }
+.gw-matka .m99-market-board-result > strong { display: flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; color: var(--m99-ink); font-size: clamp(27px, 2.1vw, 33px); line-height: 1.1; font-weight: 700; letter-spacing: .4px; white-space: nowrap; }
+.gw-matka .m99-market-board-result > strong > span { display: inline-flex; align-items: center; gap: 9px; }
+.gw-matka .m99-market-board-result b { font-weight: inherit; }
+.gw-matka .m99-market-board-result i { color: var(--m99-muted); font-size: 16px; line-height: 1; font-style: normal; font-weight: 400; }
+.gw-matka .m99-market-board-result .is-middle > b { color: var(--m99-brand); }
+.gw-matka[data-theme='dark'] .m99-market-board-result .is-middle > b { color: var(--m99-danger); }
+.gw-matka .m99-market-board-schedule { padding: 12px 0 13px; margin-top: auto; }
+.gw-matka .m99-market-board-sessions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.gw-matka .m99-market-board-session { min-width: 0; }
+.gw-matka .m99-market-board-session + .m99-market-board-session { padding-left: 16px; border-left: 1px solid var(--m99-border); }
+.gw-matka .m99-market-board-session:first-child { padding-right: 12px; }
+.gw-matka .m99-market-board-session > h4 { color: var(--m99-ink); font-size: 11px; line-height: 1.3; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+.gw-matka .m99-market-board-session > p { margin: 5px 0 0; color: var(--m99-ink); font-size: 16px; line-height: 1.2; font-weight: 650; white-space: nowrap; }
+.gw-matka .m99-market-board-card-footer { display: flex; align-items: center; gap: 8px; margin: 0 -17px; padding: 8px 13px 8px 17px; min-height: 49px; border-top: 1px solid var(--m99-border); background: var(--m99-sidebar); }
+.gw-matka .m99-market-board-charts { display: flex; align-items: center; flex-wrap: wrap; gap: 11px; margin-right: auto; }
+.gw-matka .m99-market-board-charts > button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-size: 11px; font-weight: 500; color: var(--m99-link); }
+.gw-matka .m99-market-board-charts > button:hover { text-decoration: underline; }
+.gw-matka .m99-market-board-favorite { flex-shrink: 0; width: 30px; height: 32px; color: var(--m99-muted); }
+.gw-matka .m99-market-board-favorite:hover { color: var(--m99-ink); background: var(--m99-soft); }
+.gw-matka .m99-market-board-favorite.is-active { color: var(--m99-ink); }
+.gw-matka .m99-market-board-favorite.is-active svg { fill: currentColor; }
+.gw-matka .m99-market-board-view { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; margin-left: auto; padding: 5px 8px; border: 1px solid var(--m99-border); border-radius: var(--m99-radius); color: var(--m99-ink); background: var(--m99-surface); white-space: nowrap; font-size: 11px; font-weight: 700; }
+.gw-matka .m99-market-board-view:hover { border-color: var(--m99-brand); color: var(--m99-brand); }
+.gw-matka[data-theme='dark'] .m99-market-board-view:hover { border-color: var(--m99-danger); color: var(--m99-danger); }
+/* The rules panel the info button opens: it covers the card (whose clip would cut a popover), names the market,
+   lists what the face leaves out and gives both sessions' result times and entry cutoffs in the market's timezone. */
+.gw-matka .m99-market-board-rules { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; gap: 12px; padding: 15px 17px; overflow-y: auto; background: var(--m99-surface); }
+.gw-matka .m99-market-board-rules > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--m99-border); }
+.gw-matka .m99-market-board-rules > header strong { display: block; color: var(--m99-ink); font-size: 19px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.gw-matka .m99-market-board-rules > header span { display: block; margin-top: 3px; color: var(--m99-muted); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
+.gw-matka .m99-market-board-rules > header button { display: grid; flex: 0 0 28px; width: 28px; height: 28px; margin: -2px -6px 0 0; place-items: center; color: var(--m99-muted); }
+.gw-matka .m99-market-board-rules > header button:hover { color: var(--m99-ink); background: var(--m99-soft); }
+.gw-matka .m99-market-board-rules dl { display: grid; gap: 7px; margin: 0; }
+.gw-matka .m99-market-board-rules dl > div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; line-height: 1.3; }
+.gw-matka .m99-market-board-rules dt { color: var(--m99-muted); }
+.gw-matka .m99-market-board-rules dd { margin: 0; color: var(--m99-ink); font-weight: 600; text-align: right; }
+.gw-matka .m99-market-board-rules table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.3; }
+.gw-matka .m99-market-board-rules caption { padding-bottom: 6px; color: var(--m99-ink); font-size: 11px; font-weight: 700; letter-spacing: .5px; text-align: left; text-transform: uppercase; }
+.gw-matka .m99-market-board-rules :is(th, td) { padding: 7px 0; border-top: 1px solid var(--m99-border); text-align: right; white-space: nowrap; }
+.gw-matka .m99-market-board-rules thead th { padding-top: 0; border-top: 0; color: var(--m99-muted); font-size: 10px; font-weight: 500; }
+.gw-matka .m99-market-board-rules tbody th { color: var(--m99-ink); font-size: 11px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: .5px; }
+.gw-matka .m99-market-board-rules tbody td { color: var(--m99-ink); font-weight: 600; }
+.gw-matka .m99-market-board-rules tbody td + td { padding-left: 12px; color: var(--m99-text); font-weight: 500; }
+.gw-matka .m99-market-board-card button:focus-visible, .gw-matka .m99-market-board-table button:focus-visible { outline: 2px solid var(--m99-link); outline-offset: 3px; }
+
+.gw-matka .m99-market-board-table-wrap { border: 1px solid var(--m99-border); border-radius: var(--m99-radius); background: var(--m99-surface); }
+.gw-matka .m99-market-board-table { min-width: 860px; }
+.gw-matka .m99-market-board-table thead th { padding: 11px 12px; color: var(--m99-muted); background: var(--m99-sidebar); font-size: 10px; white-space: nowrap; }
+.gw-matka .m99-market-board-table tbody > tr > th, .gw-matka .m99-market-board-table tbody > tr > td { padding: 13px 12px; border-bottom: 1px solid var(--m99-border); text-align: left; }
+.gw-matka .m99-market-board-table tbody > tr:last-child > * { border-bottom: 0; }
+.gw-matka .m99-market-board-table-name { display: flex; flex-direction: column; align-items: flex-start; min-width: 135px; gap: 4px; }
+.gw-matka .m99-market-board-table-name > button { color: var(--m99-ink); text-align: left; font-size: 15px; font-weight: 700; line-height: 1.2; }
+.gw-matka .m99-market-board-table-name > button:hover { color: var(--m99-link); }
+.gw-matka .m99-market-board-table-name > small { margin: 0; color: var(--m99-muted); text-transform: none; font-size: 10px; font-weight: 400; letter-spacing: 0; }
+.gw-matka .m99-market-board-table-result { color: var(--m99-ink); font-size: 19px; font-weight: 700; white-space: nowrap; }
+.gw-matka .m99-market-board-table-session { display: flex; flex-direction: column; gap: 4px; white-space: nowrap; }
+.gw-matka .m99-market-board-table-session > strong { color: var(--m99-ink); font-size: 13px; font-weight: 600; }
+.gw-matka .m99-market-board-table-session > small { margin: 0; color: var(--m99-muted); font-size: 10px; }
+.gw-matka .m99-market-board-table-charts { flex-wrap: wrap; column-gap: 12px; row-gap: 1px; }
+.gw-matka .m99-market-board-table-charts > button { white-space: nowrap; min-height: 28px; }
+.gw-matka .m99-market-board-table-actions { display: flex; align-items: center; gap: 5px; }
+
+@media (max-width: 760px) {
+  .gw-matka .m99-market-board-table-wrap { display: none; }
+  .gw-matka .m99-market-board-grid.m99-mobile-market-grid { display: grid; }
+  .gw-matka .m99-market-board-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 11px; }
+  .gw-matka .m99-market-board-result > strong { font-size: 31px; }
+}
+@media (max-width: 580px) {
+  .gw-matka .m99-market-board-card { padding: 15px 15px 0; }
+  .gw-matka .m99-market-board-card::before { left: 15px; }
+  .gw-matka .m99-market-board-rules { padding: 13px 15px; }
+  .gw-matka .m99-market-board-name { font-size: 24px; }
+  .gw-matka .m99-market-board-result { margin-top: 12px; min-height: 88px; }
+  .gw-matka .m99-market-board-card-footer { margin-left: -15px; margin-right: -15px; padding-left: 15px; }
+  .gw-matka .m99-market-board-charts > button { font-size: 12px; }
+  .gw-matka .m99-market-board-view { padding-left: 10px; padding-right: 10px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gw-matka .m99-market-board-card { transition: none; }
+}

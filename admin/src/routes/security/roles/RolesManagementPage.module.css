@@ -1,0 +1,243 @@
+/* Roles & Permissions (M:2546-2553) uses the generic table-page composition (M:3361-3409):
+   shell page heading, stat row, compact filter controls and one table card. The mockup's Members,
+   Scope and Status fields do not exist in ROLES_QUERY, so the legacy Permissions, Domains and
+   Updated cells remain (D13) and are styled with the same table metrics. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.accessRequirement {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.accessCode {
+  padding: 2px 6px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+/* ---------- table cells ---------- */
+
+.roleCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 0;
+}
+
+/* The mockup's 34px avatar/tile (M:1009-1017), using the decorative blue ramp. */
+.roleTile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ui-radius);
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.roleName {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permissions,
+.updated {
+  display: grid;
+  gap: 5px;
+  align-content: center;
+}
+
+.permTotal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--h-blu);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.chips,
+.viewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: permission/domain detail has no mockup field; the chip uses the neutral table pill
+   treatment rather than adding a semantic colour. */
+.permChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.chipDomain {
+  max-width: 150px;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipDot {
+  color: var(--ink-3);
+}
+
+.chipCount {
+  color: var(--h-blu);
+  font-variant-numeric: tabular-nums;
+}
+
+.updatedDate {
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.updatedTime,
+.dash {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.confirmNote {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* ---------- permission dialog (BEYOND-MOCKUP: no role-detail overlay is drawn) ---------- */
+
+.view {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.viewCounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.viewCount {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.viewList,
+.viewActions {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.viewList {
+  display: grid;
+  gap: 8px;
+}
+
+.viewItem {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.viewItemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.viewDomain {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 767px) {
+  .headerActions {
+    width: 100%;
+  }
+
+  .headerActions > * {
+    flex: 1 1 auto;
+  }
+
+  .roleName {
+    max-width: 180px;
+  }
+}

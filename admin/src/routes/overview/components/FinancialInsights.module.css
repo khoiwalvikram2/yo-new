@@ -1,0 +1,70 @@
+/* The Financial tab's insight cards: the casino providers table's empty line, and the bonus analysis's
+   by-type list under its figures (a name, a share bar against the largest type, the amount and the count). */
+.empty {
+  margin: 0;
+  padding: 4px var(--card-pad) 6px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.types {
+  padding: 4px var(--card-pad) 12px;
+  border-top: 1px solid var(--hair);
+}
+
+.typesLabel {
+  margin: 0;
+  padding: 10px 0 4px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.typeList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.typeRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(80px, 2fr) auto 90px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--hair);
+  font-size: 13px;
+}
+
+.typeRow:last-child {
+  border-bottom: 0;
+}
+
+.typeName {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The skin's Meter fill reads --s1: the bars take the section's violet. */
+.typeBar {
+  --s1: var(--viz-violet, var(--ink-3));
+}
+
+.typeAmount {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.typeCount {
+  color: var(--ink-3);
+  text-align: right;
+  white-space: nowrap;
+}

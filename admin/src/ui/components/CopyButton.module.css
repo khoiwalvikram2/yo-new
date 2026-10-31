@@ -1,0 +1,25 @@
+.announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .ibtn.is-done: the copied glyph turns green. CopyButton sets no state class, so the swapped Tabler
+   glyph (tabler-icon-check / tabler-icon-exclamation-circle) tells the state, and `button:has(+
+   .announcement)` keeps it to this component's IconButton: Tooltip clones the button in place and its
+   bubble portals to <body>, so the button is always the live region's previous sibling. (0,3,2) beats
+   IconButton's hover colour (0,3,0); the IconButton skin re-states no colour. */
+:global(html:not([data-skin='classic'])) button:has(+ .announcement):has(:global(.tabler-icon-check)) {
+  color: var(--pos-ink);
+}
+
+:global(html:not([data-skin='classic'])) button:has(+ .announcement):has(:global(.tabler-icon-exclamation-circle)) {
+  color: var(--neg-ink);
+}

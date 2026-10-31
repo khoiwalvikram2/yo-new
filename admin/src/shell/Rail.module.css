@@ -1,0 +1,246 @@
+/* Ported from the mockup's icon rail (R6 §a.4, M:500-569), with
+   [aria-current="true"] replaced by [aria-pressed="true"] (R6 §0.3: the
+   spec's rail buttons carry aria-pressed) and the focus rule expanded to a
+   full outline declaration since base.css supplies no global one (R6 §0.5,
+   §0.9 "port note"). */
+.rail {
+  width: var(--rail-w);
+  flex: none;
+  height: 100%;
+  background: var(--rail);
+  border-right: 1px solid var(--rail-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 0;
+  gap: 8px;
+}
+
+.brandTile {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ui-radius);
+  flex: none;
+  background: var(--acc);
+  color: var(--acc-on);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.button {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  cursor: pointer;
+  color: var(--rail-ic);
+  transition:
+    background var(--t-1) ease,
+    color var(--t-1) ease;
+}
+
+.button:hover {
+  background: var(--rail-h);
+  color: var(--rail-ic-on);
+}
+
+.button:active {
+  background: var(--rail-on);
+}
+
+/* current is the lightest navy step, near-white glyph (R6 §a.4) */
+.button[aria-pressed='true'] {
+  background: var(--rail-cur);
+  color: var(--rail-ic-on);
+}
+
+.button[aria-pressed='true']:hover {
+  background: var(--rail-cur-h);
+  color: var(--rail-ic-on);
+}
+
+/* two-class specificity (0,2,0) beats the kit's single-class .badge/.solid
+   (0,1,0), because the ring colour must track the parent button's state
+   (R7-gap-1 §4.4). Rule order matters: :active and [aria-pressed] tie at
+   0,3,0, so source order decides (R6 §0.9) — keep this order. */
+.button .badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--rail-badge);
+  color: var(--rail-badge-ink);
+  box-shadow: 0 0 0 2px var(--rail);
+  line-height: 16px;
+  transition: box-shadow var(--t-1) ease;
+}
+
+.button:hover .badge {
+  box-shadow: 0 0 0 2px var(--rail-h);
+}
+
+.button:active .badge {
+  box-shadow: 0 0 0 2px var(--rail-on);
+}
+
+.button[aria-pressed='true'] .badge {
+  box-shadow: 0 0 0 2px var(--rail-cur);
+}
+
+.button[aria-pressed='true']:hover .badge {
+  box-shadow: 0 0 0 2px var(--rail-cur-h);
+}
+
+.foot {
+  margin-top: auto;
+}
+
+.toggle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0;
+  cursor: pointer;
+  background: var(--rail-h);
+  color: var(--rail-ic);
+  display: grid;
+  place-items: center;
+  transition:
+    background var(--t-1) ease,
+    color var(--t-1) ease;
+}
+
+.toggle:hover,
+.toggle:active {
+  background: var(--rail-on);
+  color: var(--rail-ic-on);
+}
+
+.toggle svg {
+  transition: transform var(--t-3) var(--ease);
+}
+
+/* chevron points right while the panel is open, flips to point left once
+   collapsed (M:564-567) */
+.toggle[aria-expanded='false'] svg {
+  transform: rotate(180deg);
+}
+
+/* full declaration: the port note requires this since base.css holds only
+   the html,body rule (deviation D3) and supplies no global focus ring */
+.rail :focus-visible {
+  outline: 2px solid var(--rail-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .button .badge,
+  .toggle,
+  .toggle svg {
+    transition: none;
+  }
+}
+
+/* The label under each icon exists for the player skin only. */
+.label { display: none; }
+
+/* ---------------------------------------------------------------------------------------------
+   Player skin (admin UI kit; off under <html data-skin="classic">). Charcoal rail, icon with a short
+   label, the current section a red tile. The 1px line at 59px meets the topbar's bottom edge.
+   --------------------------------------------------------------------------------------------- */
+:global(html:not([data-skin='classic'])) .rail {
+  align-items: stretch;
+  gap: 2px;
+  padding: 12px 4px 8px;
+  border-right-color: var(--chrome-edge);
+  background: linear-gradient(var(--rail) 59px, var(--chrome-edge) 59px 60px, var(--rail) 60px);
+}
+
+:global(html:not([data-skin='classic'])) .brandTile {
+  align-self: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 18px;
+  border-radius: var(--ui-radius);
+  background: var(--acc);
+  color: #FFFFFF;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+:global(html:not([data-skin='classic'])) .buttons {
+  align-items: stretch;
+  gap: 2px;
+}
+
+:global(html:not([data-skin='classic'])) .button {
+  width: 100%;
+  height: auto;
+  min-height: 58px;
+  align-content: center;
+  gap: 4px;
+  padding: 6px 2px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .label {
+  display: block;
+  max-width: 56px;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(html:not([data-skin='classic'])) .button .badge {
+  top: 4px;
+  right: 7px;
+}
+
+/* On the red tile the badge turns white with red figures. */
+:global(html:not([data-skin='classic'])) .button[aria-pressed='true'] .badge,
+:global(html:not([data-skin='classic'])) .button[aria-pressed='true']:hover .badge {
+  background: #FFFFFF;
+  color: var(--acc);
+  box-shadow: none;
+}
+
+:global(html:not([data-skin='classic'])) .foot {
+  width: 100%;
+}
+
+:global(html:not([data-skin='classic'])) .toggle {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--chrome-line);
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--rail-ic);
+}
+
+:global(html:not([data-skin='classic'])) .toggle:hover,
+:global(html:not([data-skin='classic'])) .toggle:active {
+  background: var(--rail-h);
+  color: var(--rail-ic-on);
+}

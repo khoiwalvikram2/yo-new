@@ -1,0 +1,910 @@
+/* BEYOND-MOCKUP: fourteen working configuration sections, forms, uploads, and user-theme data
+   have no dedicated mockup. They are built from the kit's own idioms (the owner, 2026-10-21): the
+   section menu is the sidebar's page panel (a titled panel, group labels, a solid red current row),
+   each form section a kit panel, switches settings rows, uploads image tiles, and the save bar the
+   kit .formbar. Layout decisions use the page's own width (container queries), not the viewport's,
+   because the shell's panel and tool rail take part of it. */
+.page,
+.fullscreen {
+  min-width: 0;
+  container: app-config / inline-size;
+}
+
+.fullscreen {
+  background: var(--app);
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* ---- Section menu: the sidebar's page panel in small ------------------------------------------- */
+.menuPanel {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-height: calc(100dvh - var(--shell-main-top, 64px) - 32px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: var(--sh);
+}
+
+.menuHead {
+  flex: none;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.menuTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.menuSub {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* The list scrolls when the window is short; like the drawers, without a visible scrollbar. */
+.menu {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 0 10px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.menu::-webkit-scrollbar {
+  display: none;
+}
+
+.groupLabel {
+  margin: 0;
+  padding: 12px 16px 4px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.menuList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 12px 6px 16px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+.menuItem:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.menuItem:active {
+  background: var(--press);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.menuIcon {
+  flex: none;
+  color: var(--ink-3);
+  transition: color var(--t-1) ease;
+}
+
+.menuItem:hover .menuIcon {
+  color: var(--ink-2);
+}
+
+.menuItem.active {
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-weight: 600;
+}
+
+.menuItem.active .menuIcon {
+  color: var(--acc-ink);
+}
+
+/* ---- The chosen section --------------------------------------------------------------------- */
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  container: app-config-content / inline-size;
+}
+
+.sectionHead {
+  min-width: 0;
+  padding: 2px 0 0;
+  scroll-margin-top: 16px;
+}
+
+.sectionEyebrow {
+  margin: 0 0 2px;
+  color: var(--acc-ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.sectionSub {
+  margin: 4px 0 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sectionForm,
+.fieldset {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.sectionBody {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  min-width: 0;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.help {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Switches as settings rows ---------------------------------------------------------------- */
+.toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  transition: border-color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.toggleRow:hover {
+  border-color: var(--line-3);
+}
+
+.toggleText {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toggleLabel {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+/* ---- Save bar (kit .formbar) ------------------------------------------------------------------ */
+/* It ends the form quietly; with something unsaved it sticks to the bottom of the view instead. */
+.sectionForm .saveActions {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: none;
+}
+
+.sectionForm .saveActions.savePending {
+  position: sticky;
+  bottom: 0;
+  border-color: var(--line-3);
+  box-shadow: var(--sh-pop);
+}
+
+.saveActions > * {
+  width: auto;
+}
+
+.saveHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-end: auto;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.saveDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.savePending .saveHint {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.savePending .saveDot {
+  background: var(--h-amb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--h-amb) 24%, transparent);
+}
+
+/* ---- Image tiles (logo, favicon, banners) ----------------------------------------------------- */
+.assetGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+
+.asset {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease;
+}
+
+.assetOver {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--acc-soft);
+}
+
+.assetHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.assetLabel {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.assetHint {
+  margin-inline-start: auto;
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+.assetBadge {
+  padding: 1px 7px;
+  border-radius: var(--ui-radius);
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+/* The stage shows the image on a checkerboard, so a transparent logo still reads as one. */
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 148px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  border-radius: var(--ui-radius);
+  background: repeating-conic-gradient(var(--surf-3) 0 25%, var(--surf) 0 50%) 50% / 16px 16px;
+}
+
+.stage_banner {
+  height: auto;
+  aspect-ratio: 16 / 5;
+}
+
+.stageImage {
+  display: block;
+  max-width: 82%;
+  max-height: 72%;
+  object-fit: contain;
+}
+
+.stage_banner .stageImage {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+}
+
+.faviconPreview {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.faviconLarge {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+/* the icon at its real size in a browser-tab chip */
+.faviconTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 5px 12px 5px 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.faviconTab img {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.stageEmpty {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 12px;
+  color: var(--ink-3);
+  font-size: 13px;
+  text-align: center;
+}
+
+.stageEmpty > span:first-of-type {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.stageDrop {
+  font-size: 12px;
+}
+
+.stageBusy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--surf) 86%, transparent);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.assetActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assetActions > * {
+  width: auto;
+}
+
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Theme colors ----------------------------------------------------------------------------- */
+.themeLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+
+.themeControls {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.colorGroup {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.colorGroupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.colorGroupTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.colorGroupTitle > span {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  min-width: 0;
+}
+
+.colorField {
+  min-width: 0;
+}
+
+.colorText {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The native color input is the field's swatch: a square chip at the start of the field. */
+.nativeColor {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line-3);
+  border-radius: var(--ui-radius);
+  background: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.nativeColor::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.nativeColor::-webkit-color-swatch {
+  border: 0;
+  border-radius: var(--ui-radius);
+}
+
+.nativeColor::-moz-color-swatch {
+  border: 0;
+  border-radius: var(--ui-radius);
+}
+
+.nativeColor:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The live preview: a scrap of the user panel painted with the stored colors (inline styles). */
+.preview {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+
+.previewFrame {
+  overflow: hidden;
+  border: 1px solid;
+  border-radius: var(--ui-radius);
+  font-size: 13px;
+}
+
+.previewBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 12px;
+  border-bottom: 1px solid;
+}
+
+.previewLogo {
+  display: block;
+  max-width: 120px;
+  max-height: 26px;
+  object-fit: contain;
+}
+
+.previewButton,
+.previewOdds {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: var(--ui-radius);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.previewBody {
+  display: grid;
+  gap: 4px;
+  padding: 14px 12px;
+}
+
+.previewCaption {
+  font-size: 12px;
+}
+
+.previewAmount {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.previewMarket {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid;
+  border-radius: var(--ui-radius);
+}
+
+.previewMarket > span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.previewStates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.previewStates > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.previewDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.previewNote {
+  color: var(--ink-3);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---- Alert recipients ------------------------------------------------------------------------- */
+.recipientField {
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 2px 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.chip > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 64px 24px;
+}
+
+.target {
+  margin-bottom: 4px;
+}
+
+/* ---- Widths ----------------------------------------------------------------------------------- */
+/* Theme preview beside the color fields once the section is wide enough for both. */
+@container app-config-content (min-width: 820px) {
+  .themeLayout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: start;
+  }
+}
+
+@container app-config-content (max-width: 560px) {
+  .fields,
+  .colorGrid,
+  .assetGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sectionForm .saveActions > button {
+    flex: 1 1 auto;
+  }
+
+  .saveHint {
+    width: 100%;
+  }
+}
+
+/* Narrow page: the menu turns into a strip of section chips above the form. It scrolls sideways
+   (no visible bar) and the chosen chip is scrolled into view. */
+@container app-config (max-width: 899px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .menuPanel {
+    position: relative;
+    top: auto;
+    max-height: none;
+  }
+
+  /* doubled with the panel class: above the skin's own head rule further down */
+  .menuPanel .menuHead,
+  :global(html:not([data-skin='classic'])) .menuPanel .menuHead {
+    display: none;
+  }
+
+  .menu {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .menuGroup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+  }
+
+  .menuGroup + .menuGroup {
+    padding-left: 6px;
+    border-left: 1px solid var(--hair);
+  }
+
+  .groupLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .menuList {
+    display: flex;
+    gap: 6px;
+  }
+
+  .menuItem {
+    gap: 6px;
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: var(--ui-radius);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 600px) {
+  .fullscreen {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menuItem,
+  .menuIcon,
+  .toggleRow,
+  .asset {
+    transition: none;
+  }
+}
+
+/* ---- Player skin (admin UI kit; off under <html data-skin="classic">) -------------------------- */
+/* The menu panel is the sidebar's page panel: a title bar like every panel head (light, or charcoal in
+   the dark theme), red caps
+   group labels, and the current section a solid red row (its focus ring white, as the blue ring is
+   1.1:1 on red). Flat panels, the kit's 3px corners. */
+:global(html:not([data-skin='classic'])) .menuPanel {
+  box-shadow: none;
+}
+
+:global(html:not([data-skin='classic'])) .menuHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 46px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--head-line);
+  background: var(--head-bg);
+}
+
+:global(html:not([data-skin='classic'])) .menuTitle {
+  color: var(--ink);
+  font-size: 17px;
+}
+
+:global(html:not([data-skin='classic'])) .menuSub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+:global(html:not([data-skin='classic'])) .groupLabel {
+  color: var(--acc-ink);
+  font-size: 12px;
+  letter-spacing: .06em;
+}
+
+:global(html:not([data-skin='classic'])) .menuItem {
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .menuItem.active,
+:global(html:not([data-skin='classic'])) .menuItem.active:hover {
+  background: var(--acc);
+  color: var(--acc-on);
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .menuItem.active:hover {
+  background: var(--acc-h);
+}
+
+:global(html:not([data-skin='classic'])) .menuItem.active .menuIcon {
+  color: var(--acc-on);
+}
+
+:global(html:not([data-skin='classic'])) .menuItem.active:focus-visible {
+  outline-color: var(--acc-on);
+}
+
+:global(html:not([data-skin='classic'])) .toggleRow,
+:global(html:not([data-skin='classic'])) .asset,
+:global(html:not([data-skin='classic'])) .chip {
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .stage,
+:global(html:not([data-skin='classic'])) .nativeColor {
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .sectionForm .saveActions {
+  border-radius: var(--ui-radius);
+}

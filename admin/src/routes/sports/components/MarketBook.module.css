@@ -1,0 +1,269 @@
+/* The admin UI kit's Event detail "Market book" (.ev-mb) and fancy "Position book" (.ev-fbook), with the
+   kit's tokens mapped onto the admin's. --line-3 and --panel-2 exist only under the player skin, so each
+   use names a classic fallback. Figures keep the event page's --pos-ink / --neg-ink. */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.muted { color: var(--ink-3); font-size: 12px; }
+.positive { color: var(--pos-ink); font-variant-numeric: tabular-nums; }
+.negative { color: var(--neg-ink); font-variant-numeric: tabular-nums; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+
+/* Market book: a light bar under the market that opens the book */
+.book {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  margin: 0;
+  padding: 8px 14px;
+  border: 0;
+  background: var(--panel-2, var(--surf-3));
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bar:hover { background: var(--hover); }
+.bar:focus-visible { outline: 2px solid var(--ring); outline-offset: -3px; }
+
+.chevron {
+  flex: none;
+  color: var(--ink-3);
+  transition: transform .15s ease;
+}
+
+.bar[aria-expanded='true'] .chevron { transform: rotate(180deg); }
+
+.title { font-size: 15px; font-weight: 700; }
+
+/* The kit's .badge--soft. Badge itself prints a bare count, and these read "12P" / "3A". */
+.count {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.worstCase {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.worstCase b { font-size: 14px; font-weight: 700; }
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
+.find { flex: 1 1 220px; }
+
+/* DataTable in the kit's bordered wrap with 12px cell insets */
+.table {
+  --card-pad: 12px;
+  border: 1px solid var(--line);
+}
+
+/* The market book's first column stays put while the selections scroll. A colspan cell is the empty state. */
+.pinned :is(th, td):first-child:not([colspan]) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.pinned thead th:first-child,
+.pinned tbody td:first-child:not([colspan]) { background: var(--surf); }
+
+/* the player skin's head row is on --surf-3 */
+:global(html:not([data-skin='classic'])) .pinned thead th:first-child { background: var(--surf-3); }
+
+/* Table fades whichever edge has more to scroll; the pinned column sits on the left edge, so only the
+   right fade is kept. (0,5,0) out-ranks Table's (0,4,0) mask rules. */
+.book .pinned [data-overflow='true'][data-overflow-start='false'][data-overflow-end='false'] {
+  -webkit-mask-image: linear-gradient(to right, currentColor calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, currentColor calc(100% - 32px), transparent);
+}
+
+.book .pinned [data-overflow='true'][data-overflow-start='false'][data-overflow-end='true'] {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* the totals row on --surf-3; the player skin's --panel-2 footer rule is (0,2,2) */
+.pinned tfoot td,
+:global(html:not([data-skin='classic'])) .pinned tfoot td {
+  background: var(--surf-3);
+}
+
+/* the costliest figure in a row */
+.worst {
+  padding: 1px 6px;
+  border-radius: var(--ui-radius);
+  background: var(--neg-bg);
+  font-weight: 700;
+}
+
+.who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.whoText { display: grid; gap: 3px; min-width: 0; }
+.whoName { color: var(--ink); font-size: 14px; font-weight: 700; }
+
+/* the kit's .ava--soft over Avatar's hue ramp */
+:is(.who, .players) .avatar {
+  background: var(--surf-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+
+.empty {
+  margin: 0;
+  padding: 16px 12px;
+  color: var(--ink-3);
+  font-size: 13px;
+  text-align: center;
+  white-space: normal;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.note svg { flex: none; margin-top: 2px; }
+
+/* Position book: player P/L at each final score, a diverging bar per position, then the table */
+.fancy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 14px 12px;
+  background: var(--panel-2, var(--surf-3));
+}
+
+.fancyHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.fancyTitle {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.fancyTitle b { color: var(--ink); letter-spacing: normal; text-transform: none; }
+
+.fancyMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* positioned so each column's offsetLeft is measured from the strip when it scrolls to the break-even */
+.strip {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(48px, 1fr);
+  grid-auto-flow: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.position {
+  position: relative;
+  display: grid;
+  grid-template-rows: 34px 34px auto auto;
+  min-width: 0;
+  padding-bottom: 2px;
+  text-align: center;
+}
+
+.above,
+.below { display: flex; padding: 0 6px; }
+
+.above { align-items: flex-end; border-bottom: 1px solid var(--line-3, var(--line)); }
+.below { align-items: flex-start; }
+
+.fill { display: block; width: 100%; border-radius: var(--ui-radius); }
+.profit .fill { background: var(--ok); }
+.loss .fill { background: var(--neg-ink); }
+
+.compact { margin-top: 4px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.profit .compact { color: var(--pos-ink); }
+.loss .compact { color: var(--neg-ink); }
+
+.score { color: var(--ink-3); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* the position where the book turns, as the table's Break Even tag marks it */
+.breakEven { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* the four stake figures in two columns, without the list's row rules */
+.fancy .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+.fancy .stats > div { border-bottom: 0; }
+
+.positionCell { display: flex; align-items: center; gap: 8px; }
+.players { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.player { display: inline-flex; align-items: center; gap: 4px; border-radius: var(--ui-radius); }
+.player:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+@media (max-width: 479px) {
+  .fancy .stats { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron { transition: none; }
+}

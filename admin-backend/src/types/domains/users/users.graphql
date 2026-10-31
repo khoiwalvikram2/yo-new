@@ -1,0 +1,327 @@
+enum PlayerStatus { ACTIVE INACTIVE SUSPENDED }
+enum RiskType { LOW MEDIUM HIGH }
+
+type PlayerAccessDomain { visible: Boolean! canBet: Boolean! }
+type PlayerAccess {
+  canLogin: Boolean!
+  canDeposit: Boolean!
+  canWithdraw: Boolean!
+  bonusEligible: Boolean!
+  sports: PlayerAccessDomain!
+  casino: PlayerAccessDomain!
+  matka: PlayerAccessDomain!
+}
+
+type User { 
+  id: ID!
+  tenant: String
+  name: String!
+  email: String
+  phone: String
+  username: String
+  status: PlayerStatus!
+  bonusAllowed: Boolean!
+  requirePasswordReset: Boolean!
+  sportsVisible: Boolean!
+  sportsBetAllowed: Boolean!
+  casinoVisible: Boolean!
+  casinoBetAllowed: Boolean!
+  matkaVisible: Boolean!
+  matkaBetAllowed: Boolean!
+  withdrawalLock: Boolean!
+  riskType: RiskType
+  vipTierId: ID
+  vipTierName: String
+  vipTierMode: String
+  vipDepositAccess: PlayerVipDepositAccess
+  flags: [String!]
+  wallet: Wallet
+  access: PlayerAccess!
+  createdAt: String
+  # Agent relationship
+  agentId: ID
+  playerType: String
+  parentAgent: AgentBasic
+  # User referral: who referred this player (set when registered via a user's referral link)
+  referredBy: ReferrerUser
+  creditLimit: Float
+  creditUsed: Float
+  creditAvailable: Float
+  settlementBalance: Float
+  settlementBalanceSports: Float
+  settlementBalanceCasino: Float
+  settlementBalanceMatka: Float
+  remark: String
+}
+
+# Minimal agent info for player list view
+type AgentBasic {
+  id: ID!
+  username: String
+  schemeType: String
+  settlementBalanceByDomain: [DomainSettlementBalance!]
+  ratesByDomain: [AgentDomainRate!]
+}
+
+# User who referred this player (from referral link); only set when player was referred by a user
+type ReferrerUser {
+  id: ID!
+  username: String
+  name: String
+  phone: String
+}
+
+# Domain settlement balance for AgentBasic
+type DomainSettlementBalance {
+  domain: String!
+  settlementBalance: Float!
+}
+
+type Wallet { 
+  userId: ID!
+  tenant: String
+  currency: String!
+  balance: Float!
+  bonus: Float!
+  exposure: Float!
+  referralBalance: Float
+  referralBonusBalance: Float
+  updatedAt: String!
+}
+
+# Player statistics for list view
+type PlayerListStats {
+  # For REGULAR and SHARING_AGENT_PLAYER
+  totalDeposits: Float
+  totalWithdrawals: Float
+  depositCount: Int
+  withdrawalCount: Int
+  manualDepositCount: Int
+  manualWithdrawalCount: Int
+  
+  # For all player types (except commission)
+  ggr: Float
+  profitLoss: Float
+  plTrend: String # 'up' | 'down' | 'neutral'
+  betCount: Int
+  totalExposure: Float
+  lastLogin: String
+  lastActivityAt: String
+  lastBetAt: String
+  daysSinceLastBet: Int
+  
+  # For COMMISSION_AGENT_PLAYER
+  turnover: Float
+  commissionEarned: Float
+  commissionTrend: String # 'up' | 'down' | 'neutral'
+}
+
+# Player with stats for list view
+type PlayerWithStats {
+  player: User!
+  stats: PlayerListStats!
+}
+
+type PlayerStatsRow {
+  playerId: ID!
+  stats: PlayerListStats!
+}
+
+# Deposit/withdrawal stats for Player Activity Report (total = all-time, range = filtered by date)
+type PlayerActivityDepositWithdrawalRow {
+  playerId: ID!
+  totalDepositAmount: Float!
+  totalDepositCount: Int!
+  totalWithdrawalAmount: Float!
+  totalWithdrawalCount: Int!
+  rangeDepositAmount: Float!
+  rangeDepositCount: Int!
+  rangeWithdrawalAmount: Float!
+  rangeWithdrawalCount: Int!
+}
+
+# Pagination wrapper for Users
+type UsersPage {
+  items: [User!]!
+  itemsWithStats: [PlayerWithStats!]!
+  total: Int!
+}
+
+# Lightweight aggregate stats for players list (no user rows fetched)
+type PlayersListStats {
+  totalPlayers: Int!
+  activePlayers: Int!
+  suspendedPlayers: Int!
+  inactivePlayers: Int!
+  totalBalance: Float!
+  totalBonus: Float!
+  totalExposure: Float!
+  totalCreditLimit: Float!
+  totalCreditUsed: Float!
+  highUtilizationCount: Int!
+}
+
+# Permission, PermissionInput, Role, and RoleInput types are now defined in rbac.graphql
+# All RBAC-related types are centralized in the rbac domain
+
+type AuthPayload { 
+  token: String!
+  user: UserBasic!
+  roles: [String!]!
+  permissions: [Permission!]!
+  tenant: String
+}
+
+type UserBasic { 
+  id: ID!
+  tenant: String
+  name: String!
+}
+
+# Super Admin preferences
+type AdminPreferences {
+  directorMode: String! # 'core' | 'whitelabel'
+  selectedWhitelabelId: String
+}
+
+input LoginInput { 
+  email: String!
+  password: String!
+}
+
+# Player creation
+input CreatePlayerInput {
+  name: String!
+  email: String
+  phone: String!
+  username: String
+  password: String
+  status: PlayerStatus
+  bonusAllowed: Boolean
+  requirePasswordReset: Boolean
+  sportsVisible: Boolean
+  sportsBetAllowed: Boolean
+  casinoVisible: Boolean
+  casinoBetAllowed: Boolean
+  matkaVisible: Boolean
+  matkaBetAllowed: Boolean
+  initialBalance: Float
+  currency: String
+  dailyStakeLimit: Float
+  weeklyStakeLimit: Float
+  exposureCapOverride: Float
+  cooldownSeconds: Int
+  maxBetSports: Float
+  maxBetCasino: Float
+  maxBetMatka: Float
+  riskType: RiskType
+  vipTierId: ID
+  # Credit player fields
+  playerType: PlayerType
+  agentId: ID # Required for AGENT_CREDIT players
+  creditLimit: Float # Required for credit players
+}
+
+type CreatePlayerPayload {
+  success: Boolean!
+  message: String!
+  user: User!
+}
+
+# Unified mutation payloads for users domain
+type UserPayload {
+  success: Boolean!
+  message: String!
+  user: User!
+}
+
+type WalletPayload {
+  success: Boolean!
+  message: String!
+  wallet: Wallet!
+}
+
+type Agent { 
+  id: ID!
+  tenant: String
+  parentId: ID
+  name: String!
+  level: Int!
+  commissionPlanId: ID!
+}
+
+type CommissionPlan { 
+  id: ID!
+  tenant: String
+  basis: String!
+  tiers: [TierEntry!]!
+}
+
+type AgentTree { 
+  id: ID!
+  tenant: String
+  parentId: ID
+  name: String!
+  level: Int!
+  commissionPlanId: ID!
+  phone: String
+  children: [AgentTree!]!
+}
+
+# Minimal user info for exclusion list and player activity (no placeholders)
+type ExcludedPlayerInfo {
+  id: ID!
+  name: String!
+  username: String
+  email: String
+  phone: String
+  status: String
+}
+
+# Minimal agent info for exclusion list
+type ExcludedAgentInfo {
+  id: ID!
+  name: String!
+  code: String
+  phone: String
+}
+
+# When excluding an agent from bonus, all downline agents and their players are excluded too
+type AgentExclusionImpact {
+  descendantAgentIds: [ID!]!
+  playerIds: [ID!]!
+}
+
+# Player Limits
+input PlayerLimitsInput {
+  userId: ID!
+  dailyStakeLimit: Float
+  weeklyStakeLimit: Float
+  exposureCapOverride: Float
+  cooldownSeconds: Int
+  maxBetSports: Float
+  maxBetCasino: Float
+  maxBetMatka: Float
+}
+
+type PlayerLimits {
+  userId: ID!
+  dailyStakeLimit: Float
+  weeklyStakeLimit: Float
+  exposureCapOverride: Float
+  cooldownSeconds: Int
+  maxBetSports: Float
+  maxBetCasino: Float
+  maxBetMatka: Float
+}
+
+
+type PlayerVipDepositAccess {
+  eligible: Boolean!
+  message: String
+  tierId: ID
+  tierName: String
+  mode: String
+  programStartedAt: String
+  monthlyDeposits: Float
+}

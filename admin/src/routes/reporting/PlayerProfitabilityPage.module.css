@@ -1,0 +1,151 @@
+/* Player Profitability (/reporting/players/profitability, mockup M:2513-2521). The mockup draws the page
+   with the generic table template (M:3361-3409): a page head, then one card whose head repeats the title
+   (M:3366). The KPI row, the filter bar (search and the reporting period control, M:1736-1746) and the
+   domain tab strip are the legacy page's, laid out as its sibling Player Activity report lays them out,
+   and are BEYOND-MOCKUP where noted. */
+
+/* The page's blocks stack with the mockup's column gap (.gcol M:898). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* ---------- KPI row ---------- */
+
+/* The row follows its own width, not the viewport (the context panel takes 205px of it): one card per
+   row, two from 580px, four from 1180px. The mockup's .kpis (M:808-810) steps 1/2/4 at 1024/1760px of
+   viewport for a 343px card with a sparkline; the kit Stat has none, so a card needs 40px tile + 10px gap
+   + the widest figure (₹99,99,99,999.00, about 199px at 24px/700) + 28px inset, about 279px with its
+   border. BEYOND-MOCKUP: the container thresholds. */
+.statsFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+
+@container (min-width: 580px) {
+  .statGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1180px) {
+  .statGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- domain switch ---------- */
+
+/* BEYOND-MOCKUP: the legacy domain tabs sit above the table as the mockup's segmented rail
+   (.seg.sm M:793-794), drawn by the kit Tabs; on a phone the strip scrolls rather than squeezing its
+   labels, as on Exposure. */
+.domainScroller {
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.domainScroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.domainScroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  border-radius: var(--ui-radius);
+}
+
+.domainTabs {
+  width: max-content;
+}
+
+/* ---------- table card ---------- */
+
+/* The tab panel only carries the tab semantics; the card inside draws the surface. */
+.panel,
+.tableCard {
+  min-width: 0;
+}
+
+/* The player cell links to the profile, its phone on a dim second line (td.dim M:998), both inside the
+   link as before. The link is the mockup's text link (.linkbtn M:879-886). */
+.playerLink {
+  display: inline-grid;
+  gap: 2px;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.playerLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.playerLink:active {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.playerLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.playerPhone {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* BEYOND-MOCKUP: a long agent chain wraps inside its column (mockup cells never wrap, M:991) so the
+   chain stays readable instead of widening the table without bound. */
+.agentChain {
+  display: block;
+  min-width: 160px;
+  max-width: 320px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* GGR keeps its legacy reading: green at zero or above, red below, on the delta inks (M:839-840). */
+.ggrPos,
+.ggrNeg {
+  font-weight: 600;
+}
+
+.ggrPos {
+  color: var(--pos-ink);
+}
+
+.ggrNeg {
+  color: var(--neg-ink);
+}
+
+/* The 20px gap steps to 16px on a phone, as the kit Stack does. */
+@media (max-width: 767px) {
+  .content,
+  .statGrid {
+    gap: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playerLink {
+    transition: none;
+  }
+}

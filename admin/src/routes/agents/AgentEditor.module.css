@@ -1,0 +1,28 @@
+/* BEYOND-MOCKUP: agent setup composes the shared kit wizard/form idiom. */
+.workspace { display: grid; gap: 20px; min-width: 0; }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px 16px; margin: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf); }
+.steps > li { display: flex; align-items: center; gap: 10px; color: var(--ink-3); font-size: 13px; }
+.steps > li > span { display: grid; place-items: center; width: 28px; height: 28px; flex: none; background: var(--surf-3); border-radius: 50%; }
+.steps > li[aria-current='step'] { color: var(--ink); font-weight: 600; }
+.steps > li[aria-current='step'] > span { background: var(--acc); color: var(--acc-on); }
+.fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.stack { display: grid; gap: 20px; min-width: 0; }
+.rates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.secondary { color: var(--ink-3); font-size: 12px; overflow-wrap: anywhere; }
+.footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 0; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.review { overflow-wrap: anywhere; }
+@media (max-width: 1023px) {
+  .rates { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .fields { grid-template-columns: 1fr; }
+  .steps { padding: 12px; gap: 8px; }
+  .steps > li { flex-direction: column; align-items: flex-start; font-size: 12px; gap: 6px; }
+  .footer { align-items: stretch; flex-direction: column; }
+  .actions > button { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace { scroll-behavior: auto; }
+}

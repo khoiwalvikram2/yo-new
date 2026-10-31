@@ -1,0 +1,130 @@
+# Audit Trail GraphQL Schema
+
+# Actor information for audit events
+type ActorInfo {
+  id: ID!
+  name: String!
+  email: String
+  type: String! # 'admin' | 'agent' | 'system'
+  role: String
+}
+
+# Main audit event type
+type AuditEvent {
+  id: ID!
+  tenant: String!
+  actorId: ID!
+  actor: ActorInfo
+  domain: String!
+  action: String!
+  resourceType: String!
+  resourceId: String!
+  before: JSON
+  after: JSON
+  timestamp: String!
+}
+
+# Paginated audit events result
+type AuditEventPage {
+  items: [AuditEvent!]!
+  total: Int!
+  page: Int
+  pageSize: Int
+}
+
+# Statistics types
+type AuditDomainStats {
+  domain: String!
+  count: Int!
+}
+
+type AuditActionStats {
+  action: String!
+  count: Int!
+}
+
+type AuditStats {
+  total: Int!
+  today: Int!
+  uniqueActors: Int!
+  byDomain: [AuditDomainStats!]!
+  byAction: [AuditActionStats!]!
+  recentEvents: [AuditEvent!]!
+}
+
+# Export job types
+enum AuditExportJobStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum AuditExportFormat {
+  CSV
+  JSON
+  XLSX
+}
+
+type AuditExportJob {
+  id: ID!
+  tenant: String!
+  whitelabelId: String!
+  createdBy: ID!
+  filtersJson: JSON!
+  exportFormat: AuditExportFormat!
+  status: AuditExportJobStatus!
+  fileUrl: String
+  errorMessage: String
+  scheduledAt: String
+  completedAt: String
+  createdAt: String!
+}
+
+input AuditExportJobInput {
+  filtersJson: JSON!
+  exportFormat: AuditExportFormat!
+  scheduledAt: String
+}
+
+# Annotation types
+type AuditAnnotation {
+  id: ID!
+  tenant: String!
+  auditEventId: ID!
+  createdBy: ID!
+  note: String!
+  createdAt: String!
+  updatedAt: String
+}
+
+# Filter input types
+input AuditListFilter {
+  tenant: String
+  id: ID
+  domain: String
+  action: String
+  actorId: ID
+  resourceType: String
+  resourceId: String
+  from: String
+  to: String
+  search: String
+  page: Int
+  limit: Int
+  sort: String
+}
+
+input CreateAuditAnnotationInput {
+  auditEventId: ID!
+  note: String!
+}
+
+input UpdateAuditAnnotationInput {
+  id: ID!
+  note: String!
+}
+
+type DeleteAuditAnnotationResult {
+  success: Boolean!
+}

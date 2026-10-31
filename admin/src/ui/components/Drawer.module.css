@@ -1,0 +1,124 @@
+/* Right-edge detail drawer from the approved queue mockup (M:1136-1167), composed on Dialog.
+   Square on all four corners (the owner, 2026-10-28). The 0 below documents it; what enforces it is the
+   data-ui-radius="square" mark Dialog puts on the surface, head, body and foot, because the shared
+   radius policy (ui-shared/styles/radius.css) otherwise rounds every element at 5px !important. */
+.drawerOverlay {
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.drawer {
+  height: 100%;
+  max-height: none;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  animation-name: drawerSurfaceIn;
+}
+
+.sm {
+  width: min(420px, 100%);
+}
+
+.md {
+  width: min(600px, 100%);
+}
+
+.lg {
+  width: min(800px, 100%);
+}
+
+@keyframes drawerSurfaceIn {
+  from {
+    opacity: .96;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Drawers scroll without a visible scrollbar (the owner, 2026-10-21): the body, and any list or table
+   inside that scrolls on its own, still move with the wheel, touch, keyboard and a trackpad; only the bar is
+   gone. !important: a scroll box inside a drawer may set its own thin bar at any specificity. */
+.drawer,
+.drawer * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none;
+}
+
+.drawer::-webkit-scrollbar,
+.drawer *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@media (max-width: 767px) {
+  .drawer {
+    width: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    animation: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .sheet (kit p2): a square right-edge sheet on --float (the kit's --drawer), its own side shadow, the
+   dialog's charcoal head at 56px and a --panel-2 foot (both from Dialog's skin block). Doubled class:
+   Dialog's skin block styles this same element at (0,2,1), and the two modules' load order is not a
+   guarantee. */
+:global(html:not([data-skin='classic'])) .drawer.drawer {
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--float);
+  box-shadow: -10px 0 28px rgb(16 18 22 / 12%);
+}
+
+/* Every drawer opens the way the tool rail's panel does (the player panel's rail drawers): over the page
+   area only, under the topbar and flush against the right rail, with no dimming backdrop. AppShell publishes
+   <main>'s box as --shell-main-* (useShellMainBox); outside the shell they are absent and the overlay keeps
+   the viewport. !important: floating-ui's FloatingOverlay pins inset: 0 as an inline style. A press beside
+   the drawer (the page, the topbar, either rail) still closes a dismissible one. */
+:global(html:not([data-skin='classic'])) .drawerOverlay {
+  top: var(--shell-main-top, 0px) !important;
+  right: var(--shell-main-right, 0px) !important;
+  bottom: var(--shell-main-bottom, 0px) !important;
+  left: var(--shell-main-left, 0px) !important;
+  background: transparent;
+  animation: none;
+}
+
+/* One width for every drawer: the owner's mark on the Alerts panel (2026-10-21), a third of the content
+   column, 360-480px. The overlay is the content column, so the share matches the rail panel's. Phones
+   keep the full width (the base rule above). */
+@media (min-width: 768px) {
+  :global(html:not([data-skin='classic'])) .drawer.sm,
+  :global(html:not([data-skin='classic'])) .drawer.md,
+  :global(html:not([data-skin='classic'])) .drawer.lg {
+    width: clamp(360px, 33%, 480px);
+  }
+}
+
+/* Dialog owns the header/body/footer classes, so the drawer reaches them by element: (0,2,2) over
+   Dialog's skin (0,2,1). The kit's sheet insets are 14px (.sheet__foot, .sheet-sec), not the dialog's 18px. */
+:global(html:not([data-skin='classic'])) .drawer > header {
+  min-height: 56px;
+}
+
+:global(html:not([data-skin='classic'])) .drawer > div {
+  padding: var(--card-pad);
+}
+
+:global(html:not([data-skin='classic'])) .drawer > footer {
+  padding: 12px 14px;
+}

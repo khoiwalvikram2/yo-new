@@ -1,0 +1,1076 @@
+/* Simple, professional player workspace. Tenant colors and theme state stay authoritative.
+   This replaces the old refresh layer; it does not introduce a second theme system. */
+:root { --header-height: 68px; --user-control-radius: var(--ui-radius); --user-card-radius: var(--ui-radius); }
+.nova-shell { --panel-shadow: none; --panel-radius: var(--user-card-radius); background: var(--background); }
+.nova-content { max-width: 1440px; padding: 32px 32px 48px; }
+.nova-content:focus { outline: none; }
+.nova-skip-link { position: fixed; top: 10px; left: 16px; z-index: 20000; transform: translateY(-180%); padding: 12px 20px; border-radius: var(--ui-radius); background: var(--nova-accent); color: #fff; font-weight: 700; }
+.nova-skip-link:focus { transform: translateY(0); }
+
+/* Preserve the primary navigation and original right-side workspace rail. */
+.nova-shell .nova-topbar { height: var(--header-height); background: var(--surface); box-shadow: 0 1px 0 var(--border); border-bottom: 0; }
+.nova-topbar-inner { padding-inline: 24px; }
+.nova-topbar-row { gap: 20px; }
+.nova-header-left { min-width: 0; }
+.nova-header-right { gap: 8px; }
+.nova-header-search { width: min(380px, 100%); min-width: 44px; min-height: 44px; padding-inline: 14px; border-radius: var(--ui-radius); font-size: 13px; background: var(--surface-2); border-color: transparent; transition: border-color .15s, background-color .15s; }
+.nova-header-search:hover { background: var(--background); border-color: var(--border-2); }
+.nova-header-search > span { overflow: hidden; text-overflow: ellipsis; }
+.nova-header-search kbd { flex: 0 0 auto; font-size: 10px; border-radius: var(--ui-radius); padding: 3px 5px; }
+.nova-theme-toggle, .nova-icon-button, .nova-menu-button, .nova-profile-trigger { min-width: 44px; min-height: 44px; border-radius: var(--ui-radius); }
+.nova-auth-login, .nova-auth-register, .nova-header-primary, .nova-header-bonus { min-height: 44px; padding: 10px 14px; border-radius: var(--ui-radius); font-size: 13px; box-shadow: none; }
+.nova-header-bonus { color: var(--subtle); background: transparent; border-color: transparent; }
+.nova-header-bonus:hover { color: var(--nova-accent); background: var(--surface-2); }
+.nova-wallet-summary { min-width: 0; max-width: 100%; gap: 10px; padding: 7px 10px; text-align: left; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
+.nova-wallet-summary:hover, .nova-wallet-summary[aria-expanded='true'] { border-color: color-mix(in srgb, var(--nova-accent) 45%, var(--border)); background: var(--surface-2); }
+.nova-wallet-icon { width: 18px; height: 18px; flex: 0 0 auto; color: var(--nova-accent); }
+.nova-wallet-selected { min-width: 0; }
+.nova-wallet-summary small { font-size: 10px; letter-spacing: .2px; text-transform: none; }
+.nova-wallet-summary strong { font-size: 14px; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
+.nova-wallet-summary .nova-wallet-available { display: none; }
+.nova-wallet-summary .nova-wallet-exposure { padding-left: 10px; border-left: 1px solid var(--border); }
+.nova-wallet-summary .nova-wallet-exposure strong { color: var(--subtle); }
+.nova-wallet-chevron { flex: 0 0 auto; }
+.nova-header-wallet { min-width: 0; }
+.nova-profile-trigger { display: flex; gap: 9px; width: auto; padding: 5px 9px 5px 5px; border-radius: var(--ui-radius); background: var(--surface); text-align: left; text-transform: none; }
+.nova-profile-initials { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 auto; border-radius: var(--ui-radius); color: var(--nova-accent); background: color-mix(in srgb, var(--nova-accent) 10%, var(--surface)); font-size: 11px; }
+.nova-profile-copy { display: grid; gap: 2px; min-width: 0; max-width: 110px; }
+.nova-profile-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 11px; font-weight: 650; }
+.nova-profile-copy small { color: var(--subtle); font-size: 9px; font-weight: 500; }
+.nova-profile-trigger .nova-profile-chevron { width: 13px; height: 13px; color: var(--subtle); flex: 0 0 auto; }
+.nova-sidebar { width: 232px; height: 100dvh; padding: 0 10px 12px; background: var(--surface); border-right: 1px solid var(--border); }
+.nova-sidebar-brand { flex: 0 0 auto; margin: 0 -10px; padding: 12px 18px; min-height: 68px; border-bottom: 1px solid var(--border); }
+.nova-sidebar-brand > a { width: 100%; }
+.nova-sidebar-brand .nova-logo-image { height: auto; max-height: 42px; }
+.nova-sidebar-brand .nova-wordmark { max-width: 100%; gap: 10px; font-size: 19px; letter-spacing: -.6px; }
+.nova-sidebar-brand .nova-brand-symbol { flex: 0 0 auto; width: 32px; height: 36px; border-radius: var(--ui-radius); font-size: 22px; }
+.nova-sidebar-brand .nova-wordmark > span:last-child { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.2; }
+.nova-sidebar-brand .nova-wordmark small { font-size: 7px; letter-spacing: 1.2px; }
+.nova-sidebar-scroll { padding: 16px 2px 12px; scrollbar-width: thin; scrollbar-color: var(--border-2) transparent; }
+.nova-side-link { position: relative; min-height: 46px; gap: 10px; padding: 7px 10px; border-radius: var(--ui-radius); font-size: 13px; font-weight: 550; }
+.nova-sidebar .nova-side-link > svg, .nova-sport-branch > summary > .nova-sport-icon { width: 30px; height: 30px; padding: 6px; border-radius: var(--ui-radius); color: var(--subtle); background: var(--surface-2); stroke-width: 1.8; }
+.nova-side-link.active { color: var(--nova-accent); background: color-mix(in srgb, var(--nova-accent) 8%, var(--surface)); box-shadow: none; font-weight: 650; }
+.nova-sidebar .nova-side-link.active::before { content: ''; position: absolute; left: 0; top: 13px; bottom: 13px; width: 3px; border-radius: var(--ui-radius); background: var(--nova-accent); }
+.nova-sidebar .nova-side-link.active svg, .nova-sport-branch > summary.active > .nova-sport-icon { color: var(--nova-accent); background: color-mix(in srgb, var(--nova-accent) 12%, var(--surface)); }
+.nova-side-link.active .nova-live-dot { background: var(--nova-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nova-accent) 12%, transparent); }
+.nova-sidebar .nova-nav-label { margin: 0 10px 10px; padding: 0; font-size: 9px; letter-spacing: 1.2px; font-weight: 650; }
+.nova-sidebar-sports, .nova-sidebar-explore { margin-top: 16px; padding-block: 16px 0; border-top: 1px solid var(--border); }
+.nova-sport-branch > summary { grid-template-columns: 30px minmax(0, 1fr) auto 12px; gap: 9px; min-height: 46px; padding: 7px 10px; border-radius: var(--ui-radius); font-size: 12px; }
+.nova-sport-branch > summary > span { min-width: 0; overflow-wrap: anywhere; }
+.nova-sport-branch > summary .nova-sport-count { min-width: 23px; padding: 3px 5px; border-radius: var(--ui-radius); background: var(--surface-2); text-align: center; font-size: 10px; }
+.nova-sport-branch > summary.active .nova-sport-count { color: var(--nova-accent); }
+.nova-sport-children { margin-left: 24px; padding-left: 12px; }
+.nova-sidebar .nova-all-sports-link { min-height: 44px; margin: 8px 0 0; padding-inline: 12px; border-top: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--subtle); font-size: 11px; }
+.nova-sidebar-bottom { border-top: 1px solid var(--border); padding: 10px 2px 0; gap: 2px; }
+.nova-sidebar-bottom .nova-side-link { font-size: 12px; }
+.nova-sidebar-bottom .nova-side-link > svg { width: 26px; height: 26px; padding: 5px; background: transparent; }
+.nova-locale-settings { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 10px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface-2); }
+.nova-locale-field { min-width: 0; }
+.nova-locale-settings .nova-locale-language { position: relative; grid-template-columns: 14px minmax(0, 1fr); }
+.nova-locale-settings .nova-locale-language > svg:last-child { position: absolute; top: 12px; right: 0; pointer-events: none; }
+.nova-locale-field select { width: 100%; min-height: 36px; appearance: none; padding-right: 18px; border: 0; border-radius: var(--ui-radius); background: transparent; color: var(--text); font: 600 12px var(--font-inter); cursor: pointer; }
+.nova-locale-field select:focus-visible { outline: 2px solid var(--nova-accent); outline-offset: 2px; }
+.nova-locale-field select option { background: var(--surface); color: var(--text); }
+.nova-locale-field small { display: block; margin-top: -3px; font-size: 9px; }
+.nova-shell > .nova-utility-rail { display: flex; position: sticky; top: 0; width: 64px; height: 100dvh; border-left: 1px solid var(--border); background: var(--surface); }
+.nova-utility-rail a, .nova-utility-rail button { min-height: 64px; border-radius: var(--ui-radius); }
+.nova-utility-rail a > span, .nova-utility-rail button > span { max-width: 56px; font-size: 9px; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+.nova-utility-rail svg { width: 19px; height: 19px; }
+
+/* Clear hierarchy: featured match, compact status shortcuts and the real market list. */
+.nova-page-heading, .nova-arena-heading { margin-bottom: 20px; align-items: center; gap: 16px; }
+.nova-arena-heading h1, .nova-page-heading-simple h1 { font: 700 clamp(28px, 2.5vw, 36px)/1.18 var(--font-inter); letter-spacing: -1px; text-transform: none; }
+.nova-eyebrow, .nova-arena-home .nova-eyebrow { font-size: 10px; letter-spacing: 1px; line-height: 1.5; font-weight: 650; }
+.nova-matchday-meta { font-size: 11px; gap: 4px; color: var(--subtle); }
+.nova-matchday-meta strong { display: flex; align-items: center; gap: 6px; background: transparent; font-size: 12px; letter-spacing: 0; padding: 0; color: var(--text); }
+.nova-sport-pills { display: flex; gap: 8px; overflow-x: auto; padding: 0 0 8px; margin-bottom: 20px; }
+.nova-sport-pills button { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 8px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--ui-radius); font-size: 12px; font-weight: 600; color: var(--subtle); background: var(--surface); cursor: pointer; transition: border-color .15s, background-color .15s; }
+.nova-sport-pills button:hover { color: var(--nova-accent); border-color: var(--nova-accent); }
+.nova-sport-pills button.active { color: var(--nova-accent); background: color-mix(in srgb, var(--nova-accent) 8%, var(--surface)); border-color: color-mix(in srgb, var(--nova-accent) 32%, var(--border)); box-shadow: none; }
+.nova-sport-pills small { padding: 2px 5px; min-width: 20px; border-radius: var(--ui-radius); background: var(--surface-2); font-size: 10px; }
+.nova-home .nova-home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 24px; }
+.nova-home-main { min-width: 0; }
+.nova-shell .nova-home .nova-hero { height: auto; min-height: 250px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); box-shadow: none; color: var(--text); }
+.nova-shell .nova-home .nova-hero::after { display: none; }
+.nova-shell .nova-home .nova-hero::before { background: linear-gradient(90deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 98%, transparent) 32%, color-mix(in srgb, var(--surface) 74%, transparent) 56%, color-mix(in srgb, var(--surface) 10%, transparent) 100%); }
+.nova-shell .nova-home .nova-hero-copy { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; width: 76%; min-height: 250px; padding: 28px; }
+.nova-shell .nova-home .nova-hero h2 { display: block; font: 700 clamp(26px, 3vw, 38px)/1.15 var(--font-inter); text-transform: none; letter-spacing: -1px; margin: 18px 0 10px; }
+.nova-shell .nova-home .nova-hero h2 em { display: inline; font-style: normal; }
+.nova-shell .nova-home .nova-feature-event { font: inherit; color: var(--text); white-space: normal; }
+.nova-shell .nova-home .nova-hero p { display: block; max-width: 360px; color: var(--subtle); font-size: 13px; line-height: 1.7; margin: 0 0 18px; white-space: normal; overflow: visible; }
+.nova-hero-art { object-position: 70% center; }
+.nova-hero-meta { display: flex; align-items: center; gap: 10px; max-width: 100%; font-size: 11px; color: var(--subtle); }
+.nova-hero-meta > span:first-child { padding: 4px 7px; border-radius: var(--ui-radius); font-size: 10px; border-color: var(--border); color: var(--subtle); background: var(--surface-2); }
+.nova-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: auto; }
+.nova-hero-secondary { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; font-size: 12px; font-weight: 650; color: var(--text); }
+.nova-shell .nova-home .nova-hero .nova-button { min-height: 44px; margin: 0; padding: 10px 16px; border-radius: var(--ui-radius); font-size: 12px; }
+.nova-shell .nova-home .nova-hero-caption { display: none; }
+.nova-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.nova-overview-card { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 70px; padding: 14px; border: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--text); background: var(--surface); box-shadow: none; text-align: left; cursor: pointer; transition: border-color .15s; }
+.nova-overview-card:hover { transform: none; border-color: var(--nova-accent); }
+.nova-overview-icon { display: grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: var(--ui-radius); background: var(--surface-2); color: var(--nova-accent); }
+.nova-overview-icon svg { width: 17px; height: 17px; }
+.nova-overview-card > span:nth-child(2) { min-width: 0; }
+.nova-overview-card strong { display: block; color: var(--text); font-size: 20px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.nova-overview-card small { display: block; margin-top: 3px; color: var(--subtle); font-size: 11px; line-height: 1.4; }
+.nova-overview-card > svg { flex: 0 0 auto; width: 14px; margin-left: auto; color: var(--subtle); }
+.nova-home .nova-section-heading { display: flex; align-items: center; gap: 12px; margin: 28px 0 14px; }
+.nova-home .nova-section-heading h2 { font: 650 21px/1.3 var(--font-inter); text-transform: none; margin-top: 4px; letter-spacing: -.5px; }
+.nova-text-link { min-height: 36px; font-size: 12px; font-weight: 600; }
+.nova-market-centre { scroll-margin-top: calc(var(--header-height) + 20px); }
+.nova-market-centre:focus { outline: none; }
+.nova-market-tabs { gap: 4px; padding: 6px; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
+.nova-market-tabs button { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 7px; min-height: 44px; padding: 10px 13px; border-radius: var(--ui-radius); font-size: 12px; font-weight: 600; color: var(--subtle); background: transparent; cursor: pointer; }
+.nova-market-tabs button.active { color: var(--nova-accent); background: color-mix(in srgb, var(--nova-accent) 8%, var(--surface)); }
+.nova-market-tabs button span { padding: 2px 5px; border-radius: var(--ui-radius); background: var(--surface-2); font-size: 10px; }
+.nova-market-tabs + .nova-live-markets { border-top: 0; border-radius: var(--ui-radius); box-shadow: none; }
+.nova-market-state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 20px; text-align: center; }
+.nova-market-state-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--ui-radius); color: var(--nova-accent); background: var(--surface-2); }
+.nova-market-state h3 { color: var(--text); font-size: 14px; font-weight: 650; }
+.nova-market-state p { max-width: 360px; font-size: 13px; line-height: 1.6; color: var(--subtle); }
+.nova-market-loading { display: grid; gap: 18px; padding: 22px; color: var(--subtle); font-size: 13px; }
+.nova-market-skeletons { display: grid; gap: 14px; }
+.nova-market-skeletons > div { display: flex; align-items: center; gap: 12px; }
+.nova-market-skeletons i, .nova-market-skeletons b { display: block; border-radius: var(--ui-radius); background: var(--surface-3); animation: user-panel-pulse 1.6s ease-in-out infinite; }
+.nova-market-skeletons i { width: 36px; height: 36px; }
+.nova-market-skeletons i:last-child { width: 70px; margin-left: auto; }
+.nova-market-skeletons span { display: grid; gap: 8px; width: 40%; }
+.nova-market-skeletons b { width: 100%; height: 9px; }
+.nova-market-skeletons b:last-child { width: 65%; }
+@keyframes user-panel-pulse { 50% { opacity: .5; } }
+.nova-home .nova-match-desk { display: grid; position: sticky; top: calc(var(--header-height) + 24px); gap: 14px; max-height: none; padding: 0; overflow: visible; }
+.nova-desk-card { padding: 18px; border-radius: var(--ui-radius); border: 1px solid var(--border); background: var(--surface); box-shadow: none; }
+.nova-desk-heading { display: flex; align-items: center; min-height: 0; padding: 0 0 12px; margin: 0; background: transparent; border-bottom: 1px solid var(--border); }
+.nova-desk-heading h3, .nova-desk-card > header h3 { font: 600 13px/1.4 var(--font-inter); letter-spacing: 0; }
+.nova-desk-card p { font-size: 12px; color: var(--subtle); line-height: 1.7; margin-block: 12px; }
+.nova-desk-card .nova-text-link { font-size: 12px; }
+.nova-quick-card > div > a { min-height: 44px; font-size: 12px; }
+.nova-wallet-card dl { margin-block: 12px; }
+.nova-wallet-card dd { font-size: 15px; }
+.nova-desk-session { min-height: 44px; padding: 12px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
+.nova-desk-session strong, .nova-desk-session > span:last-child, .nova-desk-note { font-size: 10px; }
+
+/* Game artwork remains the focus, without duplicate giant title overlays. */
+.nova-casino-heading h1 { font: 700 clamp(28px, 3vw, 38px)/1.2 var(--font-inter); letter-spacing: -1px; text-transform: none; }
+.nova-casino-heading p { margin-top: 8px; font-size: 13px; }
+.nova-casino-category-bar, html.dark .nova-casino-category-bar { background: var(--surface); border-color: var(--border); box-shadow: none; }
+.nova-game-grid { gap: 16px; }
+.nova-game-card, html.dark .nova-game-card { border-radius: var(--ui-radius); box-shadow: none; }
+.nova-game-card:hover, html.dark .nova-game-card:hover { box-shadow: none; transform: none; border-color: var(--nova-accent); }
+.nova-arena-home .nova-home-casino-card { height: auto; min-height: 0; border-radius: var(--ui-radius); }
+.nova-arena-home .nova-home-casino-card:hover { transform: none; }
+.nova-game-art, .nova-arena-home .nova-home-casino-card .nova-game-art { height: auto; aspect-ratio: 4 / 3; }
+.nova-game-art img { height: 100%; object-fit: cover; }
+.nova-game-art-title { display: none; }
+.nova-game-art-shade { opacity: .25; }
+.nova-game-save { width: 32px; height: 32px; top: 10px; right: 10px; box-shadow: none; }
+.nova-game-copy { min-height: 66px; padding: 12px; }
+.nova-game-name { font: 600 13px/1.45 var(--font-inter); letter-spacing: 0; text-transform: none; }
+.nova-game-copy > p { font-size: 11px; }
+.nova-casino-discovery { gap: 14px; }
+
+/* Calm account pages, form controls and readable modal panels. */
+.user-page-header { display: grid; gap: 14px; margin-bottom: 24px; }
+.user-page-heading { display: flex; align-items: center; gap: 14px; }
+.user-page-icon { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--nova-accent); background: var(--surface); box-shadow: none; }
+.user-page-title { font: 700 clamp(24px, 2.5vw, 32px)/1.25 var(--font-inter); letter-spacing: -.75px; color: var(--text); }
+.user-page-subtitle { margin-top: 5px; max-width: 640px; color: var(--subtle); font-size: 13px; line-height: 1.7; }
+.user-account-header { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.user-account-header-row { display: flex; align-items: center; gap: 12px; }
+.user-account-back { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); color: var(--subtle); }
+.user-account-back:hover { color: var(--nova-accent); border-color: var(--nova-accent); }
+.user-account-title { flex: 1 1 auto; min-width: 0; font: 700 clamp(24px, 2.5vw, 32px)/1.25 var(--font-inter); letter-spacing: -.75px; color: var(--text); }
+.user-account-help { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--subtle); background: var(--surface); font-size: 12px; }
+.user-event-context { top: calc(var(--header-height) + 16px); max-height: calc(100dvh - var(--header-height) - 32px); border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
+.user-vip-hero { padding: 28px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
+.user-vip-hero-inner { max-width: 760px; }
+.user-vip-hero-eyebrow { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--nova-accent); }
+.user-vip-hero-title { margin-top: 12px; font: 700 clamp(24px, 2.5vw, 32px)/1.25 var(--font-inter); letter-spacing: -.6px; }
+.user-vip-hero-copy { margin-top: 10px; max-width: 580px; font-size: 13px; line-height: 1.8; color: var(--subtle); }
+.user-vip-highlights { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.user-vip-highlight { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--ui-radius); font-size: 12px; }
+.user-vip-highlight svg { width: 16px; height: 16px; color: var(--nova-accent); }
+.user-vip-highlight span { color: var(--subtle); }
+/* Retain status hues while keeping legacy badges legible on light surfaces. */
+html.light .nova-shell .text-green-400 { color: #15803d; }
+html.light .nova-shell .text-blue-400 { color: #1d4ed8; }
+html.light .nova-shell .text-pink-400 { color: #be185d; }
+html.light .nova-shell .text-amber-400 { color: #92400e; }
+.user-settings-page { max-width: 1000px; }
+.user-settings-card { padding: 22px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); box-shadow: none; }
+.user-settings-card > div:first-child { transform: none; }
+.user-settings-card button, .user-settings-card select { min-height: 44px; }
+.nova-profile-sheet { box-shadow: -12px 0 36px color-mix(in srgb, var(--text) 12%, transparent); }
+.nova-profile-dialog[open] { display: flex; justify-content: flex-end; }
+.nova-profile-dialog:not([open]), .nova-search-dialog:not([open]) { display: none; }
+.nova-profile-dialog::backdrop, .nova-search-dialog::backdrop { background: rgb(12 18 30 / .5); }
+.nova-search-dialog[open] { display: flex; }
+.nova-search-dialog > div { border-radius: var(--ui-radius); }
+.nova-wallet-popover { position: absolute; right: 0; top: calc(100% + 8px); width: 340px; max-width: calc(100vw - 24px); max-height: calc(100dvh - var(--header-height) - 24px); overflow-y: auto; z-index: 80; }
+.nova-wallet-popover button { min-height: 44px; }
+.nova-profile-sheet nav a, .nova-profile-sheet button { min-height: 44px; font-size: 13px; }
+.nova-profile-action-title { font-size: 13px; }
+.nova-profile-action-copy { font-size: 11px; line-height: 1.4; }
+.nova-profile-wallet-action { min-height: 58px; border-radius: var(--ui-radius); box-shadow: none; }
+.nova-panel { box-shadow: -12px 0 36px color-mix(in srgb, var(--text) 12%, transparent); }
+.nova-panel-content { padding: 24px; }
+.nova-panel h2 { font-size: 23px; letter-spacing: -.5px; }
+.nova-panel-links > a { min-height: 44px; font-size: 13px; }
+.nova-mobile-bets-dialog { position: fixed; inset: 0; margin: 0; width: 100%; height: 100dvh; max-width: 100%; max-height: 100dvh; padding: 0; border: 0; color: var(--text); background: transparent; overflow: hidden; }
+.nova-mobile-bets-sheet { width: min(480px, 100%); margin-inline: auto; min-height: 50dvh; max-height: 85dvh; border-radius: var(--ui-radius); background: var(--surface); }
+.nova-mobile-bets-dialog::backdrop { background: rgb(12 18 30 / .5); }
+
+/* Compact footer, with support and legal links rather than a second marketing page. */
+.nova-site-footer, html.dark .nova-site-footer { --footer-bg: var(--surface); --footer-panel: var(--surface); --footer-panel-hover: var(--surface-2); --footer-line: var(--border); --footer-copy: var(--text); --footer-muted: var(--subtle); margin-top: 24px; border-top: 1px solid var(--border); background: var(--surface); box-shadow: none; }
+.nova-footer-inner { max-width: 1440px; padding: 28px 32px; }
+.nova-footer-support, html.dark .nova-footer-support { padding: 0 0 22px; margin-bottom: 22px; border: 0; border-bottom: 1px solid var(--border); border-radius: var(--ui-radius); background: transparent; box-shadow: none; }
+.nova-footer-support-icon { width: 36px; height: 36px; border-radius: var(--ui-radius); background: var(--surface-2); color: var(--nova-accent); }
+.nova-footer-support h2 { font-size: 15px; }
+.nova-footer-support-actions a, html.dark .nova-footer-support-actions a { border-radius: var(--ui-radius); min-height: 44px; box-shadow: none; }
+.nova-footer-main { padding: 0; gap: 28px; }
+.nova-footer-summary { font-size: 12px; max-width: 320px; line-height: 1.8; margin-top: 10px; }
+.nova-footer-group-title { font-size: 12px; letter-spacing: 0; text-transform: none; font-weight: 650; margin-bottom: 8px; }
+.nova-footer-nav a { min-height: 32px; font-size: 12px; }
+.nova-footer-responsible { grid-template-columns: minmax(0, 1fr); padding: 18px 0; margin-top: 20px; border: 0; border-top: 1px solid var(--border); border-radius: var(--ui-radius); background: transparent; }
+.nova-footer-responsible > div { padding: 0; }
+.nova-footer-meta { padding-top: 16px; font-size: 11px; }
+.nova-footer-social-link, html.dark .nova-footer-social-link { box-shadow: none; border-radius: var(--ui-radius); }
+.nova-mobile-nav { border-top: 1px solid var(--border); box-shadow: none; background: var(--surface); }
+.nova-mobile-nav nav > div { height: 64px; }
+.nova-mobile-nav nav a, .nova-mobile-nav nav button { width: 100%; min-width: 0; min-height: 56px; max-width: 100%; }
+.nova-mobile-nav nav a > span, .nova-mobile-nav nav button > span { font-size: 10px; text-align: center; line-height: 1.3; overflow-wrap: anywhere; }
+
+/* Breakpoints align actual header height and sticky content offsets. */
+@media (max-width: 1050px) {
+  .nova-home .nova-home-grid { grid-template-columns: minmax(0, 1fr); }
+  .nova-home .nova-match-desk { position: static; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .nova-home-grid-account .nova-match-desk { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nova-desk-session, .nova-desk-note { grid-column: 1 / -1; }
+}
+@media (max-width: 1050px) {
+  .nova-content { padding: 24px 22px 36px; }
+  .nova-topbar-inner { padding-inline: 20px; }
+  .nova-topbar-row { gap: 10px; }
+  .nova-header-search { width: 44px; min-width: 44px; }
+  .nova-header-search > span, .nova-header-search > kbd { display: none; }
+  .nova-wallet-summary { gap: 10px; padding-inline: 8px; }
+  .nova-wallet-summary strong { font-size: 13px; }
+}
+@media (max-width: 1280px) {
+  .nova-profile-copy, .nova-profile-chevron, .nova-wallet-summary .nova-wallet-exposure { display: none; }
+  .nova-profile-trigger { width: 44px; padding: 5px; justify-content: center; }
+}
+@media (max-width: 800px) {
+  :root { --header-height: 64px; }
+  .nova-content { padding: 24px 20px 32px; }
+  .nova-header-left { gap: 8px; }
+  .nova-header-right { gap: 8px; }
+  .nova-header-theme, .nova-header-wallet, .nova-header-profile { display: inline-flex; }
+  .nova-wallet-summary .nova-wallet-exposure, .nova-wallet-summary .nova-wallet-available { display: none; }
+  .nova-wallet-popover { position: fixed; inset-inline: 12px; top: calc(var(--header-height) + 8px); width: auto; max-width: none; }
+  .nova-topbar-inner { padding-inline: 16px; }
+  .nova-shell > .nova-utility-rail { display: none; }
+  .nova-header-logo .nova-wordmark { font-size: 20px; }
+  .nova-topbar .nova-wordmark, .nova-topbar .nova-logo-image { max-width: 100%; }
+  .nova-home .nova-match-desk { grid-template-columns: minmax(0, 1fr); }
+  .nova-home-grid-account .nova-match-desk { grid-template-columns: minmax(0, 1fr); }
+  .nova-footer-inner { padding: 28px 20px calc(88px + env(safe-area-inset-bottom)); }
+  .nova-footer-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .nova-footer-link-list a { min-height: 44px; }
+}
+@media (max-width: 560px) {
+  :root { --header-height: 112px; }
+  .nova-content { padding: 22px 16px 28px; }
+  .nova-shell .nova-topbar-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-block: 6px; }
+  .nova-header-left { width: 100%; justify-content: flex-start; }
+  .nova-header-logo { flex: 1 1 auto; min-width: 0; }
+  .nova-header-search { margin-left: auto; }
+  .nova-header-right { width: 100%; justify-content: flex-end; gap: 8px; }
+  .nova-topbar-inner { padding-inline: 12px; }
+  .nova-header-left { padding-right: 52px; }
+  .nova-header-theme { position: absolute; top: 8px; right: 0; margin: 0; }
+  .nova-header-wallet { flex: 1 1 auto; }
+  .nova-wallet-summary { width: 100%; justify-content: space-between; padding: 6px 9px; }
+  .nova-wallet-icon { display: none; }
+  .nova-wallet-summary small { font-size: 9px; }
+  .nova-wallet-summary strong { font-size: 13px; }
+  .nova-header-primary { width: 44px; padding: 10px; font-size: 0; gap: 0; }
+  .nova-header-primary svg { display: block; width: 18px; height: 18px; }
+  .nova-auth-login, .nova-auth-register { min-height: 44px; padding-inline: 13px; font-size: 12px; }
+  .nova-page-heading, .nova-arena-heading { align-items: flex-start; gap: 10px; }
+  .nova-arena-heading h1, .nova-page-heading-simple h1 { font-size: 28px; letter-spacing: -.7px; }
+  .nova-matchday-meta { display: none; }
+  .nova-eyebrow, .nova-arena-home .nova-eyebrow { font-size: 9px; letter-spacing: .8px; }
+  .nova-sport-pills { gap: 6px; margin-bottom: 14px; }
+  .nova-sport-pills button { font-size: 11px; padding-inline: 11px; }
+  .nova-shell .nova-home .nova-hero, .nova-shell .nova-home .nova-hero-copy { min-height: 270px; }
+  .nova-shell .nova-home .nova-hero-copy { width: 92%; padding: 22px; }
+  .nova-shell .nova-home .nova-hero h2 { font-size: 29px; letter-spacing: -.6px; line-height: 1.25; }
+  .nova-shell .nova-home .nova-hero p { max-width: 250px; font-size: 12px; }
+  .nova-shell .nova-home .nova-hero::before { background: linear-gradient(90deg, var(--surface), color-mix(in srgb, var(--surface) 95%, transparent) 45%, color-mix(in srgb, var(--surface) 45%, transparent)); }
+  .nova-hero-meta > span:last-child { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nova-overview { gap: 6px; margin-top: 10px; }
+  .nova-overview-card { flex-wrap: wrap; gap: 6px; min-height: 88px; padding: 10px; align-content: flex-start; }
+  .nova-overview-icon { width: 26px; height: 26px; border-radius: var(--ui-radius); }
+  .nova-overview-icon svg { width: 14px; height: 14px; }
+  .nova-overview-card strong { font-size: 18px; }
+  .nova-overview-card small { font-size: 10px; }
+  .nova-overview-card > svg { display: none; }
+  .nova-home .nova-section-heading h2 { font-size: 19px; }
+  .nova-home .nova-section-heading .nova-text-link { font-size: 11px; }
+  .nova-market-tabs button { min-height: 44px; padding-inline: 10px; font-size: 11px; }
+  .nova-game-grid { gap: 12px; }
+  .nova-game-copy { padding: 10px; }
+  .nova-game-name { font-size: 12px; }
+  .nova-desk-card { padding: 16px; }
+  .user-page-heading { gap: 12px; }
+  .user-page-title { font-size: 25px; }
+  .user-page-subtitle { font-size: 12px; }
+  .user-settings-card { padding: 18px; }
+  .user-vip-hero { padding: 20px; }
+  .user-vip-highlights { gap: 8px; }
+  .user-settings-card > div:first-child { flex-wrap: wrap; }
+  .user-settings-card select { width: 100%; }
+  .nova-footer-inner { padding: 24px 16px calc(88px + env(safe-area-inset-bottom)); }
+  .nova-footer-support { align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .nova-footer-main { gap: 24px; }
+  .nova-footer-responsible { font-size: 11px; }
+  .nova-panel-content { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-market-skeletons i, .nova-market-skeletons b { animation: none; }
+  .nova-sport-pills button, .nova-overview-card { transition: none; }
+}
+@media (max-height: 600px) and (min-width: 801px) {
+  .nova-sidebar-brand { padding-block: 8px; }
+  .nova-sidebar-scroll { padding-top: 10px; }
+  .nova-sidebar-bottom .nova-side-link { min-height: 40px; }
+  .nova-locale-settings { padding-block: 5px; }
+}
+
+/* Middle workspace: data-first rhythm and useful discovery, without changing either sidebar. */
+.nova-content:has(> .nova-center-home) { max-width: none; padding: 22px 24px 32px; }
+.nova-center-home .nova-page-heading { margin-bottom: 14px; }
+.nova-center-home .nova-page-heading > div:first-child { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; min-width: 0; }
+.nova-center-home .nova-page-heading h1 { font: 700 27px/1.25 var(--font-inter); letter-spacing: -.7px; }
+.nova-center-subtitle { font-size: 12px; color: var(--subtle); }
+.nova-center-home .nova-sport-pills { gap: 4px; margin: 0 0 16px; padding: 4px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
+.nova-center-home .nova-sport-pills button { min-height: 44px; padding: 8px 12px; border: 0; border-radius: var(--ui-radius); background: transparent; font-size: 12px; }
+.nova-center-home .nova-sport-pills button.active { background: color-mix(in srgb, var(--nova-accent) 9%, var(--surface)); }
+.nova-center-home .nova-home-grid { gap: 18px; }
+.nova-center-home .nova-home-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; overflow: visible; container: player-center / inline-size; }
+.nova-shell .nova-center-home .nova-center-feature { min-height: 174px; border-radius: var(--ui-radius); }
+.nova-shell .nova-center-home .nova-center-feature::after { content: ''; display: block; position: absolute; inset: 0 auto 0 0; width: 3px; height: 100%; border: 0; border-radius: var(--ui-radius); background: var(--nova-accent); transform: none; opacity: .8; z-index: 2; pointer-events: none; }
+.nova-shell .nova-center-home .nova-center-feature .nova-hero-art { left: auto; right: 0; width: 52%; object-position: 68% 22%; mask-image: linear-gradient(90deg, transparent, #000 32%); }
+.nova-shell .nova-center-home .nova-center-feature.nova-hero::before { inset: 0; width: 100%; height: 100%; background: linear-gradient(90deg, var(--surface) 0%, var(--surface) 45%, color-mix(in srgb, var(--surface) 96%, transparent) 60%, color-mix(in srgb, var(--surface) 42%, transparent) 80%, transparent 100%); }
+.nova-shell .nova-center-home .nova-center-feature .nova-hero-copy { width: 72%; min-height: 174px; padding: 20px 22px; justify-content: center; }
+.nova-shell .nova-center-home .nova-center-feature h2 { font: 700 clamp(25px, 2vw, 32px)/1.2 var(--font-inter); letter-spacing: -.65px; margin: 9px 0 7px; }
+.nova-shell .nova-center-home .nova-center-feature p { max-width: 480px; margin: 0; font-size: 12px; line-height: 1.6; }
+.nova-center-home .nova-hero-actions { margin-top: 12px; gap: 14px; }
+.nova-center-home .nova-hero-meta { gap: 8px; font-size: 10px; }
+.nova-center-home .nova-hero-meta > span:first-child { padding: 3px 6px; font-size: 9px; }
+.nova-center-home .nova-overview { gap: 0; margin: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
+.nova-center-home .nova-overview-card { min-height: 48px; padding: 8px 12px; gap: 9px; border: 0; border-radius: var(--ui-radius); background: transparent; }
+.nova-center-home .nova-overview-card + .nova-overview-card { border-left: 1px solid var(--border); }
+.nova-center-home .nova-overview-card[aria-pressed='true'] { background: color-mix(in srgb, var(--nova-accent) 6%, var(--surface)); }
+.nova-center-home .nova-overview-icon { width: 26px; height: 26px; border-radius: var(--ui-radius); }
+.nova-center-home .nova-overview-icon svg { width: 15px; height: 15px; }
+.nova-center-home .nova-overview-card > span:nth-child(2) { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 7px; }
+.nova-center-home .nova-overview-card strong { font-size: 17px; }
+.nova-center-home .nova-overview-card small { margin: 0; font-size: 11px; }
+.nova-center-home .nova-section-heading { margin: 0 0 10px; align-items: center; }
+.nova-center-home .nova-section-heading h2 { margin: 0; font: 650 18px/1.4 var(--font-inter); letter-spacing: -.3px; text-transform: none; }
+.nova-center-home .nova-section-heading .nova-text-link { min-height: 36px; font-size: 11px; }
+.nova-center-home .nova-market-tabs { padding: 4px; }
+.nova-center-home .nova-market-tabs button { min-height: 44px; padding: 8px 12px; }
+.nova-center-home .nova-market-centre .nova-live-markets > .nova-live-markets-content { display: block; min-height: 0; padding: 0; background: var(--surface); }
+.nova-center-home .nova-market-state { flex-direction: row; align-items: center; gap: 14px; min-height: 104px; padding: 18px; text-align: left; }
+.nova-center-home .nova-market-state-icon { flex: 0 0 auto; width: 36px; height: 36px; border-radius: var(--ui-radius); }
+.nova-center-home .nova-market-state-icon svg { width: 20px; height: 20px; }
+.nova-center-home .nova-market-state-copy { flex: 1 1 auto; min-width: 0; }
+.nova-center-home .nova-market-state-copy h3 { font-size: 13px; line-height: 1.5; }
+.nova-center-home .nova-market-state-copy p { max-width: 460px; margin-top: 4px; font-size: 12px; line-height: 1.6; }
+.nova-center-home .nova-market-state .nova-button { flex: 0 0 auto; min-height: 44px; padding: 8px 12px; font-size: 11px; }
+.nova-center-home .nova-market-loading { padding: 16px; gap: 12px; }
+.nova-center-home .nova-market-skeletons { gap: 10px; }
+.nova-center-home .nova-market-skeletons i { width: 28px; height: 28px; }
+.nova-center-home .nova-promotions { margin: 0; }
+.nova-center-home > .nova-home-banners { min-width: 0; margin-bottom: 16px; }
+.nova-center-home > .nova-home-banners > div { margin-bottom: 0; }
+.nova-home-banners .swiper, .nova-home-banners .swiper-slide > div, .nova-home-banners img { height: auto !important; }
+.nova-center-home .nova-casino-discovery { margin: 0; }
+.nova-center-sports-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.nova-center-sport-card { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 108px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--text); background: var(--surface); transition: border-color .15s; }
+.nova-center-sport-card:hover { border-color: var(--nova-accent); }
+.nova-center-sport-card > img { align-self: stretch; flex: 0 0 34%; width: 34%; max-width: 110px; object-fit: cover; object-position: 63% center; }
+.nova-center-sport-copy { display: grid; flex: 1 1 auto; min-width: 0; gap: 5px; padding-block: 10px; }
+.nova-center-sport-copy strong { font-size: 14px; line-height: 1.4; }
+.nova-center-sport-copy small { color: var(--subtle); font-size: 11px; line-height: 1.5; }
+.nova-center-sport-card > svg { flex: 0 0 auto; width: 16px; margin-right: 12px; color: var(--nova-accent); }
+.nova-center-guide { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
+.nova-center-guide-icon { display: grid; place-items: center; flex: 0 0 auto; width: 38px; height: 38px; border-radius: var(--ui-radius); background: var(--surface-2); color: var(--nova-accent); }
+.nova-center-guide > div { flex: 1 1 auto; min-width: 0; }
+.nova-center-guide h2 { margin-bottom: 5px; font-size: 12px; font-weight: 650; }
+.nova-center-guide p { max-width: 740px; color: var(--subtle); font-size: 12px; line-height: 1.7; }
+.nova-center-guide .nova-text-link { flex: 0 0 auto; min-height: 44px; font-size: 11px; }
+@container player-center (max-width: 780px) {
+  .nova-center-sport-card { position: relative; display: grid; gap: 0; min-height: 0; }
+  .nova-center-sport-card > img { width: 100%; max-width: none; height: 78px; object-position: 63% 35%; }
+  .nova-center-sport-copy { padding: 10px 30px 10px 12px; gap: 0; }
+  .nova-center-sport-copy small { display: none; }
+  .nova-center-sport-card > svg { position: absolute; right: 10px; bottom: 13px; width: 14px; margin: 0; }
+}
+@media (max-width: 1050px) {
+  .nova-content:has(> .nova-center-home) { padding: 20px; }
+}
+@media (max-width: 800px) {
+  .nova-content:has(> .nova-center-home) { padding: 16px 16px 24px; }
+  .nova-center-home .nova-page-heading h1 { font-size: 24px; }
+  .nova-center-home .nova-page-heading > div:first-child { gap: 4px 10px; }
+  .nova-center-home .nova-center-subtitle { font-size: 11px; }
+  .nova-center-home .nova-home-main { gap: 14px; }
+  .nova-center-home .nova-overview { order: 0; }
+  .nova-center-home .nova-market-centre { order: 1; }
+  .nova-center-home .nova-center-discovery { order: 2; }
+  .nova-center-home .nova-center-guide { order: 3; }
+  .nova-center-home .nova-center-feature { order: 4; }
+  .nova-center-home .nova-promotions { order: 5; }
+  .nova-center-home .nova-casino-discovery { order: 6; }
+  .nova-center-home .nova-overview-card { min-height: 48px; padding: 8px; flex-wrap: nowrap; align-content: center; }
+  .nova-center-home .nova-overview-icon { display: none; }
+  .nova-center-home .nova-market-state { flex-wrap: wrap; gap: 10px; padding: 16px; }
+  .nova-center-home .nova-market-state-copy { flex-basis: calc(100% - 46px); }
+  .nova-center-home .nova-market-state .nova-button { margin-left: 46px; }
+  .nova-center-sports-grid { gap: 8px; }
+  .nova-center-sport-card > img { height: 56px; }
+  .nova-center-sport-copy strong { font-size: 12px; overflow-wrap: anywhere; }
+  .nova-center-guide { flex-wrap: wrap; gap: 10px; padding: 16px; }
+  .nova-center-guide > div { flex-basis: calc(100% - 48px); }
+  .nova-center-guide .nova-text-link { margin-left: 48px; }
+  .nova-shell .nova-center-home .nova-center-feature .nova-hero-copy { width: 86%; min-height: 174px; padding: 18px; }
+  .nova-shell .nova-center-home .nova-center-feature h2 { font-size: 26px; }
+}
+@media (max-width: 380px) {
+  .nova-content:has(> .nova-center-home) { padding-inline: 12px; }
+  .nova-center-home .nova-center-subtitle { display: none; }
+  .nova-center-home .nova-sport-pills button { padding-inline: 10px; font-size: 11px; }
+  .nova-center-home .nova-overview-card small { font-size: 10px; }
+  .nova-center-sport-copy { padding-left: 8px; padding-right: 23px; }
+  .nova-center-sport-card > svg { right: 6px; width: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-center-sport-card { transition: none; }
+}
+
+/* Modal family: a shared native top layer, with content-specific layouts. */
+.nova-modal-layer { position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 24px; border: 0; color: var(--text); background: transparent; overflow: auto; }
+.nova-modal-layer[open] { display: flex; align-items: center; justify-content: center; }
+.nova-modal-layer::backdrop { background: rgb(9 16 29 / .62); backdrop-filter: blur(5px); }
+.nova-modal-surface { --modal-width: 560px; display: flex; flex-direction: column; width: 100%; max-width: var(--modal-width); max-height: calc(100dvh - 48px); min-width: 0; border: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--text); background: var(--surface); box-shadow: 0 24px 80px rgb(5 12 24 / .22); overflow: hidden; animation: nova-modal-arrive .18s ease-out; }
+.nova-modal-sm { --modal-width: 440px; }
+.nova-modal-lg { --modal-width: 760px; }
+.nova-modal-auth { --modal-width: 900px; overflow-y: auto; }
+.nova-modal-header { display: flex; align-items: flex-start; justify-content: space-between; flex: 0 0 auto; gap: 16px; padding: 22px 24px; border-bottom: 1px solid var(--border); }
+.nova-modal-header > div { min-width: 0; }
+.nova-modal-header h2 { font: 700 20px/1.3 var(--font-inter); letter-spacing: -.45px; overflow-wrap: anywhere; }
+.nova-modal-header p { margin-top: 6px; color: var(--subtle); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.nova-modal-close { display: inline-grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; padding: 0; border: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--subtle); background: var(--surface); cursor: pointer; }
+.nova-modal-close:hover { background: var(--surface-2); color: var(--text); }
+.nova-modal-body { flex: 1 1 auto; min-height: 0; padding: 24px; overflow: auto; overscroll-behavior: contain; }
+.nova-modal-footer, .nova-modal-actions { display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; flex-wrap: wrap; gap: 10px; padding: 18px 24px; border-top: 1px solid var(--border); background: var(--surface); }
+.nova-modal-footer button, .nova-modal-actions button { min-height: 44px; border-radius: var(--ui-radius); font-size: 13px; }
+.nova-modal-summary { padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface-2); }
+.nova-modal-summary > p:first-child { color: var(--subtle); font-size: 12px; }
+.nova-modal-summary > p + p { margin-top: 7px; color: var(--text); font-size: clamp(26px, 5vw, 34px); font-weight: 750; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.nova-modal-notice { padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--text); background: var(--surface-2); font-size: 12px; line-height: 1.7; }
+.nova-modal-notice :is(p, span) { color: inherit; }
+html.light .nova-switch-bonus-modal .nova-modal-notice { color: #b91c1c; }
+.nova-modal-danger { border-color: color-mix(in srgb, #dc2626 30%, var(--border)); background: color-mix(in srgb, #dc2626 6%, var(--surface)); color: #b91c1c; }
+html.dark .nova-modal-danger { color: #fca5a5; }
+html.light .nova-modal-layer :is(.text-red-300, .text-red-400, .text-red-500, [class~='text-red-400/80']) { color: #b91c1c; }
+html.light .nova-modal-layer :is(.text-green-300, .text-green-400, .text-green-500) { color: #166534; }
+html.light .nova-modal-layer :is(.text-emerald-300, .text-emerald-400, .text-emerald-500, [class~='text-emerald-400/80']) { color: #047857; }
+html.light .nova-modal-layer :is(.text-yellow-400, .text-amber-300, .text-amber-400, [class~='text-[#fbbf24]']) { color: #92400e; }
+html.light .nova-modal-layer .text-blue-400 { color: #1d4ed8; }
+.nova-modal-form-mark { display: inline-grid; place-items: center; width: 42px; height: 42px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: var(--ui-radius); color: var(--nova-accent); background: var(--surface-2); }
+.nova-modal-form-mark svg { width: 20px; height: 20px; }
+.nova-receipt-body > div { min-width: 0; }
+.nova-modal-layer .nova-modal-surface :is(p, span):is([class*='text-[color:var(--brand-primary)]'], [class*='text-[var(--brand-primary)]']) { color: var(--text); }
+.nova-modal-layer .nova-switch-bonus-modal .nova-modal-notice :is(p, span) { color: inherit; }
+.nova-receipt-details :is(span, p), .nova-modal-detail-grid :is(span, p) { overflow-wrap: anywhere; }
+.nova-modal-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.nova-modal-details { min-width: 0; }
+.nova-modal-details > div, .nova-modal-details > dl { min-width: 0; }
+.nova-modal-surface :is(dd, code, pre, .font-mono) { overflow-wrap: anywhere; white-space: pre-wrap; }
+.nova-modal-surface .field { border-radius: var(--ui-radius); border-color: var(--border); background: var(--surface-2); }
+.nova-modal-surface .field:focus-within { border-color: var(--nova-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nova-accent) 12%, transparent); }
+.nova-modal-surface .field__control { min-height: 48px; border-radius: var(--ui-radius); border-color: var(--border); background: var(--surface-2); color: var(--text); font-size: 14px; }
+.nova-modal-surface .field__control:focus { border-color: var(--nova-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nova-accent) 12%, transparent); }
+.nova-modal-surface .field--invalid .field__control, .nova-modal-surface .field__control[aria-invalid='true'] { border-color: #dc2626; }
+.nova-modal-surface .field--invalid, .nova-modal-surface .field:has([aria-invalid='true']) { border-color: #dc2626; }
+.nova-modal-surface .field__icon--right { width: 44px; height: 44px; border-radius: var(--ui-radius); }
+.nova-modal-surface :is(.form-field > label, label) { color: var(--text); font-size: 12px; font-weight: 550; line-height: 1.5; }
+.nova-modal-surface .otp-input { min-width: 0; width: 100%; height: 52px; border-radius: var(--ui-radius); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 22px; }
+.nova-modal-table table { min-width: 600px; border-collapse: collapse; }
+.nova-modal-table th { padding: 12px; color: var(--subtle); font-size: 11px; font-weight: 650; }
+.nova-modal-table td { padding: 14px 12px; font-size: 12px; border-bottom: 1px solid var(--border); }
+.nova-analysis-modal > .nova-modal-body { padding: 0; }
+.nova-analysis-modal > .nova-modal-body > div { background-image: none; }
+
+/* Auth is a destination, not a cramped utility popover. Artwork stays code-native. */
+
+/* Existing search, account, wallet, utility and specialized drawers share the finish. */
+.nova-search-dialog > div, .nova-profile-sheet, .nova-panel-content, .nova-mobile-bets-sheet, .nova-provider-dialog, .nova-event-analysis-surface, .nova-bet-slip-dialog > div { border-color: var(--border); background: var(--surface); box-shadow: 0 24px 70px rgb(5 12 24 / .18); }
+.nova-search-dialog > div { border-radius: var(--ui-radius); }
+.nova-search-dialog { padding: 20px !important; }
+.nova-profile-sheet > div:first-child { min-height: 74px; padding: 18px 20px; }
+.nova-profile-sheet > div:first-child h2 { font-size: 15px; letter-spacing: -.2px; text-transform: none; }
+.nova-profile-sheet button[aria-label], .nova-search-dialog button[aria-label], .nova-provider-dialog button[aria-label='Close provider filters'], .nova-bet-slip-dialog button[aria-label='Close bet slip'] { min-width: 44px; min-height: 44px; }
+.nova-profile-user { margin: 18px 16px 10px; padding: 14px; border-radius: var(--ui-radius); background: var(--surface-2); }
+.nova-profile-wallet-action { min-height: 52px; border-radius: var(--ui-radius); }
+.nova-profile-sheet nav > a { min-height: 44px; border-radius: var(--ui-radius); font-size: 13px; }
+.nova-panel-content > header { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+.nova-panel-links > a, .nova-panel-links > button { border-radius: var(--ui-radius); min-height: 48px; }
+.nova-provider-dialog { border-radius: var(--ui-radius); }
+.nova-provider-dialog > div, .nova-event-analysis-surface > div { min-height: 0; }
+.nova-modal-layer:has(.nova-enterprise-betslip-modal) { align-items: flex-end; padding: 0; }
+.nova-enterprise-betslip-modal { width: min(600px, 100%); max-height: 88dvh; border-bottom: 0; border-radius: var(--ui-radius); }
+.nova-enterprise-betslip-modal > div { display: flex; flex-direction: column; min-height: 0; max-height: 88dvh; }
+.nova-enterprise-betslip-modal .nova-bet-slip-dialog { display: flex; flex-direction: column; min-height: 0; max-height: 88dvh; }
+.nova-enterprise-betslip-modal .nova-bet-slip-dialog > div { display: flex; flex-direction: column; min-height: 0; max-height: 88dvh; }
+.nova-enterprise-betslip-modal button[aria-label='Close bet slip'] { min-width: 44px; min-height: 44px; }
+.nova-event-analysis-surface { border-radius: var(--ui-radius); }
+.nova-event-analysis-surface > div:first-child { min-height: 64px; background: var(--surface); }
+.nova-bet-slip-dialog > div { border-radius: var(--ui-radius); }
+@keyframes nova-modal-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 800px) {
+  .nova-modal-layer { padding: 16px; }
+  .nova-modal-surface { max-height: calc(100dvh - 32px); }
+  .nova-search-dialog { padding: 12px !important; align-items: center; }
+  .nova-search-dialog > div { max-height: calc(100dvh - 24px); border-radius: var(--ui-radius); }
+}
+@media (max-width: 380px) {
+  .nova-modal-layer { padding: 10px; }
+  .nova-modal-surface { max-height: calc(100dvh - 20px); border-radius: var(--ui-radius); }
+  .nova-modal-header, .nova-modal-body { padding: 18px; }
+  .nova-modal-footer, .nova-modal-actions { padding: 14px 18px; }
+  .nova-modal-detail-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-modal-surface { animation: none; }
+  .nova-search-dialog, .nova-search-dialog > div, .nova-provider-dialog, .nova-bet-slip-dialog { transition: none; }
+}
+
+/* Matchbook outer shell: full-width header, left navigation, workspace and right rail.
+   --nova-sidebar-w sizes the sidebar column and the header's logo block, so the product nav
+   starts exactly where the sidebar ends. */
+.nova-shell-matchbook {
+  --nova-sidebar-w: 216px;
+  --nova-rail-w: 64px;
+  /* Side padding of the middle section; the rail drawer adds it back to cover the right column. */
+  --nova-content-gutter: 16px;
+  display: grid;
+  grid-template-columns: var(--nova-sidebar-w) minmax(0, 1fr) var(--nova-rail-w);
+  grid-template-rows: var(--header-height) minmax(calc(100dvh - var(--header-height)), auto);
+  align-items: stretch;
+  min-height: 100dvh;
+}
+.nova-shell-matchbook > .nova-topbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: sticky;
+  z-index: 100;
+  width: 100%;
+  height: var(--header-height);
+  background: var(--surface);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgb(15 23 42 / 6%);
+}
+.nova-shell-matchbook .nova-topbar-inner { padding-inline: 18px 22px; }
+.nova-shell-matchbook .nova-header-logo {
+  display: flex;
+  flex: 0 1 135px;
+  min-width: 0;
+  max-width: 135px;
+  margin-right: clamp(8px, 1.4vw, 20px);
+}
+.nova-shell-matchbook > .nova-sidebar {
+  grid-column: 1;
+  grid-row: 2 / -1;
+  position: sticky;
+  top: var(--header-height);
+  align-self: start;
+  width: var(--nova-sidebar-w);
+  height: calc(100dvh - var(--header-height));
+  border-right: 1px solid var(--border);
+}
+.nova-shell-matchbook > .nova-workspace {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 100%;
+  background: var(--background);
+}
+.nova-shell-matchbook > .nova-utility-rail {
+  grid-column: 3;
+  grid-row: 2;
+  position: sticky;
+  top: var(--header-height);
+  align-self: start;
+  height: calc(100dvh - var(--header-height));
+  border-left: 1px solid var(--border);
+  border-top: 0;
+}
+.nova-shell-matchbook .nova-content { width: 100%; }
+/* Phones and small tablets: no outer gutter, the panels run edge to edge under the header (owner's call,
+   2026-10-16; first slimmed to 8px, then removed). */
+@media (max-width: 800px) {
+  .nova-shell-matchbook .nova-content { padding: 0 0 24px; }
+}
+
+/* Matchbook palette for the user panel shell, the same in both app themes: charcoal chrome (topbar,
+   sidebar, rail) around light content. It used to apply only under html.dark, which left light mode
+   with the older blue-tinted surfaces and a white rail. */
+html .nova-shell-matchbook {
+  --background: #ECECED;
+  --surface: #FAFAFA;
+  --surface-2: #F5F5F5;
+  --surface-3: #E2E3E3;
+  --muted: #DDD;
+  --border: #DDD;
+  --border-2: #A8A8A8;
+  --border-3: #8D8C92;
+  --text: #333;
+  --subtle: #53555B;
+  --subtle-2: #53555B;
+  --nova-accent: #C51A1B;
+  --brand-primary: #C51A1B;
+  --brand-secondary: #00B2FF;
+  --brand-accent: #00B2FF;
+  --mobile-nav-active: #C51A1B;
+}
+html .nova-shell-matchbook > .nova-topbar,
+html .nova-shell-matchbook > .nova-sidebar,
+html .nova-shell-matchbook > .nova-utility-rail {
+  --background: #2B2F35;
+  --surface: #2B2F35;
+  --surface-2: #43444A;
+  --surface-3: #53555B;
+  --muted: #43444A;
+  --border: #3A3D43;
+  --border-2: #4F5057;
+  --border-3: #8D8C92;
+  --text: #FFFFFF;
+  --subtle: #B9BCC3;
+  --subtle-2: #B9BCC3;
+  --nova-accent: #C51A1B;
+  --brand-primary: #C51A1B;
+  --brand-secondary: #00B2FF;
+  --brand-accent: #00B2FF;
+  --ds-color-slate-50: #FFFFFF;
+  --ds-color-slate-100: #FFFFFF;
+  --ds-color-slate-150: #E2E3E3;
+  --ds-color-slate-200: #DDD;
+  --ds-color-slate-250: #A8A8A8;
+  --ds-color-slate-300: #B9BCC3;
+  --ds-color-slate-350: #ABADB3;
+  --ds-color-slate-400: #ABADB3;
+  --ds-color-slate-450: #B9BCC3;
+  --ds-color-slate-500: #ABADB3;
+  --ds-color-slate-550: #53555B;
+  --ds-color-slate-600: #4F5057;
+  --ds-color-slate-650: #43444A;
+  --ds-color-slate-700: #43444A;
+  --ds-color-slate-750: #3A3D43;
+  --ds-color-slate-800: #43444A;
+  --ds-color-slate-850: #2B2F35;
+  --ds-color-slate-900: #2B2F35;
+  --ds-color-slate-950: #2B2F35;
+  --ds-color-slate-975: #2B2F35;
+  color: var(--text);
+  background: #2B2F35;
+}
+html .nova-shell-matchbook .nova-sidebar .nova-side-link.active,
+html .nova-shell-matchbook .nova-utility-rail a[aria-current='page'],
+html .nova-shell-matchbook .nova-utility-rail button[aria-pressed='true'] {
+  color: #FFFFFF;
+  background: #C51A1B;
+}
+html .nova-shell-matchbook .nova-utility-rail a:hover,
+html .nova-shell-matchbook .nova-utility-rail button:hover {
+  color: #FFFFFF;
+  background: #53555B;
+}
+html .nova-shell-matchbook .nova-live-dot { background: #22BB92; box-shadow: 0 0 0 3px rgb(34 187 146 / 18%); }
+html .nova-shell-matchbook .nova-wallet-summary .nova-wallet-available strong { color: #00B2FF; }
+
+html .nova-shell-matchbook > .nova-workspace {
+  --ds-color-slate-50: #FFFFFF;
+  --ds-color-slate-100: #333333;
+  --ds-color-slate-150: #53555B;
+  --ds-color-slate-200: #8D8C92;
+  --ds-color-slate-250: #A8A8A8;
+  --ds-color-slate-300: #A3A1A7;
+  --ds-color-slate-350: #A8A8A8;
+  --ds-color-slate-400: #8D8C92;
+  --ds-color-slate-450: #8D8C92;
+  --ds-color-slate-500: #A8A8A8;
+  --ds-color-slate-550: #53555B;
+  --ds-color-slate-600: #DDDDDD;
+  --ds-color-slate-650: #DDDDDD;
+  --ds-color-slate-700: #DDDDDD;
+  --ds-color-slate-750: #F5F5F5;
+  --ds-color-slate-800: #FAFAFA;
+  --ds-color-slate-850: #FFFFFF;
+  --ds-color-slate-900: #FFFFFF;
+  --ds-color-slate-950: #ECECED;
+  --ds-color-slate-975: #ECECED;
+}
+
+/* Matchbook home desk: category tiles, event strip, odds board and promotion rail. */
+.nova-center-home .nova-page-heading { margin-bottom: 12px; }
+.nova-center-home .nova-home-grid { grid-template-columns: minmax(0, 1fr) minmax(320px, .37fr); gap: 10px; }
+.nova-center-home .nova-home-main { display: flex; flex-direction: column; gap: 12px; }
+.nova-center-home .nova-home-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.nova-center-home .nova-home-side > .nova-promotions { margin: 0; }
+.nova-center-home .nova-home-side .nova-match-desk { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; margin: 0; }
+.nova-center-home .nova-home-featured-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(178px, 218px); gap: 0; min-width: 0; }
+.nova-center-home .nova-home-featured-grid .nova-center-feature { min-width: 0; }
+.nova-center-home .nova-featured-event-list { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); min-width: 0; overflow: hidden; background: #2B2F35; }
+.nova-center-home .nova-featured-event-list.is-empty { display: flex; }
+.nova-center-home .nova-featured-event-list > button { display: grid; align-content: center; gap: 3px; min-width: 0; padding: 9px 11px; border: 0; border-bottom: 1px solid #53555B; color: #FFFFFF; background: #2B2F35; text-align: left; cursor: pointer; }
+.nova-center-home .nova-featured-event-list > button:hover { background: #43444A; }
+.nova-center-home .nova-featured-event-list > button.active { background: #A91317; }
+.nova-center-home .nova-featured-event-list > button > span { overflow: hidden; color: #C8C8CC; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.nova-center-home .nova-featured-event-list > button > strong { display: -webkit-box; overflow: hidden; color: #FFFFFF; font-size: 11px; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.nova-center-home .nova-featured-event-list > button > small { color: #D6D6D8; font-size: 9px; }
+.nova-center-home .nova-featured-event-empty { display: grid; flex: 1; place-items: center; min-width: 0; padding: 18px; color: #E2E3E3; font-size: 12px; line-height: 1.5; text-align: center; }
+@media (min-width: 801px) {
+  .nova-center-home .nova-arena-heading,
+  .nova-center-home > .nova-sport-pills { display: none; }
+}
+.nova-shell .nova-center-home .nova-center-feature {
+  min-height: 300px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: #C51A1B;
+  color: #FFFFFF;
+}
+.nova-shell .nova-center-home .nova-center-feature::after { display: none; }
+.nova-shell .nova-center-home .nova-center-feature.nova-hero::before {
+  inset: 0;
+  width: auto;
+  height: auto;
+  background: linear-gradient(100deg, #C51A1B 0%, #C51A1B 54%, rgb(197 26 27 / 72%) 71%, rgb(43 47 53 / 20%) 100%);
+}
+.nova-shell .nova-center-home .nova-center-feature .nova-hero-art {
+  right: 0;
+  left: auto;
+  width: 56%;
+  object-position: 70% center;
+  mask-image: linear-gradient(90deg, transparent, #000 30%);
+}
+.nova-shell .nova-center-home .nova-center-feature .nova-hero-copy {
+  width: 76%;
+  min-height: 300px;
+  padding: 26px 28px;
+  justify-content: center;
+}
+.nova-center-home .nova-center-feature .nova-hero-meta { color: #FFFFFF; }
+.nova-center-home .nova-center-feature .nova-hero-meta > span:first-child { border-color: rgb(255 255 255 / 35%); background: rgb(43 47 53 / 22%); color: #FFFFFF; }
+.nova-center-home .nova-center-feature .nova-hero-meta > span:first-child.live { color: #FFFFFF; }
+.nova-shell .nova-center-home .nova-center-feature h2 { max-width: 760px; margin: 13px 0 8px; font-size: clamp(29px, 3vw, 48px); font-weight: 800; letter-spacing: -.6px; line-height: 1.06; text-transform: uppercase; }
+.nova-shell .nova-center-home .nova-center-feature .nova-feature-event { color: #FFFFFF; }
+.nova-shell .nova-center-home .nova-center-feature p { color: #FFFFFF; font-size: 13px; }
+.nova-center-home .nova-center-feature .nova-button { min-width: 132px; background: #FFFFFF; color: #C51A1B; }
+.nova-center-home .nova-center-feature .nova-hero-secondary { color: #FFFFFF; }
+.nova-center-home .nova-home-schedule { overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+.nova-center-home .nova-home-schedule > header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 7px 12px;
+  color: #FFFFFF;
+  background: #43444A;
+}
+.nova-center-home .nova-home-schedule > header h2 { display: flex; align-items: center; gap: 7px; margin: 0; color: #FFFFFF; font-size: 12px; font-weight: 700; }
+.nova-center-home .nova-home-schedule > header > span { margin-left: auto; color: #E2E3E3; font-size: 10px; }
+.nova-center-home .nova-home-schedule > header > a { display: inline-flex; align-items: center; gap: 3px; color: #00B2FF; font-size: 10px; font-weight: 700; }
+.nova-center-home .nova-schedule-track { display: flex; min-width: 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #A8A8A8 transparent; }
+.nova-center-home .nova-schedule-track > a {
+  display: grid;
+  flex: 0 0 clamp(96px, 11.5%, 132px);
+  align-content: center;
+  justify-items: center;
+  gap: 3px;
+  min-height: 70px;
+  padding: 9px 8px;
+  border-right: 1px solid #DDDDDD;
+  color: #333333;
+  text-align: center;
+}
+.nova-center-home .nova-schedule-track > a:hover { background: #F5F5F5; }
+.nova-center-home .nova-schedule-track > a > span { color: #8D8C92; font-size: 9px; font-weight: 700; }
+.nova-center-home .nova-schedule-track > a > span.live { color: #00B181; }
+.nova-center-home .nova-schedule-track > a > strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+.nova-center-home .nova-schedule-track > a > small { max-width: 100%; overflow: hidden; color: #53555B; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.nova-center-home .nova-schedule-state { display: grid; place-items: center; min-width: 100%; min-height: 70px; margin: 0; color: #53555B; font-size: 12px; }
+.nova-center-home .nova-overview { border-radius: var(--ui-radius); }
+.nova-center-home .nova-market-centre { overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+.nova-center-home .nova-market-centre > .nova-section-heading { min-height: 48px; margin: 0; padding: 10px 14px; color: #FFFFFF; background: #43444A; }
+.nova-center-home .nova-market-centre > .nova-section-heading h2 { color: #FFFFFF; font-size: 14px; }
+.nova-center-home .nova-market-centre > .nova-section-heading .nova-text-link { color: #00B2FF; }
+.nova-center-home .nova-market-tabs { min-height: 42px; border: 0; border-bottom: 1px solid #DDDDDD; border-radius: var(--ui-radius); background: #F5F5F5; }
+.nova-center-home .nova-market-tabs button { min-height: 34px; color: #53555B; }
+.nova-center-home .nova-market-tabs button.active { border-radius: var(--ui-radius); background: #C51A1B; color: #FFFFFF; }
+.nova-center-home .nova-market-tabs button > span { background: rgb(255 255 255 / 20%); }
+.nova-center-home .nova-market-centre .nova-live-markets { border: 0; border-radius: var(--ui-radius); background: #FFFFFF; }
+.nova-center-home .nova-market-centre .nova-live-markets-content { background: #FFFFFF; }
+.nova-center-home .nova-market-centre .nova-live-markets-content > div > button { min-height: 38px; background: #43444A; border-color: #53555B; }
+.nova-center-home .nova-market-centre .nova-live-markets-content > div > button:hover { background: #53555B; }
+.nova-center-home .nova-market-centre .nova-live-markets-content > div > button span { color: #FFFFFF; }
+html.dark .nova-center-home .nova-odds-back { border-color: #8DD2F0; background: #8DD2F0; color: #2B2F35; }
+html.dark .nova-center-home .nova-odds-lay { border-color: #E3A3A3; background: #E3A3A3; color: #2B2F35; }
+.nova-center-home .nova-home-side .nova-banner-rail { display: none; gap: 8px; min-width: 0; }
+.nova-center-home .nova-home-side .nova-banner-rail-card { overflow: hidden; border-radius: var(--ui-radius); background: #2B2F35; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
+.nova-center-home .nova-home-side .nova-banner-rail-card.primary { height: 200px; }
+.nova-center-home .nova-home-side .nova-banner-rail-card.secondary { height: 160px; }
+.nova-center-home .nova-home-side .nova-banner-rail-card img { width: 100%; height: 100% !important; object-fit: cover; }
+html.dark .nova-center-home .nova-home-side .nova-desk-card {
+  --surface: #2B2F35;
+  --surface-2: #43444A;
+  --border: #3A3D43;
+  --text: #FFFFFF;
+  --subtle: #A3A1A7;
+  color: #FFFFFF;
+  border-color: #2B2F35;
+  border-radius: var(--ui-radius);
+  background: #2B2F35;
+}
+html.dark .nova-center-home .nova-home-side .nova-desk-heading { background: #43444A; border-color: #53555B; }
+html.dark .nova-center-home .nova-home-side .nova-desk-heading h3 { color: #FFFFFF; }
+html.dark .nova-center-home .nova-home-side .nova-quick-card > div > a { color: #E2E3E3; border-color: #43444A; }
+html.dark .nova-center-home .nova-home-side .nova-quick-card > div > a:hover { color: #00B2FF; }
+html.dark .nova-center-home .nova-home-side .nova-slip-empty > svg { color: #00B2FF; border-color: #53555B; background: #43444A; }
+html.dark .nova-center-home .nova-home-side .nova-slip-empty strong { color: #FFFFFF; }
+html.dark .nova-center-home .nova-home-side .nova-desk-session { color: #E2E3E3; }
+
+@media (min-width: 1600px) {
+  .nova-center-home .nova-home-grid { grid-template-columns: minmax(0, 1fr) minmax(380px, .37fr); }
+}
+@media (min-width: 768px) {
+  .nova-center-home .nova-home-side .nova-banner-rail { display: grid; }
+}
+@media (max-width: 1350px) {
+  .nova-center-home .nova-home-grid { grid-template-columns: minmax(0, 1fr) minmax(290px, .4fr); }
+}
+@media (max-width: 1050px) {
+  .nova-center-home .nova-home-grid { grid-template-columns: minmax(0, 1fr); }
+  .nova-center-home .nova-home-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .nova-center-home .nova-home-side .nova-match-desk { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 800px) {
+  .nova-shell .nova-center-home .nova-center-feature,
+  .nova-shell .nova-center-home .nova-center-feature .nova-hero-copy { min-height: 250px; }
+  .nova-center-home .nova-home-side { grid-template-columns: minmax(0, 1fr); }
+  .nova-center-home .nova-home-side .nova-match-desk { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .nova-center-home .nova-home-featured-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .nova-center-home .nova-featured-event-list { display: flex; overflow-x: auto; scrollbar-width: thin; }
+  .nova-center-home .nova-featured-event-list > button { flex: 0 0 158px; min-height: 65px; border-right: 1px solid #53555B; border-bottom: 0; }
+  .nova-center-home .nova-featured-event-empty { min-width: 100%; min-height: 60px; }
+  .nova-shell .nova-center-home .nova-center-feature,
+  .nova-shell .nova-center-home .nova-center-feature .nova-hero-copy { min-height: 220px; }
+  .nova-shell .nova-center-home .nova-center-feature .nova-hero-copy { width: 90%; padding: 18px; }
+  .nova-shell .nova-center-home .nova-center-feature h2 { max-width: 100%; font-size: 28px; }
+  .nova-center-home .nova-home-schedule > header { gap: 8px; padding-inline: 9px; }
+  .nova-center-home .nova-home-schedule > header > span { font-size: 9px; }
+  .nova-center-home .nova-schedule-track > a { flex-basis: 100px; }
+}
+
+@media (min-width: 1600px) {
+  .nova-shell-matchbook { --nova-sidebar-w: 224px; }
+}
+@media (min-width: 801px) and (max-width: 1100px) {
+  .nova-shell-matchbook { --nova-sidebar-w: 204px; --nova-rail-w: 58px; }
+  .nova-shell-matchbook .nova-topbar-inner { padding-inline: 14px; }
+  .nova-shell-matchbook .nova-header-logo { flex-basis: 125px; max-width: 125px; margin-right: 8px; }
+}
+@media (max-width: 800px) {
+  .nova-shell-matchbook {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--header-height) minmax(calc(100dvh - var(--header-height)), auto);
+  }
+  .nova-shell-matchbook > .nova-topbar { grid-column: 1; grid-row: 1; }
+  .nova-shell-matchbook > .nova-sidebar { display: none; }
+  .nova-shell-matchbook > .nova-workspace { grid-column: 1; grid-row: 2; }
+  .nova-shell-matchbook > .nova-utility-rail { display: none; }
+  .nova-shell-matchbook .nova-header-logo { flex: 1 1 auto; max-width: 180px; margin-right: 0; }
+}
+
+/* Rail drawers (match centre, account, preferences, help) cover only the right column of the
+   middle section: below the header, flush against the rail, as wide as the home page's right
+   column (clamp(260px, 26%, 440px) of the content) plus the gutter beside it. */
+@media (min-width: 801px) {
+  .nova-shell-matchbook .nova-panel.nova-rail-panel {
+    position: fixed;
+    inset: var(--header-height) var(--nova-rail-w) 0 auto;
+    z-index: 90;
+    width: calc(clamp(260px, (100% - var(--nova-sidebar-w) - var(--nova-rail-w) - 2 * var(--nova-content-gutter)) * .26, 440px) + var(--nova-content-gutter));
+    height: auto;
+    max-height: none;
+    margin: 0;
+    overflow-y: auto;
+    border-left: 1px solid var(--mb-line);
+    box-shadow: -10px 0 28px rgb(16 18 22 / 12%);
+  }
+}
+
+/* Desktop header and empty sports state follow the supplied exchange layout. */
+@media (min-width: 801px) {
+  .nova-shell-matchbook {
+    --header-height: 68px;
+    grid-template-rows: var(--header-height) minmax(calc(100dvh - var(--header-height)), auto);
+  }
+  .nova-shell-matchbook > .nova-topbar { grid-column: 1 / -1; height: var(--header-height); }
+  .nova-shell-matchbook .nova-topbar-inner {
+    display: block;
+    height: 100%;
+    padding: 0;
+  }
+  .nova-shell-matchbook .nova-topbar-row {
+    min-width: 0;
+    height: 68px;
+    gap: 0;
+    padding-inline: 0 20px;
+    background: #2B2F35;
+  }
+  .nova-shell-matchbook .nova-header-left { display: flex; flex: 0 0 var(--nova-sidebar-w); gap: 4px; padding-left: 18px; }
+  .nova-shell-matchbook .nova-menu-button,
+  .nova-shell-matchbook .nova-mobile-search { display: none; }
+  .nova-shell-matchbook .nova-header-logo {
+    display: flex;
+    flex: 0 0 160px;
+    width: 160px;
+    max-width: 160px;
+    max-height: 48px;
+    margin: 0;
+  }
+  .nova-shell-matchbook .nova-header-logo .nova-logo-image { width: 100%; max-width: 160px; }
+  .nova-shell-matchbook .nova-desktop-search {
+    display: grid;
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid #3A3D43;
+    border-radius: var(--ui-radius);
+    color: #FFFFFF;
+    background: transparent;
+  }
+  .nova-shell-matchbook .nova-desktop-search > svg { width: 19px; height: 19px; }
+  .nova-shell-matchbook .nova-desktop-search:hover,
+  .nova-shell-matchbook .nova-mobile-search:hover { border-color: #4F5057; color: #FFFFFF; background: #43444A; }
+  .nova-shell-matchbook .nova-header-right { flex: 0 0 auto; gap: 9px; margin-left: 12px; }
+  .nova-shell-matchbook .nova-header-theme .nova-theme-toggle,
+  .nova-shell-matchbook .nova-auth-login { min-width: 44px; min-height: 44px; border-radius: var(--ui-radius); }
+  .nova-shell-matchbook .nova-auth-login { color: #FFFFFF; border-color: #3A3D43; background: #43444A; }
+  .nova-shell-matchbook .nova-auth-register { min-height: 44px; padding-inline: 18px; border-radius: var(--ui-radius); color: #FFFFFF; background: #C51A1B; border-color: #C51A1B; }
+  /* Product links sit inline, directly right of the logo; they shrink before the account controls do. */
+  .nova-shell-matchbook .nova-matchbook-product-nav {
+    display: flex;
+    flex: 0 1 auto;
+    align-self: stretch;
+    min-width: 0;
+    margin: 0 auto 0 0;
+    overflow: hidden;
+  }
+  .nova-shell-matchbook .nova-matchbook-product-nav > a {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 0 16px;
+    color: #E2E3E3;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: background-color .15s, color .15s;
+  }
+  .nova-shell-matchbook .nova-matchbook-product-nav > a > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .nova-shell-matchbook .nova-matchbook-product-nav > a:hover { color: #FFFFFF; background: #43444A; }
+  .nova-shell-matchbook .nova-matchbook-product-nav svg { width: 18px; height: 18px; flex: 0 0 auto; }
+  .nova-shell-matchbook .nova-matchbook-product-nav .casino svg { color: #00B2FF; }
+  .nova-shell-matchbook .nova-matchbook-product-nav > a.active { color: #FFFFFF; background: #C51A1B; }
+  .nova-shell-matchbook .nova-matchbook-product-nav > a.active svg { color: inherit; }
+  .nova-shell-matchbook > .nova-utility-rail {
+    grid-row: 2 / -1;
+    width: var(--nova-rail-w);
+    top: var(--header-height);
+    height: calc(100dvh - var(--header-height));
+  }
+  .nova-shell-matchbook .nova-content { max-width: none; padding: 12px var(--nova-content-gutter) 24px; }
+  .nova-center-home .nova-arena-heading,
+  .nova-center-home > .nova-sport-pills { display: flex; }
+  .nova-center-home .nova-arena-heading { align-items: center; margin: 0 0 12px; }
+  .nova-center-home .nova-arena-heading h1 { margin: 0; font-family: inherit; font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.4px; text-transform: none; }
+  .nova-center-home .nova-center-subtitle { margin-left: 8px; color: #53555B; font-size: 12px; }
+  .nova-center-home .nova-matchday-meta { gap: 3px; }
+  .nova-center-home .nova-matchday-meta strong { padding: 0; border: 0; color: #333333; font-size: 12px; letter-spacing: 0; }
+  .nova-center-home .nova-matchday-meta > span { color: #53555B; font-size: 10px; }
+  .nova-center-home > .nova-sport-pills { gap: 4px; min-height: 52px; margin: 0 0 14px; padding: 4px; border: 1px solid #DDD; border-radius: var(--ui-radius); background: #FAFAFA; }
+  .nova-center-home > .nova-sport-pills button { min-height: 42px; padding: 8px 12px; border: 0; border-radius: var(--ui-radius); color: #333333; background: transparent; font-size: 12px; }
+  .nova-center-home > .nova-sport-pills button.active { color: #C51A1B; background: #F6E7E7; }
+  .nova-center-home.nova-home-no-events .nova-home-featured-grid { grid-template-columns: 104px minmax(0, 1fr); min-height: max(520px, calc(100dvh - 270px)); background: #FAFAFA; }
+  .nova-center-home.nova-home-no-events .nova-center-feature { display: none; }
+  .nova-center-home.nova-home-no-events .nova-featured-event-list.is-empty { grid-column: 1; grid-row: 1; min-height: max(520px, calc(100dvh - 270px)); }
+  .nova-center-home .nova-featured-event-empty { display: block; flex: 1; padding: 16px 10px; color: #E2E3E3; line-height: 1.45; text-align: center; }
+  .nova-center-home.nova-home-no-events .nova-home-schedule,
+  .nova-center-home.nova-home-no-events .nova-market-centre { display: none; }
+  .nova-center-home .nova-home-side .nova-banner-rail-card.primary { height: 200px; }
+  .nova-center-home .nova-home-side .nova-banner-rail-card.secondary { height: 160px; }
+  .nova-center-home .nova-home-side .nova-banner-rail-card img { display: block; width: 100%; height: auto !important; max-height: none; object-fit: contain; }
+}
+
+@media (min-width: 1600px) {
+  .nova-shell-matchbook { --nova-sidebar-w: 224px; }
+  .nova-center-home .nova-home-grid { grid-template-columns: minmax(0, 1fr) minmax(320px, .37fr); }
+}
+@media (min-width: 801px) and (max-width: 1100px) {
+  .nova-shell-matchbook { --nova-sidebar-w: 204px; --nova-rail-w: 58px; }
+  .nova-shell-matchbook .nova-topbar-row { padding-inline: 0 14px; }
+  .nova-shell-matchbook .nova-header-left { padding-left: 14px; }
+  .nova-shell-matchbook .nova-header-logo { flex-basis: 132px; width: 132px; max-width: 132px; }
+  .nova-shell-matchbook .nova-desktop-search { min-width: 44px; }
+  .nova-shell-matchbook .nova-matchbook-product-nav > a { padding: 0 10px; font-size: 12px; }
+  .nova-shell-matchbook .nova-matchbook-product-nav svg { display: none; }
+}
+
+@media (max-width: 800px) {
+  .nova-shell-matchbook { --header-height: 64px; }
+  .nova-shell-matchbook .nova-topbar-inner { display: block; height: 100%; padding-inline: 12px; }
+  .nova-shell-matchbook .nova-topbar-row { display: flex; height: 100%; padding: 0; background: transparent; }
+  .nova-shell-matchbook .nova-header-left { display: flex; flex: 1 1 auto; gap: 8px; }
+  .nova-shell-matchbook .nova-header-logo { display: flex; flex: 0 1 150px; width: auto; max-width: 150px; max-height: 38px; }
+  .nova-shell-matchbook .nova-mobile-search { display: flex; width: 42px; min-width: 42px; min-height: 42px; margin-left: auto; padding: 10px; justify-content: center; border: 0; border-radius: var(--ui-radius); background: transparent; }
+  .nova-shell-matchbook .nova-mobile-search > span,
+  .nova-shell-matchbook .nova-mobile-search > kbd,
+  .nova-shell-matchbook .nova-desktop-search,
+  .nova-shell-matchbook .nova-matchbook-product-nav { display: none; }
+  .nova-shell-matchbook .nova-header-right { flex: 0 0 auto; gap: 6px; }
+  .nova-shell-matchbook > .nova-utility-rail { display: none; }
+  .nova-center-home.nova-home-no-events .nova-home-featured-grid { grid-template-columns: minmax(0, 1fr); min-height: 250px; }
+  .nova-center-home.nova-home-no-events .nova-featured-event-list.is-empty { min-height: 250px; }
+}
+@media (max-width: 560px) {
+  .nova-shell-matchbook { --header-height: 112px; }
+  /* Two rows on phones (logo + search, then login/wallet), as the 112px height above expects;
+     the single flex row from the 800px block ran the actions off-screen. */
+  .nova-shell-matchbook .nova-topbar-row { display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; gap: 4px; padding-block: 6px; }
+}

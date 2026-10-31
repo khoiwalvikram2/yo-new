@@ -1,0 +1,108 @@
+/* Advanced Sports Configuration (/config/sports-advanced). The mockup has no page for this route and draws no
+   form (O8); the page takes the mockup's page head (M:753-763) and one card (M:853-856) whose level switch is
+   the mockup's .seg (M:777-794) as a tab strip, and the settings form follows the Create Bonus form idiom
+   (kit Form, FormSection, Divider and the sticky FormActions). Everything below is BEYOND-MOCKUP unless it
+   cites a mockup rule; no colour is set outside tokens.css. */
+
+/* BEYOND-MOCKUP: the card's body is flush and the settings form owns the --card-pad gutter on every side (as
+   Create Bonus does), so FormActions' edge-to-edge bleed stays inside the form's own box. The card clips to
+   its --r-card corners because that sticky footer reaches the bottom edge; `clip` creates no scroll
+   container, so the footer still sticks to the shell's scrolling main. */
+.card {
+  overflow: clip;
+}
+
+/* The tab strip sits in the card's head band (.card-head padding M:860-863). On a phone the two labels are
+   wider than the card, so the strip scrolls sideways inside this wrapper instead of widening the page. */
+.tabsBar {
+  min-width: 0;
+  padding: 16px var(--card-pad) 0;
+  overflow-x: auto;
+}
+
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+/* The picker area above the form, in the card's gutter. */
+.panelHead {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px var(--card-pad) 0;
+}
+
+/* The settings form, or the empty, loading or failed state in its place. */
+.form,
+.panelState {
+  min-width: 0;
+  padding: 20px var(--card-pad) var(--card-pad);
+}
+
+/* The pickers: one field, or the league tab's two side by side from 768px (legacy Col md=12). */
+.pickers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  max-width: 560px;
+  min-width: 0;
+}
+
+.pickersPair {
+  max-width: none;
+}
+
+@media (min-width: 768px) {
+  .pickersPair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The legacy "Configuring: â€¦" tag (blue on the sport tab, green on the league tab): a decorative tag on the
+   hue ramp in the .flag shape (M:1029), never a status. */
+.configuring {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 2px 10px;
+  border-radius: var(--ui-radius);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.hueBlu {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.hueGrn {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+/* A nested market group inside a section: the legacy "Exchange Markets" line was the section heading's size
+   at a lighter weight in the second ink. */
+.subsection {
+  min-width: 0;
+}
+
+.subsection > legend {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+/* The Cashout and Alert switches each took a full legacy row (Col xs=24). */
+.fullRow {
+  grid-column: 1 / -1;
+}
+

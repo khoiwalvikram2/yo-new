@@ -1,0 +1,63 @@
+/* Super Admin mode switcher. Today (SuperAdminModeSwitcher.tsx:168-218, Tailwind): row gap-3, pill
+   px-3 py-1.5 rounded-lg border slate-200 bg slate-50 gap-2.5, text-xs font-medium, Core blue-600,
+   Whitelabel emerald-600, whitelabel select minWidth 160px. Mapped to tokens; the kit Switch and Select
+   style and focus-ring themselves. Nothing in this module changes state visually over time, so no
+   reduced-motion override is needed here. */
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  min-width: 0;
+}
+
+.modePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  height: 34px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.modeCore {
+  color: var(--blue);
+}
+
+.modeWhitelabel {
+  color: var(--ok);
+}
+
+.whitelabelSelect {
+  min-width: 160px;
+}
+
+.popoverBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* .root's inline-flex row assumes the ~600px+ of horizontal topbar space it has at desktop width; a
+   narrow popover doesn't have that, so stack the pill and select instead (matching TenantCurrencyControls'
+   vertical Filters layout) and let each use the full popover width. Only applies inside .popoverBody, so
+   the non-compact inline row is untouched. */
+.popoverBody .root {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.popoverBody .whitelabelSelect {
+  width: 100%;
+}

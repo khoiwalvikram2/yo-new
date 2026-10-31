@@ -1,0 +1,63 @@
+# User domain types
+type UserProfile {
+  id: ID!
+  username: String
+  name: String
+  phone: String
+  level: Int
+  balance: Float!
+  bonusBalance: Float
+  exposure: Float
+  walletType: String
+  affiliateCode: String
+  referralBalance: Float
+  referralBonusBalance: Float
+  playerType: String
+  creditAvailable: Float
+  creditLimit: Float
+  creditUsed: Float
+  requirePasswordReset: Boolean
+}
+
+type TransferReferralBalanceResult {
+  success: Boolean!
+  message: String!
+  newReferralBalance: Float
+  newCashBalance: Float
+}
+
+type AuthPayload {
+  token: String!
+  user: UserProfile!
+}
+
+type OtpResponse {
+  success: Boolean!
+  message: String
+}
+
+type MessageResponse {
+  success: Boolean!
+  message: String
+}
+
+type CheckAvailabilityResult {
+  available: Boolean!
+  message: String
+}
+
+input RegisterInput {
+  username: String!
+  phone: String!
+  password: String!
+  confirmPassword: String!
+  affiliateCode: String
+  otp: String
+}
+
+input LoginInput {
+  phoneOrUsername: String!
+  password: String!
+}
+
+

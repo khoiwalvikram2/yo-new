@@ -1,0 +1,76 @@
+/* DateTimeField's own parts; the face, sizes and states are TextField's (TextField.module.css), which it
+   shares with PasswordField and TimeField, so nothing here restyles them.
+
+   The browser's date-and-time popup is hidden: the calendar button after the input opens the kit's
+   themed Calendar for the date part, and the time is typed. The button is TextField's .clearButton
+   footprint as a square, so it sits in the face the way the clear button does. */
+.input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.pick {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: 0 5px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.pickSm {
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+}
+
+.pick:hover:not(:disabled),
+.pick[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.pick:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.pick:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pick {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* The kit .ctl__clear square: 3px corners, --surf-3 under the pointer and while the calendar is open;
+   disabled in --disabled-fg rather than faded, as the face around it is. */
+:global(html:not([data-skin='classic'])) .pick {
+  margin-right: 6px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .pickSm {
+  margin-right: 4px;
+}
+
+:global(html:not([data-skin='classic'])) .pick:hover:not(:disabled),
+:global(html:not([data-skin='classic'])) .pick[aria-expanded='true'] {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .pick:disabled {
+  color: var(--disabled-fg);
+  opacity: 1;
+}

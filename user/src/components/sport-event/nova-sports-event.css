@@ -1,0 +1,435 @@
+/* Sports event page in the matchbook theme. The page reuses the exchange grid (.nova-ex-grid tokens,
+   sticky .nova-ex-side); the market and bet slip components keep their logic and only pick up the
+   colours below. */
+
+/* The market, bet slip and score components paint with the slate design tokens; on this page those
+   map to the matchbook greys so the panels read white on the light shell in either app theme. */
+.nova-ev {
+  --ds-color-slate-50: var(--mb-ink);
+  --ds-color-slate-100: var(--mb-ink);
+  --ds-color-slate-200: var(--mb-text);
+  --ds-color-slate-300: var(--mb-muted);
+  --ds-color-slate-400: var(--mb-muted);
+  --ds-color-slate-450: var(--mb-muted);
+  --ds-color-slate-500: var(--mb-faint);
+  --ds-color-slate-600: var(--mb-line);
+  --ds-color-slate-700: var(--mb-line);
+  --ds-color-slate-750: var(--mb-soft);
+  --ds-color-slate-800: var(--mb-panel-2);
+  --ds-color-slate-850: var(--mb-panel-2);
+  --ds-color-slate-900: var(--mb-panel);
+  --ds-color-slate-950: var(--mb-page);
+  --text: var(--mb-text);
+  --subtle: var(--mb-muted);
+  --surface: var(--mb-panel);
+  --surface-2: var(--mb-soft);
+  --border: var(--mb-line);
+  --brand-primary: #C51A1B;
+  --brand-primary-dark: #A01516;
+  --ev-back: #8DCDF3;
+  --ev-back-soft: #C6E5F9;
+  --ev-lay: #F6AABA;
+  --ev-lay-soft: #FBD3DC;
+}
+.nova-ev h1, .nova-ev h3, .nova-ev p { margin: 0; }
+
+/* ------------------------------------------------------------- header */
+.nova-ev-head { position: relative; z-index: 3; color: #FFFFFF; background: var(--ex-bar); }
+.nova-ev-head-main { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 8px 12px 8px 6px; }
+.nova-ev-icon-btn {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: transparent;
+  cursor: pointer;
+}
+.nova-ev-icon-btn:hover { background: rgb(255 255 255 / 10%); }
+.nova-ev-icon-btn svg { width: 20px; height: 20px; }
+.nova-ev-bookmark svg { width: 18px; height: 18px; fill: transparent; }
+.nova-ev-bookmark.is-active svg { fill: currentColor; }
+.nova-ev-sport { flex: none; width: 22px; height: 22px; filter: invert(1); }
+.nova-ev-title { flex: 1 1 auto; min-width: 0; }
+.nova-ev-title h1 { overflow: hidden; font-size: 22px; font-weight: 700; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ev-title h1 em { margin: 0 .15em; color: #C9CBD1; font-size: .8em; font-style: normal; font-weight: 600; }
+.nova-ev-title p { margin-top: 3px; overflow: hidden; color: #C9CBD1; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ev-head-actions { display: flex; flex: none; align-items: center; gap: 6px; }
+.nova-ev-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px 0 8px;
+  border-radius: var(--ui-radius);
+  background: linear-gradient(160deg, var(--ex-live-lift) 0%, var(--ex-live) 50%, var(--ex-live-deep) 100%);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+/* Same beacon and heart-monitor trace as the live rows (exchange-home css owns the trace). */
+.nova-ev-live i { position: relative; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ex-live-glow); box-shadow: 0 0 6px var(--ex-live-glow); }
+.nova-ev-live i::after { content: ""; position: absolute; inset: -1px; border: 2px solid var(--ex-live-glow); border-radius: 50%; animation: nova-ex-ping 1.6s ease-out infinite; }
+.nova-ev-live .nova-ex-live-pulse { width: 34px; height: 11px; }
+.nova-ev-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: transparent;
+  font-family: var(--font-inter);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nova-ev-btn:hover { border-color: rgb(255 255 255 / 55%); background: rgb(255 255 255 / 10%); }
+.nova-ev-btn svg { width: 16px; height: 16px; }
+
+.nova-ev-head-sub { display: flex; align-items: center; gap: 14px; min-height: 40px; padding: 0 14px 0 6px; background: var(--ex-dark); font-size: 14px; }
+.nova-ev-competition { min-width: 0; overflow: hidden; color: #E2E3E3; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ev-switch { position: relative; }
+.nova-ev-switch > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: transparent;
+  font-family: var(--font-inter);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nova-ev-switch > button:hover,
+.nova-ev-switch > button[aria-expanded="true"] { background: rgb(255 255 255 / 10%); }
+.nova-ev-switch > button svg { width: 16px; height: 16px; transition: transform .15s; }
+.nova-ev-switch > button[aria-expanded="true"] svg { transform: rotate(180deg); }
+.nova-ev-switch-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  width: min(340px, calc(100vw - 32px));
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px 0;
+  border: 1px solid var(--ex-line);
+  border-radius: var(--ui-radius);
+  color: var(--ex-text);
+  background: var(--mb-panel);
+  box-shadow: 0 12px 28px rgb(16 18 22 / 18%);
+}
+.nova-ev-switch-menu a {
+  display: block;
+  padding: 9px 14px 9px 11px;
+  border-left: 3px solid transparent;
+  color: var(--ex-text);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.nova-ev-switch-menu a:hover { background: var(--mb-soft); }
+.nova-ev-switch-menu a[aria-current="page"] { border-left-color: var(--ex-red); background: var(--mb-panel-2); font-weight: 700; }
+.nova-ev-switch-empty { padding: 10px 14px; color: var(--ex-muted); font-size: 13px; }
+.nova-ev-countdown { display: inline-flex; align-items: baseline; gap: 6px; color: #C9CBD1; white-space: nowrap; }
+.nova-ev-countdown strong { color: #FFFFFF; font-size: 15px; font-variant-numeric: tabular-nums; }
+.nova-ev-when { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: #E2E3E3; white-space: nowrap; }
+.nova-ev-when svg { width: 15px; height: 15px; color: #C9CBD1; }
+
+/* ------------------------------------------------------- market tabs */
+.nova-ev-tabs button { flex: 0 0 auto; min-width: 104px; min-height: 46px; font-size: 16px; }
+
+/* ----------------------------------------------------------- markets */
+.nova-ev-markets { display: grid; gap: 10px; }
+.nova-ev-market { min-width: 0; background: var(--mb-panel); }
+.nova-ev-market-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--ex-line);
+  background: var(--mb-neutral-bg);
+  cursor: pointer;
+  user-select: none;
+}
+.nova-ev-market-head:hover { background: var(--mb-hover); }
+.nova-ev-market-title { flex: 1 1 auto; min-width: 0; }
+.nova-ev-market-title h3 { overflow: hidden; color: var(--mb-ink); font-size: 17px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ev-market-title p { margin-top: 1px; color: var(--ex-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.nova-ev-market-tools { display: flex; flex: none; align-items: center; gap: 8px; }
+.nova-ev-limits {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--ex-line);
+  border-radius: var(--ui-radius);
+  color: var(--mb-muted);
+  background: var(--mb-panel);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.nova-ev-limits svg { width: 13px; height: 13px; color: var(--ex-red); }
+.nova-ev-market-toggle {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--mb-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.nova-ev-market-toggle:hover { background: rgb(0 0 0 / 6%); }
+.nova-ev-market-toggle svg { width: 18px; height: 18px; transition: transform .15s; }
+.nova-ev-market-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.nova-ev-market-body { padding: 0 8px 6px; }
+
+/* Column labels above the price ladder, then one row per runner. */
+.nova-ev-cols { min-height: 34px; border-bottom: 1px solid var(--ex-line); }
+.nova-ev-cols-label { color: var(--ex-muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.nova-ev-cols-label.is-back { color: var(--mb-back-text); }
+.nova-ev-cols-label.is-lay { color: var(--mb-lay-text); }
+.nova-ev-runner { border-bottom: 1px solid var(--mb-line); }
+.nova-ev-runner:last-child { border-bottom: 0; }
+.nova-ev-runner-name { color: var(--mb-ink); font-size: 16px; font-weight: 600; line-height: 1.2; }
+
+/* Price cells: the best price is the deeper shade, the depth behind it lighter (matchbook ladder). */
+.nova-ev-odd {
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--mb-odds-ink);
+  background: var(--ev-back-soft);
+  box-shadow: none;
+  scale: none;
+  cursor: pointer;
+  transition: background-color .12s, filter .12s;
+}
+.nova-ev-odd.is-back.is-main { background: var(--ev-back); }
+.nova-ev-odd.is-lay { background: var(--ev-lay-soft); }
+.nova-ev-odd.is-lay.is-main { background: var(--ev-lay); }
+.nova-ev-odd:hover { filter: brightness(.94); }
+.nova-ev-odd:active { filter: brightness(.88); }
+.nova-ev-odd:focus { box-shadow: none; }
+.nova-ev-odd:focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 1px; }
+/* The back/lay tiles stay light blue / pink in both themes, so their text is the fixed odds ink. */
+.nova-ev-odd-price { color: var(--mb-odds-ink); font-size: 16px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.nova-ev-odd-size { margin-top: 3px; color: var(--mb-odds-muted); font-size: 11px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+
+.nova-ev-empty span { max-width: 360px; color: var(--ex-muted); font-size: 15px; }
+.nova-ev-empty .nova-ev-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: none; }
+.nova-ev-empty-actions a { display: inline-flex; align-items: center; padding: 8px 22px; border: 1px solid var(--ex-line); color: var(--ex-text); background: var(--mb-panel); font-size: 16px; font-weight: 700; }
+.nova-ev-empty-actions a:hover { background: var(--mb-soft); }
+
+/* -------------------------------------------------------- side column */
+.nova-ev-panel { min-width: 0; background: var(--mb-panel); }
+.nova-ev-panel > .nova-ex-section-head { min-height: 44px; }
+.nova-ev-panel > .nova-ex-section-head h2 { font-size: 17px; }
+.nova-ev-panel-body { padding: 10px 12px; }
+.nova-ev-panel-body.is-score { padding-top: 2px; padding-bottom: 0; }
+.nova-ev-slip-guest { display: grid; justify-items: start; gap: 10px; }
+.nova-ev-slip-guest p { color: var(--mb-muted); font-size: 15px; line-height: 1.35; }
+.nova-ev-slip-guest button {
+  height: 36px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: var(--ex-red);
+  font-family: var(--font-inter);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.nova-ev-slip-guest button:hover { background: #A81516; }
+
+/* ----------------------------------------------------------- loading */
+.nova-ev-skeleton { display: grid; gap: 10px; }
+.nova-ev-skeleton span,
+.nova-ev-skeleton-block {
+  display: block;
+  height: 180px;
+  background: linear-gradient(90deg, var(--mb-disabled-bg) 0%, var(--mb-soft) 50%, var(--mb-disabled-bg) 100%) 0 0 / 200% 100%;
+  animation: nova-ev-shimmer 1.2s linear infinite;
+}
+.nova-ev-skeleton .is-head { height: 104px; background: var(--ex-bar); animation: none; }
+.nova-ev-skeleton .is-tabs { height: 46px; }
+@keyframes nova-ev-shimmer { to { background-position: -200% 0; } }
+
+/* My bets on this event (side column): a fixed-layout table like the My Bets page, sized to fit the column. */
+.nova-ev-mybets { max-height: 400px; overflow-y: auto; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-panel); }
+.nova-ev-mybets-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.nova-ev-mybets-table col.is-odds { width: 50px; }
+.nova-ev-mybets-table col.is-stake { width: 54px; }
+.nova-ev-mybets-table col.is-pl { width: 78px; }
+.nova-ev-mybets-table th { position: sticky; top: 0; z-index: 1; padding: 8px 6px; border-bottom: 1px solid var(--mb-line); color: var(--mb-muted); background: var(--mb-soft); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.nova-ev-mybets-table td { padding: 9px 6px; border-bottom: 1px solid var(--mb-line); color: var(--mb-ink); font-size: 13px; vertical-align: middle; }
+.nova-ev-mybets-table :is(th, td):first-child { padding-left: 12px; }
+.nova-ev-mybets-table :is(th, td):last-child { padding-right: 10px; }
+.nova-ev-mybets-table tbody tr:last-child td { border-bottom: 0; }
+.nova-ev-mybets-table tbody tr:hover td { background: var(--mb-panel-2); }
+.nova-ev-mybets-table tr.is-back td:first-child { box-shadow: inset 3px 0 0 #8DCDF3; }
+.nova-ev-mybets-table tr.is-lay td:first-child { box-shadow: inset 3px 0 0 #F6AABA; }
+.nova-ev-mybets-table .is-num { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; white-space: nowrap; }
+.nova-ev-mybets-table td.is-num small { color: var(--mb-muted); font-size: 11px; font-weight: 600; }
+.nova-ev-mybets-sel { overflow: hidden; font-size: 13px; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ev-mybets-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.nova-ev-mybets-mkt { display: inline-block; padding: 0 5px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-blue-ink); background: var(--mb-blue-bg); font-size: 10px; font-weight: 700; letter-spacing: .03em; line-height: 16px; text-transform: uppercase; }
+.nova-ev-mybets-mkt.is-fancy { border-color: rgb(109 63 192 / 30%); color: var(--mb-fancy-ink); background: rgb(109 63 192 / 12%); }
+.nova-ev-mybets-mkt.is-book { border-color: var(--mb-amber-line); color: var(--mb-amber-ink); background: var(--mb-amber-bg); }
+.nova-ev-mybets-side { display: inline-block; padding: 0 5px; border-radius: var(--ui-radius); line-height: 18px; color: var(--mb-odds-ink); background: #8DCDF3; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.nova-ev-mybets-table tr.is-lay .nova-ev-mybets-side { background: #F6AABA; }
+.nova-ev-mybets-pl.is-up { color: var(--mb-green); }
+.nova-ev-mybets-pl.is-down { color: var(--mb-error); }
+.nova-ev-mybets-pl.is-void { color: var(--mb-muted); font-size: 11px; }
+.nova-ev-mybets-empty { display: grid; justify-items: center; gap: 4px; padding: 24px 12px; border: 1px dashed var(--mb-line-2); border-radius: var(--ui-radius); text-align: center; }
+.nova-ev-mybets-empty svg { width: 22px; height: 22px; margin-bottom: 4px; color: var(--mb-red-text); }
+.nova-ev-mybets-empty p { color: var(--mb-ink); font-size: 14px; font-weight: 700; }
+.nova-ev-mybets-empty span { color: var(--mb-muted); font-size: 12px; }
+
+/* ------------------------------------------------- fancy / bookmaker lines */
+/* StandardMarketLayout: one row per line with a hairline (nova-ev-runner, as in Match Odds), a NO / YES (or BACK /
+   LAY) header over the two price columns, and a closed line ("Ball running") keeping its row with a muted status. */
+.nova-ev-lines-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; }
+.nova-ev-lines-cols,
+.nova-ev-line-prices { display: grid; flex: none; grid-template-columns: repeat(2, 64px); gap: 4px; }
+.nova-ev-lines-cols > span { text-align: center; }
+.nova-ev-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 6px 12px; transition: background-color .12s; }
+.nova-ev-line:hover { background: var(--mb-panel-2); }
+.nova-ev-line-info { min-width: 0; }
+.nova-ev-line .nova-ev-runner-name { font-size: 15px; overflow-wrap: anywhere; }
+.nova-ev-line.is-closed .nova-ev-runner-name { color: var(--mb-muted); }
+.nova-ev-line-book { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.nova-ev-line-book > span { display: inline-flex; align-items: center; gap: 2px; color: var(--mb-error); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-ev-line-book > span svg { width: 12px; height: 12px; }
+.nova-ev-line-book button { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 0 7px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-link); background: transparent; font-size: 11px; font-weight: 700; cursor: pointer; }
+.nova-ev-line-book button:hover { border-color: var(--mb-line-3); }
+.nova-ev-line-book button svg { width: 12px; height: 12px; }
+.nova-ev-line-prices .nova-ev-odd { display: grid; align-content: center; justify-items: center; height: 48px; padding: 0; }
+.nova-ev-line-status { display: inline-flex; grid-column: 1 / -1; align-items: center; justify-content: center; gap: 6px; height: 48px; border: 1px dashed var(--mb-amber-line); border-radius: var(--ui-radius); color: var(--mb-amber); background: var(--mb-amber-bg); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.nova-ev-line-status svg { width: 13px; height: 13px; }
+.nova-ev-market-suspended { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; margin: 12px; border: 1px dashed var(--mb-amber-line); border-radius: var(--ui-radius); color: var(--mb-amber); background: var(--mb-amber-bg); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.nova-ev-market-suspended svg { width: 16px; height: 16px; }
+@media (max-width: 640px) {
+  .nova-ev-lines-head,
+  .nova-ev-line { padding-inline: 8px; }
+  .nova-ev-lines-cols,
+  .nova-ev-line-prices { grid-template-columns: repeat(2, 56px); }
+}
+
+/* ------------------------------------------------------------- bet slip */
+/* The slip inside its rail drawer (BetSlipDrawer, DesktopBetSlipSidebar). The back/lay colours mark the side;
+   text on them is the fixed odds ink, everything else follows the theme tokens. */
+.nova-slip { position: relative; display: grid; gap: 12px; }
+.nova-slip-overlay { position: absolute; inset: -6px; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--mb-ink); background: color-mix(in srgb, var(--mb-drawer) 92%, transparent); font-weight: 700; }
+.nova-slip-overlay svg { width: 28px; height: 28px; color: var(--mb-muted); }
+.nova-slip-overlay.is-success svg { color: var(--mb-green); }
+.nova-slip-selection { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-drawer-row); box-shadow: inset 3px 0 0 #8DCDF3; }
+.nova-slip.is-lay .nova-slip-selection { box-shadow: inset 3px 0 0 #F6AABA; }
+.nova-slip-side { flex: none; padding: 0 7px; border-radius: var(--ui-radius); color: var(--mb-odds-ink); background: #8DCDF3; font-size: 11px; font-weight: 700; letter-spacing: .05em; line-height: 20px; text-transform: uppercase; }
+.nova-slip.is-lay .nova-slip-side { background: #F6AABA; }
+.nova-slip-selection h3 { margin: 0; color: var(--mb-ink); font-size: 16px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.nova-slip-selection p { margin: 2px 0 0; font-size: 13px; }
+.nova-slip-prices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nova-slip-price { display: grid; align-content: start; gap: 4px; }
+.nova-slip-price > button:first-child { display: grid; justify-items: center; gap: 2px; min-height: 58px; padding: 6px; border: 2px solid transparent; border-radius: var(--ui-radius); color: var(--mb-odds-ink); background: #C6E5F9; cursor: pointer; }
+.nova-slip-price.is-lay > button:first-child { background: #FBD3DC; }
+.nova-slip-price.is-active.is-back > button:first-child { background: #8DCDF3; border-color: var(--mb-odds-ink); }
+.nova-slip-price.is-active.is-lay > button:first-child { background: #F6AABA; border-color: var(--mb-odds-ink); }
+.nova-slip-price > button:first-child span { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.nova-slip-price strong { font-size: 20px; font-weight: 800; line-height: 1.1; }
+.nova-slip-price strong.is-up { color: #0B6B36; }
+.nova-slip-price strong.is-down { color: #A61B1B; }
+.nova-slip-price > button:first-child:disabled { opacity: .45; cursor: not-allowed; }
+.nova-slip-use-live { min-height: 28px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-link); background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; }
+.nova-slip-use-live:hover { border-color: var(--mb-line-3); }
+.nova-slip-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nova-slip-field label { display: block; margin-bottom: 6px; color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.nova-slip-field label span { color: var(--mb-text); letter-spacing: 0; text-transform: none; }
+.nova-slip-input { display: flex; align-items: center; height: 44px; overflow: hidden; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); background: var(--mb-field); }
+.nova-slip-input:focus-within { border-color: var(--mb-focus-border); box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+/* Shell-scoped: index.css's global input rules (input:not(...):not(...)) would otherwise win. */
+.nova-shell-matchbook .nova-slip-input input { flex: 1 1 auto; width: 100%; min-width: 0; height: 100%; padding: 0 6px; border: 0; color: var(--mb-ink); background: transparent; box-shadow: none; font-size: 17px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; appearance: textfield; }
+.nova-shell-matchbook .nova-slip-input input:focus { outline: none; box-shadow: none; }
+.nova-slip-input input::-webkit-inner-spin-button,
+.nova-slip-input input::-webkit-outer-spin-button { margin: 0; appearance: none; }
+.nova-slip-input input::placeholder { color: var(--mb-faint); opacity: 1; }
+.nova-slip-input button { display: grid; flex: none; width: 36px; height: 100%; place-items: center; border: 0; color: var(--mb-muted); background: transparent; cursor: pointer; }
+.nova-slip-input button:hover { color: var(--mb-ink); background: var(--mb-soft); }
+.nova-slip-input button svg { width: 15px; height: 15px; }
+.nova-slip-currency { flex: none; padding-left: 12px; color: var(--mb-muted); font-weight: 700; }
+.nova-slip-quick-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.nova-slip-quick-head span { display: inline-flex; align-items: center; gap: 6px; color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.nova-slip-quick-head svg { width: 13px; height: 13px; color: var(--mb-red-text); }
+.nova-slip-quick-head button { min-height: 26px; padding: 0 10px; border: 1px solid var(--mb-red); border-radius: var(--ui-radius); color: var(--mb-red-text); background: transparent; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.nova-slip-quick-head button:hover:not(:disabled) { color: #FFFFFF; background: var(--mb-red); }
+.nova-slip-quick-head button:disabled { opacity: .45; cursor: not-allowed; }
+.nova-slip-quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.nova-slip-quick-grid button { min-height: 36px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); color: var(--mb-ink); background: var(--mb-drawer-row); font-size: 13px; font-weight: 700; cursor: pointer; }
+.nova-slip-quick-grid button:hover { border-color: var(--mb-line-3); background: var(--mb-drawer-row-hover); }
+.nova-slip-summary { display: grid; gap: 6px; margin: 0; padding: 10px 12px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-drawer-row); }
+.nova-slip-summary > div { display: flex; align-items: center; justify-content: space-between; }
+.nova-slip-summary dt { color: var(--mb-muted); font-size: 13px; }
+.nova-slip-summary dd { margin: 0; color: var(--mb-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-slip-summary dd.is-up { color: var(--mb-green); }
+.nova-slip-summary dd.is-down { color: var(--mb-error); }
+.nova-slip-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.nova-slip-actions button { min-height: 46px; padding: 0 16px; border-radius: var(--ui-radius); font-size: 15px; font-weight: 700; cursor: pointer; }
+.nova-slip-cancel { border: 1px solid var(--mb-line-2); color: var(--mb-ink); background: var(--mb-drawer-row); }
+.nova-slip-cancel:hover:not(:disabled) { border-color: var(--mb-line-3); }
+.nova-slip-place { border: 1px solid #B21718; color: #FFFFFF; background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%); }
+.nova-slip-place:hover:not(:disabled) { background: var(--mb-red-hover); }
+.nova-slip-place.is-cashout { border-color: #08602F; background: #0B8040; }
+.nova-slip-actions button:disabled { border-color: var(--mb-line); color: var(--mb-disabled-fg); background: var(--mb-disabled-bg); cursor: not-allowed; }
+.nova-shell-matchbook .nova-panel .nova-slip-hint { margin: 0; font-size: 12px; text-align: center; }
+.nova-slip-hint kbd { padding: 1px 6px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-ink); background: var(--mb-drawer-row); font-family: inherit; font-size: 11px; }
+.nova-shell-matchbook .nova-panel .nova-slip-empty { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
+.nova-slip-empty svg { width: 18px; height: 18px; color: var(--mb-red-text); }
+
+/* The side column (bet slip, score and TV) needs the desktop bet slip, which the provider switches
+   on at 1280px; below that the slip is a bottom sheet and score/TV sits above the markets. */
+@media (max-width: 1279px) {
+  .nova-ev.nova-ex-grid { grid-template-columns: minmax(0, 1fr); }
+  .nova-ev-side { display: none; }
+}
+@media (max-width: 640px) {
+  .nova-ev-head-main { min-height: 56px; gap: 6px; padding-right: 8px; }
+  .nova-ev-title h1 { font-size: 18px; }
+  .nova-ev-title p { font-size: 13px; }
+  .nova-ev-btn { width: 32px; padding: 0; justify-content: center; }
+  .nova-ev-btn span { display: none; }
+  .nova-ev-sport { display: none; }
+  .nova-ev-head-sub { gap: 10px; padding-right: 10px; font-size: 13px; }
+  .nova-ev-countdown span { display: none; }
+  .nova-ev-market-head { padding-left: 10px; }
+  .nova-ev-market-title h3 { font-size: 16px; }
+  .nova-ev-limits { display: none; }
+  .nova-ev-market-body { padding: 0 4px 4px; }
+  .nova-ev-runner-name { font-size: 15px; }
+  .nova-ev-tabs button { min-width: 0; padding: 0 14px; font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-ev-live i::after { display: none; }
+  .nova-ev-live i,
+  .nova-ev-skeleton span,
+  .nova-ev-skeleton-block { animation: none; }
+}

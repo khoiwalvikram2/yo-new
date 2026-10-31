@@ -1,0 +1,259 @@
+/* Modals, drawers and panels in the matchbook theme, light and dark (tokens from matchbook-tokens.css).
+   Most of these render in a portal or the top layer, outside the shell, so they are styled here rather than
+   under .nova-acct. Page-specific modals (deposit, withdrawal, bonus, statements, auth) add their own class
+   on top and keep their more specific rules. */
+
+/* ------------------------------------------------------------ ModalSurface */
+.nova-modal-layer::backdrop { background: var(--mb-backdrop); backdrop-filter: none; }
+.nova-modal-layer .nova-modal-surface {
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--mb-text);
+  background: var(--mb-panel);
+  box-shadow: var(--mb-shadow-lg);
+}
+.nova-modal-layer .nova-modal-header {
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 8px 8px 8px 18px;
+  border-bottom: 0;
+  color: var(--mb-bar-text);
+  background: var(--mb-bar);
+}
+.nova-modal-layer .nova-modal-header h2 { color: var(--mb-bar-text); font-size: 19px; font-weight: 700; letter-spacing: 0; }
+.nova-modal-layer .nova-modal-header p { margin-top: 2px; color: var(--mb-bar-muted); }
+.nova-modal-layer .nova-modal-header .nova-modal-close,
+.nova-modal-layer :is(.nova-modal-header, .nova-mb-modal-head) .nova-modal-close {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--mb-bar-text);
+  background: transparent;
+}
+.nova-modal-layer .nova-modal-header .nova-modal-close:hover { color: var(--mb-bar-text); background: rgb(255 255 255 / 10%); }
+.nova-modal-layer .nova-modal-body { padding: 18px; }
+.nova-modal-layer :is(.nova-modal-footer, .nova-modal-actions) { padding: 14px 18px; border-top: 1px solid var(--mb-line); background: var(--mb-panel-2); }
+.nova-modal-layer :is(.nova-modal-footer, .nova-modal-actions) button { border-radius: var(--ui-radius); }
+.nova-modal-layer .nova-modal-summary { border-color: var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-soft); }
+.nova-modal-layer .nova-modal-summary > p + p { color: var(--mb-ink); }
+.nova-modal-layer .nova-modal-notice { border-color: var(--mb-line); border-radius: var(--ui-radius); color: var(--mb-text); background: var(--mb-soft); }
+.nova-modal-layer .nova-modal-form-mark { border-color: var(--mb-line); border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar); }
+.nova-modal-layer :is(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-\[5px\]) { border-radius: var(--ui-radius); }
+.nova-modal-layer :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 2px; }
+/* Status text tuned for each theme (the 300/400 shades were picked for dark panels). */
+html:not(.dark) .nova-modal-layer :is(.text-green-400, .text-green-500, .text-emerald-400, .text-emerald-500) { color: var(--mb-green); }
+html:not(.dark) .nova-modal-layer :is(.text-red-400, .text-red-500, .text-rose-400, .text-rose-500) { color: var(--mb-error); }
+
+/* Sports page "Active bets" and similar plain ModalSurface tables. */
+.nova-modal-layer .nova-modal-surface table { color: var(--mb-text); }
+.nova-modal-layer .nova-modal-surface thead th { color: var(--mb-muted); background: var(--mb-soft); }
+
+/* Text fields (forms/TextField) in any modal get the flat look of the Add bank and sign-in forms. The page modals
+   with their own form rules (withdrawal .wd-form, auth) are more specific and keep theirs. */
+.nova-modal-layer .form-field > label { margin-bottom: 6px; color: var(--mb-text); font-size: 14px; font-weight: 600; }
+.nova-modal-layer .form-field:has(.field:focus-within) > label { color: var(--mb-ink); }
+.nova-modal-layer .field { min-height: 48px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); background: var(--mb-field); box-shadow: none; }
+.nova-modal-layer .field:hover { border-color: var(--mb-line-3); background: var(--mb-field); }
+.nova-modal-layer .field:focus-within { border-color: var(--mb-focus-border); background: var(--mb-field); box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.nova-modal-layer .field__control { min-height: 46px; padding-block: 0; border-radius: var(--ui-radius); color: var(--mb-ink); background: transparent; font-size: 16px; }
+.nova-modal-layer .field__control:is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+.nova-modal-layer .field__control::placeholder { color: var(--mb-faint); opacity: 1; }
+.nova-modal-layer .field__icon { color: var(--mb-faint); }
+.nova-modal-layer .field__icon svg { color: inherit; }
+.nova-modal-layer .field:focus-within .field__icon { color: var(--mb-ink); }
+.nova-modal-layer .field__icon--right { display: grid; place-items: center; right: 4px; width: 40px; height: 40px; padding: 0; border-radius: var(--ui-radius); }
+.nova-modal-layer .field__icon--right:hover { color: var(--mb-ink); background: var(--mb-soft); }
+.nova-modal-layer .field__icon--right:focus-visible { outline-offset: -2px; }
+.nova-modal-layer :is(.field--invalid, .field--invalid:focus-within) { border-color: var(--mb-error); }
+.nova-modal-layer .form-field:has(.field--invalid) > label { color: var(--mb-error); }
+.nova-modal-layer .form-field > p[role='alert'] { margin-top: 6px; color: var(--mb-error); font-size: 13px; font-weight: 600; }
+/* An actions row inside the body belongs to the form, not a footer bar. */
+.nova-modal-layer .nova-modal-body .nova-modal-actions { padding: 20px 0 0; border-top: 0; background: none; }
+/* Primary action: the red Matchbook button. */
+.nova-modal-layer .nova-modal-actions .nova-button:not(.nova-button-secondary) { min-height: 46px; padding: 0 18px; border: 1px solid #B21718; border-radius: var(--ui-radius); color: #FFFFFF; background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%); box-shadow: none; filter: none; font-size: 16px; font-weight: 700; }
+.nova-modal-layer .nova-modal-actions .nova-button:not(.nova-button-secondary):hover:not(:disabled) { border-color: var(--mb-red-hover); background: var(--mb-red-hover); }
+.nova-modal-layer .nova-modal-actions .nova-button:disabled { border-color: var(--mb-line); color: var(--mb-disabled-fg); background: var(--mb-disabled-bg); cursor: not-allowed; }
+
+/* ---------------------------------------------------------------- Analytics */
+/* The analysis modal draws its own header row (hideHeader): make it the charcoal bar. */
+.nova-modal-layer .nova-event-analysis-surface { border-radius: var(--ui-radius); }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child {
+  min-height: 54px;
+  padding: 8px 10px 8px 18px;
+  border-bottom: 0;
+  color: var(--mb-bar-text);
+  background: var(--mb-bar);
+}
+.nova-modal-layer .nova-event-analysis-surface > div:first-child h2 { color: var(--mb-bar-text); font-size: 19px; font-weight: 700; }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child :is(button, span) { color: var(--mb-bar-muted); }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child button { border: 1px solid rgb(255 255 255 / 0%); border-radius: var(--ui-radius); }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child button:hover { color: var(--mb-bar-text); background: rgb(255 255 255 / 10%); }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child button:last-child { border-color: rgb(255 255 255 / 30%); color: var(--mb-bar-text); font-weight: 700; }
+.nova-modal-layer .nova-event-analysis-surface .nova-modal-body { background: var(--mb-page); }
+/* Chart cards inside: flat white (or dark) panels with hairlines. */
+.nova-modal-layer .nova-event-analysis-surface .nova-modal-body > * { border-radius: var(--ui-radius); }
+
+/* ------------------------------------------------------------------ Search */
+.nova-search-dialog::backdrop { background: var(--mb-backdrop); }
+.nova-search-dialog > div { overflow: hidden; border: 0; border-radius: var(--ui-radius); color: var(--mb-text); background: var(--mb-panel); box-shadow: var(--mb-shadow-lg); }
+.nova-search-dialog :is(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-\[5px\]) { border-radius: var(--ui-radius); }
+.nova-search-dialog input { border-color: var(--mb-line-2); color: var(--mb-ink); background: var(--mb-field); }
+.nova-search-dialog input:focus { border-color: var(--mb-focus-border); box-shadow: 0 0 0 3px var(--mb-focus-ring); outline: none; }
+
+/* ---------------------------------------------------------- Profile drawer */
+/* The header's phone sheet (Topbar ProfileDrawer): the "Your account" drawer of the rail, as a modal sheet from the
+   right. Its header and rows come from the rail drawer styles below (.nova-panel-content, .nova-panel-links). */
+.nova-profile-dialog::backdrop { background: var(--mb-backdrop); }
+/* The sheet slides in from beyond the right edge. showModal() focuses its close button at once, and the dialog would
+   scroll sideways to reach it (overflow: hidden still scrolls by script); clip makes it unscrollable. */
+.nova-profile-dialog { overflow: clip; }
+.nova-profile-sheet { overflow-y: auto; border-left: 0; color: var(--mb-text); background: var(--mb-drawer); box-shadow: -12px 0 36px rgb(0 0 0 / 28%); }
+.nova-shell-matchbook .nova-profile-sheet .nova-panel-links p { color: var(--mb-muted); }
+/* panel-refresh.css pads the sheet's first child (its old header); here that child is the whole drawer content. */
+.nova-shell-matchbook .nova-profile-sheet > .nova-panel-content { min-height: 100%; padding: 0 0 18px; }
+
+/* ------------------------------------------------- Rail panels, phone menu */
+/* Preferences and help stay at the foot of the rail even when the top group (sports only) is absent. */
+.nova-utility-rail > .nova-utility-group:last-child { margin-top: auto; }
+.nova-shell-matchbook .nova-panel { color: var(--mb-text); background: var(--mb-drawer); }
+/* On the dark page the drawer needs a deeper shadow to lift off it. */
+html.dark .nova-shell-matchbook .nova-panel.nova-rail-panel { box-shadow: -14px 0 32px rgb(0 0 0 / 45%); }
+.nova-shell-matchbook .nova-panel::backdrop { background: var(--mb-backdrop); }
+/* panel-refresh.css paints .nova-panel-content as a surface card; in the drawers the drawer itself is the surface. */
+.nova-shell-matchbook .nova-panel-content { padding: 0 0 18px; background: transparent; box-shadow: none; }
+.nova-shell-matchbook .nova-panel-content > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 10px 10px 18px;
+  border: 0;
+  color: var(--mb-bar-text);
+  background: var(--mb-bar);
+}
+.nova-shell-matchbook .nova-panel-content > header .nova-eyebrow { color: var(--mb-bar-muted); }
+.nova-shell-matchbook .nova-panel-content > header h2 { color: var(--mb-bar-text); font-size: 21px; font-weight: 700; letter-spacing: 0; }
+.nova-shell-matchbook .nova-panel-content > header .nova-icon-button { border: 0; border-radius: var(--ui-radius); color: var(--mb-bar-text); background: transparent; }
+.nova-shell-matchbook .nova-panel-content > header .nova-icon-button:hover { background: rgb(255 255 255 / 10%); }
+.nova-shell-matchbook .nova-panel-content > :not(header) { margin-inline: 16px; }
+.nova-shell-matchbook .nova-panel-links { gap: 8px; }
+.nova-shell-matchbook .nova-panel-links > :is(a, button):not(.nova-button) {
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-drawer-row);
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: none;
+}
+.nova-shell-matchbook .nova-panel-links > :is(a, button):not(.nova-button):hover { border-color: var(--mb-line-3); background: var(--mb-drawer-row-hover); }
+.nova-shell-matchbook .nova-panel-links > :is(a, button) svg { color: var(--mb-muted); }
+/* Account drawer: button rows (change password, sign out) look like the link rows; sign out has a red icon.
+   The wallet group gets a small label and a hairline before the account rows. */
+.nova-shell-matchbook .nova-panel-links > .nova-panel-action { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; cursor: pointer; }
+.nova-shell-matchbook .nova-panel-links > .nova-panel-action.is-logout svg { color: var(--mb-red-text); }
+.nova-shell-matchbook .nova-panel-links > .nova-panel-group { margin: 4px 0 -2px; color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.nova-shell-matchbook .nova-panel-links > .nova-panel-divider { margin: 4px 0; border: 0; border-top: 1px solid var(--mb-line); }
+.nova-shell-matchbook .nova-panel .nova-button { border-radius: var(--ui-radius); }
+.nova-shell-matchbook .nova-panel :is(.nova-muted, p) { color: var(--mb-muted); }
+.nova-shell-matchbook .nova-panel :is(.nova-panel-theme, .nova-panel-mobile-theme) { color: var(--mb-ink); font-size: 15px; font-weight: 600; }
+
+/* ------------------------------------------------- Phone bets drawer, bet slip */
+.nova-mobile-bets-sheet { border-radius: var(--ui-radius); color: var(--mb-text); background: var(--mb-panel); }
+.nova-mobile-bets-dialog::backdrop { background: var(--mb-backdrop); }
+.nova-modal-layer .nova-enterprise-betslip-modal,
+.nova-modal-layer .nova-bet-slip-dialog > div { border-radius: var(--ui-radius); }
+
+/* ------------------------------------------------------- Wallet popover */
+/* Header wallet chooser (Topbar): the flat sheet of the account drawer. A charcoal title bar, one row per wallet
+   with a charcoal icon tile, the active wallet marked by a red left edge, red tile and chip, exposure as the footer. */
+.nova-wallet-popover .nova-wallet-sheet { overflow: hidden; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); color: var(--mb-text); background: var(--mb-panel); box-shadow: var(--mb-shadow-lg); }
+.nova-wallet-popover .nova-wallet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 54px; padding: 8px 8px 8px 16px; color: var(--mb-bar-text); background: var(--mb-bar); }
+.nova-wallet-popover .nova-wallet-head h3 { color: var(--mb-bar-text); font-size: 17px; font-weight: 700; line-height: 1.2; }
+.nova-wallet-popover .nova-wallet-head p { margin-top: 2px; color: var(--mb-bar-muted); font-size: 12px; line-height: 1.3; }
+.nova-wallet-popover .nova-wallet-head button { display: grid; flex: none; width: 36px; height: 36px; min-height: 0; place-items: center; padding: 0; border: 0; border-radius: var(--ui-radius); color: var(--mb-bar-text); background: transparent; }
+.nova-wallet-popover .nova-wallet-head button:hover { background: rgb(255 255 255 / 10%); }
+.nova-wallet-popover .nova-wallet-head button svg { width: 18px; height: 18px; }
+.nova-wallet-popover .nova-wallet-options { display: grid; gap: 6px; padding: 12px; }
+.nova-wallet-popover .nova-wallet-option { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 8px 12px 8px 10px; border: 1px solid var(--mb-line); border-left: 3px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-ink); background: var(--mb-panel); text-align: left; cursor: pointer; }
+.nova-wallet-popover .nova-wallet-option:hover { border-color: var(--mb-line-3); border-left-color: var(--mb-line-3); background: var(--mb-panel-2); }
+.nova-wallet-popover .nova-wallet-option.is-active,
+.nova-wallet-popover .nova-wallet-option.is-active:hover { border-left-color: var(--mb-red); background: var(--mb-panel-2); }
+.nova-wallet-popover .nova-wallet-option:focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 2px; }
+.nova-wallet-popover .nova-wallet-option-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar); }
+.nova-wallet-popover .nova-wallet-option.is-active .nova-wallet-option-icon { background: var(--mb-red); }
+.nova-wallet-popover .nova-wallet-option-icon svg { width: 18px; height: 18px; }
+.nova-wallet-popover .nova-wallet-option-copy { display: grid; min-width: 0; gap: 2px; }
+.nova-wallet-popover .nova-wallet-option-copy strong { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--mb-ink); font-size: 15px; font-weight: 700; line-height: 1.25; white-space: nowrap; }
+.nova-wallet-popover .nova-wallet-option-copy em { flex: none; padding: 1px 6px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-red); font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: .04em; line-height: 16px; text-transform: uppercase; }
+.nova-wallet-popover .nova-wallet-option-copy small { color: var(--mb-muted); font-size: 12px; line-height: 1.2; }
+.nova-wallet-popover .nova-wallet-option-amount { color: var(--mb-ink); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nova-wallet-popover .nova-wallet-exposure-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--mb-line); background: var(--mb-soft); }
+.nova-wallet-popover .nova-wallet-exposure-row span { display: inline-flex; align-items: center; gap: 8px; color: var(--mb-muted); font-size: 13px; font-weight: 600; }
+.nova-wallet-popover .nova-wallet-exposure-row svg { width: 16px; height: 16px; }
+.nova-wallet-popover .nova-wallet-exposure-row strong { color: var(--mb-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-wallet-popover .nova-wallet-exposure-row strong.is-out { color: var(--mb-red-text); }
+
+/* --------------------------------------------------- Rail drawer motion */
+/* Rail drawers slide in from the rail, right to left, and back out when closed. The rail sits above them, so a
+   drawer comes out from behind it. Without @starting-style or discrete display transitions a drawer just opens. */
+@media (min-width: 801px) {
+  .nova-shell-matchbook > .nova-utility-rail { z-index: 91; }
+  .nova-shell-matchbook .nova-panel.nova-rail-panel {
+    transform: translateX(100%);
+    transition: transform .28s cubic-bezier(.2, .7, .2, 1), display .28s allow-discrete, overlay .28s allow-discrete;
+  }
+  .nova-shell-matchbook .nova-panel.nova-rail-panel[open] { transform: translateX(0); }
+  @starting-style {
+    .nova-shell-matchbook .nova-panel.nova-rail-panel[open] { transform: translateX(100%); }
+  }
+}
+@media (min-width: 801px) and (prefers-reduced-motion: reduce) {
+  .nova-shell-matchbook .nova-panel.nova-rail-panel { transition: none; }
+}
+
+/* ------------------------------------------------------ Provider drawer */
+/* Casino / slots provider filter (ProviderFilterDrawer): a rail drawer (nova-rail-panel gives it the place, size,
+   header and slide) holding a search field, a plain list of provider names and Cancel / Apply at the foot. */
+.nova-shell-matchbook .nova-provider-panel .nova-panel-content { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 0; }
+.nova-shell-matchbook .nova-provider-panel .nova-panel-content > .nova-provider-actions { margin-inline: 0; }
+.nova-provider-search { position: relative; display: block; margin-bottom: 10px; }
+.nova-provider-search svg { position: absolute; top: 50%; left: 12px; width: 16px; height: 16px; color: var(--mb-muted); transform: translateY(-50%); pointer-events: none; }
+/* Shell-scoped: index.css's global input rules (input:not(...):not(...)) would otherwise win. */
+.nova-shell-matchbook .nova-provider-search input { width: 100%; height: 42px; padding: 0 12px 0 36px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-ink); background: var(--mb-field); font-size: 15px; }
+.nova-shell-matchbook .nova-provider-search input::placeholder { color: var(--mb-faint); opacity: 1; }
+.nova-shell-matchbook .nova-provider-search input:focus { border-color: var(--mb-focus-border); outline: none; box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.nova-shell-matchbook .nova-panel .nova-provider-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--mb-muted); font-size: 13px; }
+.nova-provider-meta button { padding: 0; border: 0; color: var(--mb-red-text); background: none; font-size: 13px; font-weight: 700; cursor: pointer; }
+.nova-provider-list { display: grid; flex: 1 1 auto; align-content: start; gap: 6px; padding-bottom: 12px; }
+.nova-provider-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 0 14px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); color: var(--mb-ink); background: var(--mb-drawer-row); font-size: 15px; font-weight: 600; text-align: left; cursor: pointer; }
+.nova-provider-row:hover { border-color: var(--mb-line-3); background: var(--mb-drawer-row-hover); }
+.nova-provider-row.is-selected { border-color: var(--mb-red); box-shadow: inset 3px 0 0 var(--mb-red); }
+.nova-provider-row svg { flex: none; width: 18px; height: 18px; color: var(--mb-red-text); }
+.nova-shell-matchbook .nova-panel .nova-provider-empty { padding: 24px 0; color: var(--mb-muted); text-align: center; }
+.nova-provider-actions { position: sticky; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--mb-line); background: var(--mb-drawer); }
+.nova-provider-actions button { min-height: 44px; border-radius: var(--ui-radius); font-size: 15px; font-weight: 700; cursor: pointer; }
+.nova-provider-cancel { border: 1px solid var(--mb-line-2); color: var(--mb-ink); background: var(--mb-drawer-row); }
+.nova-provider-cancel:hover { border-color: var(--mb-line-3); }
+.nova-provider-apply { border: 1px solid #B21718; color: #FFFFFF; background: var(--mb-red); }
+.nova-provider-apply:hover { background: var(--mb-red-hover); }
+/* Phones have no rail: the drawer is a modal sheet that slides in from the right edge the same way. */
+@media (max-width: 800px) {
+  .nova-shell-matchbook .nova-panel.nova-provider-panel {
+    transform: translateX(100%);
+    transition: transform .28s cubic-bezier(.2, .7, .2, 1), display .28s allow-discrete, overlay .28s allow-discrete;
+  }
+  .nova-shell-matchbook .nova-panel.nova-provider-panel[open] { transform: translateX(0); }
+  @starting-style {
+    .nova-shell-matchbook .nova-panel.nova-provider-panel[open] { transform: translateX(100%); }
+  }
+}
+@media (max-width: 800px) and (prefers-reduced-motion: reduce) {
+  .nova-shell-matchbook .nova-panel.nova-provider-panel { transition: none; }
+}

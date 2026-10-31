@@ -1,0 +1,76 @@
+/* Page titles share the open, page-coloured heading used by Players. */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 6px 0 2px;
+  min-width: 0;
+  background: transparent;
+  color: var(--ink);
+}
+.copy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.title {
+  min-width: 0;
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -.025em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-left: auto;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  color: var(--ink);
+  background: var(--surf);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--t-1) var(--ease), border-color var(--t-1) var(--ease);
+}
+.back:hover:not(:disabled) { background: var(--hover); border-color: var(--line-3); }
+.back:active:not(:disabled) { background: var(--press); }
+.back:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.back:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 767px) {
+  .header { gap: 12px; }
+  .copy { flex-basis: 100%; }
+  .title { font-size: 26px; }
+  .actions { width: 100%; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .back { transition: none; } }

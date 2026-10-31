@@ -1,0 +1,39 @@
+.page, .stack { display: grid; gap: 20px; min-width: 0; }
+.actions, .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.row { justify-content: space-between; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.muted { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; }
+.amount { font-variant-numeric: tabular-nums; }
+.positive { color: var(--ok); }
+.negative { color: var(--neg-ink); }
+.warning { color: var(--warn); }
+.stat { min-width: 0; }
+.chart { min-width: 0; color: var(--ink-2); }
+.chart :global(.recharts-cartesian-grid line) { stroke: var(--line); }
+.chart :global(.recharts-text) { fill: var(--ink-3); font-size: 12px; }
+.chart :global(.recharts-default-tooltip) { background: var(--surf) !important; border-color: var(--line) !important; color: var(--ink); border-radius: var(--ui-radius); }
+.chart :global(.recharts-tooltip-label) { color: var(--ink); }
+.series0 { stroke: var(--h-blu); fill: var(--h-blu); }
+.series1 { stroke: var(--h-red); fill: var(--h-red); }
+.series2 { stroke: var(--h-grn); fill: var(--h-grn); }
+.series3 { stroke: var(--h-vio); fill: var(--h-vio); }
+.series0 :global(.recharts-line-curve) { stroke: var(--h-blu); fill: none; }
+.series1 :global(.recharts-line-curve) { stroke: var(--h-red); fill: none; }
+.series2 :global(.recharts-line-curve) { stroke: var(--h-grn); fill: none; }
+.series3 :global(.recharts-line-curve) { stroke: var(--h-vio); fill: none; }
+.domain { display: grid; gap: 8px; padding-inline-start: 16px; border-inline-start: 3px solid var(--acc); }
+.list { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.report { display: grid; gap: 12px; }
+.reportIcon { color: var(--acc); }
+.tabRail { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
+.split { display: grid; gap: 8px; }
+@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .two, .three { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .kpis { grid-template-columns: minmax(0, 1fr); } .stat { flex-direction: column; align-items: start; } }
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 7: the report icon is the theme's red ink (dark --acc is under 3:1 on the panel) */
+:global(html:not([data-skin='classic'])) .reportIcon {
+  color: var(--acc-ink);
+}

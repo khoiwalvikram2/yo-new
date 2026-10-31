@@ -1,0 +1,321 @@
+/* Executive Dashboard — KPI row, transcribed from the approved mockup.
+   Sources: KPI ROW (M:796-850) and the phone step (M:1603). The row now composes kit Stat;
+   this module retains its grid, state, tooltip breakdown, and anatomy shared by legacy cards.
+
+   Tokens only (contracts §3.2): no raw colour appears here, every colour resolves through a
+   custom property defined in src/ui/styles/tokens.css. Nothing in this file transitions, so
+   it needs no prefers-reduced-motion block. */
+
+/* ===================== KPI ROW ===================== */
+/* The mockup's arithmetic (M:797-807) made one card 20 + 40 + 12 + the figure + 12 + 90 + 20
+   across — 343px — so four-across needed 1749px of viewport and the row only went four-wide
+   at 1760. The sparkline and its gap were 102px of that. With it dropped the card is
+   1 + 14 + 32 + 10 + the figure + 14 + 1 across: border, padding, tile, gap, figure.
+
+   The figure decides everything, so it was measured rather than estimated. formatAmount always
+   appends INR's two decimals, so a real turnover reads 4,37,10,300.00 behind the rupee sign —
+   not the mockup's decimal-free string. At 20px/700 tabular Inter that is ~153px, and a
+   16-glyph amount (tens of crores) is ~166px, so a card needs roughly 225-238px.
+
+   Four-across is therefore gated on the ROW's own width by a container query (.kpiRow below),
+   not on the viewport. A viewport query cannot see the context panel, which collapses: one
+   1280px window gives this row 953px with the panel open and 1158px with it closed. An earlier
+   version gated four-across at a 1280px viewport and clipped a real figure by ~2px with the
+   panel open. The threshold is 4 x 237.5 + 3 x 20 = 1010px of row, so four-across arrives at
+   about 1132px of viewport with the panel closed and 1337px with it open, and never clips a
+   figure of up to 16 glyphs. The two-across step stays a viewport query at 768px: two cards fit
+   comfortably in every panel state from there, the narrowest being ~338px each.
+
+   Type metrics are repeated here rather than inherited: this row is mounted by a page that
+   has not been converted yet, so it must carry the mockup's font on its own — the same thing
+   every shell/page root in this codebase does. */
+/* No margin-bottom, unlike the mockup's own .kpis (M:808). There the margin IS the spacing —
+   #kpiRow's parent lays its children out with no gap. Here the row is a flex child of the tab's
+   .stack, which already carries the same 20px (16px on phones), so a margin would double it. */
+.kpis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* the kit's .stats gap, on the skin's 12px rhythm */
+  gap: 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (min-width: 768px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The row's container — see the KPI ROW note above for why four-across is a container query
+   rather than a viewport one. KPICards.tsx wraps the grid in this: a container cannot query
+   itself, so the grid has to sit inside it rather than carry it. The name is spelled out in
+   full so it cannot collide with any other container on the page.
+
+   One side effect to know about: container-type: inline-size also applies layout containment,
+   so this div becomes the containing block for any position: fixed descendant. The card
+   tooltips are unaffected — Tooltip renders through FloatingPortal into <body> — but anything
+   added later that positions itself fixed from INSIDE the row would anchor here, not to the
+   viewport. It must also stay in a stretching block context: inline-size containment cuts its
+   width off from its content, so in a shrink-to-fit parent (a non-stretching flex or grid item,
+   inline-block, float, fit-content, absolute) it would collapse to zero and take the row with
+   it. Today's parent chain up to AppShell's .main was measured and stretches all the way. */
+.kpiRow {
+  container-type: inline-size;
+  container-name: overview-kpi-row;
+}
+
+/* 2026-10-29, the kit's dashboard stats: a 40px tile, a 26px whole-rupee figure and a sparkline foot. A card
+   needs 2 + 28 + 40 + 12 px around a figure of up to ~170px (₹10,00,00,000 at 26px), so about 252px, and
+   four of them with three 12px gaps need 1044px of row. */
+@container overview-kpi-row (min-width: 1044px) {
+  .kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* The Gross Revenue card's foot: its split into GGR and agent commission, a bar of shares (charcoal
+   steps) over a one-line legend. It fills the slot a sparkline takes. */
+.split {
+  display: grid;
+  align-content: end;
+  gap: 6px;
+  height: 100%;
+}
+.splitBar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  overflow: hidden;
+}
+.splitSeg {
+  flex: 1 1 0;
+  min-width: 3px;
+  background: var(--ink-2);
+}
+.splitSeg[data-step='1'] {
+  background: var(--ink-3);
+}
+.splitSeg[data-step='2'] {
+  background: color-mix(in srgb, var(--ink-3) 55%, transparent);
+}
+.splitSeg[data-step='3'] {
+  background: color-mix(in srgb, var(--ink-3) 30%, transparent);
+}
+.splitLegend {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Each part in its accent (data-accent), with a matching key dot in the legend. */
+.splitSeg[data-accent] {
+  background: var(--accent, var(--ink-2));
+}
+.splitKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 10px;
+}
+.splitKey::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent, var(--ink-3));
+}
+.splitEmpty {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* Shared by the legacy Overview figures that have not moved to kit Stat in this task. */
+.stack {
+  flex: 1 1 auto;
+  min-width: min-content;
+}
+
+/* the tile leads the row, level with the label it belongs to (M:822-826) */
+.tile {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ui-radius);
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+/* four hues, no meaning — the tint and its glyph come from the decorative ramp (M:827-831) */
+.t1 {
+  background: var(--h-ind-bg);
+  color: var(--h-ind);
+}
+
+.t2 {
+  background: var(--h-red-bg);
+  color: var(--h-red);
+}
+
+.t3 {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.t4 {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+/* sentence case at 13px, not the uppercase label the old card used (M:832) */
+.lab {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.val {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.delta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.delta b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* direct child only — the arrow inside <b> keeps the semantic colour (M:841-842) */
+.delta > span {
+  color: var(--ink-3);
+}
+
+/* ===================== LOADING + ERROR ===================== */
+/* The row's own two states. The mockup has no equivalent, so these are built from the same
+   tokens the cards use rather than invented colours. */
+/* a figure still loading (AgentStatsCards): its placeholder sits on the .val line, and this is the
+   containing block of the visually hidden name beside it */
+.pending {
+  position: relative;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.error {
+  padding: 14px 16px;
+  background: var(--neg-bg);
+  border-radius: var(--ui-radius);
+  color: var(--neg-ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.error p {
+  margin: 0;
+}
+
+/* ===================== TOOLTIP BREAKDOWN ===================== */
+/* The kit Tooltip supplies the floating surface (--float, --line, --sh-tip); these classes
+   only lay out the rows inside it. */
+.tip {
+  min-width: 180px;
+}
+
+/* In the player skin the Tooltip is a charcoal bubble in both themes, but its portal carries the page's
+   theme tokens, so the rows below read the page ink: dark on charcoal in the light theme, unreadable.
+   The breakdown switches its tokens to on-charcoal values, as every charcoal surface does. */
+:global(html:not([data-skin='classic'])) .tip {
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft);
+  --ink-3: var(--chrome-muted);
+  --line: var(--chrome-line-2);
+  min-width: 200px;
+  color: #FFFFFF;
+}
+
+.tipHead {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.tipRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 3px 0;
+}
+
+.tipLabel {
+  color: var(--ink-3);
+}
+
+.tipValue {
+  color: var(--ink);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.tipTotal {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.tipTotal .tipLabel {
+  color: var(--ink-2);
+}
+
+.tipTotal .tipValue {
+  font-weight: 600;
+}
+
+/* ===================== RESPONSIVE ===================== */
+/* M:1603. Only the row gap steps here: the card's own inset is already the compact 14px at
+   every width, so it has nothing left to give on a phone. */
+@media (max-width: 767px) {
+  .kpis {
+    gap: 14px;
+  }
+}

@@ -1,0 +1,568 @@
+/* Sports Events (/sports/events). The mockup draws this page as "Running Events" (M:2167-2176) with the
+   generic table template (M:3361-3409): a page head, then one table card. The statistics, the search and
+   quick-filter row, the Advanced Filters card, the cards view and each cell's second line are the legacy
+   page's and are not drawn there, so they are BEYOND-MOCKUP where noted and borrow the nearest mockup
+   idiom. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- statistics ---------- */
+
+/* BEYOND-MOCKUP: the legacy header strip's five figures in the compact KPI anatomy (M:811-850). Two
+   columns on a phone, with the liability, the one money figure, on a row of its own under the four
+   counts so a crore-sized amount is not cut; three columns from a 560px page column; all five from 1000px.
+   The test is on the page's own column, not the viewport, because the context panel changes it. */
+.statsFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.stats > :nth-child(4) {
+  grid-row: 3;
+  grid-column: 1 / -1;
+}
+
+@container (min-width: 560px) {
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stats > :nth-child(4) {
+    grid-row: auto;
+    grid-column: auto;
+  }
+}
+
+@container (min-width: 1000px) {
+  .stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ---------- search, quick filters and the Filters toggle ---------- */
+
+/* BEYOND-MOCKUP: the legacy search row is the shared FilterBar; the quick filters ride the mockup's small
+   rail (.seg.sm M:793-794). The kit rail is one row tall; in a narrow cell or the folded Filters popover
+   its buttons wrap instead of running off the edge (the legacy chips scrolled sideways). [role] lifts
+   this over the rail's own height. */
+.quick[role='group'] {
+  flex-wrap: wrap;
+  height: auto;
+  max-width: 100%;
+}
+
+/* The applied-filter count beside "Filters" and in the Advanced Filters head (the legacy badge). */
+.filterCount {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---------- Advanced Filters ---------- */
+
+/* BEYOND-MOCKUP: the legacy Advanced Filters panel as its own card (.card M:853-856, head M:860-867).
+   The fields stack on a phone and pair up from a 560px form, the date range taking a row of its own so
+   its two fields line up under the pair above. The width test is the form's own. */
+.filterFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.filterGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.rangeFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px 16px;
+}
+
+@container (min-width: 560px) {
+  .filterGrid,
+  .rangeFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rangeField {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The presets on the left and Reset / Apply on the right, over a hairline (the legacy footer). */
+.filterFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hair);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The Live Now glyph keeps the legacy red circle on the decorative ramp. */
+.presetLive {
+  color: var(--h-red);
+}
+
+.filterActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* ---------- the events card ---------- */
+
+.viewPanel {
+  min-width: 0;
+}
+
+/* The event cell: the sport tile, then the name (td.k M:997) over its sport and competition
+   (td.dim M:998). */
+.eventCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the legacy sport tile, a quiet square on the tile radius. */
+.sportTile {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.sportTileLg {
+  width: 44px;
+  height: 44px;
+}
+
+.sportImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sportFallback {
+  display: block;
+}
+
+.eventText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.eventTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* A live event's dot (.live i M:869). */
+.liveDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: var(--ui-radius-circle);
+  background: var(--ok);
+}
+
+/* The name opens the event: key ink (td.k M:997) with the text link's underline on hover
+   (.linkbtn M:879-886); long names stop at the legacy measure, the full name in the title. */
+.eventLink {
+  display: block;
+  overflow: hidden;
+  max-width: 320px;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-overflow: ellipsis;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.eventLink:hover {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.eventLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.eventMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.eventSport {
+  flex: none;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.metaDot {
+  flex: none;
+}
+
+.eventCompetition {
+  overflow: hidden;
+  max-width: 240px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* BEYOND-MOCKUP: the start tag in the .flag shape (M:1029-1033) on neutral ground. LIVE NOW takes the
+   red hue and a start under an hour the amber one (the legacy red and orange tags), both from the
+   decorative ramp (M:1013-1017), so neither reads as the status column's semantic pill. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 4px;
+  width: max-content;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tagLive {
+  background: var(--h-red-bg);
+  color: var(--h-red);
+}
+
+.tagSoon {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+/* Two-line cells: the main value in the key ink (td.k M:997), the second line dim (td.dim M:998). */
+.stack {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.secondary {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* The legacy purple market count and green liability, on the decorative violet and the positive ink. */
+.marketCount {
+  color: var(--h-vio);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.liability {
+  color: var(--pos-ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.noBets {
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* The favourite star: dim until starred, then the amber hue the legacy star took. */
+.favorite {
+  color: var(--ink-3);
+}
+
+.favoriteOn,
+.favoriteOn:hover {
+  color: var(--h-amb);
+}
+
+/* A router link wearing the kit button: the glyph and label on the button's gap. */
+.viewLink {
+  gap: 5px;
+}
+
+/* ---------- the cards view ---------- */
+
+/* BEYOND-MOCKUP: the legacy event cards, drawn as tiles inside the events card (one card, no card in a
+   card): the card surface with its hairline frame and the tile radius, no shadow. As many 240px
+   columns as the card holds. */
+.cardsFrame {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 var(--card-pad);
+}
+
+.cardsState {
+  padding: 0 var(--card-pad) 6px;
+}
+
+.cardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eventTile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.tileHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tileIcon {
+  position: relative;
+  flex: none;
+}
+
+/* The legacy live marker on the sport tile's corner. It sits inside the tile's box, over the rounded corner:
+   an overhang past the corner (the legacy drew 2px) widens .tileIcon, whose overflow is visible. */
+.tileLiveDot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--surf);
+  border-radius: var(--ui-radius-circle);
+  background: var(--h-red);
+}
+
+.tileText {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tileTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tileTitle {
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* Two lines of the name at most, the full name in the title. */
+.tileLink {
+  display: -webkit-box;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.tileLink:hover {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.tileLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.tileStatusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.liveNow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--h-red);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.liveNowDot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--ui-radius-circle);
+  background: currentColor;
+}
+
+.tileStart {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* The figures: Markets and Status side by side, then one row each, ruled off with hairlines in the
+   drawer's description-list rhythm (.dl M:1153-1156). */
+.tileFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 1 1 auto;
+  align-content: start;
+  border-top: 1px solid var(--hair);
+}
+
+.tileFact {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-width: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.tileFactRow {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.tileFactWide {
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+
+.factLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.lastBet {
+  color: var(--h-amb);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.factLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.factLineRule {
+  padding-top: 8px;
+  border-top: 1px solid var(--hair);
+}
+
+.tileMeter {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eventLink,
+  .tileLink {
+    transition: none;
+  }
+}

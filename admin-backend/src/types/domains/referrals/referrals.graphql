@@ -1,0 +1,419 @@
+enum ReferralRuleType {
+  SIGNUP_CPA
+  FIRST_DEPOSIT_PCT
+  RELOAD_DEPOSITS_PCT
+  REVSHARE
+  LOSS_SHARE
+  TURNOVER_MILESTONE
+  # Deprecated types (kept for migration compatibility)
+  DEPOSITS_WINDOW_PCT
+  ACTIVITY_MILESTONE
+  LADDER
+  CASHBACK_SHARE
+  COUPON
+  RAFFLE
+  HYBRID
+}
+
+enum ReferralAttributionModel {
+  LAST_CLICK
+  FIRST_CLICK
+  LINEAR
+  TIME_DECAY
+}
+
+enum ReferralAttributionStatus {
+  pending
+  confirmed
+  rejected
+  reattributed
+}
+
+enum ReferralPayoutType {
+  CASH
+  BONUS
+  SPLIT
+}
+
+enum ReferralSettlementStatus {
+  pending
+  processing
+  completed
+  failed
+  cancelled
+}
+
+enum ReferralEscrowStatus {
+  none
+  pending_kyc
+  pending_fraud_check
+  released
+  held
+}
+
+enum ReferralCouponStatus {
+  active
+  used
+  expired
+  cancelled
+}
+
+enum ReferralRaffleDrawStatus {
+  scheduled
+  running
+  completed
+  cancelled
+}
+
+type ReferralProgram {
+  id: ID!
+  tenant: String
+  name: String!
+  enabledModes: [String!]!
+  maxDepth: Int!
+  flags: JSON
+  minReferralBalanceForCashTransfer: Float
+  createdAt: String!
+  updatedAt: String!
+  # Deprecated fields (kept for migration compatibility, not used)
+  attributionModel: ReferralAttributionModel
+  attributionWindowDays: Int
+  depositsWindowDays: Int
+  negativeCarryover: Boolean
+}
+
+type ReferralRule {
+  id: ID!
+  programId: Int!
+  tenant: String
+  ruleType: ReferralRuleType!
+  tierRates: JSON
+  fixedAmounts: JSON
+  caps: JSON
+  thresholds: JSON
+  payoutType: ReferralPayoutType!
+  splitRatio: JSON
+  escrow: JSON
+  configJson: JSON
+  reloadDepositsCount: Int
+  reloadMinDeposit: Int
+  isActive: Boolean!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type ReferralLink {
+  id: ID!
+  tenant: String
+  userId: Int
+  agentId: ID  # NEW: Optional agent ID for agent referral links
+  code: String!
+  qrCodeUrl: String
+  utmParams: JSON
+  isActive: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  # Stats (computed, optional)
+  totalClicks: Int
+  totalSignups: Int
+  conversionRate: Float
+}
+
+type ReferralClick {
+  id: ID!
+  tenant: String
+  linkId: Int!
+  referrerId: Int!
+  ipAddress: String
+  userAgent: String
+  utmSource: String
+  utmMedium: String
+  utmCampaign: String
+  clickedAt: String!
+}
+
+type ReferralAttribution {
+  id: ID!
+  tenant: String
+  referrerId: Int!
+  refereeId: Int!
+  tier: Int!
+  clickId: Int
+  status: ReferralAttributionStatus!
+  reason: String
+  reattributedFrom: Int
+  attributedAt: String!
+  confirmedAt: String
+}
+
+type ReferralEarning {
+  id: ID!
+  tenant: String
+  attributionId: Int!
+  ruleId: Int!
+  referrerId: Int!
+  refereeId: Int!
+  referrerName: String
+  referrerPhone: String
+  refereeName: String
+  refereePhone: String
+  tier: Int!
+  ruleType: ReferralRuleType!
+  grossAmount: Float!
+  netAmount: Float!
+  currency: String!
+  eventData: JSON
+  calculatedAt: String!
+}
+
+type ReferralSettlement {
+  id: ID!
+  tenant: String
+  earningId: Int!
+  referrerId: Int!
+  payoutType: ReferralPayoutType!
+  cashAmount: Float!
+  bonusAmount: Float!
+  currency: String!
+  status: ReferralSettlementStatus!
+  escrowStatus: ReferralEscrowStatus!
+  walletTransactionId: Int
+  bonusAwardId: Int
+  settledAt: String
+  createdAt: String!
+}
+
+type ReferralBudget {
+  id: ID!
+  tenant: String
+  programId: Int
+  budgetType: String!
+  amount: Float!
+  currency: String!
+  periodStart: String!
+  periodEnd: String!
+  spent: Float!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type ReferralRaffleEntry {
+  id: ID!
+  tenant: String
+  ruleId: Int!
+  referrerId: Int
+  refereeId: Int
+  entries: Int!
+  reason: String
+  createdAt: String!
+}
+
+type ReferralRaffleDraw {
+  id: ID!
+  tenant: String
+  ruleId: Int!
+  scheduledAt: String!
+  drawnAt: String
+  status: ReferralRaffleDrawStatus!
+  winners: JSON
+  totalEntries: Int!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type ReferralCoupon {
+  id: ID!
+  tenant: String
+  ruleId: Int!
+  referrerId: Int
+  refereeId: Int
+  couponCode: String!
+  bonusCampaignId: Int
+  amount: Float!
+  currency: String!
+  status: ReferralCouponStatus!
+  expiresAt: String
+  usedAt: String
+  createdAt: String!
+}
+
+type ReferralStats {
+  totalClicks: Int!
+  totalSignups: Int!
+  totalAttributions: Int!
+  totalEarnings: Float!
+  totalSettled: Float!
+  totalPending: Float!
+  currency: String!
+  periodStart: String
+  periodEnd: String
+}
+
+type ReferralTree {
+  userId: Int!
+  referrerId: Int
+  tier: Int!
+  children: [ReferralTree!]!
+}
+
+input ReferralProgramInput {
+  name: String
+  enabledModes: [String!]
+  maxDepth: Int
+  flags: JSON
+  minReferralBalanceForCashTransfer: Float
+  # Deprecated fields (ignored if provided)
+  attributionModel: ReferralAttributionModel
+  attributionWindowDays: Int
+  depositsWindowDays: Int
+  negativeCarryover: Boolean
+}
+
+input ReferralRuleInput {
+  ruleId: ID
+  ruleType: ReferralRuleType!
+  tierRates: JSON
+  fixedAmounts: JSON
+  caps: JSON
+  thresholds: JSON
+  payoutType: ReferralPayoutType
+  splitRatio: JSON
+  escrow: JSON
+  configJson: JSON
+  reloadDepositsCount: Int
+  reloadMinDeposit: Int
+  isActive: Boolean
+}
+
+input RecordReferralClickInput {
+  code: String!
+  ipAddress: String
+  userAgent: String
+  utmSource: String
+  utmMedium: String
+  utmCampaign: String
+}
+
+input AttributeSignupInput {
+  refCode: String
+  userId: ID!
+}
+
+input IssueReferralCouponInput {
+  ruleId: ID!
+  referrerId: ID
+  refereeId: ID
+  amount: Float!
+  currency: String!
+  bonusCampaignId: ID
+  expiresAt: String
+}
+
+input CreateRaffleDrawInput {
+  ruleId: ID!
+  scheduledAt: String!
+}
+
+input RunRaffleDrawInput {
+  drawId: ID!
+  numberOfWinners: Int!
+}
+
+input SetBudgetCapsInput {
+  programId: ID
+  budgetType: String!
+  amount: Float!
+  currency: String!
+  periodStart: String!
+  periodEnd: String!
+}
+
+input SetLadderTiersInput {
+  ruleId: ID!
+  tiers: JSON!
+}
+
+input SetCashbackShareInput {
+  ruleId: ID!
+  sharePercent: Float!
+}
+
+type ReferralProgramPayload {
+  success: Boolean!
+  message: String!
+  program: ReferralProgram
+}
+
+type ReferralRulePayload {
+  success: Boolean!
+  message: String!
+  rule: ReferralRule
+}
+
+type ReferralLinkPayload {
+  success: Boolean!
+  message: String!
+  link: ReferralLink
+}
+
+type ReferralClickPayload {
+  success: Boolean!
+  message: String!
+  click: ReferralClick
+}
+
+type ReferralAttributionPayload {
+  success: Boolean!
+  message: String!
+  attribution: ReferralAttribution
+}
+
+type ReferralCouponPayload {
+  success: Boolean!
+  message: String!
+  coupon: ReferralCoupon
+}
+
+type ReferralRaffleDrawPayload {
+  success: Boolean!
+  message: String!
+  draw: ReferralRaffleDraw
+}
+
+type ReferralBudgetPayload {
+  success: Boolean!
+  message: String!
+  budget: ReferralBudget
+}
+
+type TopReferrer {
+  referrerId: Int!
+  referrerName: String
+  referrerPhone: String
+  totalEarnings: Float!
+  totalReferrals: Int!
+  activeReferrals: Int!
+  totalTransactions: Int!
+  totalClicks: Int!
+  conversionRate: Float!
+}
+
+type ReferrerStats {
+  referrerId: Int!
+  totalEarnings: Float!
+  grossEarnings: Float!
+  totalReferrals: Int!
+  activeReferrals: Int!
+  totalTransactions: Int!
+  totalClicks: Int!
+  totalAttributions: Int!
+  conversionRate: Float!
+  earningsByRuleType: [ReferrerEarningsByRule!]!
+}
+
+type ReferrerEarningsByRule {
+  ruleType: ReferralRuleType!
+  totalEarnings: Float!
+  count: Int!
+}
+

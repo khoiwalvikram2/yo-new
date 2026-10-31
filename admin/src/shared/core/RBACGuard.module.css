@@ -1,0 +1,8 @@
+/* The access-denied state, which 82 pages can render. It is a kit Notice on the page's own ground,
+   inset from the page edge and held to a readable measure — the same inset the antd Alert it replaced
+   sat in (p-4 max-w-md), now in tokens rather than Tailwind so the block reads correctly on a migrated
+   page in either theme. */
+.denied {
+  padding: 16px;
+  max-width: 448px;
+}

@@ -1,0 +1,350 @@
+/* Bet List (M:2224-2232). The mockup draws this page with the generic table template (M:3361-3409):
+   a page head, then one table card. The statistics, the filter row, the domain-specific columns and the
+   two detail popovers are the legacy page's and are not drawn there, so they are BEYOND-MOCKUP where
+   noted and borrow the nearest mockup idiom. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- statistics ---------- */
+
+/* BEYOND-MOCKUP: five figures in the KPI anatomy (M:811-850). The four counts share a row; the stake, the
+   one long money figure, takes a wider fifth column when the page is wide and its own full row when it is
+   not, so a crore-sized amount is not cut. The width test is on the page's own column, not the viewport,
+   because the shell's context panel changes that column by 205px. */
+.statsFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.stakeStat {
+  grid-column: 1 / -1;
+}
+
+@container (min-width: 640px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1100px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.6fr);
+  }
+
+  .stakeStat {
+    grid-column: auto;
+  }
+}
+
+/* ---------- filters ---------- */
+
+/* BEYOND-MOCKUP: the mockup draws no filter row for this page (M:2224-2232), so these are the legacy row's
+   control widths (domain 112, status 160, wallet 128, agent 144, player 160). They apply
+   only while the controls sit in the kit FilterBar's own row, a container named filter-bar; in the
+   compact Filters popover (portalled outside that container) the kit stretches each control instead. */
+@container filter-bar (width >= 1024px) {
+  .domainField {
+    width: 112px;
+  }
+
+  .statusField,
+  .playerField {
+    width: 160px;
+  }
+
+  .walletField {
+    width: 128px;
+  }
+
+  .agentField {
+    width: 144px;
+  }
+}
+
+/* ---------- table cells ---------- */
+
+/* Two-line cells (time, result): the second line takes the dim cell colour (td.dim M:998). */
+.stack {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.secondary {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* The legacy cells truncate long names at a fixed measure; the full value stays in the DOM and in the
+   native title. */
+.truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nameCell {
+  max-width: 130px;
+}
+
+.wideCell {
+  max-width: 220px;
+}
+
+.allEventCell {
+  max-width: 200px;
+}
+
+.mediumCell {
+  max-width: 150px;
+}
+
+.narrowCell {
+  max-width: 120px;
+}
+
+.resultCell {
+  max-width: 110px;
+}
+
+/* The key ink of a cell's main value (td.k M:997) at the legacy medium weight. */
+.keyText {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.semibold {
+  font-weight: 600;
+}
+
+.dimText {
+  color: var(--ink-3);
+}
+
+.upper {
+  text-transform: uppercase;
+}
+
+.capitalize {
+  text-transform: capitalize;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+}
+
+/* The event path: sport, league and separators in the dim ink (td.dim M:998); the event takes .keyText. */
+.path {
+  color: var(--ink-3);
+}
+
+/* The player name links to the profile: the mockup's text link (.linkbtn M:879-886). */
+.playerLink {
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.playerLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.playerLink:active {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.playerLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* BEYOND-MOCKUP: the categorical badges (domain, wallet, side, matka type and bid type) take the .flag
+   shape (M:1029-1033) on the decorative hue ramp (.av.a1-a5 M:1013-1017), so they never read as a status;
+   the status column alone uses the semantic .pill tones. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tag svg {
+  flex: none;
+}
+
+.tagSmall {
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.hueGrn {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.hueAmb {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+.hueVio {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.hueBlu {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.hueInd {
+  background: var(--h-ind-bg);
+  color: var(--h-ind);
+}
+
+/* Money cells: tabular figures (tbody td M:990-995); the stake in the key weight (td.k M:997). */
+.amount {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.amountStrong {
+  font-weight: 600;
+}
+
+/* P/L and outcomes keep the legacy gain/loss colouring on the semantic inks. */
+.pos {
+  color: var(--pos-ink);
+  font-weight: 600;
+}
+
+.neg {
+  color: var(--neg-ink);
+  font-weight: 600;
+}
+
+.zero {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.outcome {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.outcomeDim {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* The details cell: the popover trigger and, for a settled casino round, the round link side by side. */
+.detailsCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* The campaign name is the popover trigger, cut at the legacy measure (Button truncates its label). */
+.campaignTrigger {
+  max-width: 120px;
+}
+
+/* ---------- detail popovers ---------- */
+
+/* BEYOND-MOCKUP: the legacy "Bet Details" and campaign popovers. The heading is the drawer section label
+   (.dr-sec M:1151) and the rows the drawer's description list (.dl M:1153-1156) at popover size. The
+   popover is portalled outside Page's margin reset, so it zeroes its own margins. */
+.popBody {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+  max-width: 300px;
+  padding: 12px 14px;
+}
+
+.popTitle {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.detailList {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  margin: 0;
+}
+
+.detailList dt,
+.detailList dd {
+  min-width: 0;
+  margin: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hair);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.detailList dt {
+  padding-right: 12px;
+  color: var(--ink-3);
+}
+
+.detailList dd {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.detailList dt:nth-last-child(2),
+.detailList dd:last-child {
+  border-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playerLink {
+    transition: none;
+  }
+}

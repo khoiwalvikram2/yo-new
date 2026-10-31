@@ -1,0 +1,67 @@
+/* AI assistant access (/config/ai-assistant). The mockup has no page for this route; it is laid out as the
+   mockup's generic table page (page head M:753-763, one table card M:1845-1853 filled by M:3361-3409).
+   Cells take the table metrics (M:979-1007), the usage bar is the mockup's .bar (M:1085-1091) through the kit
+   Meter, and the row actions follow .acts/.act (M:1034-1042, the kit Button's xs size). Anything the mockup
+   does not draw is marked BEYOND-MOCKUP and derived from those rules and the tokens; no colour is set
+   outside tokens.css. */
+
+/* ---------- table cells ---------- */
+
+/* The Whitelabel cell: the key cell's ink and weight (td.k M:997) over the legacy 11px "last changed by"
+   line in the dim ink (td.dim M:998). */
+.whitelabel {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.tenant {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.changedBy {
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* The legacy controls filled their fixed-width columns (antd `w-full`). Positioned so the kit field's
+   absolutely positioned visually-hidden label and live region anchor inside the table scroller; otherwise
+   they anchor to the card region outside it, escape its clip, and their off-screen static position in the
+   wide table widens the page at phone width. */
+.fill {
+  position: relative;
+  width: 100%;
+}
+
+/* BEYOND-MOCKUP: the legacy usage cell, a bar over its caption. The bar is the mockup's 6px .bar
+   (M:1085) across the cell; the caption is the dim 11px line. */
+.usage {
+  display: grid;
+  gap: 4px;
+  min-width: 120px;
+  padding: 8px 0;
+}
+
+.usageText {
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash {
+  color: var(--ink-3);
+}
+
+/* .acts M:1034: actions end-aligned, 6px apart. */
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}

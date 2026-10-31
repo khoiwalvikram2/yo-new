@@ -1,0 +1,1 @@
+ALTER TABLE "crm_users" ADD CONSTRAINT "crm_users_delegate_to_crm_users_id_fk" FOREIGN KEY ("delegate_to") REFERENCES "public"."crm_users"("id") ON DELETE set null ON UPDATE no action;

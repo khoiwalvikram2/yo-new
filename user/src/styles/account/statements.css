@@ -1,0 +1,176 @@
+/* Statements (/statements) in the matchbook theme: the filters as one white hairline strip, the results in a
+   white panel under a charcoal head, dense tables that stack into small cards on phones, and a flat empty
+   state and pager. Table cells, chips, the date picker and the details modal are styled with their
+   components (components/statements/*.css, components/pagination.css). */
+
+/* ----------------------------------------------------------- filter strip */
+.nova-acct .nova-stmt-filters { position: relative; z-index: 2; border: 1px solid var(--mb-line); background: var(--mb-panel); }
+.nova-acct .nova-stmt-filter-row { display: flex; flex-wrap: wrap; align-items: stretch; min-width: 0; }
+.nova-acct .nova-stmt-filter-row > * { min-width: 0; }
+.nova-acct .nova-stmt-date-group { display: contents; }
+.nova-acct .nova-stmt-search { position: relative; flex: 1 1 260px; border-right: 1px solid var(--mb-line); }
+.nova-acct .nova-stmt-date-select { position: relative; flex: 0 0 200px; border-right: 1px solid var(--mb-line); }
+.nova-acct .nova-stmt-filter-row > select.nova-stmt-select { flex: 0 0 168px; border-right: 1px solid var(--mb-line); }
+.nova-acct .nova-stmt-filter-row > :last-child { border-right: 0; }
+.nova-acct .nova-stmt-count { display: flex; align-items: center; margin-left: auto; padding: 0 16px; color: var(--mb-muted); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.nova-acct .nova-stmt-filters :is(input.nova-stmt-input, select.nova-stmt-select) {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background-color: transparent;
+  box-shadow: none;
+  font-family: var(--font-inter);
+  font-size: 15px;
+}
+.nova-acct .nova-stmt-filters input.nova-stmt-input { padding: 0 44px 0 42px; }
+.nova-acct .nova-stmt-filters select.nova-stmt-select {
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2366656B' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 15px;
+  font-weight: 600;
+  appearance: none;
+  cursor: pointer;
+}
+.nova-acct .nova-stmt-filters select.nova-stmt-select.has-icon { padding-left: 42px; }
+.nova-acct .nova-stmt-filters :is(input.nova-stmt-input, select.nova-stmt-select):hover { background-color: var(--mb-panel-2); }
+.nova-acct .nova-stmt-filters :is(input.nova-stmt-input, select.nova-stmt-select):focus { outline: none; background-color: var(--mb-panel); box-shadow: inset 0 -2px 0 #C51A1B; }
+.nova-acct .nova-stmt-filters :is(.nova-stmt-search-icon, .nova-stmt-select-icon) {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  display: flex;
+  color: var(--mb-faint);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.nova-acct .nova-stmt-search-clear,
+.nova-acct .nova-stmt-range-clear {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--mb-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.nova-acct .nova-stmt-search-clear { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); }
+.nova-acct :is(.nova-stmt-search-clear, .nova-stmt-range-clear):hover { border-color: var(--mb-line-2); color: var(--mb-ink); background: var(--mb-panel); }
+
+/* Custom range: its own row across the strip, under the controls. */
+.nova-acct .nova-stmt-range { display: flex; flex: 1 0 100%; align-items: center; gap: 8px; order: 99; padding: 8px 12px; border-top: 1px solid var(--mb-line); background: var(--mb-panel-2); }
+.nova-acct .nova-stmt-range .nova-dp { flex: 0 1 210px; }
+.nova-acct .nova-stmt-range-arrow { flex: none; color: var(--mb-faint); font-size: 16px; font-weight: 700; line-height: 1; }
+
+/* ---------------------------------------------------------- results panel */
+/* Paginated statement rows belong to the page's vertical scroll. A capped nested
+   scroller swallowed wheel/touch gestures once the table reached its own end. */
+.nova-acct .nova-stmt .nova-stmt-scroll { max-height: none; overflow: auto; overscroll-behavior: auto; }
+/* Each tab section is display: contents so its head can sit above the loading / error lines. */
+.nova-acct .nova-stmt-results { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--mb-line); background: var(--mb-panel); }
+.nova-acct .nova-stmt-results > * { min-width: 0; }
+.nova-acct .nova-stmt-section { display: contents; }
+.nova-acct .nova-stmt-section-head { display: flex; align-items: center; order: -1; min-height: 46px; margin: 0; padding: 0 16px; color: #FFFFFF; background: var(--mb-bar); font-size: 17px; font-weight: 700; line-height: 1.2; }
+.nova-acct .nova-stmt-loading { padding: 26px 16px; border-bottom: 1px solid var(--mb-line); color: var(--mb-muted); font-size: 15px; text-align: center; }
+.nova-acct .nova-stmt-error { padding: 10px 16px; border-bottom: 1px solid var(--mb-red-line); color: var(--mb-red-ink); background: var(--mb-red-bg); font-size: 14px; text-align: center; }
+.nova-acct .nova-stmt-section-table:has(tbody:empty) { display: none; }
+
+.nova-acct .nova-stmt-empty { display: grid; justify-items: center; gap: 6px; padding: 48px 16px 44px; text-align: center; }
+.nova-acct .nova-stmt-empty-icon { display: grid; width: 56px; height: 56px; place-items: center; margin-bottom: 6px; border-radius: var(--ui-radius); color: var(--mb-faint); background: var(--mb-soft); }
+.nova-acct .nova-stmt-empty-icon svg { width: 26px; height: 26px; }
+.nova-acct .nova-stmt-empty-title { margin: 0; color: var(--mb-ink); font-size: 19px; font-weight: 700; }
+.nova-acct .nova-stmt-empty-text { margin: 0; color: var(--mb-muted); font-size: 15px; }
+
+.nova-acct .nova-stmt-pager { padding: 10px 16px; border-top: 1px solid var(--mb-line); background: var(--mb-panel-2); }
+.nova-acct .nova-stmt-pager:has(.nova-pager.is-empty) { display: none; }
+
+/* Wallet amounts carry the money direction (the figure itself stays unsigned). */
+.nova-acct .nova-stmt .nova-stmt-amount.is-credit { color: var(--mb-green); }
+.nova-acct .nova-stmt .nova-stmt-amount.is-debit { color: var(--mb-error); }
+.nova-acct .nova-stmt .nova-stmt-amount.is-void { color: var(--mb-faint); }
+
+/* ----------------------------------------------------------------- phones */
+@media (max-width: 639.98px) {
+  .nova-stmt .nova-seg-tab { padding-inline: 8px; gap: 5px; font-size: 14px; }
+  .nova-stmt .nova-seg-icon { display: none; }
+  .nova-acct .nova-stmt-filter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nova-acct .nova-stmt-filter-row > *,
+  .nova-acct .nova-stmt-date-group > * { grid-column: 1 / -1; border-top: 1px solid var(--mb-line); border-right: 0; }
+  .nova-acct .nova-stmt-filter-row > :first-child { border-top: 0; }
+  .nova-acct .nova-stmt-filter-row > select.nova-stmt-select { grid-column: auto; border-right: 0; }
+  .nova-acct .nova-stmt-filter-row > select.nova-stmt-select:first-of-type:not(:only-of-type) { border-right: 1px solid var(--mb-line); }
+  .nova-acct .nova-stmt-filter-row > select.nova-stmt-select:only-of-type { grid-column: 1 / -1; }
+  .nova-acct .nova-stmt-filters :is(input.nova-stmt-input, select.nova-stmt-select) { height: 46px; }
+  .nova-acct .nova-stmt-count { margin-left: 0; padding: 9px 14px; font-size: 13px; }
+  .nova-acct .nova-stmt-range { flex-direction: column; align-items: stretch; order: 0; padding: 10px 12px; }
+  .nova-acct .nova-stmt-range .nova-dp { flex: none; }
+  .nova-acct .nova-stmt-range .nova-dp-pop { right: 0; width: auto; }
+  .nova-acct .nova-stmt-range-arrow { align-self: center; transform: rotate(90deg); }
+  .nova-acct .nova-stmt-range-clear { align-self: flex-end; }
+  .nova-acct .nova-stmt-section-head { min-height: 44px; padding: 0 14px; font-size: 16px; }
+  .nova-acct .nova-stmt-pager { padding: 10px 12px; }
+
+  /* Tables become one small card per row. */
+  .nova-acct .nova-stmt .nova-stmt-scroll { max-height: none; overflow: visible; }
+  .nova-acct .nova-stmt .nova-stmt-table,
+  .nova-acct .nova-stmt .nova-stmt-table tbody { display: block; width: 100%; }
+  .nova-acct .nova-stmt .nova-stmt-table thead { display: none; }
+  .nova-acct .nova-stmt .nova-stmt-table tbody tr { display: grid; align-items: center; gap: 8px 8px; padding: 12px 14px; border-bottom: 1px solid var(--mb-line); }
+  .nova-acct .nova-stmt .nova-stmt-table tbody tr:last-child { border-bottom: 0; }
+  .nova-acct .nova-stmt .nova-stmt-table td { min-width: 0; padding: 0; border: 0; }
+  .nova-acct .nova-stmt .nova-stmt-table tr:is(.is-back, .is-lay) > td:first-child { box-shadow: none; }
+  .nova-acct .nova-stmt .nova-stmt-table tr.is-back { box-shadow: inset 3px 0 0 #8DCDF3; }
+  .nova-acct .nova-stmt .nova-stmt-table tr.is-lay { box-shadow: inset 3px 0 0 #F6AABA; }
+  .nova-acct .nova-stmt .nova-stmt-table .c-event { min-width: 0; }
+  .nova-acct .nova-stmt .nova-stmt-table .c-date .nova-stmt-date { display: flex; flex-wrap: wrap; gap: 0 6px; }
+  .nova-acct .nova-stmt .nova-stmt-table .c-date .nova-stmt-date-day { color: var(--mb-muted); font-size: 12px; font-weight: 400; }
+  .nova-acct .nova-stmt .nova-stmt-table .c-status { justify-self: end; }
+  .nova-acct .nova-stmt .nova-stmt-table td[data-label] { padding: 6px 7px; border-radius: var(--ui-radius); background: var(--mb-soft); font-size: 13px; text-align: left; overflow-wrap: anywhere; white-space: normal; }
+  .nova-acct .nova-stmt .nova-stmt-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 1px; color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+
+  .nova-acct .nova-stmt .nova-stmt-wallet tbody tr { grid-template-areas: 'kind amount' 'date status'; grid-template-columns: minmax(0, 1fr) auto; }
+  .nova-acct .nova-stmt .nova-stmt-wallet .c-kind { grid-area: kind; }
+  .nova-acct .nova-stmt .nova-stmt-wallet .c-amount { grid-area: amount; font-size: 16px; }
+  .nova-acct .nova-stmt .nova-stmt-wallet .c-date { grid-area: date; }
+  .nova-acct .nova-stmt .nova-stmt-wallet .c-status { grid-area: status; }
+
+  .nova-acct .nova-stmt .nova-stmt-sports tbody tr { grid-template-areas: 'event event event event' 'type date date status' 'stake odds liab pl'; grid-template-columns: minmax(0, 1.15fr) minmax(0, .7fr) repeat(2, minmax(0, 1.15fr)); column-gap: 6px; }
+  .nova-acct .nova-stmt .nova-stmt-sports .c-event { grid-area: event; }
+  .nova-acct .nova-stmt .nova-stmt-sports .c-type { grid-area: type; justify-self: start; }
+  .nova-acct .nova-stmt .nova-stmt-sports .c-date { grid-area: date; }
+  .nova-acct .nova-stmt .nova-stmt-sports .c-status { grid-area: status; }
+  .nova-acct .nova-stmt .nova-stmt-sports .c-stake { grid-area: stake; }
+  .nova-acct .nova-stmt .nova-stmt-sports .c-odds { grid-area: odds; }
+  .nova-acct .nova-stmt .nova-stmt-sports .c-liab { grid-area: liab; }
+  .nova-acct .nova-stmt .nova-stmt-sports .c-pl { grid-area: pl; }
+
+  .nova-acct .nova-stmt .nova-stmt-casino tbody tr { grid-template-areas: 'event status' 'wallet date' 'stake pl'; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nova-acct .nova-stmt .nova-stmt-casino .c-event { grid-area: event; }
+  .nova-acct .nova-stmt .nova-stmt-casino .c-status { grid-area: status; align-self: start; }
+  .nova-acct .nova-stmt .nova-stmt-casino .c-wallet { grid-area: wallet; justify-self: start; }
+  .nova-acct .nova-stmt .nova-stmt-casino .c-date { grid-area: date; justify-self: end; }
+  .nova-acct .nova-stmt .nova-stmt-casino .c-stake { grid-area: stake; }
+  .nova-acct .nova-stmt .nova-stmt-casino .c-pl { grid-area: pl; }
+
+  .nova-acct .nova-stmt .nova-stmt-matka tbody tr { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-areas: 'event event status' 'selection selection wallet' 'date date date' 'stake payout pl' 'result result result'; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-event { grid-area: event; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-selection { grid-area: selection; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-wallet { grid-area: wallet; justify-self: end; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-date { grid-area: date; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-stake { grid-area: stake; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-return { grid-area: payout; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-pl { grid-area: pl; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-result { grid-area: result; }
+  .nova-acct .nova-stmt .nova-stmt-matka .c-status { grid-area: status; }
+}
+
+.nova-statement-details-modal .nova-stmt-amount.is-credit { color: var(--mb-green); }
+.nova-statement-details-modal .nova-stmt-amount.is-debit { color: var(--mb-error); }

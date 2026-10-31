@@ -1,0 +1,144 @@
+/* Bonus Campaigns (/bonuses, W6 Task 170; mockup "All Bonuses" M:2298-2305). The mockup draws this page
+   with the generic table template (M:3361-3409): page head, one table card, status pills. The rows keep
+   the legacy campaign columns rather than the mockup's Value / Claimed / Cost (no field returns those), so
+   the cells take the table's metrics (M:984-1007); what the mockup does not draw is marked BEYOND-MOCKUP. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- header action ---------- */
+
+/* BEYOND-MOCKUP: on a phone the create link fills the header's action row, as the mockup's .ph-right
+   controls do (M:1613-1616) and the legacy button did. The breakpoint is the kit PageHeader's own. */
+@media (max-width: 767px) {
+  .createLink {
+    width: 100%;
+  }
+}
+
+/* ---------- filters ---------- */
+
+/* BEYOND-MOCKUP: the legacy control widths (status 144, domain 144, type 176), a little wider for the
+   kit's "All …" labels. They apply only while the controls sit in the kit FilterBar's own row, a
+   container named filter-bar (1024px and wider); in the compact Filters popover, portalled outside that
+   container, the kit stretches each control to full width. */
+@container filter-bar (width >= 1024px) {
+  .statusFilter {
+    width: 156px;
+  }
+
+  .domainFilter {
+    width: 156px;
+  }
+
+  .typeFilter {
+    width: 184px;
+  }
+}
+
+/* ---------- table cells ---------- */
+
+/* Two-line cells (campaign, amount): the second line takes the dim cell colour (td.dim M:998). */
+.stack {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the first column is the key column (td.k M:997); a long campaign name wraps inside a
+   bounded column instead of stretching the whole table. */
+.campaignName {
+  min-width: 140px;
+  max-width: 280px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* The legacy domain chip had no stylesheet behind it and drew as small text; it stays a caption. */
+.domain {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+}
+
+.secondary {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* The status pill (.pill M:1018-1028) and, for a distributed direct bonus, the Distributed pill with its
+   date printed below (BEYOND-MOCKUP: the legacy date was a hover-only tooltip). */
+.statusCell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.distributedOn {
+  flex-basis: 100%;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The figure of a right-aligned value column reads as the row's key value (td.k M:997, td.r M:996). */
+.figure {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.players {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.playerCount {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* The row's icon actions sit in the sticky actions cell (.acts M:1034). */
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ---------- distribute dialog ---------- */
+
+/* BEYOND-MOCKUP: the preview lines and notices stack on the kit dialog body. */
+.preview {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.previewLine {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.previewLine strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.previewEmpty {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.45;
+}

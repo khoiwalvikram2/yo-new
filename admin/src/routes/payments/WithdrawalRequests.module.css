@@ -1,0 +1,522 @@
+/* Withdrawal Requests (M:2403-2412). The mockup draws this page with the generic table template
+   (M:3361-3409); the detail drawer, the status chooser and the history dialog are not drawn, so they
+   follow the approved Deposit Requests drawer (M:1136-1167, Task 025) and are BEYOND-MOCKUP where noted. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- table cells ---------- */
+
+/* Two-line cells (player, created): the second line takes the dim cell colour (td.dim M:997). */
+.stack {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.secondary {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The player name links to the profile: the mockup's text link (.linkbtn M:879-886). */
+.playerLink {
+  justify-self: start;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.playerLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.playerLink:active {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.playerLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* BEYOND-MOCKUP: the legacy Account cell is a three-row term/value list. It keeps the .dl term and
+   value colours (M:1153-1156) at table size, with the copy actions beside their values. */
+.accountList {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.accountRow {
+  display: grid;
+  grid-template-columns: 68px minmax(0, auto);
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.accountTerm {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.accountValue {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.accountName {
+  max-width: 140px;
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- drawer ---------- */
+
+.drawerContent {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.userSummary,
+.amountSummary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.heroIcon,
+.sectionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.heroIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ui-radius);
+}
+
+/* Money leaving the platform keeps the legacy outflow tone, on the semantic negative pair (.pill.failed
+   M:1026 uses the same --neg-bg / --neg-ink). */
+.amountSummary .heroIcon {
+  color: var(--neg-ink);
+  background: var(--neg-bg);
+}
+
+.summaryCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.summaryCopy strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The captions only: the status pill beside "Status" is also a span and keeps its own tone. */
+.summaryCopy > span,
+.statusLabel {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.summaryCopy .amount {
+  color: var(--neg-ink);
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+}
+
+.profileLink {
+  flex: none;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: color var(--t-1) ease, text-decoration-color var(--t-1) ease;
+}
+
+.profileLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.profileLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.statusBlock {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  flex: none;
+}
+
+.drawerSection {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+
+.sectionIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius);
+}
+
+.sectionHeading {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.sectionSub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.code {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* A description value with its copy action. The CopyButton's visually hidden announcement is absolutely
+   positioned, so this wrapper (and .accountValue in the table) is its containing block: otherwise it
+   escapes the table's horizontal scroller and widens the page. */
+.copyValue {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid var(--warn);
+  border-radius: var(--ui-radius);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.note > svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.note strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Drawer content is portalled outside Page's heading/paragraph neutraliser, so it zeroes its own margins. */
+.note p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* BEYOND-MOCKUP: the four target statuses sit on the kit .seg rail (M:777-794, .seg.sm M:793-794).
+   The rail fills its section in equal columns and folds into two rows of two when the section is
+   narrower than four labels (a phone-width drawer); the kit rail alone never wraps. The width query is
+   on the section, not the viewport, because the drawer's width and the viewport's differ on desktop. */
+.statusPanel {
+  container-type: inline-size;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* New status: kit choice tiles, 2 × 2 (one column under 300px). Each tile is its status's glyph tile, the
+   name and what it means; pressed, the tile takes the status tone (border, a light tint, a check in the
+   corner). The tone variables come from the tone-* class. */
+.statusChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+@container (max-width: 299px) {
+  .statusChoices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tone-info { --choice-ink: var(--h-blu); --choice-bg: var(--h-blu-bg); }
+.tone-ok { --choice-ink: var(--pos-ink); --choice-bg: var(--ok-bg); }
+.tone-neg { --choice-ink: var(--neg-ink); --choice-bg: var(--neg-bg); }
+.tone-muted { --choice-ink: var(--ink-2); --choice-bg: var(--surf-3); }
+
+.choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 9px 12px 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--t-1, .15s) ease, background-color var(--t-1, .15s) ease, box-shadow var(--t-1, .15s) ease;
+}
+
+.choice:hover {
+  border-color: var(--line-2, var(--ink-3));
+  background: var(--hover);
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.choice[aria-pressed='true'] {
+  border-color: var(--choice-ink);
+  background: color-mix(in srgb, var(--choice-bg) 55%, var(--surf));
+  box-shadow: inset 0 0 0 1px var(--choice-ink);
+}
+
+.choiceIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ui-radius);
+  background: var(--choice-bg);
+  color: var(--choice-ink);
+}
+
+.choiceText {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.choiceText b {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.choiceText small {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the request's present status */
+.choiceCurrent {
+  position: absolute;
+  top: -8px;
+  left: 10px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  box-shadow: 0 0 0 2px var(--surf);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.choiceCheck {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--choice-ink);
+  color: var(--surf);
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity var(--t-1, .15s) ease, transform var(--t-1, .15s) ease;
+}
+
+.choice[aria-pressed='true'] .choiceCheck {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice,
+  .choiceCheck {
+    transition: none;
+  }
+}
+
+/* BEYOND-MOCKUP: the history dialog's table reaches the dialog edges and keeps the card gutter in its
+   own cells, as a Card's table body does (.tbl-pad M:1007), instead of a second inset. */
+.historyTable {
+  min-width: 0;
+  margin: 0 calc(-1 * var(--card-pad));
+}
+
+/* A free-text note wraps inside its cell rather than widening the history table. */
+.wrapCell {
+  display: block;
+  min-width: 12em;
+  max-width: 28em;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.drawerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.footerHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.footerHint svg {
+  flex: none;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+@media (max-width: 767px) {
+  .userSummary,
+  .amountSummary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .profileLink,
+  .statusBlock {
+    width: calc(100% - 52px);
+    margin-left: 52px;
+  }
+
+  .statusBlock {
+    justify-items: start;
+  }
+
+  .drawerFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .footerActions {
+    flex-wrap: wrap;
+  }
+
+  .footerActions > * {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playerLink,
+  .profileLink {
+    transition: none;
+  }
+}

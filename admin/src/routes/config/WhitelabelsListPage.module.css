@@ -1,0 +1,470 @@
+/* Whitelabels (/config/whitelabels). The page uses the approved generic table template for its list,
+   kit KPI cards for the legacy summary, and the approved right-edge drawer pattern for partner details.
+   Every colour comes from tokens.css so the same markup is native in light and dark themes. */
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+
+.search {
+  flex: 1 1 220px;
+  width: 288px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.statNote {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ---------- list table ---------- */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 5px 0;
+}
+
+.favicon,
+.drawerFavicon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.favicon img,
+.drawerFavicon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.identityCopy,
+.amountStack {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.identityName {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identityId,
+.secondary {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.identityId {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domain {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.shareRates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 190px;
+  white-space: normal;
+}
+
+.amount,
+.amountOk,
+.amountWarn,
+.amountNeg {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.amountOk {
+  color: var(--pos-ink);
+}
+
+.amountWarn {
+  color: var(--warn);
+}
+
+.amountNeg {
+  color: var(--neg-ink);
+}
+
+.amountStack {
+  justify-items: end;
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spin {
+  animation: whitelabel-spin .8s linear infinite;
+}
+
+@keyframes whitelabel-spin {
+  to { transform: rotate(1turn); }
+}
+
+/* ---------- mutation dialogs ---------- */
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.creditSummary,
+.dialogIntro {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.creditSummary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.creditSummary dt,
+.creditSummary dd {
+  margin: 0;
+}
+
+.creditSummary dd {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.dialogIntro {
+  margin-bottom: 16px;
+}
+
+.dialogIntro span {
+  overflow-wrap: anywhere;
+}
+
+.dialogIntro b {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.dialogIntro code,
+.code {
+  padding: 1px 5px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- details drawer ---------- */
+
+.drawerBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  min-width: 0;
+}
+
+.drawerIntro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.drawerIntroCopy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drawerIntroCopy strong,
+.drawerIntroCopy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawerIntroCopy strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.drawerIntroCopy span {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.assets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.asset {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  min-height: 88px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.assetLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.logoFrame,
+.faviconFrame {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  height: 42px;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.faviconFrame {
+  justify-self: start;
+  width: 42px;
+}
+
+.logoFrame img,
+.faviconFrame img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.assetMissing {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.rateList {
+  display: grid;
+  gap: 8px;
+}
+
+.rateRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.rateIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius);
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+.rateCopy {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rateTopline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rateTopline > span:first-child {
+  display: grid;
+  gap: 1px;
+}
+
+.rateTopline strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rateLabel {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+  text-transform: capitalize;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.swatch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.swatchInput {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.swatchInput input {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  cursor: default;
+}
+
+.swatchInput input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.swatchInput input::-webkit-color-swatch {
+  border: 0;
+}
+
+.swatchCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.swatchCopy strong,
+.swatchCopy code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swatchCopy strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.swatchCopy code {
+  color: var(--ink-3);
+  font-size: 10.5px;
+}
+
+.themeEmpty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.drawerFooter {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+
+  .dialogActions > * {
+    flex: 1 1 auto;
+  }
+
+  .assets,
+  .swatches {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rateTopline {
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}

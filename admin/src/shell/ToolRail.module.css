@@ -1,0 +1,391 @@
+/* The kit's right tool rail (.app-rail, .rail-btn, .rail-badge): 64px of charcoal beside the content,
+   under the topbar. Rendered only under the player skin (useToolRailShown), so these rules need no skin
+   scope; the colours are the left rail's tokens, so both rails read as one chrome. */
+.rail {
+  grid-row: 2;
+  grid-column: 2;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  width: var(--rail-w, 64px);
+  min-height: 0;
+  padding: 6px 4px 8px;
+  overflow-y: auto;
+  border-left: 1px solid var(--chrome-edge);
+  background: var(--rail);
+  scrollbar-width: none;
+}
+
+.button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 62px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--rail-ic);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--t-1, .15s) ease, color var(--t-1, .15s) ease;
+}
+
+.button:hover {
+  background: var(--rail-h);
+  color: var(--rail-ic-on);
+}
+
+.button:active {
+  background: var(--rail-on);
+}
+
+/* its drawer is open: the red tile, as the current section on the left rail */
+.button[aria-expanded='true'],
+.button[aria-current='page'] {
+  background: var(--rail-cur);
+  color: #FFFFFF;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--rail-ring);
+  outline-offset: -2px;
+}
+
+.button svg {
+  flex: none;
+}
+
+.chatShortcut {
+  flex: none;
+  margin-top: auto;
+  border-radius: var(--ui-radius);
+  text-decoration: none;
+}
+
+.label {
+  max-width: 56px;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--ui-radius);
+  background: var(--rail-badge);
+  color: var(--rail-badge-ink);
+  box-shadow: 0 0 0 2px var(--rail);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 17px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.button:hover .badge {
+  box-shadow: 0 0 0 2px var(--rail-h);
+}
+
+/* on the red tile the badge turns white with red figures */
+.button[aria-expanded='true'] .badge {
+  background: #FFFFFF;
+  color: var(--rail-cur);
+  box-shadow: none;
+}
+
+/* a bell still reading its first count holds the button's place */
+.skeleton {
+  display: block;
+  width: 100%;
+  min-height: 62px;
+  border-radius: var(--ui-radius);
+  background: var(--rail-h);
+  opacity: .35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}
+
+/* ---- the panel (the player panel's .nova-rail-panel): the same grid cell as <main>, pinned to its right
+   edge, so it starts under the topbar and ends at the rail. No backdrop; the page beside it stays in use.
+   Widths are shares of the content column, as the player panel's are of its middle section. */
+.panel {
+  grid-row: 2;
+  grid-column: 1;
+  justify-self: end;
+  align-self: stretch;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  /* the owner's mark on the Alerts panel (2026-10-21): a third of the content column; every drawer in the
+     admin uses the same width (Drawer.module.css) */
+  width: clamp(360px, 33%, 480px);
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--surf);
+  color: var(--ink);
+  box-shadow: -10px 0 28px rgb(16 18 22 / 12%);
+  outline: none;
+  animation: tool-panel-in .18s ease-out;
+}
+
+.panel[hidden],.assistantBody[hidden]{display:none}
+.assistantPanel{--r-ctl:var(--ui-radius);--r-card:var(--ui-radius);--r-tile:var(--ui-radius)}
+.assistantBody{display:flex;flex:1;min-width:0;min-height:0}
+.assistantMark{display:grid;place-items:center;flex:none;width:30px;height:30px;background:var(--acc);color:var(--acc-on)}
+.titleRow{display:flex;align-items:center;gap:7px;min-width:0}
+.aiBadge{padding:2px 5px;border:1px solid color-mix(in srgb,var(--ink) 25%,transparent);background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink);font-size:9px;font-weight:700;letter-spacing:.05em}
+.panelHeadActions{display:flex;align-items:center;gap:2px;margin-left:auto;flex:none}
+.assistantPanel .panelHead{gap:9px;padding-left:12px}
+.assistantPanel .panelTitle p{font-size:11px;line-height:1.35;white-space:normal}
+.assistantPanel .panelClose{width:30px;height:32px;min-width:30px}
+
+@keyframes tool-panel-in {
+  from { opacity: 0; transform: translateX(16px); }
+}
+
+/* kit .sheet__head: title, muted sub and close button on the bar. Light in the light theme (owner 2026-10-29): --head-bg with a hairline under it, page ink on it. In the
+   dark theme the bar stays charcoal and the rule after this one switches its tokens to on-charcoal values,
+   so the controls placed on it follow without rules of their own (the Topbar.module.css trick). */
+.panelHead {
+  --hover: var(--head-hover);
+  --press: var(--head-press);
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--head-line);
+  background: var(--head-bg);
+  color: var(--ink);
+}
+
+:global([data-theme='dark']) .panelHead {
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft, #E2E3E3);
+  --hover: rgb(255 255 255 / 8%);
+  --press: rgb(255 255 255 / 14%);
+  --ring: #FFFFFF;
+  --ink-3: var(--bar-muted);
+}
+
+.panelTitle {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.panelTitle h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panelTitle p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.panelClose.panelClose {
+  flex: none;
+  color: var(--ink);
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* As every drawer (Drawer.module.css): the panel and anything scrolling inside it (the assistant's
+   conversation, a long list) scroll without a visible scrollbar. */
+.panel,
+.panel * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none;
+}
+
+.panel::-webkit-scrollbar,
+.panel *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Alerts and Tasks: the bell rows run nearly edge to edge, their hover tile inside a small inset */
+.panelBodyList {
+  padding: 6px;
+}
+
+.panelFoot {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.loading {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  color: var(--ink-3);
+}
+
+/* Favourites: the page in view with its star, then the saved pages */
+.here {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.hereText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hereText b {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hereText small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.note {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.rows {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.heading {
+  margin: 0 0 4px;
+  color: var(--acc-ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* Exports: kit .lrows with a status tile */
+.jobs {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.job:last-child {
+  border-bottom: 0;
+}
+
+.jobIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.jobOk {
+  background: var(--ok-bg);
+  color: var(--pos-ink);
+}
+
+.jobFail {
+  background: var(--neg-bg);
+  color: var(--neg-ink);
+}
+
+.jobMain {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.jobMain b {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jobMain small {
+  color: var(--ink-3);
+  font-size: 12px;
+}

@@ -1,0 +1,7 @@
+/* DrillDownTable — the wrapper that delegates row clicks around the kit DataTable (page migration
+   Task 121). It draws nothing: the table, its gutter (M:975-983) and its overflow cue (M:961-974) are
+   the kit's. min-width 0 lets the table's own scroller, not this wrapper, take a narrow grid or flex
+   column, as the kit DataTable root does. */
+.root {
+  min-width: 0;
+}

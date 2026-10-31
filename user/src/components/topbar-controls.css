@@ -1,0 +1,460 @@
+/* Header controls on the charcoal bar, the same in both app themes (owner's layout, 2026-10-29): the search
+   field right after the logo; on the right Login outline + Register with a sheen, or when signed in the
+   Balance | Exposure box, Deposit (red) and Withdraw (outline), a Bonus icon, the theme icon button and the
+   avatar chip; the admin's news ticker (NewsTicker) as a band under the row.
+   Phone layout (what hides, icon-only Deposit, two rows) stays in the phone sections below, so at every width
+   these rules only paint; sizes and display are set from 801px up only. */
+.nova-shell-matchbook > .nova-topbar { border-bottom-color: #1F2226; background: #2B2F35; box-shadow: none; }
+.nova-shell-matchbook .nova-header-right {
+  --hc-h: 40px;
+  --hc-bg: #383B41;
+  --hc-bg-hover: #43464C;
+  --hc-line: #4A4D53;
+  --hc-line-hover: #62656B;
+  --hc-muted: #AEB0B6;
+  --hc-red: linear-gradient(180deg, #D42324 0%, #C51A1B 55%, #AE1516 100%);
+  --hc-red-hover: linear-gradient(180deg, #BE1D1E 0%, #A81516 100%);
+}
+.nova-shell-matchbook .nova-header-right :is(button, a):focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
+
+/* ------------------------------------------------------------ paint, all widths */
+.nova-shell-matchbook .nova-header-right .nova-auth-login { border: 1px solid rgb(255 255 255 / 28%); border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+.nova-shell-matchbook .nova-header-right .nova-auth-login:hover { border-color: rgb(255 255 255 / 60%); background: rgb(255 255 255 / 7%); }
+/* Register: the one red call to action, with a light sheen passing over it every few seconds. */
+.nova-shell-matchbook .nova-header-right .nova-auth-register {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: var(--hc-red);
+  box-shadow: 0 2px 10px rgb(197 26 27 / 35%), inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+.nova-shell-matchbook .nova-header-right .nova-auth-register::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  width: 45%;
+  background: linear-gradient(100deg, rgb(255 255 255 / 0%), rgb(255 255 255 / 38%), rgb(255 255 255 / 0%));
+  transform: translateX(-130%) skewX(-18deg);
+  animation: nova-hc-sheen 4.5s ease-in-out infinite;
+}
+.nova-shell-matchbook .nova-header-right .nova-auth-register:hover { background: var(--hc-red-hover); }
+@keyframes nova-hc-sheen {
+  0%, 62% { transform: translateX(-130%) skewX(-18deg); }
+  88%, 100% { transform: translateX(330%) skewX(-18deg); }
+}
+
+.nova-shell-matchbook .nova-header-right .nova-header-bonus { border: 1px solid transparent; border-radius: var(--ui-radius); color: #E2E3E3; background: transparent; }
+.nova-shell-matchbook .nova-header-right .nova-header-bonus svg { color: #F2C14E; }
+.nova-shell-matchbook .nova-header-right .nova-header-bonus:hover { border-color: var(--hc-line); color: #FFFFFF; background: var(--hc-bg); }
+
+/* Wallet: balance (and exposure) in a dark dock; Deposit is attached to its right edge. */
+.nova-shell-matchbook .nova-header-right .nova-wallet-summary { border: 1px solid var(--hc-line); border-radius: var(--ui-radius); color: #FFFFFF; background: var(--hc-bg); text-align: left; }
+.nova-shell-matchbook .nova-header-right .nova-wallet-summary:hover,
+.nova-shell-matchbook .nova-header-right .nova-wallet-summary[aria-expanded='true'] { border-color: var(--hc-line-hover); background: var(--hc-bg-hover); }
+.nova-shell-matchbook .nova-header-right .nova-wallet-icon { border-radius: var(--ui-radius); color: #FFFFFF; background: #2B2F35; }
+.nova-shell-matchbook .nova-header-right .nova-wallet-summary small { color: var(--hc-muted); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.nova-shell-matchbook .nova-header-right .nova-wallet-summary strong { color: #FFFFFF; font-variant-numeric: tabular-nums; }
+.nova-shell-matchbook .nova-header-right .nova-wallet-summary .nova-wallet-exposure { border-left-color: var(--hc-line); }
+.nova-shell-matchbook .nova-header-right .nova-wallet-summary .nova-wallet-exposure strong { color: #FF9C9C; }
+.nova-shell-matchbook .nova-header-right .nova-wallet-chevron { color: var(--hc-muted); }
+.nova-shell-matchbook .nova-header-right .nova-header-primary { border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--hc-red); box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%); }
+.nova-shell-matchbook .nova-header-right .nova-header-primary:hover { background: var(--hc-red-hover); filter: none; }
+.nova-shell-matchbook .nova-header-right .nova-header-withdraw { border: 1px solid rgb(255 255 255 / 30%); border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+.nova-shell-matchbook .nova-header-right .nova-header-withdraw:hover { border-color: rgb(255 255 255 / 60%); background: rgb(255 255 255 / 7%); }
+
+/* Profile: red initials avatar with a ring, name beside it on wide screens. */
+.nova-shell-matchbook .nova-header-right .nova-profile-trigger { border: 1px solid transparent; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+.nova-shell-matchbook .nova-header-right .nova-profile-trigger:hover,
+.nova-shell-matchbook .nova-header-right .nova-profile-trigger[aria-expanded='true'] { border-color: var(--hc-line); background: var(--hc-bg); }
+.nova-shell-matchbook .nova-header-right .nova-profile-initials {
+  border-radius: 50%;
+  color: #FFFFFF;
+  background: linear-gradient(145deg, #E2282C 0%, #8E1011 100%);
+  box-shadow: 0 0 0 2px #2B2F35, 0 0 0 3px rgb(255 255 255 / 28%);
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.nova-shell-matchbook .nova-header-right .nova-profile-copy strong { color: #FFFFFF; }
+.nova-shell-matchbook .nova-header-right .nova-profile-copy small,
+.nova-shell-matchbook .nova-header-right .nova-profile-chevron { color: var(--hc-muted); }
+
+/* ------------------------------------------------------- desktop sizes, 801px+ */
+@media (min-width: 801px) {
+  .nova-shell-matchbook .nova-header-right { --hc-h: 42px; gap: 8px; }
+  /* The search field: right after the logo, as wide as the row allows up to 520px; its auto right margin
+     keeps the account controls against the right edge. */
+  .nova-shell-matchbook .nova-topbar-row > .nova-desktop-search {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 10px;
+    width: auto;
+    min-width: 0;
+    max-width: 520px;
+    height: 42px;
+    min-height: 42px;
+    margin: 0 auto 0 0;
+    padding: 0 8px 0 14px;
+    border: 1px solid #4A4D53;
+    border-radius: var(--ui-radius);
+    color: #AEB0B6;
+    background: #383B41;
+    font-family: var(--font-inter);
+    font-size: 15px;
+    font-weight: 500;
+    text-align: left;
+    cursor: text;
+    transition: border-color .15s, background-color .15s, color .15s;
+  }
+  .nova-shell-matchbook .nova-topbar-row > .nova-desktop-search > svg { flex: none; width: 18px; height: 18px; color: #FFFFFF; }
+  .nova-shell-matchbook .nova-topbar-row > .nova-desktop-search:hover { border-color: #62656B; color: #FFFFFF; background: #43464C; }
+  .nova-shell-matchbook .nova-topbar-row > .nova-desktop-search:focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
+  .nova-search-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nova-shell-matchbook .nova-topbar-row > .nova-desktop-search kbd {
+    padding: 2px 6px;
+    border: 1px solid #55585E;
+    border-bottom-width: 2px;
+    border-radius: var(--ui-radius);
+    color: #C9CBD1;
+    background: #2B2F35;
+    font-family: var(--font-inter);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+  .nova-shell-matchbook .nova-header-right .nova-auth-actions { gap: 8px; }
+  .nova-shell-matchbook .nova-header-right .nova-auth-login,
+  .nova-shell-matchbook .nova-header-right .nova-auth-register,
+  .nova-shell-matchbook .nova-header-right .nova-header-primary,
+  .nova-shell-matchbook .nova-header-right .nova-header-withdraw {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 0;
+    height: var(--hc-h);
+    min-height: var(--hc-h);
+    padding: 0 16px;
+    font-family: var(--font-inter);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    cursor: pointer;
+  }
+  .nova-shell-matchbook .nova-header-right .nova-auth-register { padding: 0 18px; }
+  .nova-shell-matchbook .nova-header-right :is(.nova-header-primary, .nova-header-withdraw) { padding: 0 22px; }
+  /* Deposit and Withdraw read as words on desktop; the band on phones keeps Deposit's icon. */
+  .nova-shell-matchbook .nova-header-right :is(.nova-header-primary, .nova-header-withdraw) svg { display: none; }
+  .nova-shell-matchbook .nova-header-right .nova-header-wallet + .nova-header-primary { margin-left: 4px; }
+  /* Bonus, the theme button and the avatar chip: square-ish tiles of one height on a raised charcoal. */
+  .nova-shell-matchbook .nova-header-right .nova-header-bonus { display: grid; width: var(--hc-h); height: var(--hc-h); min-height: var(--hc-h); padding: 0; place-items: center; border-color: var(--hc-line); background: var(--hc-bg); }
+  .nova-shell-matchbook .nova-header-right .nova-header-bonus svg { width: 18px; height: 18px; }
+  html .nova-shell-matchbook .nova-header-right .nova-header-theme .nova-theme-icon {
+    display: grid;
+    width: var(--hc-h);
+    min-width: var(--hc-h);
+    height: var(--hc-h);
+    min-height: var(--hc-h);
+    padding: 0;
+    place-items: center;
+    border: 1px solid var(--hc-line);
+    border-radius: var(--ui-radius);
+    color: #FFFFFF;
+    background: var(--hc-bg);
+  }
+  html .nova-shell-matchbook .nova-header-right .nova-header-theme .nova-theme-icon:hover { border-color: var(--hc-line-hover); background: var(--hc-bg-hover); }
+  html .nova-shell-matchbook .nova-header-right .nova-header-theme .nova-theme-icon svg { width: 18px; height: 18px; }
+  /* Balance | Exposure: two label-over-amount columns split by a rule (no icon tile; Available repeats Main). */
+  .nova-shell-matchbook .nova-header-right .nova-wallet-summary { align-items: center; gap: 0; height: 46px; min-height: 46px; padding: 0 10px 0 0; cursor: pointer; }
+  .nova-shell-matchbook .nova-header-right .nova-wallet-summary :is(.nova-wallet-icon, .nova-wallet-available) { display: none; }
+  .nova-shell-matchbook .nova-header-right .nova-wallet-summary :is(.nova-wallet-selected, .nova-wallet-exposure) { display: grid; gap: 2px; padding: 0 14px; }
+  .nova-shell-matchbook .nova-header-right .nova-wallet-summary .nova-wallet-exposure { border-left: 1px solid var(--hc-line); }
+  .nova-shell-matchbook .nova-header-right .nova-wallet-summary small { font-family: var(--font-inter); font-size: 12px; font-weight: 600; letter-spacing: .01em; line-height: 1.1; text-transform: none; }
+  .nova-shell-matchbook .nova-header-right .nova-wallet-summary strong { font-family: var(--font-inter); font-size: 17px; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+  .nova-shell-matchbook .nova-header-right .nova-wallet-chevron { flex: none; width: 15px; height: 15px; }
+  /* Avatar chip: initials and a chevron (the name stays for assistive tech in the button's label). */
+  .nova-shell-matchbook .nova-header-right .nova-profile-trigger { align-items: center; gap: 6px; height: var(--hc-h); min-height: var(--hc-h); padding: 0 8px 0 4px; border-color: var(--hc-line); background: var(--hc-bg); cursor: pointer; }
+  .nova-shell-matchbook .nova-header-right .nova-profile-trigger:hover,
+  .nova-shell-matchbook .nova-header-right .nova-profile-trigger[aria-expanded='true'] { border-color: var(--hc-line-hover); background: var(--hc-bg-hover); }
+  .nova-shell-matchbook .nova-header-right .nova-profile-initials { display: grid; width: 32px; height: 32px; place-items: center; font-family: var(--font-inter); font-size: 13px; box-shadow: none; }
+  .nova-shell-matchbook .nova-header-right .nova-profile-copy { display: none; }
+  .nova-shell-matchbook .nova-header-right .nova-profile-chevron { width: 15px; height: 15px; }
+}
+/* Where the row runs out of room the search field folds to its icon (signed in, the wallet controls need the
+   space sooner), and below 1000px Withdraw leaves the header for the account drawer. */
+@media (min-width: 801px) and (max-width: 1180px) {
+  .nova-shell-matchbook .nova-topbar-row:has(.nova-header-wallet) > .nova-desktop-search { flex: 0 0 42px; justify-content: center; width: 42px; padding: 0; cursor: pointer; }
+  .nova-shell-matchbook .nova-topbar-row:has(.nova-header-wallet) > .nova-desktop-search :is(.nova-search-label, kbd) { display: none; }
+}
+@media (min-width: 801px) and (max-width: 999px) {
+  .nova-shell-matchbook .nova-topbar-row > .nova-desktop-search { flex: 0 0 42px; justify-content: center; width: 42px; padding: 0; cursor: pointer; }
+  .nova-shell-matchbook .nova-topbar-row > .nova-desktop-search :is(.nova-search-label, kbd) { display: none; }
+  .nova-shell-matchbook .nova-header-right .nova-header-withdraw { display: none; }
+}
+
+/* ------------------------------------------------------------------ phones */
+/* Bottom tab bar: charcoal like the header. The active red is lifted (#FF5A5B) so icons and labels keep
+   4.5:1 on charcoal; the theme red #C51A1B would not. */
+.nova-shell-matchbook .nova-mobile-nav {
+  --mobile-nav-bg: #2B2F35;
+  --mobile-nav-active: #FF5A5B;
+  --mobile-nav-inactive: #AEB0B6;
+  border-top: 1px solid #1F2226;
+  background: #2B2F35;
+}
+@media (max-width: 800px) {
+  .nova-shell-matchbook .nova-menu-button { border-color: #4A4D53; color: #FFFFFF; background: #383B41; }
+  .nova-shell-matchbook .nova-header-right .nova-mobile-search { color: #FFFFFF; background: transparent; }
+  /* nova.css squeezes the header theme button to 33px on phones; the switch needs its own 60px. */
+  .nova-shell-matchbook .nova-header-right .nova-header-theme .nova-theme-toggle { width: auto; height: auto; min-height: 44px; padding: 0; }
+  .nova-shell-matchbook .nova-header-right .nova-mobile-search:hover { background: #383B41; }
+  .nova-shell-matchbook .nova-header-right .nova-header-wallet + .nova-header-primary { margin-left: -6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-shell-matchbook .nova-header-right .nova-auth-register::after { display: none; animation: none; }
+}
+
+/* ------------------------------------------------------- phone header (2026-10-16) */
+/* Two bands on the charcoal bar. Top: menu, logo, then search, theme and the account avatar. Below, on a deeper
+   band: the wallet strip (balance, exposure) with a full-height red Deposit when signed in; Login | Register when
+   not. The left and right header groups dissolve (display: contents) so all their items sit on one grid. The
+   html … .nova-topbar prefix outranks the older phone rules in nova.css and panel-refresh.css. */
+@media (max-width: 800px) {
+  html .nova-shell-matchbook { --header-height: 108px; }
+  html .nova-shell-matchbook > .nova-topbar { height: var(--header-height); border-bottom: 0; background: #2B2F35; }
+  html .nova-shell-matchbook .nova-topbar .nova-topbar-inner { display: block; height: 100%; padding: 0; }
+  html .nova-shell-matchbook .nova-topbar .nova-topbar-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-rows: 54px 54px;
+    grid-template-areas:
+      "menu logo search theme profile"
+      "wallet wallet wallet deposit deposit";
+    align-items: center;
+    /* rows touch: an older rule's row gap pushed the wallet band below the header (4-10px by width) */
+    row-gap: 0;
+    column-gap: 4px;
+    height: 100%;
+    padding: 0;
+    background: linear-gradient(180deg, #2B2F35 0 54px, #202328 54px 100%);
+  }
+  html .nova-shell-matchbook .nova-topbar :is(.nova-header-left, .nova-header-right) { display: contents; }
+  html .nova-shell-matchbook .nova-topbar .nova-matchbook-product-nav,
+  html .nova-shell-matchbook .nova-topbar .nova-header-bonus { display: none; }
+
+  /* top band */
+  html .nova-shell-matchbook .nova-topbar .nova-menu-button { grid-area: menu; display: grid; width: 42px; height: 42px; margin-left: 6px; place-items: center; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+  html .nova-shell-matchbook .nova-topbar .nova-menu-button:hover { background: #383B41; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-logo { grid-area: logo; display: flex; justify-self: start; min-width: 0; max-width: 150px; max-height: 34px; margin: 0; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-logo :is(img, .nova-logo-image) { max-height: 34px; }
+  html .nova-shell-matchbook .nova-topbar .nova-mobile-search { grid-area: search; display: grid; width: 40px; min-width: 40px; height: 40px; min-height: 40px; margin: 0; padding: 0; place-items: center; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+  html .nova-shell-matchbook .nova-topbar .nova-mobile-search:hover { background: #383B41; }
+  html .nova-shell-matchbook .nova-topbar .nova-mobile-search svg { width: 20px; height: 20px; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-theme { grid-area: theme; position: static; display: inline-flex; margin: 0; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-profile { grid-area: profile; display: inline-flex; margin-right: 8px; }
+  html .nova-shell-matchbook .nova-topbar .nova-profile-trigger { display: grid; width: 38px; height: 38px; min-height: 38px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; }
+  html .nova-shell-matchbook .nova-topbar .nova-profile-trigger :is(.nova-profile-copy, .nova-profile-chevron) { display: none; }
+  html .nova-shell-matchbook .nova-topbar .nova-profile-initials { width: 36px; height: 36px; font-size: 13px; }
+  html .nova-shell-matchbook .nova-topbar .nova-profile-trigger[aria-expanded='true'] .nova-profile-initials { box-shadow: 0 0 0 2px #FFFFFF; }
+
+  /* bottom band: the wallet (icon tile, selected wallet and balance | exposure, chevron) and Deposit fill the whole
+     band, flush with its edges and with each other (owner's call: no padding here). */
+  html .nova-shell-matchbook .nova-topbar .nova-header-wallet { grid-area: wallet; display: flex; align-self: stretch; height: 100%; min-width: 0; margin: 0; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary { display: flex; flex: 1 1 auto; align-items: center; gap: 10px; width: 100%; min-width: 0; height: 100%; min-height: 0; padding: 0 10px 0 8px; border: 0; border-radius: var(--ui-radius); background: transparent; box-shadow: none; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary:hover,
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary[aria-expanded='true'] { background: rgb(255 255 255 / 5%); }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary .nova-wallet-icon { display: block; flex: none; box-sizing: border-box; width: 30px; height: 30px; padding: 6px; border-radius: var(--ui-radius); color: #FFFFFF; background: #43464C; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary :is(.nova-wallet-selected, .nova-wallet-exposure) { display: grid; gap: 2px; min-width: 0; padding: 0; border: 0; text-align: left; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary .nova-wallet-exposure { flex: none; padding-left: 10px; border-left: 1px solid #43464C; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary .nova-wallet-available { display: none; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary small { overflow: hidden; color: #A3A6AD; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; line-height: 1.15; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary strong { overflow: hidden; color: #FFFFFF; font-size: 15px; font-weight: 700; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary .nova-wallet-exposure strong { color: #FF6A6B; font-size: 13px; }
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-summary .nova-wallet-chevron { flex: none; width: 16px; height: 16px; margin-left: auto; color: #A3A6AD; }
+  /* panel-refresh.css makes it a 44px icon button below 560px and another rule gives it min-height: 44px;
+     width, min-height and max-height are pinned so it is exactly the band's height. */
+  html .nova-shell-matchbook .nova-topbar .nova-header-primary { grid-area: deposit; display: flex; box-sizing: border-box; align-self: stretch; justify-self: stretch; justify-content: center; align-items: center; gap: 7px; width: auto; min-width: 112px; height: 100%; min-height: 0; max-height: none; margin: 0; padding: 0 12px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: linear-gradient(180deg, #E0282B 0%, #C51A1B 100%); box-shadow: none; font-size: 15px; font-weight: 700; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-primary span { display: inline; }
+  /* a tablet-range rule hides this icon; the band always shows it */
+  html .nova-shell-matchbook .nova-topbar .nova-header-primary svg { display: block; flex: none; width: 18px; height: 18px; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-primary:hover { background: #A81516; }
+  /* the narrowest phones: the icon tile gives its room to the balance */
+  @media (max-width: 360px) {
+    html .nova-shell-matchbook .nova-topbar .nova-wallet-summary .nova-wallet-icon { display: none; }
+    html .nova-shell-matchbook .nova-topbar .nova-header-primary { min-width: 100px; padding: 0 10px; }
+  }
+  /* no deposit (credit play, deposits hidden): the wallet card takes the whole band */
+  html .nova-shell-matchbook .nova-topbar .nova-header-wallet:not(:has(~ .nova-header-primary)) { grid-column: 1 / -1; }
+
+  /* bottom band when signed out: Login | Register */
+  html .nova-shell-matchbook .nova-topbar .nova-auth-actions { display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-columns: 1fr 1fr; align-self: center; gap: 8px; height: 40px; margin: 0 8px; }
+  html .nova-shell-matchbook .nova-topbar .nova-auth-actions button { display: grid; width: 100%; height: 100%; min-height: 0; place-items: center; margin: 0; border-radius: var(--ui-radius); font-size: 15px; font-weight: 700; }
+  html .nova-shell-matchbook .nova-topbar .nova-auth-actions .nova-auth-login { border: 1px solid #55585E; color: #FFFFFF; background: #2B2F35; }
+  html .nova-shell-matchbook .nova-topbar .nova-auth-actions .nova-auth-register { border: 1px solid #B21718; color: #FFFFFF; background: linear-gradient(180deg, #E0282B 0%, #C51A1B 100%); box-shadow: 0 4px 12px rgb(197 26 27 / 35%); }
+  html .nova-shell-matchbook .nova-topbar .nova-auth-actions .nova-auth-register::after { display: none; }
+
+  html .nova-shell-matchbook .nova-topbar .nova-wallet-popover { top: calc(var(--header-height) + 6px); }
+
+  /* Withdraw is desktop only (the account sheet has it); the theme icon button matches the search icon. */
+  html .nova-shell-matchbook .nova-topbar .nova-header-withdraw { display: none; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-theme .nova-theme-icon { display: grid; width: 40px; min-width: 40px; height: 40px; min-height: 40px; padding: 0; place-items: center; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-theme .nova-theme-icon:hover { background: #383B41; }
+  html .nova-shell-matchbook .nova-topbar .nova-header-theme .nova-theme-icon svg { width: 20px; height: 20px; }
+}
+
+/* ------------------------------------------------------- news ticker (2026-10-29) */
+/* The admin's News Ticker (NewsTicker) as a deeper band under the header row: a red News tab, then the items
+   gliding left, each after a small red diamond. Chrome, so the same in both themes. With it the header grows
+   by the band; --header-height drives the shell grid, the sidebar, the rail and every sticky offset. */
+.nova-news-ticker { display: flex; align-items: stretch; height: 36px; overflow: hidden; border-top: 1px solid #1F2226; color: #E2E3E3; background: #202328; }
+.nova-news-label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px 0 18px;
+  color: #FFFFFF;
+  background: linear-gradient(180deg, #D42324 0%, #C51A1B 55%, #AE1516 100%);
+  box-shadow: 10px 0 14px -8px rgb(0 0 0 / 70%);
+  font-family: var(--font-inter);
+  font-size: 14px;
+  font-weight: 700;
+}
+.nova-news-label svg { width: 16px; height: 16px; }
+.nova-news-viewport {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  container-type: inline-size;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+.nova-news-viewport:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -2px; }
+.nova-news-track { display: flex; width: max-content; height: 100%; animation: nova-news-scroll var(--news-duration, 30s) linear infinite; }
+.nova-news-ticker:hover .nova-news-track,
+.nova-news-viewport:focus-within .nova-news-track { animation-play-state: paused; }
+/* Each copy is at least as wide as the band, so the loop never shows a gap. */
+.nova-news-items { display: flex; flex: none; align-items: center; min-width: 100cqw; margin: 0; padding: 0; list-style: none; }
+.nova-news-items li { display: inline-flex; align-items: center; padding-right: 40px; font-family: var(--font-inter); font-size: 14px; font-weight: 500; white-space: nowrap; }
+.nova-news-items li::before { content: ''; flex: none; width: 6px; height: 6px; margin: 0 14px 0 4px; background: #E5252A; transform: rotate(45deg); }
+@keyframes nova-news-scroll { to { transform: translateX(-50%); } }
+@media (min-width: 801px) {
+  /* 68px row + 36px band + the header's 1px bottom rule */
+  .nova-shell-matchbook:has(> .nova-topbar .nova-news-ticker) { --header-height: 105px; }
+}
+@media (max-width: 800px) {
+  /* 108px two-band phone header + 32px band */
+  html .nova-shell-matchbook:has(> .nova-topbar .nova-news-ticker) { --header-height: 140px; }
+  html .nova-shell-matchbook .nova-topbar .nova-topbar-inner:has(.nova-news-ticker) > .nova-topbar-row { height: 108px; }
+  .nova-news-ticker { height: 32px; border-top-color: #2B2F35; background: #1A1C20; }
+  .nova-news-label { gap: 5px; padding: 0 10px 0 12px; font-size: 13px; }
+  .nova-news-label svg { width: 14px; height: 14px; }
+  .nova-news-items li { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-news-track { animation: none; }
+  .nova-news-viewport { overflow-x: auto; scrollbar-width: none; }
+  .nova-news-items[aria-hidden] { display: none; }
+}
+
+/* ------------------------------------------------------- phone dock (2026-10-16) */
+/* MobileTabBar as a floating dock: a rounded charcoal bar lifted off the bottom edge. A red glow pill slides
+   (with a little spring) to the active tab, whose icon lifts and turns red; Bet Slip, as the middle tab, is a
+   raised red disc ringed in the dock colour, carrying the open-bet count. Chrome: the same in both themes. */
+html .nova-shell-matchbook .nova-mobile-nav {
+  padding: 0 10px calc(10px + env(safe-area-inset-bottom));
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--dock-count), minmax(0, 1fr));
+  max-width: 520px;
+  height: 64px;
+  margin: 0 auto;
+  border: 1px solid #3A3D43;
+  border-radius: var(--ui-radius);
+  background: rgb(43 47 53 / 96%);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 38%), inset 0 1px 0 rgb(255 255 255 / 6%);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+/* The glow travels between tabs; its red tick sits on the dock's bottom edge. */
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-glow {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: calc(100% / var(--dock-count) * var(--dock-active));
+  width: calc(100% / var(--dock-count));
+  transition: left .42s cubic-bezier(.34, 1.4, .5, 1), opacity .2s;
+  pointer-events: none;
+}
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-glow::before { content: ""; position: absolute; inset: 0 7px; border-radius: var(--ui-radius); background: linear-gradient(180deg, rgb(229 37 42 / 30%), rgb(229 37 42 / 8%)); box-shadow: inset 0 0 0 1px rgb(255 106 107 / 28%); }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-glow::after { content: ""; position: absolute; bottom: -8px; left: 50%; width: 20px; height: 3px; margin-left: -10px; border-radius: var(--ui-radius); background: #E5252A; box-shadow: 0 0 10px rgb(229 37 42 / 80%); }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-glow.is-hidden { opacity: 0; }
+
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: #A3A6AD;
+  background: transparent;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -4px; border-radius: var(--ui-radius); }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item:disabled { opacity: .5; cursor: default; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-icon { position: relative; display: grid; width: 26px; height: 26px; place-items: center; transition: transform .3s cubic-bezier(.34, 1.56, .64, 1), color .2s; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-icon svg { width: 21px; height: 21px; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-label { max-width: 100%; overflow: hidden; font-size: 10.5px; font-weight: 600; letter-spacing: .01em; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; transition: color .2s; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-active { color: #FFFFFF; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-active .nova-dock-icon { color: #FF6A6B; transform: translateY(-2px) scale(1.1); }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item:active .nova-dock-icon { transform: scale(.9); }
+
+/* Bet Slip in the middle: a raised red disc with a dock-coloured ring that reads as a notch in the bar. */
+/* The label lines up with the other tabs' labels; the disc rises above the bar. */
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center { justify-content: flex-end; gap: 4px; padding-bottom: 10px; color: #FFFFFF; }
+/* Disc and label overflow the bar together; neither may shrink (a shrunk label collapses to nothing). */
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center .nova-dock-label { flex: none; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center:focus-visible { outline: 0; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center:focus-visible .nova-dock-icon { outline: 2px solid #FFFFFF; outline-offset: 8px; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center .nova-dock-icon {
+  flex: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  color: #FFFFFF;
+  background: linear-gradient(155deg, #F0353A 0%, #C51A1B 55%, #8E1011 100%);
+  box-shadow: 0 0 0 5px #2B2F35, 0 0 0 6px #3A3D43, 0 10px 24px rgb(197 26 27 / 50%);
+}
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center .nova-dock-icon svg { width: 22px; height: 22px; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center.is-active .nova-dock-icon { color: #FFFFFF; transform: translateY(-3px) scale(1.06); box-shadow: 0 0 0 5px #2B2F35, 0 0 0 6px #E5252A, 0 12px 28px rgb(229 37 42 / 60%); }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center:active .nova-dock-icon { transform: scale(.93); }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-badge { position: absolute; top: -6px; right: -10px; min-width: 18px; height: 18px; padding: 0 4px; border: 2px solid #2B2F35; border-radius: var(--ui-radius); color: #FFFFFF; background: #C51A1B; font-size: 10px; font-style: normal; font-weight: 800; line-height: 14px; text-align: center; }
+html .nova-shell-matchbook .nova-mobile-nav .nova-dock-item.is-center .nova-dock-badge { top: -3px; right: -3px; color: #C51A1B; background: #FFFFFF; }
+@media (prefers-reduced-motion: reduce) {
+  html .nova-shell-matchbook .nova-mobile-nav :is(.nova-dock-glow, .nova-dock-icon, .nova-dock-label) { transition: none; }
+}

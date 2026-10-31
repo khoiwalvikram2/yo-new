@@ -1,0 +1,456 @@
+/* Worli Running Markets (/matka/worli). The route has no mockup page, so it is composed from the generic
+   table page's idioms (a page head, the stats, a filter row and one table card, M:3361-3409) and the
+   approved payments pages. Every rule cites the mockup rule it transcribes or is marked BEYOND-MOCKUP. The
+   table, card view and filter components import this module too. */
+
+/* BEYOND-MOCKUP: the payments pages' 16px rhythm between the stats, the filters and the table card
+   (DepositRequests.module.css .content); the mockup's own column gap is 20px (.gcol M:898). */
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- stats ---------- */
+
+/* The four stats (.kpis/.kpi M:808-850). The mockup steps them by viewport; here the row answers to its own
+   width, because the context panel takes its share of the page (definition of done item 17). A
+   ₹99,99,99,999.00 figure at 24px/700 needs about 290px of tile, so two across from 600px and four from
+   1200px (as the agent overview totals). BEYOND-MOCKUP: the 12px gap the legacy compact stats bar kept. */
+.statsZone {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+@container (min-width: 600px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1200px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- filters ---------- */
+
+/* BEYOND-MOCKUP: the advanced filters keep a steady width in the FilterBar row (the .card-tools row,
+   M:867) instead of growing to their content; the compact Filters popover stretches them to its width. */
+.dateField {
+  flex: 0 1 150px;
+  min-width: 132px;
+}
+
+.statusField {
+  flex: 0 1 220px;
+  min-width: 160px;
+}
+
+.sortField {
+  flex: 0 1 150px;
+  min-width: 120px;
+}
+
+/* The quick filters are a small seg (.seg.sm M:793-794). BEYOND-MOCKUP: four labelled segments do not fit a
+   phone row, so the strip scrolls sideways rather than wrapping, as the Exposure domain strip and the credit
+   tab strip do; the 4px block pad keeps a segment's focus ring inside the scroller and the negative block
+   margin cancels it in the layout. */
+.quickScroller {
+  min-width: 0;
+  max-width: 100%;
+  margin: -4px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.quickScroller::-webkit-scrollbar {
+  display: none;
+}
+
+.quickControl {
+  width: max-content;
+}
+
+.marketsCard {
+  min-width: 0;
+}
+
+/* ---------- table cells ---------- */
+
+/* The market cell: a decorative tile beside the name over its tags, laid out as the .who-cell is
+   (M:1008). The tile takes the feed tile's size and the violet ramp step the legacy trophy wore
+   (.ftile.v M:1064-1068); the hue carries no meaning. */
+.marketCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.marketTile {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--ui-radius);
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.marketBody {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.marketLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A live session's dot is the card head's live marker (.live i M:869). BEYOND-MOCKUP: it pulses, as the
+   legacy processing badge did. */
+.liveDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: var(--ui-radius-circle);
+  background: var(--ok);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* The name opens the market, as the legacy link-button did: the key cell's type (td.k M:997) with the
+   .linkbtn underline on hover (M:879-886). */
+.marketName {
+  max-width: 280px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--link, var(--acc-ink));
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.marketName:hover {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.marketName:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* The run date in the key cell's type (td.k M:997). */
+.dateCell {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* BEYOND-MOCKUP: the OPEN and CLOSE session times as two small tinted chips, the legacy blue and orange
+   chips on the blue and amber steps of the decorative ramp (.av.a5 M:1017 / .av.a4 M:1016). The side is
+   written out ("Open", "Close"); the legacy chips said it by colour and a hover tooltip. */
+.sessionTimes {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.sessionOpen,
+.sessionClose {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--ui-radius);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.sessionOpen {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.sessionClose {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+.sessionSide {
+  font-weight: 500;
+}
+
+.sessionTime {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* BEYOND-MOCKUP: bets per session, a caption over the count over the stake, the two sides split by a
+   hair rule. The caption takes the header's type (thead th M:984-988); the figures are tabular
+   (tbody td M:990-995). */
+.betSplit {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 0;
+}
+
+.betSide {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.betCaption {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.betCount {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.betStake {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.betDivider {
+  width: 1px;
+  height: 40px;
+  background: var(--hair);
+}
+
+/* Total stakes: the amount over its supporting lines, right-aligned figures (td.r M:996). */
+.figureStack {
+  display: inline-grid;
+  justify-items: end;
+  gap: 2px;
+  padding: 6px 0;
+}
+
+.figureMain {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.figureSub {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.figureNote {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+/* The exposure amount over its health bar (.mk M:1088-1090 draws a fixed 56px bar beside the amount;
+   here the bar sits under it, right-aligned with the figure). The cell is focusable so its breakdown
+   tooltip is reachable from the keyboard, as the kit Stat's tooltip is. */
+.exposureCell {
+  display: inline-grid;
+  justify-items: end;
+  gap: 6px;
+  padding: 4px 2px;
+  border-radius: var(--ui-radius);
+}
+
+.exposureCell:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.exposureMeter {
+  width: 72px;
+}
+
+/* BEYOND-MOCKUP: the breakdown tooltip's lines stack, as the legacy tooltip's did. */
+.tooltipLines {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.statusStack {
+  display: inline-grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+/* ---------- card view ---------- */
+
+.cardsState {
+  padding-bottom: 4px;
+}
+
+/* BEYOND-MOCKUP: the session tiles fill an auto-sizing grid, so the panel's 269px width change needs no
+   viewport query. */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* BEYOND-MOCKUP: a session tile is content inside the markets card, so it takes the inset ground the
+   snapshot tile uses (--surf-3, .stile M:1079) and a --line border rather than a second card's shadow. */
+.sessionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.sessionCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sessionCardTitleBlock {
+  min-width: 0;
+}
+
+/* The name in the feed title's type (.fbody b M:1071), clamped to two lines as before. */
+.sessionCardTitle {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sessionCardMeta {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.sessionCardTimes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sessionCardTime {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+/* BEYOND-MOCKUP: the bets and exposure figures sit side by side while both fit at full length and wrap
+   onto two rows when the tile is too narrow (an exposure of ₹10,00,000.00 and up is ordinary here), so a
+   figure is never cut off; only a figure wider than the whole tile breaks inside itself. */
+.sessionCardFigures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.sessionCardFigure {
+  flex: 1 1 auto;
+  min-width: min(100%, 96px);
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.sessionCardFigure dt {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sessionCardFigure dd {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot {
+    animation: none;
+  }
+
+  .marketName {
+    transition: none;
+  }
+}

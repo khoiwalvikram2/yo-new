@@ -1,0 +1,158 @@
+/* Tabs, line variant (the default for every admin tab strip, the owner 2026-10-29): the section bar of the
+   approved profile mockups (2026-10-28). A --surf bar in a --line border holds 50px text tabs; the current
+   one is in the accent ink with a 3px accent bar under it, and hairlines split the tabs into groups. On a
+   narrow screen the bar keeps its frame and the tabs scroll sideways inside it. Inside a dark card head the
+   head's token remap (Card.module.css) recolours it. The segmented strip lives in SegmentedControl.module.css. */
+.line {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 8px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  scrollbar-width: none;
+}
+
+.line::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 50px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+/* The bar under a tab is a pseudo-element: the shared radius policy rounds every element, which would
+   curl a border-bottom at its ends. */
+.tab::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+  transition: background var(--t-1) ease;
+}
+
+.tab:hover {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+.tab[aria-selected='true'] {
+  background: none;
+  color: var(--acc-ink);
+  font-weight: 700;
+}
+
+.tab[aria-selected='true']::after {
+  background: var(--acc);
+}
+
+/* the bar clips its overflow, so the ring sits inside the tab */
+.tab:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -4px;
+}
+
+.sm .tab {
+  height: 44px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+.icon {
+  display: inline-flex;
+  color: var(--ink-3);
+}
+
+.tab[aria-selected='true'] .icon {
+  color: inherit;
+}
+
+/* A grey chip after the label; the current tab's takes the accent's soft fill. */
+.count {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.tab[aria-selected='true'] .count {
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+}
+
+.divider {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 22px;
+  margin: 0 6px;
+  background: var(--line);
+}
+
+/* Vertical (a settings navigation): a column of rows; the accent bar sits on the current row's left. */
+.line[aria-orientation='vertical'] {
+  flex-direction: column;
+  padding: 8px;
+  overflow-x: visible;
+}
+
+.line[aria-orientation='vertical'] .tab {
+  width: 100%;
+  height: auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+}
+
+.line[aria-orientation='vertical'] .tab::after {
+  top: 6px;
+  right: auto;
+  bottom: 6px;
+  left: 0;
+  width: 3px;
+  height: auto;
+  border-radius: 0 3px 3px 0;
+}
+
+.line[aria-orientation='vertical'] .divider {
+  align-self: stretch;
+  width: auto;
+  height: 1px;
+  margin: 6px 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .tab::after {
+    transition: none;
+  }
+}

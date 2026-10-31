@@ -1,0 +1,97 @@
+/* The currencies table on /currency (W7 Task 199). The page has no mockup page; the card and table take the
+   generic table template (M:3361-3409) and its cell metrics (M:984-1007). What the mockup does not draw is
+   marked BEYOND-MOCKUP. */
+
+/* The currency cell: a decorative tile with the symbol beside the name and code, as the legacy cell. The
+   tile is the mockup's avatar shape (.av M:1009-1017) at the 34px size on the decorative blue ramp
+   (.av.a5 M:1017), never a status. */
+.currencyCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.symbolTile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.currencyText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The key cell's ink and weight (td.k M:996); the legacy cell truncated a long name, the full name stays
+   in the title. */
+.currencyName {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The second line takes the dim cell colour (td.dim M:997). */
+.currencyCode {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* BEYOND-MOCKUP: the legacy blue monospace code chip, on the .pill shape (M:1018-1023) and the decorative
+   blue ramp (.av.a5 M:1017) rather than a status tone. */
+.codePill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--ui-radius);
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Symbol and decimals keep the legacy medium weight in the body ink (td M:990-994). */
+.figure {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* The rate keeps the legacy monospace six-decimal figure, right-aligned by its column (td.r M:995). */
+.rate {
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The row's icon actions, end-aligned as .acts (M:1034). */
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}

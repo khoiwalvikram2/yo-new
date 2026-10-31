@@ -1,0 +1,333 @@
+/* Table primitives promoted from the approved Overview table (M:961-1007). All colours
+   resolve through shared tokens; the sticky action column is the documented beyond-mockup
+   extension needed by real queue pages. */
+
+.scroller {
+  /* The containing block of every absolutely positioned descendant (visually hidden labels of kit fields,
+     LoadingState's name, sr-only cell text). Without it they anchored to DataTable's .region outside this
+     clip, and in a wide table they stretched the card and the page (tasks 140, 145, 193, 195). */
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.scroller::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  border-radius: var(--ui-radius);
+}
+
+.scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--sb-h);
+}
+
+/* M:962-970. currentColor contributes alpha to the mask; it is not a painted colour. */
+.scroller.overflowing.atStart:not(.atEnd) {
+  -webkit-mask-image: linear-gradient(to right, currentColor calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, currentColor calc(100% - 32px), transparent);
+}
+
+.scroller.overflowing:not(.atStart):not(.atEnd) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    currentColor 32px,
+    currentColor calc(100% - 32px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    currentColor 32px,
+    currentColor calc(100% - 32px),
+    transparent
+  );
+}
+
+.scroller.overflowing.atEnd:not(.atStart) {
+  -webkit-mask-image: linear-gradient(to right, transparent, currentColor 32px);
+  mask-image: linear-gradient(to right, transparent, currentColor 32px);
+}
+
+.scroller:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+  border-radius: var(--ui-radius);
+}
+
+.table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+}
+
+.wide {
+  min-width: 720px;
+}
+
+.narrow {
+  min-width: 0;
+}
+
+.fill {
+  min-width: 100%;
+}
+
+.caption {
+  padding: 0 var(--card-pad) 10px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.table th,
+.table td {
+  padding-right: 7px;
+  padding-left: 7px;
+}
+
+.table th:first-child,
+.table td:first-child {
+  padding-left: var(--card-pad);
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: var(--card-pad);
+}
+
+/* A padded Card body already owns the outer inset. */
+.table.inset th:first-child,
+.table.inset td:first-child {
+  padding-left: 0;
+}
+
+.table.inset th:last-child,
+.table.inset td:last-child {
+  padding-right: 0;
+}
+
+.head th {
+  padding-top: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.body td {
+  height: 37px;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.body tr:last-child td {
+  border-bottom: 0;
+}
+
+.foot td {
+  height: 37px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.left {
+  text-align: left;
+}
+
+.right {
+  text-align: right;
+}
+
+.center {
+  text-align: center;
+}
+
+.table td.key {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.table td.dim {
+  color: var(--ink-3);
+}
+
+.table td.id {
+  color: var(--ink-2);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.table td.pos {
+  color: var(--pos-ink);
+}
+
+.table td.neg {
+  color: var(--neg-ink);
+}
+
+.interactive {
+  cursor: pointer;
+}
+
+.interactive:hover td {
+  background: var(--hover);
+}
+
+.interactive:active td,
+.open td {
+  background: var(--press);
+}
+
+.interactive:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* BEYOND-MOCKUP: queues keep the action cell visible while their ledger scrolls. */
+.table .stickyEnd {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--surf);
+  box-shadow: -1px 0 var(--hair);
+}
+
+.table .head .stickyEnd {
+  z-index: 2;
+}
+
+.interactive:hover .stickyEnd {
+  background: var(--hover);
+}
+
+.interactive:active .stickyEnd,
+.open .stickyEnd {
+  background: var(--press);
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). The kit's .tbl: 12px caps heads on
+   --surf-3 over a --line hairline, 14px body rows split by --line, a hover tint on every body row, and the
+   open row (the one whose detail surface is open: the current place) on the hover tint with a 3px red
+   inset edge. Cell colours (key/dim/id/pos/neg) stay with the base rules above, so nothing here sets a
+   body or footer colour. The 12px side padding goes through :where(.table) (0,1,2): it beats the base
+   7px (0,1,1) but still loses to the first/last-cell card inset (0,2,1), .inset (0,3,1) and DataTable's
+   40px select/expand cells (0,2,0). Borders change colour only, so `.body tr:last-child td` keeps its 0. */
+:global(html:not([data-skin='classic'])) .table {
+  font-variant-numeric: tabular-nums;
+}
+
+:global(html:not([data-skin='classic'])) :where(.table) :is(th, td) {
+  padding-right: 12px;
+  padding-left: 12px;
+}
+
+:global(html:not([data-skin='classic'])) .head th {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  border-bottom-color: var(--line);
+  background: var(--surf-3);
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+/* the sorted column's head reads in full ink; aria-sort="none" (sortable, unsorted) stays muted */
+:global(html:not([data-skin='classic'])) .head th:is([aria-sort='ascending'], [aria-sort='descending']) {
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .body td {
+  height: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-bottom-color: var(--line);
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+:global(html:not([data-skin='classic'])) .table td.key {
+  font-weight: 700;
+}
+
+/* A row that opens, drills into or expands something: its key cell (the name) reads in the link blue, so
+   the name says it can be clicked (the owner, 2026-10-21). A sub-line in the cell keeps its own muted colour. */
+:global(html:not([data-skin='classic'])) .table .interactive td.key {
+  color: var(--link);
+}
+
+/* totals row */
+:global(html:not([data-skin='classic'])) .foot td {
+  height: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top-color: var(--line-2);
+  background: var(--panel-2);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* Every body row tints on hover, as the kit draws it. A colspan cell is a loading/empty/error state or an
+   expansion, not a record, so it is left out. (0,4,3) also beats the sticky cell's --surf (0,2,0). */
+:global(html:not([data-skin='classic'])) .body tr:hover > td:not([colspan]) {
+  background: var(--hover);
+}
+
+:global(html:not([data-skin='classic'])) .body .open > td:not([colspan]) {
+  background: var(--hover);
+}
+
+:global(html:not([data-skin='classic'])) .body .open > td:first-child {
+  box-shadow: inset 3px 0 0 var(--acc);
+}
+
+/* (0,5,2): out-ranks the hover rule so a pressed row still answers */
+:global(html:not([data-skin='classic'])) .body .interactive:active > td:not([colspan]) {
+  background: var(--press);
+}
+
+:global(html:not([data-skin='classic'])) .table .stickyEnd {
+  box-shadow: -1px 0 var(--line);
+}

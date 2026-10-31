@@ -1,0 +1,240 @@
+/* /reporting/agents/performance (page migration C, W3 Task 132). The mockup draws this page through its
+   generic template (rep-agent M:2495-2503 rendered by M:3361-3409): the page head and one table card.
+   The page composes the kit and the reporting pieces in modules/reporting/ui; this file only stacks
+   them and styles what a cell holds. Colours are tokens. */
+
+/* Hide this report's shell scrollbar while retaining the shell's native scrolling. */
+:global(#main-content):has(.page) {
+  scrollbar-width: none;
+}
+
+:global(#main-content):has(.page)::-webkit-scrollbar {
+  display: none;
+}
+
+/* The sections stack like the content column .gcol (M:898): 20px apart, 16px on a phone (M:1605). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* The four figures (.kpis M:808-810). The mockup steps them by viewport; this row answers to its own
+   width, because the context panel takes 205px of it (definition of done item 17). A ₹99,99,99,999.00
+   figure needs about 290px of tile, so two across from 600px and four from 1200px (Task 127's measure). */
+.statsZone {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px; /* .kpis gap M:808 */
+}
+
+@container (min-width: 600px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1200px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* BEYOND-MOCKUP: the agent-type and domain rails (the segmented look of .seg M:777-794) keep their
+   one-line shape and scroll sideways in their own row when the column is narrower than they are,
+   with the mockup's thin scrollbar (M:488-495), as on the Agent Overview and Exposure reports. */
+.scroller {
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.scroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  border-radius: var(--ui-radius);
+}
+
+.rail {
+  width: max-content;
+}
+
+/* A domain's glyph sits beside its name as the segmented buttons draw it (.seg button M:781-785). */
+.optionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.optionIcon {
+  display: flex;
+  flex: none;
+}
+
+/* The table wrapper takes focus (tabindex -1) only when a pressed crumb has taken the drill-down path
+   away; it draws nothing. The table, its gutter (M:975-983) and its overflow cue (M:961-974) are the
+   kit's. */
+.tableHost {
+  min-width: 0;
+}
+
+.tableHost:focus {
+  outline: none;
+}
+
+/* BEYOND-MOCKUP: the drill-down path in the table's toolbar, where the legacy table head showed it.
+   The mockup draws no breadcrumb; the crumbs take the kit Breadcrumb's recipe as the reporting path
+   does (modules/reporting/ui/DrillDownBreadcrumbs.module.css: the topbar type stack M:717-719, link
+   states from .linkbtn M:879-886). The toolbar aligns its content to the end; the path takes the
+   row. Margins, padding and list-style are explicit because antd's unlayered `ol` margin still loads. */
+.drillPath {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crumbItem {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.separator {
+  flex: none;
+  margin: 0 4px;
+  color: var(--ink-3);
+}
+
+/* 28px tall so each crumb is a comfortable pointer target. */
+.crumb {
+  display: inline-block;
+  min-width: 0;
+  max-width: 220px;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 28px;
+  color: var(--ink-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crumbLink {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: color var(--t-1) var(--ease), text-decoration-color var(--t-1) var(--ease);
+}
+
+.crumbLink:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+
+.crumbLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.current {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The current crumb takes focus (tabindex -1) when the crumb that was pressed leaves the DOM. */
+.current:focus {
+  outline: none;
+}
+
+.current:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* A name in the key cell's ink and weight (td.k M:997) over a dim caption (td.dim M:998); the agent's
+   scheme pill (.pill M:1018-1023) sits on the caption line. */
+.entity {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.entityName {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.entityCaption {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* A domain cut over its `user% − agent% = cut%` line, both right-aligned in the cell. */
+.domainCut {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+/* The cut keeps the legacy green emphasis and GGR the legacy signed colours, on the semantic inks
+   (.kpi-d.up / .kpi-d.down M:839-840); a loss also carries its minus sign. */
+.amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gain {
+  color: var(--pos-ink);
+}
+
+.loss {
+  color: var(--neg-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crumbLink {
+    transition: none;
+  }
+}
+
+/* the phone step of the page's vertical rhythm (.gcol M:1605, .kpis M:1603) */
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+
+  .stats {
+    gap: 14px;
+  }
+}

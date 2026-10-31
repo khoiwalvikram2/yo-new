@@ -1,0 +1,95 @@
+/* Profile trigger. Ported from the mockup's account button .who, .tr-stack and .chev (R6 §a.6, M:733-748)
+   and its phone rule (R6 §a.7): below 768px only the avatar shows (spec decision 1). The kit Avatar styles
+   itself (Task 14). Tokens only (contracts §3.2). verify.sh gate 7 requires the keyboard focus rule
+   (topbar/ProfileMenu is on the contracts §1.4 list) and the reduced-motion block. Step 10 counts read
+   comments too, so this comment names no pseudo-class or media feature. */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--t-1) ease;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+/* The mockup's account name is 13px semibold (.who .tr-stack b). The cap keeps a long name from pushing
+   the topbar; the full name is still in the trigger's aria-label. */
+.name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  transition: color var(--t-1) ease;
+}
+
+.role {
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* Tailwind preflight makes svg display:block; the flex span keeps the Tabler chevron aligned (R5 §4 trap 22). */
+.chevron {
+  display: flex;
+  flex: none;
+  color: var(--ink-3);
+  transition: color var(--t-1) ease;
+}
+
+.trigger:hover .name,
+.trigger:active .name,
+.trigger[aria-expanded='true'] .name {
+  color: var(--acc-ink);
+}
+
+.trigger:hover .chevron,
+.trigger:active .chevron {
+  color: var(--ink-2);
+}
+
+/* floating-ui useRole('menu') sets aria-expanded on the trigger; the mockup's open state is a tone
+   change only, so the chevron does not turn. */
+.trigger[aria-expanded='true'] .chevron {
+  color: var(--ink-2);
+}
+
+@media (max-width: 767px) {
+  .stack,
+  .chevron {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger,
+  .name,
+  .chevron {
+    transition: none;
+  }
+}

@@ -1,0 +1,589 @@
+type Game {
+  id: ID!
+  tenant: String
+  name: String!
+  provider: String!
+  categories: [String!]!
+  jurisdictions: [String!]!
+  enabled: Boolean!
+  version: String!
+  rolloutPercent: Int!
+  featureFlags: [String!]!
+  errors24h: Int
+  depositBonusAllow: Boolean!
+}
+
+type ProviderMeta { 
+  id: ID!
+  tenant: String
+  name: String!
+  endpoint: String!
+  tokenMasked: String!
+  health: String!
+  lastSyncAt: String!
+}
+
+type RTPPoint { 
+  at: String!
+  value: Float!
+}
+
+type Incident { 
+  id: ID!
+  gameId: ID!
+  level: String!
+  message: String!
+  occurredAt: String!
+}
+
+type Jackpot { 
+  id: ID!
+  tenant: String
+  name: String!
+  tiers: [Tier!]!
+  pot: Float!
+  currency: String!
+  status: String!
+  updatedAt: String!
+}
+
+type CategoryNode { 
+  id: ID!
+  tenant: String
+  name: String!
+  parentId: ID
+  order: Int!
+}
+
+type CategoryTree { 
+  id: ID!
+  tenant: String
+  name: String!
+  parentId: ID
+  order: Int!
+  children: [CategoryTree!]!
+}
+
+input CategoryCreateInput { 
+  name: String!
+  parentId: ID
+}
+
+input CategoryReorderInput { 
+  id: ID!
+  parentId: ID
+  order: Int
+}
+
+input CategoryRenameInput { 
+  id: ID!
+  name: String!
+}
+
+type Limit { 
+  id: ID!
+  tenant: String
+  scope: String!
+  scopeId: String!
+  maxStake: Float!
+  maxPayout: Float!
+  currency: String!
+  updatedAt: String!
+}
+
+input LimitInput { 
+  scope: String!
+  scopeId: String!
+  maxStake: Float!
+  maxPayout: Float!
+  currency: String!
+}
+
+type Content { 
+  id: ID!
+  tenant: String
+  name: String!
+  locale: String!
+  body: String!
+  status: String!
+  updatedAt: String!
+}
+
+input ContentCreateInput { 
+  name: String!
+  locale: String
+  body: String
+}
+
+input ContentUpdateInput { 
+  id: ID!
+  name: String
+  locale: String
+  body: String
+}
+
+# --- Casino Management Hierarchy ---
+
+enum CasinoMainCategory { LIVE_CASINO CASINO SLOTS }
+enum CasinoCategoryType { GENERAL TOP FEATURED LOUNGE }
+
+type CasinoApiProvider {
+  id: ID!
+  key: String!
+  name: String!
+  status: String!
+  lastSyncAt: String
+}
+
+type CasinoVendor {
+  id: ID!
+  name: String!
+  slug: String!
+}
+
+type WhitelabelCasinoVendorSettings {
+  vendorId: ID!
+  enabled: Boolean!
+  displayOrder: Int
+  updatedAt: String
+}
+
+type CasinoVendorWithSettings {
+  id: ID!
+  name: String!
+  slug: String!
+  enabled: Boolean
+  gamesCount: Int
+  enabledGamesCount: Int
+  displayOrder: Int
+}
+
+type WhitelabelCasinoGameSettings {
+  enabled: Boolean!
+  order: Int
+  featured: Boolean
+  premiumOnly: Boolean
+  tags: [String!]
+}
+
+type CasinoGameLimits {
+  minStake: Float
+  maxStake: Float
+  maxWin: Float
+  maxWinTarget: String
+  maxWinPlayers: [String!]
+}
+
+type CasinoGameBetSettings {
+  id: ID!
+  gameId: ID!
+  playerId: String
+  playerName: String
+  playerPhone: String
+  betEnabled: Boolean!
+  minStake: Float
+  maxStake: Float
+  maxWin: Float
+  createdAt: String!
+  updatedAt: String!
+}
+
+type CasinoGame {
+  id: ID!
+  name: String!
+  slug: String!
+  mainCategory: CasinoMainCategory!
+  vendorId: ID!
+  vendorName: String!
+  thumbnailUrl: String
+  rtp: Float
+  demoUrl: String
+  isActive: Boolean!
+  tenantEnabled: Boolean
+  premiumOnly: Boolean
+  betSettingsCount: Int!
+  order: Int
+  featured: Boolean
+  limits: CasinoGameLimits
+  betSettings: [CasinoGameBetSettings!]
+  updatedAt: String
+  # True if the game is already assigned to any custom category (across all main categories)
+  categoryAssigned: Boolean
+}
+
+input GamesQueryInput {
+  providerId: ID  # Optional: if not provided, fetch games from all providers (for whitelabel admin)
+  category: CasinoMainCategory!
+  vendorId: ID
+  vipTierId: ID
+  search: String
+  enabled: Boolean
+  page: Int
+  pageSize: Int
+}
+
+type GamesPage {
+  total: Int!
+  page: Int!
+  pageSize: Int!
+  items: [CasinoGame!]!
+}
+
+type MutationResult { success: Boolean!, message: String }
+
+type VIPTierGameSetting {
+  tierId: ID!
+  gameId: ID!
+  enabled: Boolean!
+  updatedAt: String
+}
+
+type GameVIPTierSetting {
+  tierId: ID!
+  tierName: String
+  enabled: Boolean!
+  updatedAt: String
+}
+
+input CasinoGameLimitsInput {
+  minStake: Float
+  maxStake: Float
+  maxWin: Float
+  maxWinTarget: String
+  maxWinPlayers: [String!]
+}
+
+input CasinoGameBetSettingsInput {
+  playerId: String
+  betEnabled: Boolean!
+  minStake: Float
+  maxStake: Float
+  maxWin: Float
+}
+
+input VendorOrderInput {
+  vendorId: ID!
+  order: Int!
+}
+
+# --- Provider & Vendor sharing / analytics ---
+
+input ProviderInput {
+  key: String
+  name: String
+  status: String
+}
+
+type VendorStats {
+  vendorId: ID!
+  vendorName: String!
+  totalGames: Int!
+  activeGames: Int!
+}
+
+type ProviderWithVendors {
+  id: ID!
+  key: String!
+  name: String!
+  status: String!
+  lastSyncAt: String
+  vendors: [CasinoVendor!]!
+  vendorStats: [VendorStats!]!
+}
+
+type WhitelabelCasinoProviderSetting {
+  id: ID!
+  tenantId: String!
+  providerId: Int!
+  providerKey: String!
+  providerName: String!
+  enabled: Boolean!
+  displayOrder: Int
+}
+
+type WhitelabelCasinoVendorOverrideSetting {
+  id: ID!
+  tenantId: String!
+  vendorId: Int!
+  vendorName: String!
+  vendorSlug: String!
+  providerId: Int!
+  providerKey: String!
+  disabled: Boolean!
+}
+
+type WhitelabelCasinoGameOverrideSetting {
+  id: ID!
+  tenantId: String!
+  gameId: Int!
+  gameName: String!
+  externalId: String!
+  thumbnailUrl: String
+  vendorId: Int!
+  vendorName: String!
+  providerId: Int!
+  providerKey: String!
+  disabled: Boolean!
+}
+
+type WhitelabelCasinoGameOverrideSettingsPage {
+  items: [WhitelabelCasinoGameOverrideSetting!]!
+  total: Int!
+  hasMore: Boolean!
+}
+
+type CasinoProviderVendorShare {
+  vendorId: ID!
+  vendorName: String
+  sharePercentage: Float!
+  updatedAt: String
+}
+
+type ProviderAnalytics {
+  providerId: ID!
+  totalGGR: Float!
+  vendorBreakdown: [VendorAnalytics!]!
+}
+
+type VendorAnalytics {
+  vendorId: ID!
+  vendorName: String!
+  ggr: Float!
+  shareAmount: Float!
+  transactionCount: Int!
+}
+
+# --- Casino Custom Categories ---
+
+type CasinoLoungeGameImage {
+  gameId: ID!
+  imageData: String
+}
+
+input CasinoLoungeGameImageInput {
+  gameId: ID!
+  imageData: String
+}
+
+type CasinoCategory {
+  id: ID!
+  mainCategory: CasinoMainCategory!
+  type: CasinoCategoryType!
+  subtitle: String
+  name: String!
+  slug: String!
+  iconData: String
+  order: Int
+  isActive: Boolean!
+  gameCount: Int
+  createdAt: String!
+  updatedAt: String!
+}
+
+input CreateCasinoCategoryInput {
+  mainCategory: CasinoMainCategory!
+  type: CasinoCategoryType
+  subtitle: String
+  name: String!
+  slug: String!
+  iconData: String
+  isActive: Boolean
+}
+
+input UpdateCasinoCategoryInput {
+  type: CasinoCategoryType
+  subtitle: String
+  mainCategory: CasinoMainCategory
+  name: String
+  slug: String
+  iconData: String
+  isActive: Boolean
+}
+
+input ReorderCasinoCategoriesInput {
+  id: ID!
+  order: Int!
+}
+
+# Casino Bets
+enum CasinoBetStatus { pending active won lost cancelled void }
+
+type CasinoBet {
+  id: ID!
+  tenant: String
+  whitelabelId: String!
+  userId: String!
+  userName: String
+  userPhone: String
+  gameId: ID!
+  gameName: String
+  providerId: ID
+  providerCode: String
+  sessionId: String
+  vendorId: ID!
+  vendorName: String!
+  tableId: String
+  stake: Float!
+  payout: Float
+  winAmount: Float
+  netAmount: Float
+  status: CasinoBetStatus!
+  gameRoundId: String
+  transactionId: String
+  settledAt: String
+  currency: String!
+  metadata: JSON
+  createdAt: String!
+  updatedAt: String!
+  walletType: String
+  campaign: BetCampaignDetail
+}
+
+input CasinoBetsQuery {
+  tenant: String
+  whitelabelId: String
+  userId: String
+  gameId: ID
+  vendorId: ID
+  tableId: String
+  status: CasinoBetStatus
+  statuses: [CasinoBetStatus!]
+  dateFrom: String
+  dateTo: String
+  limit: Int
+  offset: Int
+}
+
+type CasinoBetsPage {
+  items: [CasinoBet!]!
+  total: Int!
+}
+
+# --- Live Casino Analytics (Subscriptions) ---
+
+"""
+Rolling-window KPIs for live casino activity.
+All monetary fields are raw numbers; clients must format via currency rules.
+"""
+type CasinoLiveKpis {
+  at: String!
+  betsPerMin: Float!
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  rtp: Float!
+  activePlayers: Int!
+}
+
+type CasinoGameStat {
+  gameId: ID!
+  gameName: String
+  thumbnailUrl: String
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+}
+
+type CasinoProviderStat {
+  providerId: ID!
+  providerName: String
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+}
+
+type CasinoVendorStat {
+  vendorId: ID!
+  vendorName: String
+  wagered: Float!
+  payouts: Float!
+  ggr: Float!
+  bets: Int!
+}
+
+type CasinoLiveBreakdown {
+  byGame: [CasinoGameStat!]!
+  byProvider: [CasinoProviderStat!]!
+  byVendor: [CasinoVendorStat!]!
+}
+
+type CasinoPlayerEvent {
+  id: ID!
+  userId: String!
+  userName: String
+  gameId: ID!
+  gameName: String
+  vendorName: String
+  status: CasinoBetStatus!
+  stake: Float!
+  payout: Float
+  at: String!
+}
+
+input LiveScope {
+  tenant: String
+  whitelabelId: String
+  windowMins: Int
+  matkaType: MatkaType
+}
+
+type CasinoLiveDashboard {
+  kpis: CasinoLiveKpis!
+  breakdown: CasinoLiveBreakdown!
+}
+
+extend type Subscription {
+  casinoLiveDashboard(scope: LiveScope): CasinoLiveDashboard!
+  casinoPlayerEvents(scope: LiveScope): CasinoPlayerEvent!
+}
+
+# --- Test Utilities (admin/internal) ---
+input CreateTestCasinoBetInput {
+  userId: Int!
+  gameId: ID!
+  stake: Float!
+  payout: Float
+  status: CasinoBetStatus
+}
+
+type GmagRoundDetailPayload {
+  url: String
+}
+
+extend type Mutation {
+  createTestCasinoBet(input: CreateTestCasinoBetInput!): CasinoBet!
+  settleTestCasinoBet(id: ID!, payout: Float, status: CasinoBetStatus!): CasinoBet!
+  gmagRoundDetail(roundId: String!, endTime: String!, providerCode: String!, language: String): GmagRoundDetailPayload
+}
+
+input CasinoSelectionInput {
+  providerId: ID
+  vendorId: ID
+  search: String
+  includeGameIds: [ID!]
+  excludeGameIds: [ID!]
+  page: Int
+  pageSize: Int
+}
+extend type Query {
+  casinoSelectionGames(input: CasinoSelectionInput!): CasinoSelectionPage!
+  casinoSelectionGameIds(providerId: ID!, gameIds: [ID!]!): [ID!]!
+}
+
+type CasinoSelectionGame {
+  id: ID!
+  name: String!
+  slug: String
+  mainCategory: CasinoMainCategory!
+  vendorId: ID!
+  vendorName: String
+  thumbnailUrl: String
+}
+type CasinoSelectionPage {
+  total: Int!
+  page: Int!
+  pageSize: Int!
+  items: [CasinoSelectionGame!]!
+}

@@ -1,0 +1,60 @@
+/* TimeField's own pieces; the face, input and states are TextField's (TextField.module.css). The clock
+   button opens the kit time list in place of the browser's picker, whose indicator is hidden here so the
+   field shows one icon. The button takes TextField's clear-button metrics: 28px wide at full height in
+   the classic look, the kit .ctl__clear 26px square with a 3px radius in the player skin. */
+.input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.clock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.clock:not(:disabled):hover,
+.clock[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.clock:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+}
+
+/* the disabled face already greys its text; the icon follows it */
+.clock:disabled {
+  color: inherit;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clock {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+:global(html:not([data-skin='classic'])) .clock {
+  width: 26px;
+  height: 26px;
+  margin-right: 6px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .clock:not(:disabled):hover,
+:global(html:not([data-skin='classic'])) .clock[aria-expanded='true'] {
+  background: var(--surf-3);
+  color: var(--ink);
+}

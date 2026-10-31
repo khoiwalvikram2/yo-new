@@ -1,0 +1,171 @@
+/* Statement parts in the matchbook theme: the wallet / sports / casino tables, their date cells, status chips
+   and tags, and the row details modal. Component classes (not page-scoped) because WalletTable is shared with
+   the Deposit and Withdrawal history lists and the details modal renders in a portal outside .nova-acct.
+   Phone layouts (stacked rows) and credit/debit colours live with the page in styles/account/statements.css. */
+
+/* ------------------------------------------------------------------ table */
+.nova-stmt-table-wrap { min-width: 0; background: var(--mb-panel); }
+.nova-stmt-scroll { max-height: 70vh; overflow: auto; overscroll-behavior: contain; }
+.nova-stmt-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--mb-text);
+  font-family: var(--font-inter);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.nova-stmt-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--mb-line);
+  color: var(--mb-muted);
+  background: var(--mb-soft);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.2;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.nova-stmt-table td { padding: 10px 12px; border-bottom: 1px solid var(--mb-line); line-height: 1.3; vertical-align: middle; }
+.nova-stmt-table tbody tr:last-child td { border-bottom: 0; }
+.nova-stmt-table tbody tr { background: var(--mb-panel); transition: background-color .12s; }
+.nova-stmt-table tbody tr:hover { background: var(--mb-soft); }
+.nova-stmt-table tr.is-clickable { cursor: pointer; }
+.nova-stmt-table :is(th, td).is-num { text-align: right; white-space: nowrap; }
+.nova-stmt-table :is(th, td).is-center { text-align: center; }
+/* Exchange side, as a thin stripe on the row's leading edge. */
+.nova-stmt-table tr.is-back > td:first-child { box-shadow: inset 3px 0 0 #8DCDF3; }
+.nova-stmt-table tr.is-lay > td:first-child { box-shadow: inset 3px 0 0 #F6AABA; }
+
+/* Cells */
+.nova-stmt-table .c-date { white-space: nowrap; }
+.nova-stmt-table td:is(.c-market, .c-selection, .c-result) { color: var(--mb-text); font-size: 13px; }
+.nova-stmt-table td.c-stake { color: var(--mb-ink); font-weight: 700; }
+.nova-stmt-table td.c-odds { color: var(--mb-ink); font-weight: 600; }
+.nova-stmt-table td.c-liab { color: var(--mb-muted); }
+.nova-stmt-table .c-id { white-space: nowrap; }
+.nova-stmt-sports .c-event { min-width: 190px; }
+.nova-stmt-casino .c-event { min-width: 150px; }
+
+.nova-stmt-sub { margin-top: 3px; color: var(--mb-muted); font-size: 12px; line-height: 1.3; }
+.nova-stmt-sub:empty { display: none; }
+.nova-stmt-title { color: var(--mb-ink); font-size: 15px; font-weight: 700; line-height: 1.25; }
+.nova-stmt-none { color: var(--mb-faint); }
+
+/* Date + time */
+.nova-stmt-date { display: grid; gap: 2px; line-height: 1.15; white-space: nowrap; }
+.nova-stmt-date-day { color: var(--mb-ink); font-size: 14px; font-weight: 600; }
+.nova-stmt-date-time { color: var(--mb-muted); font-size: 12px; }
+
+/* Wallet transaction type: plain text with a coloured key square, so it never reads as a status. */
+.nova-stmt-kind-cell { display: grid; justify-items: start; gap: 2px; min-width: 0; }
+.nova-stmt-kind { display: inline-flex; align-items: center; gap: 7px; color: var(--mb-ink); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.nova-stmt-kind::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: var(--ui-radius); background: #A3A1A7; }
+.nova-stmt-kind.is-deposit::before { background: #0B8040; }
+.nova-stmt-kind.is-withdrawal::before { background: #1B6FAE; }
+.nova-stmt-kind.is-bonus::before { background: #D98E04; }
+.nova-stmt-kind.is-referral::before { background: #6D3FC0; }
+.nova-stmt-kind.is-adjust::before { background: #66656B; }
+.nova-stmt-kind-cell .nova-stmt-sub { margin-top: 0; padding-left: 15px; }
+
+.nova-stmt-amount { color: var(--mb-ink); font-size: 15px; font-weight: 700; }
+.nova-stmt-pl { color: var(--mb-ink); font-weight: 700; }
+.nova-stmt-pl.is-up { color: var(--mb-green); }
+.nova-stmt-pl.is-down { color: var(--mb-error); }
+
+.nova-stmt-id-kind { color: var(--mb-faint); font-size: 12px; }
+.nova-stmt-id { color: var(--mb-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+
+/* Sport > League > Event: a small muted trail with the event name on its own line. */
+.nova-stmt-path { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; color: var(--mb-muted); font-size: 12px; line-height: 1.3; }
+.nova-stmt-path-sep { color: var(--mb-faint); white-space: pre; }
+.nova-stmt-path-part.is-event { flex: 0 0 100%; margin-top: 2px; color: var(--mb-ink); font-size: 15px; font-weight: 700; line-height: 1.25; }
+.nova-stmt-path-part.is-event > .nova-stmt-path-sep { display: none; }
+
+/* Back / Lay in the exchange price colours */
+.nova-stmt-side {
+  display: inline-block;
+  min-width: 42px;
+  padding: 3px 7px;
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.2;
+  text-align: center;
+}
+.nova-stmt-side.is-back { background: #8DCDF3; }
+.nova-stmt-side.is-lay { background: #F6AABA; }
+
+/* Casino wallet: outlined, so it does not compete with the filled status chip. */
+.nova-stmt-wallet-tag { display: inline-block; padding: 2px 7px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); color: var(--mb-text); background: var(--mb-panel); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.nova-stmt-wallet-tag.is-cash { border-color: var(--mb-green-line); color: var(--mb-green-ink); background: var(--mb-green-bg); }
+.nova-stmt-wallet-tag.is-bonus { border-color: var(--mb-amber-line); color: var(--mb-amber-ink); background: var(--mb-amber-bg); }
+.nova-stmt-wallet-tag.is-referral { border-color: rgb(109 63 192 / 30%); color: var(--mb-fancy-ink); background: rgb(109 63 192 / 12%); }
+
+/* Status: the shared .nova-acct-chip, plus an info tone for Processing / Settled. */
+.nova-stmt-status-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.nova-acct-chip.nova-stmt-status.is-info { color: var(--mb-blue-ink); background: var(--mb-blue-bg); }
+
+/* View (Deposit / Withdrawal history rows) */
+.nova-stmt-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
+  font-family: var(--font-inter);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+.nova-stmt-view-btn:hover { border-color: var(--mb-line-3); background: var(--mb-panel-2); }
+
+/* ------------------------------------------------------------ details modal */
+.nova-modal-layer:has(> .nova-statement-details-modal)::backdrop { background: rgb(20 21 24 / 55%); backdrop-filter: none; }
+.nova-modal-surface.nova-statement-details-modal {
+  --modal-width: 520px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--mb-text);
+  background: var(--mb-panel);
+  box-shadow: 0 10px 32px rgb(16 18 22 / 24%);
+  font-family: var(--font-inter);
+}
+.nova-statement-details-modal .nova-modal-header { align-items: center; min-height: 56px; padding: 8px 8px 8px 18px; border-bottom: 0; color: #FFFFFF; background: var(--mb-bar); }
+.nova-statement-details-modal .nova-modal-header h2 { color: #FFFFFF; font-size: 19px; letter-spacing: 0; }
+.nova-statement-details-modal .nova-modal-close { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
+.nova-statement-details-modal .nova-modal-close:hover { color: #FFFFFF; background: rgb(255 255 255 / 12%); }
+.nova-statement-details-modal .nova-modal-close:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -2px; }
+.nova-statement-details-modal .nova-modal-body { padding: 4px 18px 8px; }
+
+.nova-stmt-dl { display: grid; }
+.nova-stmt-dl-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 46px; padding: 9px 0; border-bottom: 1px solid var(--mb-line); }
+.nova-stmt-dl-row:last-child { border-bottom: 0; }
+.nova-stmt-dl-row.is-top { align-items: flex-start; }
+.nova-stmt-dl-row.is-id .nova-stmt-dl-label { color: var(--mb-faint); }
+.nova-stmt-dl-label { flex: none; color: var(--mb-muted); font-size: 14px; }
+.nova-stmt-dl-value { min-width: 0; max-width: 72%; color: var(--mb-ink); font-size: 15px; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.nova-stmt-dl-value.is-plain { color: var(--mb-text); font-weight: 400; }
+.nova-stmt-dl-value.is-strong { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-stmt-dl-value.is-num { font-variant-numeric: tabular-nums; }
+.nova-stmt-dl-value.is-capitalize { text-transform: capitalize; }
+.nova-stmt-dl-value .nova-stmt-date { justify-items: end; }
+.nova-stmt-dl .nova-stmt-path { justify-content: flex-end; color: var(--mb-muted); font-size: 13px; font-weight: 400; text-align: right; }
+.nova-stmt-dl .nova-stmt-path-part.is-event { font-size: 16px; }
+.nova-stmt-dl .nova-stmt-id { font-size: 13px; }
+@media (max-width: 380px) {
+  .nova-statement-details-modal .nova-modal-body { padding: 2px 14px 6px; }
+  .nova-stmt-dl-row { gap: 12px; }
+}

@@ -1,0 +1,135 @@
+/* Reports banner — the call-out band under the dashboard grid, transcribed from the approved
+   mockup. Sources: BANNER (M:1102-1127) and its phone step (M:1617-1618, inside
+   @media (max-width:767px), M:1589). Flat mockup class names are translated to camelCase
+   CSS-Module names; every declared value is the mockup's own.
+
+   Tokens only (contracts §3.2): no raw colour appears here. --banner, --banner-line, --wave and
+   --wave-2 are the mockup's own tokens, defined for both themes in src/ui/styles/tokens.css.
+
+   Two house rules the mockup does not need but a module does, because there is no global rule to
+   inherit: the CTA carries its own :focus-visible (the mockup gets it once at M:477), and its
+   transition is answered in the prefers-reduced-motion block at the foot of this file (the mockup
+   gets that once at M:1629).
+
+   Spacing above the band: the mockup gives .banner margin-top:20px. Here the band is a direct child
+   of the Overview tab's .stack, whose 20px gap already puts it there (16px on phones, the step the
+   rest of the page takes), so the margin is left out rather than doubled. */
+
+.banner {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  background: var(--banner);
+  border: 1px solid var(--banner-line);
+  border-radius: var(--ui-radius);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* decoration in the bottom-right corner, behind the content (which sits at z-index 1) */
+.wave {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.btile {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--ui-radius);
+  flex: none;
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.btext {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+  z-index: 1;
+}
+
+/* the mockup's .btext b, on the heading element that names the band: an h2, as every card title on
+   the page is. The margins are the mockup's global h1-h4/p reset (M:474), restated because antd's
+   reset.css gives both a bottom margin. dashboard.module.css now zeroes those for everything inside
+   .page as well; these two stay so the band is right on its own, wherever it is mounted. */
+.title {
+  display: block;
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.016em;
+}
+
+.text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+/* the mockup's .primary, on a link: an <a> has no button metrics to inherit, so the font and the
+   underline are set here */
+.primary {
+  height: 42px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  background: var(--acc);
+  color: var(--acc-on);
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
+  transition: background var(--t-1) ease;
+}
+
+.primary:hover {
+  background: var(--acc-h);
+}
+
+.primary:active {
+  background: var(--acc-a);
+}
+
+.primary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* M:1617-1618 — on a phone the band tightens and the CTA takes the full width under the text */
+@media (max-width: 767px) {
+  .banner {
+    padding: 18px;
+  }
+
+  .primary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ===================== REDUCED MOTION ===================== */
+/* The mockup kills motion globally (M:1629-1635); a module has to answer for its own
+   transitions, so the one declared above is listed here. */
+@media (prefers-reduced-motion: reduce) {
+  .primary {
+    transition: none;
+  }
+}

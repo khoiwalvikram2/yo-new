@@ -1,0 +1,17 @@
+/* BEYOND-MOCKUP: loyalty overview uses the approved summary/table/notice composition. */
+.workspace { display: grid; gap: 20px; min-width: 0; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.identity { display: flex; align-items: flex-start; gap: 12px; min-width: 180px; max-width: 300px; }
+.swatch { display: block; flex: none; width: 28px; height: 28px; border-radius: var(--ui-radius); border: 1px solid var(--line); }
+.name { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.secondary { color: var(--ink-3); font-size: 12px; }
+.issues { margin: 0; padding-left: 18px; display: grid; gap: 8px; color: var(--ink-2); font-size: 13px; overflow-wrap: anywhere; }
+@media (max-width: 1023px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .stats { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace { scroll-behavior: auto; }
+}

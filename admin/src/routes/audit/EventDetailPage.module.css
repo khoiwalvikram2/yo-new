@@ -1,0 +1,26 @@
+/* BEYOND-MOCKUP: audit detail uses approved cards, description lists and a responsive notes aside. */
+.layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 20px; align-items: start; }
+.stack { display: grid; gap: 18px; min-width: 0; }
+.stackSmall { display: grid; gap: 6px; min-width: 0; }
+.inline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.inline code { overflow-wrap: anywhere; }
+.secondary { font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+.notes { position: sticky; top: 18px; min-width: 0; }
+.changes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.changes > section { min-width: 0; }
+.before, .after { font-size: 13px; margin: 0; }
+.before { color: var(--neg-ink); }
+.after { color: var(--pos-ink); }
+.json { margin: 12px 0 0; padding: 12px; max-height: 384px; overflow: auto; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf-3); color: var(--ink-2); font-size: 11px; line-height: 1.65; scrollbar-width: thin; scrollbar-color: var(--sb) transparent; }
+.annotationList { display: grid; gap: 12px; max-height: 600px; overflow-y: auto; }
+.note { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: 1fr; }
+  .notes { position: static; }
+}
+@media (max-width: 600px) {
+  .changes { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .layout { scroll-behavior: auto; }
+}

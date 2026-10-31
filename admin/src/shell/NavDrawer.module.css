@@ -1,0 +1,74 @@
+/* Wrapper that holds rail + panel. Mockup: .nav{ display:flex; flex:none; height:100%; } (M:498) */
+.nav {
+  display: flex;
+  flex: none;
+  height: 100%;
+}
+
+/* Drawer mode (<1024px). Driven by a JS class, not a media query, so CSS and
+   useBreakpoint() can never disagree at fractional widths.
+   Mockup (M:1595-1601, at <=767px):
+   .nav{ position:fixed; top:0; bottom:0; left:0; z-index:80;
+     transform:translateX(calc(-1 * (var(--rail-w) + var(--panel-w))));
+     transition:transform var(--t-3) var(--ease); box-shadow:var(--sh-pop); }
+   .nav.open{ transform:none; }
+   visibility:hidden takes the closed drawer out of the tab order and the
+   accessibility tree; the delayed visibility step (same idiom as the mockup's
+   .ai, M:1276-1283) keeps it visible while it slides out. */
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--z-drawer);
+  transform: translateX(calc(-1 * (var(--rail-w) + var(--panel-w))));
+  box-shadow: var(--sh-pop);
+  visibility: hidden;
+  transition:
+    transform var(--t-3) var(--ease),
+    visibility 0s linear var(--t-3);
+}
+
+.drawer.open {
+  transform: none;
+  visibility: visible;
+  transition:
+    transform var(--t-3) var(--ease),
+    visibility 0s;
+}
+
+/* getFloatingProps() gives the drawer tabIndex=-1 (a blank-area click focuses
+   it, so Esc still reaches its onKeyDown); no ring for that. A keyboard focus
+   into the drawer (e.g. Shift+Tab back into it) still shows the shared ring. */
+.drawer:focus {
+  outline: none;
+}
+
+.drawer:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* Mockup .scrim (M:1128-1133): z-index 70 below the nav's 80. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-drawer) - 1);
+  background: var(--scrim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-2) ease;
+}
+
+.scrimOn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .drawer.open,
+  .scrim {
+    transition: none;
+  }
+}

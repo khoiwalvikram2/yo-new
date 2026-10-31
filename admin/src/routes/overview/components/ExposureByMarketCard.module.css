@@ -1,0 +1,247 @@
+/* Exposure by market — the rail card's table, transcribed from the approved mockup.
+
+   Sources: TABLES (M:960-1008) — .tw, .tw.narrow (M:973), the one gutter rule every table shares
+   (M:975-983), the thead/tbody metrics (M:984-1000) and .who-cell (M:1008) — and EXPOSURE
+   (M:1083-1091) — .mkt-ic, .bar and .mk. The card, its head, the "View all" link and the .tbl-pad
+   body are dashboard.module.css's own (card, cardHead, cardTitle, cardSub, cardTools, linkButton,
+   tblPad), so they are not repeated here. Flat mockup class names are translated to camelCase
+   CSS-Module names; every value in the TRANSCRIBED half is the mockup's own.
+
+   Tokens only (contracts §3.2): no raw colour appears here, every colour resolves through a custom
+   property defined in src/ui/styles/tokens.css. Nothing here is interactive or animated, so this
+   module needs no :focus-visible and no prefers-reduced-motion block; the one control in the card,
+   the "View all" link, is dash.linkButton and carries its own. */
+
+/* ============================================================================
+   TRANSCRIBED — M:960-1008, M:1083-1091
+   ============================================================================ */
+
+/* The mockup's .tw keeps a table that cannot fit from widening the page. Here it is a backstop
+   only; what keeps the table inside the rail is measured in BEYOND-MOCKUP below. It is also the
+   size container the narrow-rail rule there queries: a block that stretches to the card, so its
+   inline size never comes from its content, and a container cannot query itself, so that rule
+   styles the .bar and .mk inside it. */
+.tw {
+  overflow-x: auto;
+  container-type: inline-size;
+}
+
+/* .tw table plus .tw.narrow (M:971, M:973): the narrow table drops the 560px floor a ledger needs */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 0;
+}
+
+/* One gutter for every table in the file: 7px each side of a cell makes a 14px column gap, and the
+   outer cells step out to the card's own inset so the first and last column line up with the card
+   head above them (M:975-983). The body around the table is dash.tblPad, which adds no horizontal
+   padding, so this is the only inset. The market name is a row header (<th scope="row">), so the
+   rules name th and td alike. */
+.table th,
+.table td {
+  padding-left: 7px;
+  padding-right: 7px;
+}
+
+.table tr > :first-child {
+  padding-left: var(--card-pad);
+}
+
+.table tr > :last-child {
+  padding-right: var(--card-pad);
+}
+
+.table thead th {
+  text-align: left;
+  padding-bottom: 8px;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--hair);
+}
+
+.table tbody th,
+.table tbody td {
+  height: 37px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--hair);
+  font-variant-numeric: tabular-nums;
+}
+
+/* a row header would otherwise take the browser's bold, centred th */
+.table tbody th {
+  text-align: left;
+  font-weight: 400;
+}
+
+.table thead th.r,
+.table tbody td.r {
+  text-align: right;
+}
+
+.table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* the market cell: glyph + name on one line (M:1008) */
+.whoCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mktIc {
+  color: var(--ink-3);
+  display: flex;
+  flex: none;
+}
+
+/* A row's accent (data-accent; the Overview's colour pass): its glyph on a tinted tile, and the share bar's
+   fill (the skin's Meter fill reads --s1). Without the skin's accents the glyph stays muted. */
+.table tr[data-accent] .mktIc {
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--ui-radius);
+  background: var(--accent-bg, transparent);
+  color: var(--accent, var(--ink-3));
+}
+
+.table tr[data-accent] .bar {
+  --s1: var(--accent);
+}
+
+/* The kit Meter owns the track/fill; this consumer keeps the mockup's fixed 56px width. */
+.bar {
+  width: 56px;
+  flex: none;
+}
+
+/* the bar is fixed and leads, the amount takes the slack — so the bars share a left edge and the
+   amounts share a right edge down the column (M:1085-1088) */
+.mk {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.k {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ============================================================================
+   BEYOND-MOCKUP
+   ============================================================================ */
+
+/* The rail must never scroll sideways. .tw.narrow drops the 560px floor but keeps every cell on one
+   line, and the rail is narrowest at 1280px with the context panel open (the default): the card is
+   291.6px there, the table 290px. Three things keep the table inside it:
+   1. whole-unit amounts, as the mockup prints them (ExposureByMarketCard.tsx says why);
+   2. the Market column takes all the slack (width:100%) and may shrink below its content
+      (max-width:0 is the table-cell idiom for that); its names ellipsise, and so does its header,
+      so the no-wrap word "Market" no longer sets a floor under the column (it set one at 64.7px);
+   3. the bars go where the table is too narrow for them (the container rule below).
+   Amount and Share keep their full width, because a clipped figure would be a wrong one; the full
+   name stays in the DOM and in the title. Measured with Inter and real scrollbars at every viewport
+   width from 360 to 1920px in 10px steps, panel open and collapsed, en-IN and en-US, six rows with
+   "Special Bets" and "Others (3)" and a top market up to ₹99,99,99,999 / $999,999,999: the table
+   never scrolls. Even with the bars forced in it would only start to below a ~255px table, which
+   the shell never gives it. */
+.market {
+  width: 100%;
+  max-width: 0;
+}
+
+.table thead th.market {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* the name and, on the folded row, its count: the name ellipsises, the count never does */
+.name {
+  display: flex;
+  min-width: 0;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* " (n)" after "Others": pre keeps the leading space, which a flex item would otherwise drop */
+.count {
+  flex: none;
+  white-space: pre;
+}
+
+/* A narrow table drops the bars. With its bar the Amount column is 7 + 56 + 10 + amount + 7px, and
+   a name is left the table's width less 279px at this card's ceiling (₹99,99,99,999 beside a 100%
+   share; 277px for $999,999,999). So 320px is the narrowest table that still leaves a name 40px
+   with the bars in. Below it the bar and its 10px gap go, which gives the name 66px back; the Share
+   column already carries the number. Measured with Inter and a classic 10px scrollbar, at the
+   ceiling: at 1280px with the panel open (table 290px) the bars are off and a name has at least
+   76px, so a 78px name such as "Horse Racing" can lose its last letters; they come back at a
+   ~1378px viewport (a 320px table, names at least 41px), and at 1440px with the panel open (table
+   340px) they show with names at least 60px. On a phone the card inset is 14px, so a 360px phone
+   (table 320px) keeps its bars with names at least 48.8px. The folded row spends 21px (29px for a
+   two-digit count) of its name room on "(n)", which never shortens, so just above the threshold
+   "Others" itself can shorten to "O…" while its count stays whole. Nothing scrolls sideways at any
+   width from 360 to 1920px, panel open or collapsed, up to that ceiling. */
+@container (width < 320px) {
+  .bar {
+    display: none;
+  }
+
+  .mk {
+    gap: 0;
+  }
+}
+
+/* The head's left block, in place of dash.cardHeadLeft (flex: 1 1 auto), whose basis is the status
+   line's full width: when a failed poll lengthened that line, the head's flex-wrap pushed "View
+   all" onto a row of its own. From a zero basis the block only takes the room the link leaves, so
+   the link always stays on the title row and a long status line wraps inside the block instead. */
+.headLeft {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The body when there are no rows to draw: waiting for the first reading, nothing open, or a failure
+   with no reading. One box for all three, the snapshot rows' own rhythm — head bottom (14) + 10
+   above the line and 10 + 14 below it (M:1059-1060) — so switching between them never moves the
+   rail. */
+.state {
+  padding: 10px var(--card-pad) 24px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">): the title and its status share the
+   charcoal bar's one line, as the other panels' heads do (dashboard.module.css skin block). */
+:global(html:not([data-skin='classic'])) .headLeft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+:global(html:not([data-skin='classic'])) .tw {
+  padding-top: 4px;
+}

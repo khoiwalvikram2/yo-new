@@ -1,0 +1,221 @@
+/* /reporting/players/activity on the kit (page migration C, W3 Task 123). The mockup draws this page
+   with the generic table template (M:2504-2512 through M:3361-3409): page head, one table card. The
+   KPI row, filter bar and domain tabs it does not draw come from the mockup's dashboard idioms (the
+   KPI row M:808-810, the .seg strip M:777-794) and are marked BEYOND-MOCKUP where they adapt them. */
+
+/* The page column: the mockup's 20px rhythm between rows (.kpis margin M:808, .grid gap M:897), 16px on
+   a phone (M:1603-1604). */
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the KPI row decides its columns on its own width, not the viewport's (the context
+   panel takes 205px). The mockup's arithmetic (M:797-807) applied to the kit Stat card: 14px insets, a
+   40px tile, a 10px gap and the widest figure the page shows (~194px for ₹99,99,99,999.00 at 24px/700)
+   need a 274px card, so two across from 568px and four across from 1160px. One column below that,
+   with the phone gap, as .kpis does (M:808, M:1603). */
+.statsFrame {
+  min-width: 0;
+  container: player-activity-stats / inline-size;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+@container player-activity-stats (min-width: 568px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@container player-activity-stats (min-width: 1160px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* The domain strip keeps its natural width and scrolls sideways when the column is narrower, as the
+   legacy strip did; the thin scrollbar is the mockup's (M:488-495). */
+.domainScroller {
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.domainScroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.domainScroller::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  border-radius: var(--ui-radius);
+}
+
+.domainTabs {
+  width: max-content;
+}
+
+.panel {
+  min-width: 0;
+}
+
+/* The table card (.card M:853-856 and .tw M:961 through the kit Card and DataTable). It is an
+   inline-size container so the table's loading and empty states can be pinned to its visible width
+   below; nothing inside it is position: fixed. */
+.tableCard {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* BEYOND-MOCKUP: eighteen columns make the table far wider than the card, and the kit centres its
+   loading and empty states across the whole table, which put them out of sight at tablet and phone
+   widths. The state is held at the left of the scroller at the card's own width, as the legacy antd
+   table held its placeholder. Only the DataTable's state rows span columns in this table. */
+.tableCard td[colspan] > * {
+  position: sticky;
+  left: 0;
+  width: 100cqi;
+}
+
+/* An amount with its count in brackets: the count is the legacy small grey caption (12px, the dim
+   cell ink M:998), 4px after the figure. */
+.amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.count {
+  margin-left: 4px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* Colour that says what each figure is (the owner, 2026-10-21), on the app's meanings rather than
+   decoration: money in green and money out red (the Nth D/W report's deposits and withdrawals), the GGR in
+   its house sign, payouts amber, the agent in the agents' violet (the Contributors card), stakes and bets in
+   strong ink, and the supporting figures (frequency, average stake, days, an empty email) muted. A zero
+   reads muted so the rows that did something stand out. */
+.moneyIn,
+.gain {
+  color: var(--pos-ink);
+  font-weight: 600;
+}
+
+.moneyOut,
+.loss {
+  color: var(--neg-ink);
+  font-weight: 600;
+}
+
+.payout {
+  color: var(--h-amb);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.zero,
+.dim {
+  color: var(--ink-3);
+}
+
+.zero {
+  font-variant-numeric: tabular-nums;
+}
+
+.soft {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.strong {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent {
+  color: var(--h-vio);
+  font-weight: 600;
+}
+
+/* win rate: a 44px bar (full at 100%) before the figure */
+.rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.rateBar {
+  display: block;
+  width: 44px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.rateBar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--h-blu);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The phone number links to the player's profile: the mockup's .linkbtn (M:879-886). */
+.playerLink {
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease, color var(--t-1) ease;
+}
+
+.playerLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.playerLink:active {
+  color: var(--link, var(--acc-ink));
+  text-decoration-color: currentColor;
+}
+
+.playerLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .content {
+    gap: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playerLink {
+    transition: none;
+  }
+}

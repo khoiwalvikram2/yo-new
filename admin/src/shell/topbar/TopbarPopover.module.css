@@ -1,0 +1,232 @@
+/* Root of any topbar popover's content. The kit surface sets no type metrics and portals to
+   <body>, so the shared body metrics (contracts §3.3) are restated here. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  color: var(--ink);
+}
+
+/* head */
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.headText {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  display: block;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle {
+  display: block;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* scrolling body */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.body::-webkit-scrollbar { width: 10px; height: 10px; }
+.body::-webkit-scrollbar-track { background: transparent; }
+.body::-webkit-scrollbar-thumb {
+  background: var(--sb);
+  border-radius: var(--ui-radius);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.body::-webkit-scrollbar-thumb:hover { background-color: var(--sb-h); }
+
+/* foot */
+.foot {
+  flex: none;
+  padding: 6px;
+  border-top: 1px solid var(--hair);
+}
+
+.footAction {
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+.footAction:hover { background: var(--hover); color: var(--ink); }
+.footAction:active { background: var(--press); color: var(--ink); }
+.footAction:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+.footIcon {
+  display: flex;
+  flex: none;
+}
+
+.footIcon svg { display: block; }
+
+/* loading — a centred kit Spinner (currentColor) */
+.loading {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  color: var(--ink-3);
+}
+
+/* empty */
+.empty {
+  padding: 32px 16px 36px;
+  text-align: center;
+}
+
+.emptyTile {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius);
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.emptyTile svg { display: block; }
+
+.emptyText {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* a quieter one-line note (e.g. "No sharing data available") */
+.note {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  margin: 0;
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .footAction { transition: none; }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* The popover frame itself is Popover.module.css (3px --float card, --line-2 border). These panels portal to
+   <body>, so they keep the page tokens; only the head row is a bar, like a dialog head. All rules here
+   are (0,2,1) over the base (0,1,0); base :hover/:active (0,2,0) still apply where not restated. */
+
+/* Head: the kit's bar inside the popover's 1px frame, so its top corners take the frame's inner radius.
+   Light in the light theme (owner 2026-10-29): --head-bg with a hairline under it, page ink on it. In the
+   dark theme the bar stays charcoal and the rule after this one switches its tokens to on-charcoal values,
+   so the title, the notification count,
+   the "Clear all" link (--acc-ink) and the neutral wallet tile follow without rules of their own (the Topbar.module.css trick). */
+:global(html:not([data-skin='classic'])) .head {
+  --hover: var(--head-hover);
+  --press: var(--head-press);
+  min-height: 48px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--head-line);
+  border-radius: var(--ui-radius);
+  background: var(--head-bg);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])[data-theme='dark']) .head,
+:global(html:not([data-skin='classic']) [data-theme='dark']) .head {
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft);
+  --ink-3: var(--bar-muted);
+  --hover: rgba(255, 255, 255, .1);
+  --press: rgba(255, 255, 255, .16);
+  --surf-3: rgba(255, 255, 255, .1);
+  --hair: var(--chrome-line);
+  --line: var(--chrome-line-2);
+  --ring: #FFFFFF;
+  --acc-ink: #FFFFFF;
+  --acc-h: var(--chrome-soft);
+  color-scheme: dark;
+}
+
+:global(html:not([data-skin='classic'])) .title {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: normal;
+}
+
+:global(html:not([data-skin='classic'])) .subtitle {
+  margin-top: 1px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* Foot: the dialog foot's --panel-2 band with a hairline, bottom corners on the frame's inner radius. */
+:global(html:not([data-skin='classic'])) .foot {
+  border-top: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--panel-2);
+}
+
+:global(html:not([data-skin='classic'])) .footAction {
+  min-height: 34px;
+  border-radius: var(--ui-radius);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .emptyText {
+  font-size: 14px;
+  font-weight: 700;
+}

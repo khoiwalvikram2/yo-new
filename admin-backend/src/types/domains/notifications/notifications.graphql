@@ -1,0 +1,33 @@
+type Notification {
+  id: ID!
+  type: String!
+  category: String!
+  title: String!
+  message: String!
+  metadata: JSON
+  isRead: Boolean!
+  actionUrl: String
+  createdAt: String!
+}
+
+type NotificationStats {
+  totalUnread: Int!
+  generalUnread: Int!
+  taskUnread: Int!
+}
+
+extend type Query {
+  myNotifications(category: String, limit: Int, offset: Int): [Notification!]!
+  notificationStats: NotificationStats!
+}
+
+extend type Mutation {
+  markNotificationRead(id: ID!): Notification!
+  markAllNotificationsRead(category: String): Boolean!
+}
+
+extend type Subscription {
+  notificationReceived: Notification!
+}
+
+extend type Query { myNotification(id: ID!, category: String): Notification }

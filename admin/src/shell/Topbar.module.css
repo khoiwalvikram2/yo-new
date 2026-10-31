@@ -1,0 +1,149 @@
+.topbar {
+  flex: none;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--app);
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* 1024-1279px the burger is gone (drawer mode is <=1023px) and the Breadcrumb is not in yet (>=1280px),
+   so this wrapper is a zero-width flex item that still consumes the .topbar gap. Take it out of layout. */
+.left:empty { display: none; }
+
+/* mockup .burger is a bordered --surf tile, not the .iconbtn ghost face the kit gives every IconButton.
+   Doubled class so it beats the kit's .iconButton (0,1,0) and its
+   :not(:disabled, [aria-disabled='true']):hover (0,3,0) whatever order the two modules load in. */
+.burger.burger {
+  border: 1px solid var(--line);
+  background: var(--surf);
+  color: var(--ink-2);
+  transition: background var(--t-1) ease, border-color var(--t-1) ease;
+}
+
+.burger.burger:not(:disabled, [aria-disabled='true']):hover {
+  background: var(--hover);
+  border-color: var(--acc-soft-h);
+  color: var(--ink-2);
+}
+
+.burger.burger:not(:disabled, [aria-disabled='true']):active {
+  background: var(--press);
+  color: var(--ink-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burger.burger { transition: none; }
+}
+
+.search {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 460px;
+}
+
+.right {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@media (max-width: 1023px) {
+  .topbar {
+    padding: 0 18px;
+    gap: 12px;
+  }
+
+  .right {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    padding: 0 14px;
+    gap: 10px;
+    height: 56px;
+  }
+}
+
+@media (max-width: 400px) {
+  .right {
+    gap: 8px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Player skin (admin UI kit; off under <html data-skin="classic">). A charcoal bar in both themes.
+   Its tokens switch to the chrome values here, so every control inside it (breadcrumb, search, wallet
+   chips, date, bells, theme toggle, profile) follows without its own rules. Popovers, menus and the
+   search dialog portal to <body>, so they keep the page's panel colours.
+   --------------------------------------------------------------------------------------------- */
+:global(html:not([data-skin='classic'])) .topbar {
+  --app: var(--chrome);
+  --surf: var(--chrome-2);
+  --surf-3: var(--chrome-2);
+  --line: var(--chrome-line-2);
+  --hair: var(--chrome-line);
+  --hover: #43464C;
+  --press: var(--chrome-4);
+  --track: var(--chrome-3);
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft);
+  --ink-3: var(--chrome-muted);
+  --ring: #FFFFFF;
+  --acc-soft: rgba(255, 255, 255, .1);
+  --acc-soft-h: #62656B;
+  --acc-ink: #FFFFFF;
+  --line-2: var(--chrome-line-2);
+  --line-3: #62656B;
+  --panel-2: #43464C;
+  --field: var(--chrome-2);
+  --link: var(--chrome-link);
+  --disabled-bg: var(--chrome-3);
+  --disabled-fg: #8D8C92;
+  /* The bar is dark in both themes, so status colours take the dark-theme values here. */
+  --pos-ink: #3FD08A;
+  --ok: #5FE0A0;
+  --ok-bg: rgba(63, 208, 138, .16);
+  --warn: #F5C46A;
+  --warn-bg: rgba(240, 180, 76, .16);
+  --neg-ink: #FF8A82;
+  --neg-bg: rgba(255, 107, 97, .16);
+  --blue: #8CCBFA;
+  --blue-bg: rgba(93, 177, 240, .16);
+  /* Avatars in the bar: the default hue is the kit's red tile; the others take their dark-theme tints. */
+  --h-ind: #FFFFFF;
+  --h-ind-bg: var(--acc);
+  --h-vio: #B79CF0;
+  --h-vio-bg: rgba(183, 156, 240, .18);
+  --h-grn: #5FE0A0;
+  --h-grn-bg: rgba(63, 208, 138, .18);
+  --h-amb: #F5C46A;
+  --h-amb-bg: rgba(240, 180, 76, .18);
+  --h-blu: #8CCBFA;
+  --h-blu-bg: rgba(93, 177, 240, .18);
+  --h-red: #FF8A82;
+  --h-red-bg: rgba(255, 107, 97, .18);
+  color-scheme: dark;
+  background: var(--chrome);
+  border-bottom-color: var(--chrome-edge);
+  color: #FFFFFF;
+}

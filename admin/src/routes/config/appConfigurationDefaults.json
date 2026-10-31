@@ -1,0 +1,25 @@
+{
+  "theme": {
+    "primary": "#FF3B30",
+    "success": "#059669",
+    "warning": "#d97706",
+    "danger": "#dc2626",
+    "dark": {
+      "bgPage": "#0B0B0D",
+      "textPrimary": "#E7E7EA",
+      "textSecondary": "#9EA0A8",
+      "border": "#2E2E36"
+    },
+    "light": {
+      "bgPage": "#F5F5F5",
+      "textPrimary": "#111827",
+      "textSecondary": "#6B7280",
+      "border": "#E5E7EB"
+    }
+  },
+  "initialPrimary": "#2952E3",
+  "pwa": {
+    "themeColor": "#1890ff",
+    "backgroundColor": "#ffffff"
+  }
+}

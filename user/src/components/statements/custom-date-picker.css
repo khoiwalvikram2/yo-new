@@ -1,0 +1,84 @@
+/* CustomDatePicker (Statements custom range, Bonus history range) in the matchbook theme: a white hairline
+   trigger and a flat calendar with a charcoal month bar, square days and the selected day in theme red. */
+.nova-dp { position: relative; min-width: 0; font-family: var(--font-inter); }
+.nova-dp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  min-height: 38px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.nova-dp-trigger:hover { border-color: var(--mb-line-3); }
+.nova-dp-trigger.is-open { border-color: var(--mb-focus-border); box-shadow: 0 0 0 3px var(--mb-focus-ring); }
+.nova-dp-icon { flex: none; width: 16px; height: 16px; color: var(--mb-muted); }
+.nova-dp-value { flex: 1 1 auto; min-width: 0; overflow: hidden; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.nova-dp-value.is-placeholder { color: var(--mb-faint); }
+.nova-dp-clear { display: grid; flex: none; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; border-radius: var(--ui-radius); color: var(--mb-muted); background: transparent; cursor: pointer; }
+.nova-dp-clear:hover { color: var(--mb-ink); background: var(--mb-neutral-bg); }
+
+.nova-dp-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  width: 284px;
+  overflow: hidden;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
+  box-shadow: 0 6px 18px rgb(16 18 22 / 14%);
+}
+.nova-dp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 44px; padding: 0 4px; color: #FFFFFF; background: var(--mb-bar); }
+.nova-dp-title { font-size: 16px; font-weight: 700; letter-spacing: .01em; }
+.nova-dp-nav { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; cursor: pointer; }
+.nova-dp-nav:hover { background: rgb(255 255 255 / 12%); }
+.nova-dp-nav:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -2px; }
+.nova-dp-week, .nova-dp-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.nova-dp-week { padding: 8px 8px 6px; border-bottom: 1px solid var(--mb-line); background: var(--mb-soft); }
+.nova-dp-weekday { color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-align: center; text-transform: uppercase; }
+.nova-dp-grid { gap: 2px; padding: 6px 8px 8px; }
+.nova-dp-day {
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color .12s, border-color .12s;
+}
+.nova-dp-day:hover:not(:disabled) { background: var(--mb-soft); }
+.nova-dp-day.is-outside { color: var(--mb-faint); }
+.nova-dp-day.is-today { border-color: #C51A1B; color: var(--mb-red-text); font-weight: 700; }
+.nova-dp-day.is-selected { border-color: #C51A1B; color: #FFFFFF; background: #C51A1B; font-weight: 700; }
+.nova-dp-day.is-selected:hover:not(:disabled) { background: #A81516; }
+.nova-dp-day:disabled { color: var(--mb-line-2); cursor: not-allowed; }
+.nova-dp-day.is-today:disabled { border-color: var(--mb-red-line); }
+.nova-dp-foot { padding: 8px; border-top: 1px solid var(--mb-line); }
+.nova-dp-today {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.nova-dp-today:hover { border-color: #C51A1B; color: var(--mb-red-text); }

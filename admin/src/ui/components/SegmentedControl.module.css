@@ -1,0 +1,274 @@
+/* The mockup's .seg (M:778-794): a track rail of buttons with one of them pressed. Promoted out of the
+   dashboard, which built it first, so the period group, the tab strip and every page that needs a
+   small either/or control draw the same thing (page migration C, D14). Tabs.tsx shares this module. */
+.seg {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--track);
+  border-radius: var(--ui-radius);
+}
+
+/* the small rail (.seg.sm M:793-794): a filter row or a card head */
+.sm {
+  height: 34px;
+  padding: 3px;
+}
+
+.button {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  /* the mockup's seg buttons are text-only, so the icon row borrows the metrics of .ghost
+     (M:1762-1766) — the mockup's other small control with a leading glyph: a 15px svg on a 6px gap. */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+.sm .button {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+
+.button:hover {
+  color: var(--ink);
+  background: var(--surf);
+}
+
+.button:active {
+  background: var(--press);
+  color: var(--ink);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* the pill carries the emphasis; the weight stays put so selecting a segment never re-measures its
+   neighbours (M:788-792). A group states its choice with aria-pressed and a tablist states its with
+   aria-selected, so the accent answers to both — the two controls look identical, as the mockup draws
+   them. */
+.button[aria-pressed='true'],
+.button[aria-selected='true'],
+.button[aria-pressed='true']:hover,
+.button[aria-selected='true']:hover,
+.button[aria-pressed='true']:active,
+.button[aria-selected='true']:active {
+  background: var(--acc);
+  color: var(--acc-on);
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  cursor: not-allowed;
+  color: var(--ink-3);
+}
+
+.icon {
+  display: flex;
+  flex: none;
+}
+
+/* BEYOND-MOCKUP: a tab's count bubble (Tabs `count`) takes the soft Badge's metrics and colours; on the
+   selected tab it goes white on a translucent fill so it reads on the accent. */
+.count {
+  flex: none;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.button[aria-selected='true'] .count {
+  background: rgba(255, 255, 255, .22);
+  color: var(--acc-on);
+}
+
+/* BEYOND-MOCKUP: on a phone a two- or three-way control reads better filling the row than sitting in
+   the corner of it; the mockup does this for the period seg (M:1615-1616). */
+@media (max-width: 767px) {
+  .stretchPhone {
+    display: flex;
+    width: 100%;
+  }
+
+  .stretchPhone .button {
+    flex: 1;
+    justify-content: center;
+    padding: 0 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). This module draws two controls, and the
+   kit draws them differently, so the role attribute splits them:
+   - Tabs (role=tablist, aria-selected) is the kit's page-level .seg: a --surf strip in a --line border,
+     46px tabs (36px small) split by hairlines, the current tab filled red. It scrolls sideways rather
+     than wrapping, as the kit's does.
+   - SegmentedControl (role=group, aria-pressed) is the kit's compact .segc: a --hover trough with a
+     hairline, small 700 buttons in muted ink, the pressed one filled red.
+   Each [role] selector adds (0,1,0) over the shared rules above, and the selected/pressed rules come after
+   the hover rules of the same rank. */
+
+/* Tabs */
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] {
+  align-items: stretch;
+  gap: 0;
+  height: auto;
+  max-width: 100%;
+  padding: 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  scrollbar-width: none;
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='tablist']::-webkit-scrollbar {
+  display: none;
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button {
+  flex: 0 0 auto;
+  justify-content: center;
+  gap: 8px;
+  height: auto;
+  min-height: 46px;
+  padding: 0 20px;
+  border-right: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink-2);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button:last-child {
+  border-right: 0;
+}
+
+:global(html:not([data-skin='classic'])) .seg.sm[role='tablist'] .button {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button:hover,
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button:active {
+  background: var(--surf-3);
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button[aria-selected='true'],
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button[aria-selected='true']:hover,
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button[aria-selected='true']:active {
+  background: var(--acc);
+  color: #FFFFFF;
+}
+
+/* the strip clips its overflow, so the ring sits inside the tab */
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button:focus-visible {
+  outline-offset: -3px;
+}
+
+/* .seg .count: a grey bubble, white on a translucent fill on the selected (red) tab */
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .count {
+  min-width: 22px;
+  height: auto;
+  padding: 1px 6px;
+  background: var(--surf-3);
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* a dark wash on the red tab: white on it clears 4.5:1 (a white wash was 4.3:1) */
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button[aria-selected='true'] .count {
+  background: rgba(0, 0, 0, .24);
+  color: #FFFFFF;
+}
+
+/* SegmentedControl */
+:global(html:not([data-skin='classic'])) .seg[role='group'] {
+  flex-wrap: wrap;
+  gap: 2px;
+  height: auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--hover);
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='group'] .button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--ui-radius);
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .seg.sm[role='group'] .button {
+  height: 28px;
+  padding: 0 10px;
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='group'] .button:hover {
+  background: transparent;
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='group'] .button:active {
+  background: var(--press);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='group'] .button:is(:disabled, [aria-disabled='true']) {
+  background: transparent;
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .seg[role='group'] .button[aria-pressed='true'],
+:global(html:not([data-skin='classic'])) .seg[role='group'] .button[aria-pressed='true']:hover,
+:global(html:not([data-skin='classic'])) .seg[role='group'] .button[aria-pressed='true']:active {
+  background: var(--acc);
+  color: #FFFFFF;
+}
+
+@media (max-width: 767px) {
+  :global(html:not([data-skin='classic'])) .seg.stretchPhone[role='group'] .button {
+    padding: 0 8px;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 7: the focus ring inside the red current tab is white (the blue ring is 1.1:1 on red) */
+:global(html:not([data-skin='classic'])) .seg[role='tablist'] .button[aria-selected='true']:focus-visible {
+  outline-color: var(--acc-on);
+}

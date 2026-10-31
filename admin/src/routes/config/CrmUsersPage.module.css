@@ -1,0 +1,137 @@
+/* CRM Users (/config/crm-users, mockup M:2593-2600). The mockup draws it with the generic table template
+   (page head M:753-763, one table card M:1845-1853 filled by M:3361-3409). Its columns (Team, Assigned
+   Players) have no data here, so the cells keep the legacy content and take the table metrics
+   (M:979-1007); the seat allowance is the template's extra block above the table (the credit meter,
+   .credit M:1092-1096 with .bar M:1085-1091). Row actions are the .acts/.act idiom (M:1034-1042, the kit
+   Button's xs size). Anything the mockup does not draw is marked BEYOND-MOCKUP and derived from those rules
+   and the tokens; no colour is set outside tokens.css. */
+
+/* The legacy vertical Space (16px) between the notice and the card. */
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The legacy 240px whitelabel picker in .ph-right (M:763). On a phone it takes the row, as the header's
+   actions wrap (M:1612-1614). */
+.tenantSelect {
+  width: 240px;
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .tenantSelect {
+    width: 100%;
+  }
+}
+
+/* ---------- seat allowance (.credit M:1092-1096) ---------- */
+
+.seats {
+  max-width: 460px;
+  padding: 14px var(--card-pad) 18px;
+}
+
+/* .credit-top M:1093: the 12.5px secondary line above the bar. */
+.seatsText {
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* .bar M:1085: the full-width 6px track; the kit Meter draws the fill. */
+.seatsMeter {
+  width: 100%;
+}
+
+/* .credit-note M:1095 in the legacy warning ink (antd Text type="warning"). */
+.seatsFull {
+  margin: 8px 0 0;
+  color: var(--warn);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+/* ---------- table cells ---------- */
+
+/* The User cell: the key cell's ink and weight (td.k M:997) over the dim username (td.dim M:998). */
+.user {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.userName {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.userLogin {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* BEYOND-MOCKUP: the legacy role tags, as neutral pills (.pill M:1018-1023) that wrap inside the cell. */
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 320px;
+  padding: 6px 0;
+  white-space: normal;
+}
+
+.dim {
+  color: var(--ink-3);
+}
+
+/* The status pill over the legacy 11px reminder line. */
+.status {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 6px 0;
+}
+
+.statusNote {
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* .acts M:1034: actions end-aligned, 6px apart. BEYOND-MOCKUP: the five buttons wrap inside a bounded group,
+   as the legacy <Space wrap> did in its 330px column, so the sticky actions cell (Table .stickyEnd) never grows
+   wider than the table's scroll area. Unwrapped the group is about 360px, wider than the scroller on a phone
+   (about 345px at 375), where it covered every other column at any scroll position. At 260px the buttons sit
+   in two rows (Edit, Roles, Reset password / Suspend or Reinstate, Remove). */
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 260px;
+}
+
+/* Under 768px (Page padding 14px) the group narrows to three rows, so the cell is about 200px and the User
+   column stays readable beside it at scrollLeft 0. */
+@media (max-width: 767px) {
+  .rowActions {
+    max-width: 180px;
+  }
+}
+
+/* ---------- dialogs ---------- */
+
+/* The kit Form keeps its 20px rhythm between fields; this only stops the dialog body's copy size from
+   reaching the field labels (as the Change Password dialog does). */
+.form {
+  font-size: 13px;
+}

@@ -1,0 +1,167 @@
+/* Market identity, session summary and the fourteen-game selection workspace. */
+.m99-kit .m99-market-details { --m99-workspace-tint: #c51a1b08; min-width: 0; }
+.m99-kit[data-theme='dark'] .m99-market-details { --m99-workspace-tint: #ee55550b; }
+.m99-kit .m99-market-context { display: flex; align-items: center; gap: 18px; margin: 2px 0 13px; min-height: 33px; }
+.m99-kit .m99-market-context > .m99-back-button { font-size: 12px; min-height: 30px; padding: 4px 0; color: var(--m99-muted); }
+.m99-kit .m99-market-context > .m99-back-button:hover { color: var(--m99-brand); }
+.m99-kit .m99-market-context-path { display: flex; align-items: center; gap: 7px; color: var(--m99-muted); font-size: 11px; }
+.m99-kit .m99-market-context-path > svg { color: #a4a7ad; }
+.m99-kit .m99-market-context-actions { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+.m99-kit .m99-market-context-actions > .m99-icon-button { width: 31px; height: 31px; border: 1px solid var(--m99-border); border-radius: var(--ui-radius); background: var(--m99-surface); }
+.m99-kit .m99-workspace-switch { display: flex; align-items: center; gap: 9px; color: var(--m99-muted); font-size: 12px; }
+.m99-kit .m99-workspace-switch > select { min-width: 145px; padding: 7px 9px; border: 1px solid var(--m99-border); border-radius: var(--ui-radius); background: var(--m99-surface); color: var(--m99-ink); font: inherit; }
+.m99-kit .m99-market-hero { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 19px 22px; margin-bottom: 12px; border: 1px solid var(--m99-border); border-radius: var(--ui-radius); overflow: hidden; background: radial-gradient(ellipse at 90% 0, var(--m99-workspace-tint), transparent 65%), var(--m99-surface); }
+.m99-kit .m99-market-hero::before { content: ''; position: absolute; left: 0; top: 21px; bottom: 21px; width: 3px; background: #c51a1b; border-radius: var(--ui-radius); }
+.m99-kit .m99-market-identity { display: flex; align-items: center; gap: 15px; min-width: 0; }
+.m99-kit .m99-workspace-market-mark { display: grid; place-content: center; justify-items: center; gap: 6px; width: 57px; height: 64px; color: #c51a1b; background: #c51a1b0a; border: 1px solid #c51a1b15; border-radius: var(--ui-radius); font-size: 22px; font-weight: 700; flex-shrink: 0; }
+.m99-kit .m99-workspace-market-mark > svg { opacity: .65; }
+.m99-kit .m99-market-identity-status { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+.m99-kit .m99-market-identity-status > span:first-child { font-size: 9px; letter-spacing: 1.1px; font-weight: 600; color: var(--m99-muted); }
+.m99-kit .m99-market-identity-status .m99-badge { padding: 2px 6px; font-size: 8px; border-radius: var(--ui-radius); }
+.m99-kit .m99-market-details[data-market-status='Open'] .m99-market-identity-status .m99-badge > i { position: relative; }
+.m99-kit .m99-market-details[data-market-status='Open'] .m99-market-identity-status .m99-badge > i::after { content: ''; position: absolute; inset: -1px; border: 1px solid currentColor; border-radius: 50%; animation: m99-market-pulse 2.6s ease-out infinite; }
+.m99-kit .m99-market-identity h1 { font-size: 29px; color: var(--m99-ink); font-weight: 700; letter-spacing: -.4px; line-height: 1.15; }
+.m99-kit .m99-market-identity p { display: flex; align-items: center; gap: 7px; margin-top: 6px; font-size: 12px; color: var(--m99-muted); }
+.m99-kit .m99-market-identity p > span { color: #a8aab0; }
+.m99-kit .m99-workspace-result { position: relative; min-width: 240px; padding: 12px 18px; border: 1px solid #ffffff08; border-radius: var(--ui-radius); background: #2b2f35; color: white; overflow: hidden; }
+.m99-kit .m99-workspace-result::after { content: ''; position: absolute; top: -30px; right: -15px; width: 110px; height: 110px; border: 1px solid #ffffff08; border-radius: 50%; pointer-events: none; }
+.m99-kit .m99-workspace-result > span { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #bac0ca; letter-spacing: .5px; text-transform: uppercase; }
+.m99-kit .m99-workspace-result > span > i { width: 4px; height: 4px; background: #f08283; border-radius: 50%; }
+.m99-kit .m99-workspace-result small { margin-left: auto; color: #8d949e; font-size: 8px; }
+.m99-kit .m99-workspace-result > strong { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 6px; font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: .5px; }
+.m99-kit .m99-workspace-result > strong > span { display: flex; align-items: center; gap: 8px; }
+.m99-kit .m99-workspace-result .is-jodi { color: #ff8c90; }
+.m99-kit .m99-workspace-result i { color: #7c8490; font-size: 17px; font-style: normal; font-weight: 400; }
+.m99-kit .m99-market-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--m99-border); border-radius: var(--ui-radius); margin-bottom: 14px; overflow: hidden; background: var(--m99-surface); }
+.m99-kit .m99-market-summary > div { min-width: 0; padding: 12px 15px; border-right: 1px solid var(--m99-border); }
+.m99-kit .m99-market-summary > div:last-child { border-right: 0; }
+.m99-kit .m99-market-summary > div > span { display: flex; align-items: center; gap: 6px; color: var(--m99-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .3px; }
+.m99-kit .m99-market-summary strong { display: block; margin-top: 5px; color: var(--m99-ink); font-size: 22px; font-weight: 700; line-height: 1.2; }
+.m99-kit .m99-market-summary small { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin-top: 7px; font-size: 10px; color: var(--m99-muted); }
+.m99-kit .m99-market-summary small > b { color: var(--m99-text); font-size: 11px; font-weight: 500; }
+.m99-kit .m99-market-summary small > span { font-size: 9px; }
+.m99-kit .m99-market-details .m99-detail-tabs { margin-bottom: 14px; gap: 10px; }
+.m99-kit .m99-market-details .m99-detail-tabs > .m99-segmented { gap: 3px; padding: 3px; border-radius: var(--ui-radius); background: var(--m99-surface); }
+.m99-kit .m99-market-details .m99-detail-tabs > .m99-segmented > button { border: 0; border-radius: var(--ui-radius); padding: 7px 14px; font-size: 12px; }
+.m99-kit .m99-market-details .m99-detail-chart-links { gap: 7px; }
+.m99-kit .m99-market-details .m99-detail-chart-links > .m99-button { min-height: 32px; padding: 6px 10px; border: 1px solid var(--m99-border); border-radius: var(--ui-radius); color: var(--m99-muted); background: var(--m99-surface); font-size: 11px; }
+.m99-kit .m99-market-details .m99-detail-chart-links > .m99-button:hover { color: var(--m99-brand); border-color: #d4a3a3; }
+.m99-kit .m99-market-details .m99-game-picker { overflow: hidden; border-radius: var(--ui-radius); background: var(--m99-surface); }
+.m99-kit .m99-picker-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 17px 17px 14px; }
+.m99-kit .m99-picker-eyebrow { display: block; margin-bottom: 4px; color: var(--m99-brand); font-size: 9px; font-weight: 700; letter-spacing: 1.2px; }
+.m99-kit .m99-picker-heading h2 { display: flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 700; line-height: 1.2; }
+.m99-kit .m99-picker-heading h2 > .m99-badge { font-size: 10px; background: var(--m99-soft); color: var(--m99-muted); border: 1px solid var(--m99-border); border-radius: var(--ui-radius); }
+.m99-kit .m99-picker-heading p { font-size: 11px; margin-top: 5px; color: var(--m99-muted); }
+.m99-kit .m99-picker-progress { display: flex; align-items: center; gap: 16px; list-style: none; padding: 0; margin: 0; }
+.m99-kit .m99-picker-progress > li { display: flex; align-items: center; gap: 6px; color: #9498a0; font-size: 10px; white-space: nowrap; }
+.m99-kit .m99-picker-progress > li > span { display: grid; place-items: center; width: 21px; height: 21px; border: 1px solid var(--m99-border); border-radius: 50%; background: var(--m99-sidebar); font-size: 9px; }
+.m99-kit .m99-picker-progress > li:first-child > span { color: var(--m99-success); background: var(--m99-success-soft); border-color: transparent; }
+.m99-kit .m99-picker-progress > li[aria-current] { color: var(--m99-text); font-weight: 600; }
+.m99-kit .m99-picker-progress > li[aria-current] > span { color: #fff; background: #c51a1b; border-color: #c51a1b; }
+.m99-kit .m99-picker-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 9px 16px; border-top: 1px solid var(--m99-border); border-bottom: 1px solid var(--m99-border); background: var(--m99-sidebar); }
+.m99-kit .m99-picker-toolbar > .m99-segmented { gap: 3px; padding: 0; border: 0; background: transparent; border-radius: var(--ui-radius); }
+.m99-kit .m99-picker-toolbar > .m99-segmented > button { border: 0; border-radius: var(--ui-radius); padding: 5px 11px; font-size: 11px; font-weight: 500; color: var(--m99-muted); }
+.m99-kit .m99-picker-toolbar > .m99-segmented > button.is-active { color: #fff; background: #34383f; }
+.m99-kit .m99-picker-toolbar > span { color: var(--m99-muted); font-size: 10px; }
+.m99-kit .m99-market-details .m99-game-picker-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 14px 16px; gap: 10px; }
+.m99-kit .m99-market-details .m99-game-card { --m99-game-accent: #c51a1b; align-items: flex-start; text-align: left; min-height: 158px; padding: 13px 13px 0; border-radius: var(--ui-radius); background: linear-gradient(130deg, var(--m99-surface) 65%, var(--m99-workspace-tint)); transition: border-color .2s, box-shadow .2s, transform .2s; animation: m99-game-arrive .3s ease-out backwards; animation-delay: calc(var(--m99-game-order, 0) * 20ms); }
+.m99-kit .m99-market-details .m99-game-card::before { content: ''; position: absolute; top: 15px; right: 14px; width: 35px; height: 35px; border: 1px solid var(--m99-border); border-radius: 50%; opacity: .25; }
+.m99-kit .m99-market-details .m99-game-card:hover, .m99-kit .m99-market-details .m99-game-card:focus-visible { transform: translateY(-2px); border-color: #ce7b7d; box-shadow: 0 5px 13px #7821260b; background: var(--m99-surface); }
+.m99-kit .m99-market-details .m99-game-card-symbol { margin-bottom: 10px; width: 35px; height: 35px; border-radius: 50%; color: #fff; background: var(--m99-game-accent); border: 0; transition: transform .2s; }
+.m99-kit .m99-market-details .m99-game-card-symbol > svg { width: 23px; height: 23px; }
+.m99-kit .m99-market-details .m99-game-card:hover .m99-game-card-symbol { transform: rotate(-5deg); }
+.m99-kit .m99-market-details .m99-game-card-sequence { top: 23px; right: 24px; font-size: 10px; opacity: .8; }
+.m99-kit .m99-game-card-family { position: absolute; left: 58px; top: 26px; color: var(--m99-muted); font-size: 9px; letter-spacing: .5px; text-transform: uppercase; }
+.m99-kit .m99-market-details .m99-game-card > strong { font-size: 17px; font-weight: 700; line-height: 1.2; }
+.m99-kit .m99-market-details .m99-game-card-description { margin-top: 4px; margin-bottom: 11px; min-height: 14px; font-size: 11px; line-height: 1.3; }
+.m99-kit .m99-market-details .m99-game-card-footer { min-height: 31px; padding: 5px 0; font-size: 10px; color: var(--m99-muted); }
+.m99-kit .m99-game-card-footer > span { display: flex; align-items: center; gap: 4px; }
+.m99-kit .m99-game-card-footer > i { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; color: var(--m99-brand); background: #c51a1b08; font-style: normal; transition: transform .2s, background .2s, color .2s; }
+.m99-kit .m99-game-card:hover .m99-game-card-footer > i { background: #c51a1b; color: #fff; transform: translateX(2px); }
+.m99-kit .m99-picker-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 15px; padding: 10px 16px; border-top: 1px solid var(--m99-border); background: var(--m99-sidebar); color: var(--m99-muted); font-size: 10px; }
+.m99-kit .m99-picker-foot > span { display: inline-flex; align-items: center; gap: 5px; }
+.m99-kit[data-theme='dark'] .m99-workspace-market-mark { color: #ff8d90; background: #f66d7010; border-color: #f66d7024; }
+.m99-kit[data-theme='dark'] .m99-picker-eyebrow { color: #ff8589; }
+.m99-kit[data-theme='dark'] .m99-game-card-footer > i { color: #ff8d90; background: #f66d7010; }
+@keyframes m99-game-arrive { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 1200px) {
+  .m99-kit .m99-market-details .m99-game-picker-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .m99-kit .m99-market-summary > div { padding: 11px; }
+  .m99-kit .m99-market-summary strong { font-size: 20px; }
+  .m99-kit .m99-market-summary small { flex-wrap: wrap; }
+  .m99-kit .m99-picker-progress { gap: 10px; }
+}
+@media (max-width: 900px) {
+  .m99-kit .m99-market-details .m99-game-picker-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .m99-kit .m99-market-context-path { display: none; }
+  .m99-kit .m99-workspace-market-mark { width: 45px; height: 56px; font-size: 19px; }
+  .m99-kit .m99-workspace-result { min-width: 210px; padding: 12px; }
+  .m99-kit .m99-picker-progress { display: none; }
+}
+@media (max-width: 760px) {
+  .m99-kit .m99-market-context { gap: 10px; margin-bottom: 10px; }
+  .m99-kit .m99-workspace-switch { gap: 6px; font-size: 11px; }
+  .m99-kit .m99-workspace-switch > select { min-width: 135px; }
+  .m99-kit .m99-market-hero { gap: 15px; padding: 15px; }
+  .m99-kit .m99-market-identity h1 { font-size: 26px; }
+  .m99-kit .m99-market-identity p { font-size: 10px; gap: 5px; }
+  .m99-kit .m99-market-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .m99-kit .m99-market-summary > div { padding: 10px 12px; border-bottom: 1px solid var(--m99-border); }
+  .m99-kit .m99-market-summary > div:nth-child(2) { border-right: 0; }
+  .m99-kit .m99-market-summary > div:nth-last-child(-n+2) { border-bottom: 0; }
+  .m99-kit .m99-market-summary strong { font-size: 20px; }
+  .m99-kit .m99-market-summary > div > span { font-size: 9px; }
+  .m99-kit .m99-market-summary small { flex-wrap: nowrap; font-size: 9px; margin-top: 5px; }
+  .m99-kit .m99-market-summary small > b { font-size: 10px; }
+  .m99-kit .m99-market-summary small > span { font-size: 8px; }
+  .m99-kit .m99-market-details .m99-detail-tabs { gap: 8px; margin-bottom: 11px; }
+  .m99-kit .m99-market-details .m99-detail-tabs > .m99-segmented { width: auto; flex: 1; }
+  .m99-kit .m99-market-details .m99-detail-tabs > .m99-segmented > button { padding: 6px 11px; font-size: 11px; }
+  .m99-kit .m99-market-details .m99-detail-chart-links > .m99-button { padding: 6px 9px; font-size: 11px; }
+  .m99-kit .m99-picker-heading { padding: 14px 12px 12px; }
+  .m99-kit .m99-picker-heading h2 { font-size: 21px; }
+  .m99-kit .m99-picker-eyebrow { font-size: 8px; }
+  .m99-kit .m99-picker-toolbar { gap: 0; padding: 7px 10px; overflow-x: auto; scrollbar-width: none; }
+  .m99-kit .m99-picker-toolbar > span { display: none; }
+  .m99-kit .m99-picker-toolbar > .m99-segmented { flex-shrink: 0; }
+  .m99-kit .m99-picker-toolbar > .m99-segmented > button { padding: 5px 10px; font-size: 11px; }
+  .m99-kit .m99-market-details .m99-game-picker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 11px; }
+  .m99-kit .m99-market-details .m99-game-card { min-height: 147px; padding: 11px 10px 0; }
+  .m99-kit .m99-market-details .m99-game-card > strong { font-size: 15px; }
+  .m99-kit .m99-market-details .m99-game-card-description { font-size: 10px; min-height: 25px; margin-bottom: 8px; }
+  .m99-kit .m99-market-details .m99-game-card-symbol { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; }
+  .m99-kit .m99-market-details .m99-game-card-symbol > svg { width: 21px; height: 21px; }
+  .m99-kit .m99-game-card-family { left: 47px; top: 22px; font-size: 8px; }
+  .m99-kit .m99-market-details .m99-game-card::before { top: 13px; right: 8px; width: 29px; height: 29px; }
+  .m99-kit .m99-market-details .m99-game-card-sequence { top: 20px; right: 17px; font-size: 9px; }
+  .m99-kit .m99-market-details .m99-game-card-footer { font-size: 9px; }
+  .m99-kit .m99-picker-foot { padding: 9px 12px; font-size: 9px; }
+}
+@media (max-width: 580px) {
+  .m99-kit .m99-workspace-switch > span { display: none; }
+  .m99-kit .m99-market-context-actions { gap: 7px; }
+  .m99-kit .m99-market-hero { align-items: stretch; gap: 12px; padding: 14px; }
+  .m99-kit .m99-workspace-market-mark { display: none; }
+  .m99-kit .m99-market-identity { flex: 1; }
+  .m99-kit .m99-market-identity h1 { font-size: 24px; }
+  .m99-kit .m99-market-identity-status { flex-wrap: wrap; gap: 5px; }
+  .m99-kit .m99-market-identity-status > span:first-child { font-size: 7px; letter-spacing: .5px; }
+  .m99-kit .m99-market-identity-status .m99-badge { font-size: 7px; padding: 1px 5px; }
+  .m99-kit .m99-market-identity p { flex-wrap: wrap; gap: 2px 5px; font-size: 9px; }
+  .m99-kit .m99-workspace-result { display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 0 0 140px; padding: 10px; }
+  .m99-kit .m99-workspace-result > span { font-size: 8px; }
+  .m99-kit .m99-workspace-result > strong { font-size: 21px; gap: 4px; }
+  .m99-kit .m99-workspace-result > strong > span { gap: 4px; }
+  .m99-kit .m99-workspace-result i { font-size: 12px; }
+  .m99-kit .m99-market-details .m99-detail-tabs > .m99-segmented { flex-basis: 100%; }
+  .m99-kit .m99-market-details .m99-detail-chart-links { width: 100%; }
+  .m99-kit .m99-market-details .m99-detail-chart-links > .m99-button { flex: 1; }
+  .m99-kit .m99-game-card-family { font-size: 7px; letter-spacing: .2px; }
+}
+@media (hover: none) {
+  .m99-kit .m99-market-details .m99-game-card:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .m99-kit .m99-market-details .m99-game-card { animation: none; }
+  .m99-kit .m99-market-details .m99-game-card:hover, .m99-kit .m99-market-details .m99-game-card:focus-visible { transform: none; }
+}

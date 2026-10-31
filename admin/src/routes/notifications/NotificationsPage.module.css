@@ -1,0 +1,260 @@
+/* Notifications (M:2625-2635). The mockup draws this page with the generic table template (M:3361-3409),
+   Time / Type / Detail / Status columns over invented alerts; the page keeps the legacy feed instead: a
+   General / Tasks tab strip and rows grouped by day that open the notification. Rows are the mockup's
+   activity feed (.feed/.fitem M:1061-1073) made interactive with the queue row's states (tr.hit
+   M:1001-1006). The tab strip sits in the card head as a small rail (.seg.sm M:793-794). */
+
+.panel {
+  min-width: 0;
+}
+
+/* The error notice takes the card's closing inset (.card-head padding M:860-863 / --card-pad M:32). */
+.state {
+  padding: 0 var(--card-pad) var(--card-pad);
+}
+
+/* .feed M:1061: the list owns the card gutter and the 14px closing inset. The gutter stops 10px short
+   of --card-pad because every row carries those 10px as its own inset (.row), so a row's hover fill
+   bleeds into the gutter while the row stays inside its item, list and group. (Harness fix, lead pass:
+   pulling the rows out with a -10px margin instead overflowed all three by 10px.) */
+.feed {
+  padding: 0 calc(var(--card-pad) - 10px) 14px;
+}
+
+.group {
+  min-width: 0;
+}
+
+/* .dr-sec M:1151: 18px between sections, 8px down to the first row. */
+.group + .group {
+  margin-top: 18px;
+}
+
+/* The day label is the drawer's section rule (.dr-sec M:1151-1152). BEYOND-MOCKUP: the hairline that
+   runs on to the right edge is the legacy page's own rule beside its day label, drawn in --hair. The
+   10px inline margin is the rows' inset, so the label and its rule line up with the card head. */
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 10px 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.groupTitle::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hair);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* .fitem M:1062-1063: the hairline sits between rows, never under the last one. It is drawn in the
+   item's 1px bottom pad and inset by the rows' 10px, so it spans the card head's measure as before. */
+.item {
+  position: relative;
+  padding-bottom: 1px;
+}
+
+.item::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  bottom: 0;
+  left: 10px;
+  height: 1px;
+  background: var(--hair);
+}
+
+.item:last-child {
+  padding-bottom: 0;
+}
+
+.item:last-child::after {
+  content: none;
+}
+
+/* .fitem M:1062 made a link: a 12px gap, 10px of rhythm, and the row's own 10px inset, which sits in
+   the gutter the feed leaves for it (.feed) so the text still lines up with the card head. Hover and
+   press are tr.hit's (M:1001-1003); the inset focus ring is tr:focus-visible (M:1006). */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  position: relative;
+  padding: 10px;
+  border-radius: var(--ui-radius);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--t-1) ease;
+}
+
+.row:hover {
+  background: var(--hover);
+}
+
+.row:active {
+  background: var(--press);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* A row with no id has nowhere to go; it keeps the row's layout without its states. */
+.static {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+}
+
+/* .ftile M:1064: the 32px type tile. Read rows take the snapshot tile's neutral ground (.stile
+   M:1079); unread rows take the accent soft fill, as the legacy page drew an unread glyph in its
+   accent and a read one in grey. */
+.tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.unread .tile {
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+}
+
+/* .fbody M:1070 */
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* .fbody b M:1071. BEYOND-MOCKUP: an unread title is set in 600, so the state is not carried by the
+   tile's colour alone. */
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unread .title {
+  font-weight: 600;
+}
+
+/* BEYOND-MOCKUP: the legacy amount beside the title, in the positive ink the shell's notification
+   list uses for the same figure (shell/topbar/NotificationList.module.css .itemAmount). */
+.amount {
+  flex: none;
+  color: var(--pos-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* .fbody span M:1072: one line, ellipsised, as the legacy message was clamped to one line. */
+.message {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* .fage M:1073: the age line, with the user after a middle dot as before. */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  margin-top: 4px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A long user name wraps inside the row instead of pushing past it. */
+.meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The live marker's dot (.live i M:869) in the accent: the unread marker the legacy row drew. The
+   visually hidden "Unread" beside it carries the state for assistive tech. */
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: var(--ui-radius-circle);
+  background: var(--acc);
+}
+
+/* BEYOND-MOCKUP: the legacy chevron that appears while the row is pointed at; it also shows while the
+   row has keyboard focus. */
+.chevron {
+  flex: none;
+  display: flex;
+  margin-top: 3px;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity var(--t-1) ease;
+}
+
+.row:hover .chevron,
+.row:focus-visible .chevron {
+  opacity: 1;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .chevron {
+    transition: none;
+  }
+}

@@ -1,0 +1,54 @@
+/* BEYOND-MOCKUP: detail-tab toolbars, bundle expansion and eligibility transfers use existing kit
+   surface/line/ink/semantic tokens, with no theme-specific colours or dependency on legacy resets. */
+.stack { display: grid; gap: 20px; min-width: 0; }
+.tabs { min-width: 0; max-width: 100%; overflow-x: auto; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; min-width: 0; }
+.search { flex: 1 1 240px; min-width: 0; }
+.picker { flex: 1 1 180px; min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.game { display: flex; align-items: center; gap: 12px; min-width: 180px; }
+.thumbnail { display: block; width: 48px; height: 48px; flex: 0 0 48px; object-fit: cover; border-radius: var(--ui-radius); background: var(--surf-3); }
+.noImage { display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 48px; border-radius: var(--ui-radius); background: var(--surf-3); color: var(--ink-3); font-size: 10px; text-align: center; }
+.name { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.muted { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.6; }
+.weights { display: grid; gap: 16px; }
+.bundle { border: 1px solid var(--line); border-radius: var(--ui-radius); overflow: clip; }
+.bundleHead { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px; background: var(--surf-3); }
+.bundleToggle { display: flex; align-items: center; justify-content: space-between; flex: 1 1 220px; gap: 16px; padding: 0; background: none; border: 0; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.bundleToggle:focus-visible { outline: 2px solid var(--acc); outline-offset: 4px; border-radius: var(--ui-radius); }
+.bundleMeta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.bundleBody { padding: 20px; border-top: 1px solid var(--line); display: grid; gap: 16px; min-width: 0; }
+.panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.panel { padding: 16px; border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: var(--ui-radius); min-width: 0; background: var(--surf); }
+.excluded { border-left-color: var(--warn); }
+.over { outline: 2px solid var(--acc); outline-offset: 2px; }
+.panelTitle { margin: 0 0 12px; color: var(--ink); font-size: 14px; font-weight: 600; }
+.scroll { max-height: 320px; overflow: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--ui-radius); }
+.table { width: 100%; min-width: 280px; border-collapse: collapse; color: var(--ink); font-size: 12px; }
+.table th { background: var(--surf-3); color: var(--ink-3); font-weight: 500; text-align: left; }
+.table td, .table th { padding: 10px; border-bottom: 1px solid var(--line); }
+.row { user-select: none; }
+.dragging { opacity: .6; }
+.handle { border: 0; padding: 6px; background: none; color: var(--ink-3); border-radius: var(--ui-radius); cursor: grab; touch-action: none; display: flex; }
+.handle:hover { background: var(--surf-3); }
+.handle:active { cursor: grabbing; }
+.handle:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+@media (max-width: 767px) { .panels { grid-template-columns: minmax(0, 1fr); } .bundleHead, .bundleBody { padding: 14px; } .search, .picker { flex-basis: 100%; } }
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 6: the kit's 3px corner in place of the classic rounding. */
+:global(html:not([data-skin='classic'])) .thumbnail,
+:global(html:not([data-skin='classic'])) .noImage,
+:global(html:not([data-skin='classic'])) .panel,
+:global(html:not([data-skin='classic'])) .scroll {
+  border-radius: var(--ui-radius);
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">), Step 7: focus outlines are the kit's focus ring; the drag-over outline is the theme's red ink (--acc is a
+   deep red here, under 3:1 in dark) */
+:global(html:not([data-skin='classic'])) .bundleToggle:focus-visible,
+:global(html:not([data-skin='classic'])) .handle:focus-visible {
+  outline-color: var(--ring);
+}
+:global(html:not([data-skin='classic'])) .over {
+  outline-color: var(--acc-ink);
+}

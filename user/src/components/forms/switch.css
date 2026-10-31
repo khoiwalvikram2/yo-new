@@ -1,0 +1,39 @@
+/* On/off switch (forms/Switch): grey pill track, white knob; green with the knob on the right when on.
+   Sized by the switch itself so container rules (e.g. "buttons are 44px tall") cannot square it off. */
+button.nova-switch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 46px;
+  height: 26px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--mb-line-2);
+  border-radius: var(--ui-radius);
+  background: var(--mb-disabled-bg);
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color .18s, border-color .18s;
+}
+button.nova-switch.is-sm { width: 38px; height: 22px; border-radius: var(--ui-radius); }
+button.nova-switch.is-on { border-color: #0B8040; background: #0B8040; }
+button.nova-switch:disabled { opacity: .55; cursor: not-allowed; }
+button.nova-switch:focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 2px; }
+.nova-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+  transition: transform .18s cubic-bezier(.3, .7, .4, 1);
+}
+button.nova-switch.is-sm .nova-switch-knob { width: 16px; height: 16px; }
+button.nova-switch.is-on .nova-switch-knob { transform: translateX(20px); }
+button.nova-switch.is-sm.is-on .nova-switch-knob { transform: translateX(16px); }
+@media (prefers-reduced-motion: reduce) {
+  button.nova-switch, .nova-switch-knob { transition: none; }
+}

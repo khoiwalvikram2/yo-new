@@ -1,0 +1,297 @@
+/* Upload (kit p3 .drop / .files / .file). The classic skin has no upload drawing; it takes the same
+   geometry on its own tokens, and the player skin only swaps in the kit-only tokens below. */
+
+.root {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+}
+
+.legend {
+  padding: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* The real input stays in the form, out of sight and out of the tab order; the zone's button opens it. */
+.input,
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- drop zone ---------- */
+
+.drop {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 22px 16px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--t-1) ease, background-color var(--t-1) ease;
+}
+
+.drop:not(:disabled, [aria-busy='true']):hover,
+.over {
+  border-color: var(--acc);
+  background: var(--acc-soft);
+}
+
+.drop:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.drop[aria-busy='true'] {
+  cursor: progress;
+}
+
+.drop:disabled {
+  border-color: var(--line);
+  background: var(--surf-3);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: var(--ui-radius);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+}
+
+.prompt {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.browse {
+  color: var(--acc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.hint {
+  min-width: 0;
+  max-width: 60ch;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: var(--neg-ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* ---------- file rows ---------- */
+
+.files {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.fileError {
+  border-color: color-mix(in srgb, var(--neg-ink) 35%, transparent);
+  background: var(--neg-bg);
+}
+
+.thumb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 64px;
+  height: 42px;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cover img {
+  object-fit: cover;
+}
+
+.contain img {
+  object-fit: contain;
+}
+
+/* An ImagePreview filling the tile: its button and image take the tile's box instead of their own. */
+.zoom {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.zoom > button {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+}
+
+.zoom img {
+  border-radius: var(--ui-radius);
+}
+
+.ext {
+  padding: 0 4px;
+  text-align: center;
+}
+
+.main {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  display: block;
+  margin-top: 1px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.fileError .sub {
+  color: var(--neg-ink);
+  font-weight: 600;
+}
+
+.bar {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  background: var(--track);
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--s1);
+  transition: width 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drop,
+  .barFill {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* Kit .drop: a 1.5px --line-3 dash on --panel-2 and a charcoal --bar icon tile with a white glyph in both
+   themes; "browse" is the kit link colour; disabled is the kit's grey fill instead of the base opacity.
+   The legend follows the kit field label (14px 600), so it matches its sibling fields. */
+:global(html:not([data-skin='classic'])) .legend {
+  padding: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+:global(html:not([data-skin='classic'])) .drop {
+  border-color: var(--line-3);
+  background: var(--panel-2);
+}
+
+/* The base hover outranks the zone rule above; the drag-over class does not, so it is restated. */
+:global(html:not([data-skin='classic'])) .over {
+  border-color: var(--acc);
+  background: var(--acc-soft);
+}
+
+:global(html:not([data-skin='classic'])) .drop:disabled {
+  border-color: var(--line-2);
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+  opacity: 1;
+}
+
+:global(html:not([data-skin='classic'])) .icon {
+  background: var(--bar);
+  color: #FFFFFF;
+}
+
+:global(html:not([data-skin='classic'])) .browse {
+  color: var(--link);
+}
+
+:global(html:not([data-skin='classic'])) .drop:disabled .prompt,
+:global(html:not([data-skin='classic'])) .drop:disabled .browse {
+  color: var(--disabled-fg);
+}
+
+/* Player skin, Step 6: the drag-over wash stays the kit's red tint (--acc-soft is neutral here). */
+:global(html:not([data-skin='classic'])) .over {
+  background: var(--acc-tint);
+}

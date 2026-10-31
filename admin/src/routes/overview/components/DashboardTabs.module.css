@@ -1,0 +1,253 @@
+/* The Players, Financial, Agents and Time tabs' layout: a column of cards on the tab's own gap, pairs of
+   cards side by side once the tab is wide enough (a container query on the tab, not the viewport: the
+   context panel changes the width without the viewport moving), and the lists and tables inside them. */
+.tab {
+  container: dashboard-tab / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@container dashboard-tab (min-width: 960px) {
+  .pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pair.wideFirst {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+}
+
+.stack {
+  display: grid;
+  gap: 18px;
+}
+
+/* ---- Ranked lists (top stakers, depositors) ---- */
+.cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cols > div + div {
+  border-top: 1px solid var(--hair);
+}
+
+@container dashboard-tab (min-width: 760px) {
+  .cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cols > div + div {
+    border-top: 0;
+    border-left: 1px solid var(--hair);
+  }
+}
+
+.colLabel {
+  margin: 0;
+  padding: 12px var(--card-pad) 2px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.list {
+  margin: 0;
+  padding: 0 var(--card-pad) 6px;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.rank,
+.tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius);
+  background: var(--accent-bg, var(--surf-3));
+  color: var(--accent, var(--ink-2));
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.end {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.amount {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Money's direction in text only (the owner: coloured text, never coloured boxes). */
+.gain {
+  color: var(--viz-green, var(--pos-ink));
+}
+
+.loss {
+  color: var(--viz-rose, var(--neg-ink));
+}
+
+.link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.empty {
+  margin: 0;
+  padding: 14px var(--card-pad) 16px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.padded {
+  padding: 4px 0 2px;
+}
+
+/* ---- Statement rows (Money Flow) ---- */
+.statement {
+  display: grid;
+  margin: 0;
+  padding: 0 var(--card-pad) 8px;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(80px, 1.4fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hair);
+  font-size: 14px;
+}
+
+.line:last-child {
+  border-bottom: 0;
+}
+
+.line dt {
+  color: var(--ink-2);
+}
+
+.line dd {
+  margin: 0;
+}
+
+.lineTotal dt {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.lineTotal {
+  border-top: 1px solid var(--line-2);
+}
+
+/* The cash block and the revenue block are two lists, a little apart. */
+.statement + .statement {
+  margin-top: 4px;
+  border-top: 6px solid var(--surf-3);
+  padding-top: 4px;
+}
+
+.lineBar {
+  --s1: var(--accent, var(--ink-3));
+}
+
+.lineValue {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ---- Tables ---- */
+.scheme {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.meterCell {
+  display: grid;
+  grid-template-columns: minmax(60px, 1fr) 46px;
+  align-items: center;
+  gap: 8px;
+}
+
+.meterCell > span {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

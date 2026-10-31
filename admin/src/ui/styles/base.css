@@ -1,0 +1,46 @@
+/* The kit owns its preflight now: border-box, default spacing, media and native-control inheritance.
+   The base layer cannot override a component module's intentionally scoped presentation. */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  body, h1, h2, h3, h4, h5, h6, p, blockquote, figure, dl, dd { margin: 0; }
+  h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+  ul, ol { margin: 0; padding: 0; list-style: none; }
+  fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+  button, input, select, textarea, optgroup { margin: 0; font: inherit; letter-spacing: inherit; color: inherit; }
+  button { text-transform: none; }
+  a { color: inherit; text-decoration: none; }
+  table { border-collapse: collapse; border-color: inherit; text-indent: 0; }
+  img, svg, video, canvas { display: block; vertical-align: middle; }
+  img, video { max-width: 100%; height: auto; }
+}
+
+html, body {
+  margin: 0;
+  background: var(--app);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+
+/* Admin-wide scrollbar presentation, including portalled drawers and popovers.
+   Keep native scrolling and overflow rules intact. Firefox has no per-axis scrollbar styling;
+   Chromium/WebKit can hide the vertical track while keeping horizontal table scrollbars. */
+:where(html, body, body *) {
+  scrollbar-width: none !important;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  :where(html, body, body *) {
+    /* Either standard scrollbar property being non-auto bypasses WebKit's per-axis sizing.
+       Reset both: theme scrollbar-color otherwise leaves a native 15px track on Windows. */
+    scrollbar-width: auto !important;
+    scrollbar-color: auto !important;
+  }
+
+  :where(html, body, body *)::-webkit-scrollbar {
+    width: 0 !important;
+  }
+}

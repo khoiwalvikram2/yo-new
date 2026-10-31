@@ -1,0 +1,123 @@
+/* BEYOND-MOCKUP: the player detail workspace, profiles, wallet selectors, charts and nested
+   dialogs are derived from the kit. All admin surfaces remain token-based in both themes. */
+.stack { display: grid; gap: 20px; min-width: 0; }
+.profilePage { align-content: start; }
+/* The tab bar keeps its frame and scrolls its tabs inside it. */
+.tabScroll { min-width: 0; }
+.panel { min-width: 0; outline: none; }
+.panel:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: var(--ui-radius); }
+.profileHead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 20px; min-width: 0; }
+.identity { display: flex; gap: 14px; align-items: flex-start; min-width: 0; flex: 1; }
+.identityText { display: grid; gap: 10px; min-width: 0; }
+.avatar { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--h-ind-bg); color: var(--h-ind); }
+.playerName { margin: 0; color: var(--ink); font-size: 24px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.contact { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
+.financialGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.creditGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.moneyValue { display: block; white-space: normal; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.positive { color: var(--ok); }
+.negative { color: var(--neg-ink); }
+.auditStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.metadata { display: grid; gap: 10px; max-width: 420px; font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.metadata p { margin: 0; }
+.kpiGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 14px; }
+.kpiStat { min-width: 0; flex-direction: column; }
+.metricGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px 20px; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 40px 16px; color: var(--ink-3); }
+.chartGrid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+.chart { height: 260px; width: 100%; min-width: 0; }
+.grid :global(line) { stroke: var(--grid); }
+.axis :global(.recharts-cartesian-axis-line), .axis :global(.recharts-cartesian-axis-tick-line) { stroke: var(--axis); }
+.axis :global(.recharts-cartesian-axis-tick-value) { fill: var(--tick); font-size: 12px; }
+.line :global(.recharts-curve) { stroke: var(--s1); }
+.line :global(.recharts-dot) { stroke: var(--s1); fill: var(--surf); }
+.chart :global(.recharts-active-dot circle) { stroke: var(--s1); fill: var(--surf); }
+.pie0 { fill: var(--h-blu); }
+.pie1 { fill: var(--h-vio); }
+.pie2 { fill: var(--h-grn); }
+.pie3 { fill: var(--h-amb); }
+.pie4 { fill: var(--h-red); }
+.chart :global(.recharts-pie-label-text) { fill: var(--ink); font-size: 12px; }
+.chartTooltip { background: var(--float); color: var(--ink); border: 1px solid var(--line); border-radius: var(--ui-radius); padding: 10px 12px; box-shadow: var(--sh-pop); font-size: 12px; }
+.timeline { display: grid; gap: 14px; list-style: none; margin: 0; padding: 0; }
+.timelineItem { border-inline-start: 2px solid var(--line); padding-inline-start: 14px; display: grid; gap: 6px; }
+.subtle { color: var(--ink-3); font-size: 12px; overflow-wrap: anywhere; }
+.text { color: var(--ink-2); font-size: 13px; overflow-wrap: anywhere; }
+.tableFooter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px var(--card-pad); border-top: 1px solid var(--hair); color: var(--ink-3); font-size: 12px; }
+.link { color: var(--acc-ink); text-decoration: none; overflow-wrap: anywhere; }
+.link:hover { text-decoration: underline; }
+.link:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: var(--ui-radius); }
+.note { display: grid; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--hair); }
+.note:last-child { border-bottom: 0; }
+.pinned { padding-inline-start: 14px; border-inline-start: 3px solid var(--warn); }
+.noteContent { color: var(--ink); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.detail { display: grid; gap: 20px; padding: 20px; min-width: 0; }
+.json { margin: 0; padding: 12px; border-radius: var(--ui-radius); background: var(--surf-3); color: var(--ink-2); font: 12px/1.6 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; }
+.progress { display: grid; gap: 8px; min-width: 140px; }
+.reference { display: grid; gap: 6px; }
+.qr { width: 96px; height: 96px; object-fit: contain; border: 1px solid var(--line); border-radius: var(--ui-radius); }
+@media (max-width: 1023px) { .chartGrid { grid-template-columns: 1fr; } .kpiGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .metricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .fields { grid-template-columns: 1fr; } .financialGrid, .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpiStat { flex-direction: column; } .financialGrid .moneyValue, .kpiGrid .moneyValue { font-size: 18px; line-height: 1.4; } .metricGrid { grid-template-columns: 1fr; } .actions > button { flex: 1; } }
+
+/* 2026-10-28 redesign (the approved player-profile mockup). The head: who the player is, the actions, then a
+   strip of wallet figures across the card's foot. */
+/* The page title row carries the actions; the page's own gap is the only space under it. */
+.pageHeader.pageHeader { margin-bottom: 0; }
+.summary { display: grid; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf); }
+.summaryTop { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 20px; padding: 20px var(--card-pad); min-width: 0; }
+.summaryAvatar.summaryAvatar.summaryAvatar { width: 56px; height: 56px; font-size: 20px; flex: none; }
+.nameRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; color: var(--ink-2); font-size: 13px; min-width: 0; }
+.metaItem { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.metaLabel { color: var(--ink-3); }
+.metaValue { display: inline-flex; align-items: center; gap: 2px; min-width: 0; color: var(--ink); }
+.menuLabel { display: inline-flex; align-items: center; gap: 6px; }
+.summaryNotice { padding: 0 var(--card-pad) 16px; }
+.walletStrip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--hair); background: var(--panel-2, var(--surf-3)); }
+.walletStripCredit { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.walletCell { display: grid; gap: 4px; min-width: 0; padding: 14px var(--card-pad); border-inline-end: 1px solid var(--hair); }
+.walletCell:last-child { border-inline-end: 0; }
+.walletLabel { color: var(--ink-3); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.walletValue { margin: 0; color: var(--ink); font-size: 22px; font-weight: 700; line-height: 1.2; }
+
+/* The period every dated figure reads, and the Overview's wallet + period row above its KPIs. */
+.controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; min-width: 0; }
+.period { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; min-width: 0; }
+.periodBar { margin-bottom: 16px; }
+
+/* Overview: the period's figures in a wide column, the player's facts in a narrow one; the narrow one drops
+   under the wide one when there is no room for both. */
+.overview { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px; min-width: 0; }
+.overviewMain { flex: 999 1 640px; display: grid; gap: 20px; min-width: 0; container: profile-main / inline-size; }
+.overviewSide { flex: 1 1 320px; display: grid; gap: 20px; min-width: 0; }
+.overviewKpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.cardSections { display: grid; gap: 18px; }
+/* Money flow: six figures in a hairline grid, three across (two in a narrow column). */
+.figureGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--hair); }
+.figureCell { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 16px var(--card-pad); background: var(--surf); }
+.figureValue { margin: 0; color: var(--ink); font-size: 20px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.figureNote { margin: 0; color: var(--ink-3); font-size: 12px; }
+/* Two tables sit side by side only when each keeps all its columns in view. */
+.tablePair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 20px; align-items: start; }
+.lines { display: grid; gap: 2px; }
+.cellStack { display: grid; gap: 2px; min-width: 0; }
+.share { display: flex; align-items: center; gap: 8px; min-width: 120px; font-variant-numeric: tabular-nums; }
+.shareMeter { flex: 1; }
+.share > span { min-width: 36px; text-align: right; color: var(--ink-2); font-size: 13px; }
+.inlineValue { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Four KPI cards need about 220px each; a narrower column takes them two by two, never three and one. */
+@container profile-main (max-width: 900px) { .overviewKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container profile-main (max-width: 380px) { .overviewKpis { grid-template-columns: minmax(0, 1fr); } }
+@container profile-main (max-width: 560px) { .figureGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Phones: the period presets stay on one line and scroll sideways, like the tab strip, instead of
+   wrapping one preset onto a line of its own. */
+@media (max-width: 767px) {
+  .period { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .period::-webkit-scrollbar { display: none; }
+  :global(html:not([data-skin='classic'])) .period.period > [role='group'], .period.period > [role='group'] { flex: none; flex-wrap: nowrap; width: max-content; }
+}
+@media (max-width: 767px) { .walletStrip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .walletCell:nth-child(2n) { border-inline-end: 0; } .walletCell:nth-child(n + 3) { border-top: 1px solid var(--hair); } .walletValue { font-size: 18px; } }

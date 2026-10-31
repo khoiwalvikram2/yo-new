@@ -1,0 +1,74 @@
+/* Open page headings match Players: content background, readable title, inline back icon. */
+html .nova-shell-matchbook [data-page-header='title-only'] {
+  min-width: 0;
+  padding: 6px 0 2px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--mb-ink);
+}
+html .nova-shell-matchbook [data-page-header='title-only']::before { display: none; }
+html .nova-shell-matchbook [data-page-header='title-only'] h1 {
+  margin: 0;
+  color: var(--mb-ink);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -.025em;
+}
+html .nova-shell-matchbook [data-page-header='title-only'] :is(.user-account-header-row,.user-page-heading,.nova-ev-head-main) {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+  background: transparent;
+  color: var(--mb-ink);
+}
+html .nova-shell-matchbook [data-page-header='title-only'] .user-page-heading { gap: 12px; }
+html .nova-shell-matchbook :is(.user-page-back,.user-account-back,[data-page-header='title-only'] .nova-ev-head-main .nova-ev-icon-btn,[data-page-header='title-only'] .m99-page-back) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  background: var(--mb-panel);
+  color: var(--mb-ink);
+  cursor: pointer;
+}
+html .nova-shell-matchbook :is(.user-page-back,.user-account-back,[data-page-header='title-only'] .nova-ev-head-main .nova-ev-icon-btn,[data-page-header='title-only'] .m99-page-back):hover {
+  background: var(--mb-hover);
+  border-color: var(--mb-line-3);
+  color: var(--mb-ink);
+}
+html .nova-shell-matchbook :is(.user-page-back,.user-account-back,[data-page-header='title-only'] .m99-page-back):focus-visible { outline: 2px solid var(--mb-link); outline-offset: 2px; }
+html .nova-shell-matchbook [data-page-header='title-only'] .user-account-help,
+html .nova-shell-matchbook [data-page-header='title-only'] .nova-ev-head-main .nova-ev-btn {
+  border-color: var(--mb-line);
+  background: var(--mb-panel);
+  color: var(--mb-ink);
+}
+html .nova-shell-matchbook [data-page-header='title-only'] .user-account-help:hover,
+html .nova-shell-matchbook [data-page-header='title-only'] .nova-ev-head-main .nova-ev-btn:hover { background: var(--mb-hover); border-color: var(--mb-line-3); }
+html .nova-shell-matchbook .nova-sx-head h1 small,
+html .nova-shell-matchbook .nova-ev-title h1 em { color: var(--mb-muted); }
+html .nova-shell-matchbook .nova-sx-head > img { filter: none; }
+html.dark .nova-shell-matchbook .nova-sx-head > img { filter: invert(1); }
+html .nova-shell-matchbook .m99-market-context { justify-content: flex-end; }
+html .nova-shell-matchbook .m99-chart-hero-copy { gap: 12px; }
+@media (max-width: 767px) {
+  html .nova-shell-matchbook [data-page-header='title-only'] h1 { font-size: 26px; }
+}
+
+/* The result date keeps a complete line beside the compact market heading. */
+html .nova-shell-matchbook .m99-workspace-result > span { flex-wrap: wrap; row-gap: 5px; }
+html .nova-shell-matchbook .m99-workspace-result > span > i { flex-shrink: 0; }
+html .nova-shell-matchbook .m99-workspace-result small { flex-basis: 100%; margin-left: 0; white-space: nowrap; }
+@media (max-width: 580px) {
+  html .nova-shell-matchbook .m99-market-hero { flex-direction: column; align-items: stretch; }
+  html .nova-shell-matchbook .m99-workspace-result { display: flex; flex: 0 0 auto; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 10px 12px; }
+  html .nova-shell-matchbook .m99-workspace-result > span { min-width: 0; }
+  html .nova-shell-matchbook .m99-workspace-result > strong { flex-shrink: 0; margin-top: 0; font-size: 24px; }
+}

@@ -1,0 +1,10 @@
+export type SupportKind='player'|'admin'|'crm'
+export type ChatStatus='waiting'|'assigned'|'resolved'
+export type SupportActor={tenant:string;kind:SupportKind;id:string;name:string;readOnly:boolean;canReply:boolean;canAssign:boolean;canSettings:boolean;viewAll:boolean;bookIds:string[]}
+export type ChatSettings={enabled:boolean;title:string;welcomeMessage:string;offlineMessage:string;timezone:string;openMinute:number;closeMinute:number;days:number[]}
+export type ChatConversation={id:string;playerId:string;playerName:string;playerType:string;topic:string;status:ChatStatus;assignedKind:SupportKind|null;assignedId:string|null;assignedName:string|null;lastSeq:string;playerReadSeq:string;staffReadSeq:string;playerDeliveredSeq:string;staffDeliveredSeq:string;preview:string;updatedAt:string;unread:number}
+export type ChatAttachment={id:string;filename:string;mime:string;size:number}
+export type ChatMessage={id:string;seq:string;body:string;senderKind:SupportKind|'system';senderId:string;senderName:string;createdAt:string;attachments:ChatAttachment[]}
+export type ChatStaff={kind:'admin'|'crm';id:string;name:string;online:boolean}
+export type ChatBootstrap={actor:SupportActor;settings:ChatSettings;online:boolean;withinHours:boolean;available:boolean;unreadTotal:number}
+export const CHAT_TOPICS=['Payments','Sports','Casino','Matka','Account'] as const

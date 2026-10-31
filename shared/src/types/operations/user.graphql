@@ -1,0 +1,19 @@
+# Root operations for user app
+type Query {
+  me: UserProfile
+  userData: UserProfile
+  checkPhoneAvailable(phone: String!): CheckAvailabilityResult!
+}
+
+type Mutation {
+  requestOtp(phone: String!): OtpResponse!
+  loginWithOtp(phone: String!, otp: String!): AuthPayload!
+  registerUser(input: RegisterInput!): OtpResponse!
+  login(input: LoginInput!): AuthPayload!
+  changePassword(currentPassword: String!, newPassword: String!): MessageResponse!
+  requestResetOtp(phone: String!): OtpResponse!
+  resetPassword(phone: String!, otp: String!, newPassword: String!): MessageResponse!
+  transferReferralBalanceToCash(amount: Float!): TransferReferralBalanceResult!
+}
+
+

@@ -1,0 +1,182 @@
+/* The kit's stand-in for antd's Alert and Result. Promoted from the overview's own notice
+   (routes/overview/OverviewPage.module.css), which took its shape from the mockup's .banner
+   (M:1103-1108): a padded, bordered, radiused row with a leading glyph and a text block. The tones
+   are the semantic token pairs; the neutral tone deliberately uses --surf-3/--line, the flat surface
+   the shell uses, rather than the mockup's --banner, which belongs to the dashboard's reports banner. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+.icon {
+  display: flex;
+  flex: none;
+  margin-top: 1px;
+  color: var(--ink-3);
+}
+
+.body {
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+/* a title and a body together take the gap the mockup puts under .btext b (M:1117) */
+.title + .text {
+  margin-top: 4px;
+}
+
+/* BEYOND-MOCKUP: a notice that offers a way out (Go to home, Refresh) puts it at the end of the row,
+   centred against the first line the way the glyph is. It wraps under the text when the row is narrow. */
+.action {
+  flex: none;
+  align-self: center;
+}
+
+.info {
+  background: var(--blue-bg);
+  border-color: transparent;
+}
+
+.info .icon {
+  color: var(--blue);
+}
+
+.warn {
+  background: var(--warn-bg);
+  border-color: transparent;
+}
+
+.warn .icon {
+  color: var(--warn);
+}
+
+.error {
+  background: var(--neg-bg);
+  border-color: transparent;
+}
+
+.error .icon,
+.error .title {
+  color: var(--neg-ink);
+}
+
+.ok {
+  background: var(--ok-bg);
+  border-color: transparent;
+}
+
+.ok .icon,
+.ok .title {
+  color: var(--ok);
+}
+
+/* BEYOND-MOCKUP: the strip layout, for a banner that spans the page (a new version is ready, a
+   read-only session). It keeps the tone but loses the card's radius and its side borders, as the
+   mockup's own full-width .strip does (M:1097). */
+.strip {
+  border-radius: var(--ui-radius);
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  padding: 10px 16px;
+}
+
+@media (max-width: 640px) {
+  .notice {
+    flex-wrap: wrap;
+  }
+
+  .action {
+    align-self: stretch;
+    width: 100%;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .notice (kit p2): a 3px-radius row on --panel-2 with a hairline border and a 3px left edge; each tone
+   tints the ground, the border (the tone at a quarter strength, the kit's --*-line) and the edge, and
+   colours the glyph and the title. The tones and .strip are (0,2,1) like .notice and follow it in source,
+   so they win over its border and padding; each is over the base (0,1,0)/(0,2,0) it replaces. The gap
+   is left alone: callers set their own (Notice className={styles.row}/{styles.actions}). */
+:global(html:not([data-skin='classic'])) .notice {
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-3);
+  border-radius: var(--ui-radius);
+  background: var(--panel-2);
+  color: var(--ink-2);
+}
+
+:global(html:not([data-skin='classic'])) .title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+:global(html:not([data-skin='classic'])) .text {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+:global(html:not([data-skin='classic'])) .info {
+  border-color: color-mix(in srgb, var(--blue) 24%, transparent);
+  border-left-color: var(--link);
+  background: var(--blue-bg);
+}
+
+:global(html:not([data-skin='classic'])) .info .title {
+  color: var(--blue);
+}
+
+:global(html:not([data-skin='classic'])) .warn {
+  border-color: color-mix(in srgb, var(--warn) 26%, transparent);
+  border-left-color: var(--warn);
+  background: var(--warn-bg);
+}
+
+:global(html:not([data-skin='classic'])) .warn .title {
+  color: var(--warn);
+}
+
+:global(html:not([data-skin='classic'])) .error {
+  border-color: color-mix(in srgb, var(--neg-ink) 24%, transparent);
+  border-left-color: var(--neg-ink);
+  background: var(--neg-bg);
+}
+
+:global(html:not([data-skin='classic'])) .ok {
+  border-color: color-mix(in srgb, var(--ok) 24%, transparent);
+  border-left-color: var(--pos-ink);
+  background: var(--ok-bg);
+}
+
+/* The page-wide strip keeps its base shape — square, no top or side borders, its own inset — with the
+   tone's tinted bottom hairline. */
+:global(html:not([data-skin='classic'])) .strip {
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  border-radius: var(--ui-radius);
+  padding: 10px 16px;
+}

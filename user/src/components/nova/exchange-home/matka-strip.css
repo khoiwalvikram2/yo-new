@@ -1,0 +1,28 @@
+.nova-ex-matka { min-width: 0; container: matka-home / inline-size; }
+.nova-ex-matka-track { display: flex; gap: 10px; margin: 0; padding: 10px 0 4px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; overscroll-behavior-x: contain; list-style: none; }
+.nova-ex-matka-track::-webkit-scrollbar { display: none; }
+.nova-ex-matka-track > li { flex: 0 0 clamp(220px, 27%, 270px); min-width: 0; scroll-snap-align: start; }
+.nova-ex-matka-card { display: flex; flex-direction: column; height: 100%; min-height: 222px; padding: 14px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); color: var(--mb-text); background: var(--mb-panel); text-decoration: none; }
+.nova-ex-matka .nova-ex-matka-card:is(:hover, :focus-visible) { border-color: var(--mb-red-text, #B71F2B); text-decoration: none; }
+.nova-ex-matka .nova-ex-matka-card:focus-visible { outline: 2px solid var(--mb-red-text, #B71F2B); outline-offset: -2px; }
+.nova-ex-matka-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--mb-muted); font-size: 11px; }
+.nova-ex-matka-status { padding: 3px 7px; border-radius: 3px; color: var(--mb-muted); background: var(--mb-soft); font-size: 11px; font-weight: 600; }
+.nova-ex-matka-status.is-open { color: #087B53; background: #E1F5EC; }
+html.dark .nova-ex-matka-status.is-open { color: #6EE7B7; background: rgb(52 211 153 / 14%); }
+.nova-ex-matka-name { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.nova-ex-matka-name strong { min-width: 0; color: var(--mb-ink, var(--mb-text)); font-size: 19px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.nova-ex-matka-name svg { flex: 0 0 16px; width: 16px; height: 16px; color: var(--mb-muted); }
+.nova-ex-matka-result { display: grid; gap: 6px; margin: 14px 0; padding-bottom: 12px; border-bottom: 1px solid var(--mb-line); }
+.nova-ex-matka-result small { display: flex; justify-content: space-between; gap: 8px; color: var(--mb-muted); font-size: 11px; }
+.nova-ex-matka-result time { white-space: nowrap; }
+.nova-ex-matka-result .is-published { color: var(--mb-ink, var(--mb-text)); font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: .035em; font-variant-numeric: tabular-nums; }
+.nova-ex-matka-result .is-awaiting { min-height: 29px; color: var(--mb-muted); font-size: 14px; }
+.nova-ex-matka-zone { margin: auto 0 5px; color: var(--mb-muted); font-size: 10px; letter-spacing: .03em; }
+.nova-ex-matka-times { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; }
+.nova-ex-matka-times dt { color: var(--mb-muted); font-size: 11px; }
+.nova-ex-matka-times dd { margin: 3px 0 0; color: var(--mb-text); font-size: 14px; font-weight: 600; }
+.nova-ex-matka-loading { display: flex; gap: 10px; padding-top: 10px; overflow: hidden; }
+.nova-ex-matka-loading i { flex: 0 0 220px; height: 222px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-soft); }
+.nova-ex-matka-note { margin: 10px 0 0; padding: 16px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); color: var(--mb-muted); background: var(--mb-panel); font-size: 14px; }
+.nova-ex-matka-note p { margin: 0 0 10px; }
+.nova-ex-matka-note button { padding: 7px 12px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-text); background: transparent; font: inherit; cursor: pointer; }

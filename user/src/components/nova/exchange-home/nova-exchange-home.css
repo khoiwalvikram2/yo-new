@@ -1,0 +1,1054 @@
+/* Exchange home (middle column only): hero promos, sport tabs, odds boards, featured rails.
+   Colours follow the matchbook shell in panel-refresh.css. */
+.nova-ex-grid {
+  --ex-red: #C51A1B;
+  --ex-dark: var(--mb-bar-2);
+  --ex-bar: var(--mb-bar);
+  --ex-line: var(--mb-line);
+  --ex-text: var(--mb-text);
+  --ex-muted: var(--mb-faint);
+  --ex-link: var(--mb-link);
+  --ex-back: #8DCDF3;
+  --ex-lay: #F6AABA;
+  /* In play: white text on --ex-live is 5:1; the glow is for beacons and traces only. */
+  --ex-live: #0B8040;
+  --ex-live-lift: #12994C;
+  --ex-live-deep: #08602F;
+  --ex-live-glow: #6BF5A8;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(260px, 26%, 440px);
+  gap: 10px;
+  align-items: start;
+  color: var(--ex-text);
+}
+.nova-ex-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; container: exmain / inline-size; }
+.nova-ex-grid h2 { margin: 0; }
+.nova-ex-grid a { text-decoration: none; }
+.nova-ex-grid a:focus-visible,
+.nova-ex-grid button:focus-visible,
+.nova-ex-grid select:focus-visible { outline: 2px solid var(--ex-link); outline-offset: -2px; }
+
+/* ------------------------------------------------------------ sport tabs */
+.nova-ex-sport-tabs { display: flex; overflow-x: auto; background: var(--mb-panel); scrollbar-width: none; }
+.nova-ex-sport-tabs-wrap { position: relative; min-width: 0; }
+.nova-ex-popular-nav { --ex-red: #C51A1B; --ex-line: var(--mb-line); --ex-text: var(--mb-text); }
+.nova-ex-popular-nav .nova-ex-sport-tabs { scroll-padding-inline: 36px; }
+.nova-ex-popular-nav .nova-ex-sport-tabs a { scroll-margin-inline: 36px; }
+/* With promotions present, filters continue the hero's page-colour fade on the same canvas.
+   Removing only this seam leaves spacing between the other homepage sections unchanged. */
+.nova-ex-main > .nova-ex-hero + .nova-ex-sport-tabs-wrap { margin-top: -10px; background: var(--mb-page); }
+.nova-ex-main > .nova-ex-hero + .nova-ex-sport-tabs-wrap .nova-ex-sport-tabs,
+.nova-ex-main > .nova-ex-hero + .nova-ex-sport-tabs-wrap .nova-ex-sport-tabs :is(button, a):not(.active) { background: transparent; }
+.nova-ex-main > .nova-ex-hero + .nova-ex-sport-tabs-wrap .nova-ex-sport-tabs :is(button, a):not(.active):hover { background: var(--mb-panel); }
+/* Mouse users get arrows; keyboard users reach every tab with Tab, touch users swipe. */
+.nova-ex-tabs-arrow {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 1;
+  display: grid;
+  width: 34px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--ex-line);
+  color: var(--ex-text);
+  background: var(--mb-disabled-bg);
+  cursor: pointer;
+}
+.nova-ex-tabs-arrow.is-prev { inset: 0 auto 0 0; border-right: 1px solid var(--ex-line); border-left: 0; }
+.nova-ex-tabs-arrow:hover { background: var(--mb-line); }
+.nova-ex-tabs-arrow svg { width: 18px; height: 18px; }
+.nova-ex-sport-tabs::-webkit-scrollbar { display: none; }
+.nova-ex-sport-tabs :is(button, a) {
+  display: flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 108px;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 0;
+  border-right: 1px solid var(--ex-line);
+  color: var(--ex-text);
+  background: var(--mb-panel);
+  font-family: var(--font-inter);
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.nova-ex-sport-tabs :is(button, a):last-child { border-right: 0; }
+.nova-ex-sport-tabs :is(button, a):hover { background: var(--mb-soft); }
+.nova-ex-sport-tabs img { width: 18px; height: 18px; opacity: .75; }
+.nova-ex-sport-tabs svg { width: 18px; height: 18px; }
+.nova-ex-sport-tabs .is-inplay svg { color: var(--ex-live); }
+.nova-ex-sport-tabs small {
+  min-width: 24px;
+  padding: 1px 6px;
+  border-radius: var(--ui-radius);
+  color: var(--mb-muted);
+  background: var(--mb-neutral-bg);
+  font-family: var(--font-inter);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+.nova-ex-sport-tabs :is(button, a).active { color: #FFFFFF; background: var(--ex-red); }
+.nova-ex-sport-tabs :is(button, a).active img { opacity: 1; filter: invert(1); }
+.nova-ex-sport-tabs :is(button, a).active svg { color: #FFFFFF; }
+.nova-ex-sport-tabs :is(button, a).active small { color: var(--ex-red); background: #FFFFFF; }
+.nova-ex-games-list { display: grid; gap: 10px; min-width: 0; }
+.nova-ex-empty { display: grid; justify-items: center; gap: 10px; padding: 40px 16px; background: var(--mb-panel); text-align: center; }
+.nova-ex-empty strong { font-family: var(--font-inter); font-size: 20px; font-weight: 700; }
+.nova-ex-empty button { padding: 8px 22px; border: 0; color: #FFFFFF; background: var(--ex-red); font-family: var(--font-inter); font-size: 16px; font-weight: 700; cursor: pointer; }
+/* One line under a section bar when the API has nothing for it (no games, or the request failed). */
+.nova-ex-section-note { margin: 0; padding: 14px 16px; color: var(--mb-muted); background: var(--mb-panel); font-size: 14px; line-height: 1.4; }
+.nova-ex-games .nova-ex-section-note { padding: 16px 14px; color: var(--mb-bar-muted); background: transparent; }
+
+/* ----------------------------------------------------------- match cards */
+/* Each sport: a dark matchbook bar with one row of cards directly under it, edges flush with the bar. */
+.nova-ex-sport-section { min-width: 0; overflow: hidden; }
+.nova-ex-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px 0 16px;
+  color: #FFFFFF;
+  background: var(--ex-bar);
+}
+.nova-ex-section-head > img { width: 20px; height: 20px; filter: invert(1); }
+.nova-ex-section-head h2 { min-width: 0; overflow: hidden; font-size: 19px; font-weight: 700; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ex-section-count {
+  min-width: 24px;
+  padding: 2px 7px;
+  border-radius: var(--ui-radius);
+  color: #E2E3E3;
+  background: var(--ex-dark);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+}
+.nova-ex-section-all { margin-left: auto; color: var(--ex-link); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.nova-ex-section-all:hover { text-decoration: underline; }
+.nova-ex-section-head .nova-ex-section-all { color: var(--mb-chrome-link); }
+/* The casino lobby paints its section heads as light panels. */
+.nova-lobby-section > .nova-ex-section-head .nova-ex-section-all { color: var(--mb-link); }
+.nova-ex-section-arrows { display: inline-flex; flex: 0 0 auto; gap: 4px; margin-left: 4px; }
+.nova-ex-section-arrows button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #5A5C63;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color .15s, opacity .15s;
+}
+.nova-ex-section-arrows button:hover:not(:disabled) { background: #53555B; }
+.nova-ex-section-arrows button:disabled { opacity: .35; cursor: default; }
+.nova-ex-section-arrows svg { width: 17px; height: 17px; }
+
+/* One row per sport: --per-view cards fit the panel, the rest scroll sideways. */
+.nova-ex-cards {
+  --per-view: 2;
+  display: flex;
+  gap: 10px;
+  padding: 10px 0 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.nova-ex-cards::-webkit-scrollbar { display: none; }
+.nova-ex-cards > * { flex: 0 0 calc((100% - 10px * (var(--per-view) - 1)) / var(--per-view)); scroll-snap-align: start; }
+@container exmain (min-width: 1100px) { .nova-ex-cards { --per-view: 3; } }
+
+.nova-ex-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--mb-line);
+  border-left: 3px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--ex-text);
+  background: var(--mb-panel);
+  transition: border-color .15s, box-shadow .15s;
+}
+.nova-ex-card:hover { border-color: #CFD0D3; border-left-color: var(--ex-red); box-shadow: 0 2px 8px rgb(16 18 22 / 8%); }
+.nova-ex-card.is-live { border-left-color: var(--ex-live); }
+.nova-ex-card-top { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.nova-ex-card-league { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--ex-muted); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ex-card-badges { display: inline-flex; flex: 0 0 auto; gap: 3px; margin-left: auto; }
+.nova-ex-card-badges abbr {
+  min-width: 24px;
+  padding: 2px 5px;
+  border-radius: var(--ui-radius);
+  color: var(--mb-muted);
+  background: var(--mb-soft);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  text-decoration: none;
+}
+/* The team link covers the whole card (stretched ::after); the bookmark button stacks above it. */
+.nova-ex-card-link { display: block; min-width: 0; margin-top: 4px; color: inherit; }
+.nova-ex-card-link::after { content: ''; position: absolute; inset: 0; border-radius: var(--ui-radius); }
+.nova-ex-card-link:focus-visible { outline: none; }
+.nova-ex-card-link:focus-visible::after { outline: 2px solid var(--ex-link); outline-offset: -2px; }
+.nova-ex-card-bookmark {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  color: var(--ex-muted);
+  background: var(--mb-panel);
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.nova-ex-card-bookmark:hover { border-color: var(--ex-red); color: var(--mb-red-text); }
+.nova-ex-card-bookmark.is-active { border-color: var(--ex-red); color: #FFFFFF; background: var(--ex-red); }
+.nova-ex-card-bookmark svg { width: 13px; height: 13px; }
+.nova-ex-card-bookmark.is-active svg { fill: currentColor; }
+.nova-ex-card-bookmark:focus-visible { outline: 2px solid var(--ex-link); outline-offset: 1px; }
+.nova-ex-card-teams { display: block; overflow: hidden; color: var(--mb-ink); font-size: 18px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ex-card-teams em { color: var(--mb-red-text); font-size: 15px; font-style: normal; font-weight: 700; }
+.nova-ex-card-time { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; color: var(--mb-muted); font-size: 13px; }
+.nova-ex-card-time svg { width: 13px; height: 13px; color: #1DB954; }
+/* Same live treatment as the sports list tile (beacon + trace), pill-sized; shared rules sit with .nova-sx-row-when.is-live. */
+.nova-ex-card-time .is-live { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 7px; border-radius: var(--ui-radius); color: #FFFFFF; background: linear-gradient(160deg, var(--ex-live-lift) 0%, var(--ex-live) 50%, var(--ex-live-deep) 100%); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.nova-ex-card-time .is-live .nova-ex-live-pulse { width: 30px; height: 10px; }
+
+.nova-ex-card-odds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.nova-ex-card-odds.ways-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nova-ex-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
+.nova-ex-price { display: grid; align-content: center; justify-items: center; min-width: 0; height: 44px; border-radius: var(--ui-radius); color: var(--mb-odds-ink); background: var(--ex-back); }
+.nova-ex-price.is-lay { background: var(--ex-lay); }
+.nova-ex-price strong { font-size: 17px; font-weight: 700; line-height: 1.05; }
+.nova-ex-price small { min-height: 12px; color: #2F3338; font-size: 11px; line-height: 12px; }
+.nova-ex-pair.is-locked .nova-ex-price { color: var(--mb-faint); background: var(--mb-soft); }
+.nova-ex-pair.is-locked svg { width: 14px; height: 14px; }
+/* Odds not in yet: the tiles hold their place, muted, so a board waiting for prices does not glare. */
+:is(.nova-ex-card-odds, .nova-sx-row-odds).is-pending .nova-ex-price { opacity: .45; }
+/* No such runner (no draw in a two-runner market) on the list's fixed 1 X 2 columns: an empty outline. */
+.nova-ex-pair.is-none .nova-ex-price { background: transparent; box-shadow: inset 0 0 0 1px var(--mb-line); }
+/* Suspended market: its last prices stay in place, faded, under one label. */
+:is(.nova-ex-card-odds, .nova-sx-row-odds).is-suspended { position: relative; }
+:is(.nova-ex-card-odds, .nova-sx-row-odds).is-suspended .nova-ex-price { opacity: .3; }
+.nova-ex-suspended { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.nova-ex-suspended span { padding: 3px 10px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar); font-size: 11px; font-weight: 700; letter-spacing: .08em; line-height: 16px; text-transform: uppercase; }
+.nova-ex-card-race {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-top: 12px;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  color: var(--ex-text);
+  background: var(--mb-soft);
+  font-size: 16px;
+  font-weight: 700;
+  transition: background-color .15s, color .15s, border-color .15s;
+}
+.nova-ex-card-race svg { width: 16px; height: 16px; }
+.nova-ex-card:hover .nova-ex-card-race { border-color: var(--ex-red); color: #FFFFFF; background: var(--ex-red); }
+.nova-ex-card.is-skeleton { gap: 10px; min-height: 172px; pointer-events: none; }
+.nova-ex-card.is-skeleton i { display: block; height: 14px; border-radius: var(--ui-radius); background: linear-gradient(90deg, var(--mb-soft), var(--mb-soft), var(--mb-soft)); }
+.nova-ex-card.is-skeleton i:nth-child(2) { width: 65%; height: 18px; }
+.nova-ex-card.is-skeleton i:last-child { height: 44px; margin-top: 10px; }
+
+/* Narrow middle column. */
+@container exmain (max-width: 639px) {
+  .nova-ex-cards { --per-view: 1.12; }
+  .nova-ex-section-head { gap: 8px; padding-left: 12px; }
+  .nova-ex-section-head h2 { font-size: 18px; }
+}
+
+/* ----------------------------------------------------------- casino strips */
+/* Live casino and slots rows under the sports: same dark bar as the sport sections, white game cards
+   flush with it, drifting sideways. */
+.nova-ex-strip { min-width: 0; overflow: hidden; }
+.nova-ex-strip-icon { width: 20px; height: 20px; }
+.nova-ex-strip-track { display: flex; gap: 10px; padding: 10px 0 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.nova-ex-strip-track::-webkit-scrollbar { display: none; }
+.nova-ex-tile {
+  display: flex;
+  flex: 0 0 210px;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  color: var(--ex-text);
+  background: var(--mb-panel);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.nova-ex-tile:hover { border-color: #CFD0D3; box-shadow: 0 2px 8px rgb(16 18 22 / 8%); }
+.nova-ex-tile:disabled { cursor: wait; }
+.nova-ex-tile:focus-visible { outline: 2px solid var(--ex-link); outline-offset: -2px; }
+.nova-ex-tile-art { position: relative; display: block; aspect-ratio: 3 / 2; overflow: hidden; border-bottom: 1px solid var(--mb-line); background: var(--mb-soft); }
+.nova-ex-tile-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
+.nova-ex-tile:hover .nova-ex-tile-art img { transform: scale(1.05); }
+.nova-ex-tile-live {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: var(--ex-red);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.nova-ex-tile-live i { width: 5px; height: 5px; border-radius: 50%; background: #FFFFFF; animation: nova-ex-pulse 1.4s ease-in-out infinite; }
+.nova-ex-tile-copy { display: flex; align-items: center; gap: 8px; padding: 9px 10px 10px 12px; }
+.nova-ex-tile-name { display: grid; flex: 1 1 auto; gap: 1px; min-width: 0; }
+.nova-ex-tile-name strong { overflow: hidden; color: var(--mb-ink); font-size: 15px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ex-tile-name small { overflow: hidden; color: var(--ex-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ex-tile-play {
+  display: grid;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgb(197 26 27 / 35%);
+  border-radius: 50%;
+  color: var(--ex-red);
+  background: var(--mb-panel);
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.nova-ex-tile-play svg { width: 13px; height: 13px; margin-left: 2px; fill: currentColor; }
+.nova-ex-tile-play .is-spinning { margin: 0; fill: none; animation: nova-ex-spin 1s linear infinite; }
+.nova-ex-tile:hover .nova-ex-tile-play,
+.nova-ex-tile:focus-visible .nova-ex-tile-play,
+.nova-ex-tile:disabled .nova-ex-tile-play { border-color: var(--ex-red); color: #FFFFFF; background: var(--ex-red); }
+.nova-ex-tile.is-skeleton { height: 192px; border-color: var(--mb-line); cursor: default; background: linear-gradient(110deg, var(--mb-soft) 30%, var(--mb-soft) 50%, var(--mb-soft) 70%); }
+@container exmain (max-width: 639px) { .nova-ex-tile { flex-basis: 172px; } .nova-ex-tile.is-skeleton { height: 166px; } }
+
+/* -------------------------------------------------------------------- faq */
+.nova-ex-faq { min-width: 0; }
+.nova-ex-faq-list { margin-top: 10px; overflow: hidden; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-panel); }
+.nova-ex-faq details + details { border-top: 1px solid var(--mb-line); }
+.nova-ex-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 10px 18px;
+  color: var(--mb-ink);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  list-style: none;
+  cursor: pointer;
+  transition: color .15s, background-color .15s;
+}
+.nova-ex-faq summary::-webkit-details-marker { display: none; }
+.nova-ex-faq summary:hover { color: var(--mb-red-text); background: var(--mb-panel-2); }
+.nova-ex-faq summary:focus-visible { outline: 2px solid var(--ex-link); outline-offset: -2px; }
+.nova-ex-faq summary svg { flex: 0 0 auto; width: 20px; height: 20px; color: var(--ex-muted); transition: transform .2s, color .2s; }
+.nova-ex-faq details[open] summary { color: var(--mb-red-text); }
+.nova-ex-faq details[open] summary svg { color: var(--mb-red-text); transform: rotate(45deg); }
+.nova-ex-faq details p { max-width: 75ch; margin: 0; padding: 0 18px 16px; color: var(--mb-muted); font-size: 15px; line-height: 1.55; }
+
+/* ----------------------------------------------------------- side column */
+/* Quick leagues and Up next: dark bar over a white list, like the sport sections. */
+.nova-ex-widget { min-width: 0; }
+.nova-ex-widget .nova-ex-section-head { min-height: 44px; }
+.nova-ex-widget .nova-ex-section-head h2 { font-size: 18px; }
+.nova-ex-widget-zone { margin-left: auto; padding: 2px 7px; border-radius: var(--ui-radius); color: #E2E3E3; background: var(--ex-dark); font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+.nova-ex-widget-list { margin: 0; padding: 0; border: 1px solid var(--mb-line); border-top: 0; list-style: none; background: var(--mb-panel); }
+.nova-ex-widget-list li + li { border-top: 1px solid var(--mb-line); }
+.nova-ex-league,
+.nova-ex-upnext { display: flex; align-items: center; color: var(--mb-ink); transition: background-color .15s, color .15s; }
+.nova-ex-league:hover,
+.nova-ex-upnext:hover { color: var(--mb-red-text); background: var(--mb-soft); }
+.nova-ex-league:focus-visible,
+.nova-ex-upnext:focus-visible { outline: 2px solid var(--ex-link); outline-offset: -2px; }
+.nova-ex-league > svg,
+.nova-ex-upnext > svg { flex: 0 0 auto; width: 16px; height: 16px; color: var(--ex-muted); }
+.nova-ex-league { gap: 10px; min-height: 44px; padding: 0 10px 0 14px; font-size: 15px; font-weight: 600; }
+.nova-ex-league img { flex: 0 0 auto; width: 18px; height: 18px; opacity: .7; }
+.nova-ex-league-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ex-league-count { min-width: 22px; padding: 1px 6px; border-radius: var(--ui-radius); color: var(--mb-muted); background: var(--mb-soft); font-size: 12px; font-weight: 700; text-align: center; }
+.nova-ex-upnext { gap: 12px; min-height: 62px; padding: 8px 10px 8px 14px; }
+.nova-ex-upnext-time { display: grid; flex: 0 0 74px; gap: 1px; }
+.nova-ex-upnext-time small { color: var(--mb-red-text); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.nova-ex-upnext-time strong { font-size: 24px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.nova-ex-upnext-time strong span { margin-left: 2px; color: var(--ex-muted); font-size: 11px; font-weight: 700; }
+.nova-ex-upnext-match { display: grid; flex: 1 1 auto; gap: 2px; min-width: 0; }
+.nova-ex-upnext-match strong { overflow: hidden; font-size: 15px; font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ex-upnext-match small { overflow: hidden; color: var(--ex-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+
+.nova-ex-side { display: grid; gap: 10px; min-width: 0; }
+.nova-ex-brand-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 200px;
+  padding: 18px;
+  overflow: hidden;
+  color: #FFFFFF;
+  background: var(--ex-red);
+  font-family: var(--font-inter);
+  text-align: center;
+  isolation: isolate;
+  container-type: inline-size;
+}
+.nova-ex-brand-card::before,
+.nova-ex-brand-card::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 260px;
+  height: 260px;
+  border: 46px solid rgb(255 255 255 / 8%);
+  border-radius: 50%;
+}
+.nova-ex-brand-card::before { left: -20px; top: 10px; }
+.nova-ex-brand-card::after { right: -40px; top: -30px; }
+.nova-ex-brand-card > span { font-size: 21px; font-weight: 600; }
+.nova-ex-brand-card > strong { max-width: 100%; overflow: hidden; font-size: clamp(30px, 17cqi, 66px); font-weight: 800; line-height: .95; letter-spacing: .5px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.nova-ex-brand-card > img { max-width: 80%; max-height: 70px; object-fit: contain; }
+.nova-ex-brand-card > small { font-size: 21px; font-weight: 600; }
+.nova-ex-brand-card:hover { background: #D21F20; }
+.nova-ex-featured { color: #FFFFFF; background: var(--ex-dark); }
+.nova-ex-featured h2 a { display: block; padding: 10px 20px; color: #FFFFFF; font-family: var(--font-inter); font-size: 19px; font-weight: 700; line-height: 1.15; }
+.nova-ex-featured-art { position: relative; display: block; height: 160px; overflow: hidden; background: var(--ex-red); container-type: inline-size; }
+.nova-ex-featured-art img { width: 100%; height: 100%; object-fit: cover; }
+.nova-ex-featured-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(270deg, rgb(197 26 27 / 92%) 0%, rgb(197 26 27 / 55%) 45%, rgb(197 26 27 / 0%) 75%); }
+.nova-ex-featured-art strong {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  z-index: 1;
+  max-width: 60%;
+  transform: translateY(-50%);
+  color: #FFFFFF;
+  font-family: var(--font-inter);
+  font-size: clamp(26px, 11cqi, 46px);
+  font-weight: 800;
+  line-height: .9;
+  text-align: right;
+  text-transform: uppercase;
+  text-shadow: 0 2px 12px rgb(0 0 0 / 25%);
+}
+.nova-ex-featured h2 a:hover { color: var(--ex-link); }
+
+/* Featured casino rails: one game per slide, artwork full-bleed, thumbnails underneath. */
+.nova-ex-games { min-width: 0; overflow: hidden; color: #FFFFFF; background: var(--ex-dark); container: exrail / inline-size; }
+.nova-ex-games-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--ex-bar);
+}
+.nova-ex-games-head h2 { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 19px; font-weight: 700; line-height: 1.1; }
+.nova-ex-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 6px;
+  border-radius: var(--ui-radius);
+  background: var(--ex-red);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.nova-ex-live-badge i { width: 6px; height: 6px; border-radius: 50%; background: #FFFFFF; animation: nova-ex-pulse 1.4s ease-in-out infinite; }
+.nova-ex-games-all { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 2px; color: var(--mb-chrome-link); font-size: 13px; font-weight: 600; }
+.nova-ex-games-all svg { width: 15px; height: 15px; }
+.nova-ex-games-all:hover { color: #5CCBFF; }
+
+.nova-ex-games-stage { position: relative; }
+.nova-ex-games-track { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.nova-ex-games-track::-webkit-scrollbar { display: none; }
+.nova-ex-games-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; }
+.nova-ex-slide-art {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  color: #FFFFFF;
+  background: #1F2227;
+  text-align: left;
+  cursor: pointer;
+}
+.nova-ex-slide-art:disabled { cursor: wait; }
+.nova-ex-slide-art img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .6s cubic-bezier(.2, .7, .2, 1);
+}
+.nova-ex-slide-art:hover img { transform: scale(1.04); }
+.nova-ex-slide-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(0deg, rgb(12 14 17 / 94%) 0%, rgb(12 14 17 / 55%) 32%, rgb(12 14 17 / 0%) 62%);
+}
+.nova-ex-slide-meta { position: absolute; right: 118px; bottom: 13px; left: 14px; display: grid; gap: 2px; min-width: 0; }
+.nova-ex-slide-meta small { overflow: hidden; color: #C9CBD1; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.nova-ex-slide-meta strong { overflow: hidden; font-size: 22px; font-weight: 700; line-height: 1.08; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ex-slide-play {
+  position: absolute;
+  right: 12px;
+  bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px 7px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ex-red);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background-color .15s;
+}
+.nova-ex-slide-play svg { width: 12px; height: 12px; fill: currentColor; }
+.nova-ex-slide-art:hover .nova-ex-slide-play { background: #E0262A; }
+.nova-ex-slide-loading { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / 45%); }
+.nova-ex-slide-loading svg { width: 26px; height: 26px; animation: nova-ex-spin 1s linear infinite; }
+.nova-ex-slide-error { margin: 0; padding: 7px 14px 0; color: #FF8A8A; font-size: 12px; }
+
+.nova-ex-games-arrow {
+  position: absolute;
+  top: calc(50% - 16px);
+  left: 8px;
+  z-index: 2;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #FFFFFF;
+  background: rgb(0 0 0 / 52%);
+  cursor: pointer;
+  transition: opacity .2s, background-color .15s;
+}
+.nova-ex-games-arrow:not(.is-prev) { right: 8px; left: auto; }
+.nova-ex-games-arrow:hover { background: rgb(0 0 0 / 75%); }
+.nova-ex-games-arrow svg { width: 18px; height: 18px; }
+/* Pointer devices reveal the arrows on hover/focus; touch devices keep them visible. */
+@media (hover: hover) {
+  .nova-ex-games-arrow { opacity: 0; }
+  .nova-ex-games-stage:hover .nova-ex-games-arrow,
+  .nova-ex-games-stage:focus-within .nova-ex-games-arrow { opacity: 1; }
+}
+.nova-ex-games-count {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 8px;
+  border-radius: var(--ui-radius);
+  color: #FFFFFF;
+  background: rgb(0 0 0 / 55%);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.nova-ex-games-progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--ex-red);
+  transform-origin: left center;
+  animation: nova-ex-progress 5s linear forwards;
+  pointer-events: none;
+}
+.nova-ex-games-progress.is-paused { animation-play-state: paused; }
+
+/* The loading block holds the artwork's height (there is no thumbnail strip under it). */
+.nova-ex-games-skeleton { display: grid; }
+.nova-ex-games-skeleton i { display: block; aspect-ratio: 16 / 10; background: linear-gradient(110deg, #33373E 30%, #3D4148 50%, #33373E 70%); }
+
+/* Narrow rail: the play pill shrinks to an icon so the game name keeps its room. */
+@container exrail (max-width: 359px) {
+  .nova-ex-slide-meta { right: 62px; }
+  .nova-ex-slide-play { width: 38px; height: 38px; justify-content: center; padding: 0 0 0 2px; border-radius: 50%; }
+  .nova-ex-slide-play svg { width: 14px; height: 14px; }
+  .nova-ex-slide-play > span { display: none; }
+}
+
+@keyframes nova-ex-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes nova-ex-pulse { 50% { opacity: .35; } }
+@keyframes nova-ex-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .nova-ex-live-badge i,
+  .nova-ex-tile-live i,
+  .nova-sx-live i,
+  .nova-ex-card-time .is-live i { animation: none; }
+  .nova-ex-slide-art img { transition: none; }
+  .nova-ex-slide-art:hover img { transform: none; }
+}
+
+/* ------------------------------------------------------------ sports page */
+/* Same grid as the home page: title bar, sport tabs, filters, league chips and card groups on the
+   left; open bets and recent/bookmarked matches in the right column. */
+.nova-sx-head { min-height: 52px; }
+.nova-sx-head > img { width: 22px; height: 22px; }
+.nova-sx-head h1 { min-width: 0; overflow: hidden; font-size: 22px; font-weight: 700; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.nova-sx-head h1 small { color: #C9CBD1; font-size: 16px; font-weight: 600; }
+.nova-sx-head .nova-ex-section-count { margin-left: auto; }
+.nova-sx-head-note { color: #C9CBD1; font-size: 13px; white-space: nowrap; }
+
+.nova-sx-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--mb-line);
+  background: var(--mb-panel);
+}
+.nova-sx-time { display: inline-flex; gap: 3px; padding: 3px; border-radius: var(--ui-radius); background: var(--mb-soft); }
+.nova-sx-time button {
+  min-height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--mb-muted);
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.nova-sx-time button:hover { color: var(--mb-red-text); }
+.nova-sx-time button.active { color: #FFFFFF; background: var(--ex-red); }
+.nova-sx-time button:focus-visible,
+.nova-sx-leagues button:focus-visible { outline: 2px solid var(--ex-link); outline-offset: 1px; }
+.nova-sx-search { position: relative; display: flex; flex: 0 1 300px; align-items: center; min-width: 0; }
+.nova-sx-search svg { position: absolute; left: 11px; width: 16px; height: 16px; color: var(--ex-muted); pointer-events: none; }
+/* Matches the specificity of the global `input:not(.field__control):not(.otp-input)` fill. */
+.nova-sx-filters .nova-sx-search input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px 0 34px;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  color: var(--mb-ink);
+  background: var(--mb-panel-2);
+  font: inherit;
+  font-size: 15px;
+}
+.nova-sx-filters .nova-sx-search input:focus { outline: 2px solid var(--ex-link); outline-offset: -1px; background: var(--mb-panel); }
+
+.nova-sx-leagues { display: flex; gap: 6px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
+.nova-sx-leagues::-webkit-scrollbar { display: none; }
+.nova-sx-leagues button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ui-radius);
+  color: var(--ex-text);
+  background: var(--mb-panel);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.nova-sx-leagues button small { padding: 0 6px; border-radius: var(--ui-radius); color: var(--mb-muted); background: var(--mb-soft); font-size: 11px; font-weight: 700; }
+.nova-sx-leagues button:hover { border-color: var(--ex-red); color: var(--mb-red-text); }
+.nova-sx-leagues button.active { border-color: var(--ex-red); color: #FFFFFF; background: var(--ex-red); }
+.nova-sx-leagues button.active small { color: var(--ex-red); background: #FFFFFF; }
+
+.nova-sx-group { min-width: 0; }
+/* Matchbook list: one match per row, prices in fixed columns under the group's 1 X 2 labels.
+   --sx-cell is shared by the rows and the header labels so the two line up. */
+.nova-sx-group { --sx-cell: 54px; }
+.nova-sx-group-head { min-height: 48px; }
+.nova-sx-cols {
+  display: grid;
+  grid-template-columns: repeat(3, calc(var(--sx-cell) * 2 + 2px));
+  gap: 6px;
+  margin: 0 1px 0 auto;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+.nova-sx-cols.ways-2 { grid-template-columns: repeat(2, calc(var(--sx-cell) * 2 + 2px)); }
+.nova-sx-rows { display: grid; border: 1px solid var(--mb-line); border-top: 0; background: var(--mb-panel); }
+.nova-sx-row {
+  position: relative;
+  display: grid;
+  /* when | event over league | badges | bookmark | prices */
+  grid-template-columns: 64px minmax(0, 1fr) auto 26px auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: 6px 12px 6px 11px;
+  border-left: 3px solid transparent;
+  transition: background-color .15s, border-color .15s;
+}
+.nova-sx-row + .nova-sx-row { border-top: 1px solid var(--mb-line); }
+.nova-sx-row:hover { border-left-color: var(--ex-red); background: var(--mb-panel-2); }
+.nova-sx-row-when { display: grid; justify-items: center; gap: 3px; padding: 6px 2px; border-radius: var(--ui-radius); background: var(--mb-soft); }
+.nova-sx-row-when strong { font-size: 14px; font-weight: 700; line-height: 1; }
+.nova-sx-row-when small { display: inline-flex; align-items: center; gap: 4px; color: var(--mb-muted); font-size: 12px; line-height: 1; white-space: nowrap; }
+.nova-sx-row-when small svg { width: 12px; height: 12px; color: #1DB954; }
+/* In play is green: a scoreboard tile with a glowing beacon, a heart-monitor trace that keeps running and a
+   breathing halo, plus a green edge and wash along the row, so live matches read at a glance in a long list. */
+.nova-sx-row.is-live,
+.nova-sx-row.is-live:hover { border-left-color: var(--ex-live); }
+.nova-sx-row.is-live { background: linear-gradient(90deg, rgb(11 128 64 / 8%), rgb(11 128 64 / 0%) 260px); }
+.nova-sx-row.is-live:hover { background: linear-gradient(90deg, rgb(11 128 64 / 12%), var(--mb-panel-2) 260px); }
+.nova-sx-row-when.is-live {
+  position: relative;
+  align-content: center;
+  gap: 6px;
+  min-height: 48px;
+  color: #FFFFFF;
+  background: linear-gradient(160deg, var(--ex-live-lift) 0%, var(--ex-live) 50%, var(--ex-live-deep) 100%);
+  animation: nova-ex-breathe 2.4s ease-in-out infinite;
+}
+.nova-sx-row-when.is-live strong { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+.nova-sx-row-when.is-live .nova-ex-live-pulse { width: 44px; height: 12px; }
+
+/* Beacon: a glowing dot with a ring that keeps expanding out of it. */
+.nova-sx-row-when.is-live strong i,
+.nova-ex-card-time .is-live i { position: relative; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ex-live-glow); box-shadow: 0 0 6px var(--ex-live-glow); animation: none; }
+.nova-sx-row-when.is-live strong i::after,
+.nova-ex-card-time .is-live i::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--ex-live-glow);
+  border-radius: 50%;
+  animation: nova-ex-ping 1.6s ease-out infinite;
+}
+
+/* The heart-monitor trace (.nova-ex-live-pulse) and the ping keyframes live in live-pulse.css. */
+@keyframes nova-ex-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(11 128 64 / 0%), 0 2px 6px rgb(11 128 64 / 22%); }
+  50% { box-shadow: 0 0 0 4px rgb(11 128 64 / 15%), 0 2px 12px rgb(11 128 64 / 35%); }
+}
+/* After the rules above so it wins: still beacon, a solid trace, no halo. */
+@media (prefers-reduced-motion: reduce) {
+  .nova-sx-row-when.is-live { animation: none; box-shadow: 0 2px 6px rgb(11 128 64 / 22%); }
+  .nova-sx-row-when.is-live strong i::after,
+  .nova-ex-card-time .is-live i::after { display: none; }
+}
+.nova-sx-row-link { display: grid; min-width: 0; color: var(--mb-ink); font-size: 17px; font-weight: 600; line-height: 1.18; }
+.nova-sx-row-link > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nova-sx-row-link strong { font-weight: 700; }
+.nova-sx-row-link em { color: var(--mb-red-text); font-style: normal; }
+/* The competition sits under the event name, muted and smaller. */
+.nova-sx-row-link .nova-sx-row-league { margin-top: 3px; color: var(--mb-muted); font-size: 14px; font-weight: 500; line-height: 1.2; }
+/* The team link covers the row; the bookmark button stacks above it. */
+.nova-sx-row-link::after { content: ''; position: absolute; inset: 0; }
+.nova-sx-row-link:focus-visible { outline: none; }
+.nova-sx-row-link:focus-visible::after { outline: 2px solid var(--ex-link); outline-offset: -2px; }
+.nova-sx-row-meta { display: grid; justify-items: end; gap: 4px; min-width: 0; color: var(--ex-muted); font-size: 13px; text-align: right; }
+.nova-sx-row-meta small { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; }
+.nova-sx-row-meta abbr { padding: 1px 5px; border-radius: var(--ui-radius); color: var(--mb-muted); background: var(--mb-soft); font-size: 10px; font-weight: 700; text-decoration: none; }
+.nova-sx-row-meta small > span { margin-left: 3px; }
+.nova-sx-row-odds { display: grid; grid-template-columns: repeat(3, calc(var(--sx-cell) * 2 + 2px)); gap: 6px; }
+.nova-sx-row-odds.ways-2 { grid-template-columns: repeat(2, calc(var(--sx-cell) * 2 + 2px)); }
+.nova-sx-row-odds .nova-ex-pair { grid-template-columns: repeat(2, var(--sx-cell)); }
+.nova-sx-row:hover .nova-ex-price { filter: brightness(1.03); }
+.nova-sx-row .nova-ex-card-race { min-height: 40px; margin: 0; padding: 0 18px; }
+.nova-sx-row:hover .nova-ex-card-race { border-color: var(--ex-red); color: #FFFFFF; background: var(--ex-red); }
+.nova-sx-row.is-skeleton { grid-template-columns: 64px minmax(0, 1fr) minmax(0, 300px); pointer-events: none; }
+.nova-sx-row.is-skeleton i { display: block; height: 40px; border-radius: var(--ui-radius); background: linear-gradient(90deg, var(--mb-soft), var(--mb-soft), var(--mb-soft)); }
+@container exmain (max-width: 799px) {
+  .nova-sx-row { grid-template-columns: 64px minmax(0, 1fr) 26px auto; }
+  .nova-sx-row-meta { display: none; }
+}
+@container exmain (max-width: 639px) {
+  .nova-sx-cols { display: none; }
+  .nova-sx-row { grid-template-columns: 58px minmax(0, 1fr) 26px; row-gap: 8px; padding-block: 8px; }
+  .nova-sx-row-odds, .nova-sx-row .nova-ex-card-race { grid-column: 1 / -1; }
+  .nova-sx-row-odds, .nova-sx-row-odds.ways-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .nova-sx-row-odds.ways-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nova-sx-row-odds .nova-ex-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.nova-sx-note { margin: 0; color: var(--ex-muted); font-size: 13px; text-align: center; }
+
+/* Right column */
+.nova-sx-link-button { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.nova-sx-state { margin: 0; padding: 18px 14px; color: var(--mb-muted); font-size: 14px; line-height: 1.45; text-align: center; list-style: none; }
+.nova-sx-state p { margin: 0 0 10px; }
+.nova-sx-cta { padding: 8px 18px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--ex-red); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.nova-sx-bet-group + .nova-sx-bet-group { border-top: 1px solid var(--mb-line); }
+.nova-sx-bet-group summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px 0 14px;
+  color: var(--mb-ink);
+  font-size: 15px;
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+.nova-sx-bet-group summary::-webkit-details-marker { display: none; }
+.nova-sx-bet-group summary:hover { color: var(--mb-red-text); background: var(--mb-soft); }
+.nova-sx-bet-group summary img { width: 18px; height: 18px; opacity: .7; }
+.nova-sx-bet-group summary span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nova-sx-bet-group summary small { min-width: 22px; padding: 1px 6px; border-radius: var(--ui-radius); color: var(--mb-muted); background: var(--mb-soft); font-size: 12px; text-align: center; }
+.nova-sx-bet { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 7px 12px 7px 14px; border-top: 1px dashed var(--mb-line); }
+.nova-sx-bet-side { padding: 2px 6px; border-radius: var(--ui-radius); color: var(--mb-odds-ink); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.nova-sx-bet-side.is-back { background: var(--ex-back); }
+.nova-sx-bet-side.is-lay { background: var(--ex-lay); }
+.nova-sx-bet-selection { display: grid; min-width: 0; overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.nova-sx-bet-selection small { color: var(--ex-muted); font-size: 12px; font-weight: 400; }
+.nova-sx-bet strong { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-sx-bet .is-up { color: var(--mb-green); }
+.nova-sx-bet .is-down { color: var(--mb-red-text); }
+.nova-sx-bet-open { display: block; padding: 6px 14px 10px; color: var(--ex-link); font-size: 13px; font-weight: 600; }
+.nova-sx-bet-open:hover { text-decoration: underline; }
+
+.nova-sx-tabs-head { padding: 0; }
+.nova-sx-head-tabs { display: flex; width: 100%; }
+.nova-sx-head-tabs button {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: #C9CBD1;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.nova-sx-head-tabs button svg { width: 15px; height: 15px; }
+.nova-sx-head-tabs button small { min-width: 20px; padding: 1px 6px; border-radius: var(--ui-radius); color: #E2E3E3; background: var(--ex-dark); font-size: 11px; }
+.nova-sx-head-tabs button.active { border-bottom-color: var(--ex-red); color: #FFFFFF; }
+.nova-sx-head-tabs button:focus-visible { outline: 2px solid var(--ex-link); outline-offset: -2px; }
+.nova-sx-event { display: flex; align-items: center; }
+.nova-sx-event > a { flex: 1 1 auto; min-width: 0; }
+.nova-sx-event-copy { display: grid; flex: 1 1 auto; min-width: 0; }
+.nova-sx-event-copy strong { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.nova-sx-event-copy small { overflow: hidden; color: var(--ex-muted); font-size: 12px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.nova-sx-when { flex: 0 0 auto; color: var(--ex-muted); font-size: 12px; font-weight: 400; white-space: nowrap; }
+.nova-sx-live { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; padding: 1px 6px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--ex-live); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.nova-sx-live i { width: 5px; height: 5px; border-radius: 50%; background: #FFFFFF; animation: nova-ex-pulse 1.4s ease-in-out infinite; }
+.nova-sx-remove { display: grid; flex: 0 0 auto; width: 30px; height: 30px; margin-right: 8px; place-items: center; padding: 0; border: 0; border-radius: var(--ui-radius); color: var(--ex-muted); background: transparent; cursor: pointer; }
+.nova-sx-remove:hover { color: var(--mb-red-text); background: var(--mb-soft); }
+.nova-sx-remove svg { width: 15px; height: 15px; }
+
+@container exmain (max-width: 639px) {
+  .nova-sx-head h1 { font-size: 19px; }
+  .nova-sx-head-note { display: none; }
+  .nova-sx-time { flex: 1 1 100%; }
+  .nova-sx-time button { flex: 1 1 0; padding: 0 8px; }
+  .nova-sx-search { flex: 1 1 100%; }
+}
+
+/* Side by side: the featured rails stay put under the header while the boards scroll. */
+@media (min-width: 1101px) {
+  /* Pinned under the header at screen height, scrolling on its own like the left sidebar
+     (no visible track there either); it does not hand leftover scroll to the page. */
+  .nova-ex-side {
+    position: sticky;
+    top: calc(var(--header-height) + 12px);
+    max-height: calc(100dvh - var(--header-height) - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  .nova-ex-side::-webkit-scrollbar { display: none; }
+}
+
+@media (max-width: 1100px) {
+  .nova-ex-grid { grid-template-columns: minmax(0, 1fr); }
+  .nova-ex-side { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+@media (max-width: 640px) {
+  .nova-ex-side { grid-template-columns: minmax(0, 1fr); }
+  .nova-ex-brand-card { min-height: 160px; }
+}
+
+/* ----------------------------------------------------------- section bars */
+/* Simple user-panel section headers, matching the admin card header's
+   dimensions, muted metadata and mint icon treatment. */
+:is(.nova-ex-section-head, .nova-ex-games-head).nova-ex-nameplate,
+.nova-ex-section-head.nova-sx-tabs-head {
+  --sh-paper: #F5F6F7;
+  --sh-ink: #202126;
+  --sh-muted: #66656B;
+  --sh-line: #DDDDDD;
+  --sh-hover: #E9ECEF;
+  --sh-accent: #059669;
+  --sh-icon-bg: #E1F5EC;
+  --sh-icon-ink: #059669;
+}
+html.dark :is(.nova-ex-section-head, .nova-ex-games-head).nova-ex-nameplate,
+html.dark .nova-ex-section-head.nova-sx-tabs-head {
+  --sh-paper: #30333A;
+  --sh-ink: #F4F5F7;
+  --sh-muted: #A3A6AD;
+  --sh-line: #454951;
+  --sh-hover: #3C414A;
+  --sh-accent: #34D399;
+  --sh-icon-bg: rgb(52 211 153 / 14%);
+  --sh-icon-ink: #34D399;
+}
+:is(.nova-ex-section-head, .nova-ex-games-head).nova-ex-nameplate {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  min-width: 0;
+  min-height: 46px;
+  padding: 7px 12px 7px 14px;
+  border-radius: 5px 5px 0 0;
+  color: var(--sh-ink);
+  background: var(--sh-paper);
+  box-shadow: inset 0 0 0 1px var(--sh-line);
+}
+.nova-ex-nameplate .nova-ex-head-label {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  color: var(--sh-ink);
+}
+.nova-ex-nameplate .nova-ex-head-icon { display: grid; flex: 0 0 26px; width: 26px; height: 26px; place-items: center; border-radius: 5px; color: var(--sh-icon-ink); background: var(--sh-icon-bg); }
+.nova-ex-nameplate .nova-ex-head-icon > :is(img, svg) { display: block; width: 15px; height: 15px; margin: 0; color: inherit; }
+.nova-ex-nameplate .nova-ex-head-icon > img { object-fit: contain; filter: brightness(0) saturate(100%) invert(43%) sepia(61%) saturate(1480%) hue-rotate(126deg) brightness(93%) contrast(97%); }
+html.dark .nova-ex-nameplate .nova-ex-head-icon > img { filter: brightness(0) invert(1); opacity: .85; }
+.nova-ex-nameplate .nova-ex-head-label h2 {
+  flex: 0 1 auto;
+  display: block;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--sh-ink);
+  font: 700 17px/1.2 var(--font-inter);
+  letter-spacing: -.2px;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+.nova-ex-nameplate .nova-ex-head-label .nova-ex-section-count { flex: 0 0 auto; min-width: 0; padding: 0; border: 0; color: var(--sh-muted); background: transparent; font: 400 13px/1.35 var(--font-inter); font-variant-numeric: tabular-nums; }
+.nova-ex-nameplate .nova-ex-head-label .nova-ex-live-badge { flex: 0 0 auto; gap: 4px; padding: 3px 5px; border-radius: 3px; color: #FFFFFF; font: 700 9px/1.3 var(--font-inter); letter-spacing: .02em; }
+.nova-ex-nameplate .nova-ex-head-tools { display: flex; flex: 1 0 auto; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; margin-left: auto; padding-left: 12px; }
+.nova-ex-nameplate .nova-ex-head-tools :is(.nova-ex-section-all, .nova-ex-games-all) {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  margin: 0;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--sh-muted);
+  background: transparent;
+  font: 600 12px/1.3 var(--font-inter);
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: none;
+  transition: color .15s;
+}
+.nova-ex-nameplate .nova-ex-head-tools .nova-ex-section-all::after { content: '\203A'; font-size: 17px; line-height: 1; }
+.nova-ex-nameplate .nova-ex-head-tools :is(.nova-ex-section-all, .nova-ex-games-all):hover { color: var(--sh-accent); text-decoration: none; }
+.nova-ex-nameplate .nova-ex-head-tools .nova-ex-section-arrows { display: inline-flex; flex: 0 0 auto; gap: 2px; margin: 0; padding: 0 0 0 8px; border-left: 1px solid var(--sh-line); }
+.nova-ex-nameplate .nova-ex-head-tools .nova-ex-section-arrows button { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 3px; color: var(--sh-ink); background: transparent; }
+.nova-ex-nameplate .nova-ex-head-tools .nova-ex-section-arrows button:hover:not(:disabled) { color: var(--sh-accent); background: var(--sh-hover); }
+.nova-ex-nameplate .nova-ex-head-tools .nova-ex-section-arrows button:disabled { opacity: .3; }
+.nova-ex-nameplate .nova-ex-head-tools :is(.nova-ex-section-all, .nova-ex-games-all, .nova-ex-section-arrows button):focus-visible { outline: 2px solid var(--sh-accent); outline-offset: -2px; }
+.nova-ex-nameplate .nova-ex-head-tools .nova-ex-widget-zone { flex: 0 0 auto; margin: 0; padding: 0; border: 0; color: var(--sh-muted); background: transparent; font: 400 12px/1.35 var(--font-inter); }
+.nova-ex-games { border-radius: 5px; }
+.nova-ex-games-head.nova-ex-nameplate { padding-right: 10px; }
+.nova-ex-games-head.nova-ex-nameplate .nova-ex-head-label { flex: 1 1 auto; gap: 7px; }
+.nova-ex-games-head.nova-ex-nameplate .nova-ex-head-label h2 { font-size: 16px; }
+.nova-ex-games-head.nova-ex-nameplate .nova-ex-head-tools { flex: 0 0 auto; padding-left: 8px; }
+.nova-ex-widget .nova-ex-nameplate .nova-ex-head-label h2 { font-size: 16px; }
+/* Keep fixed sports labels aligned with the price columns. */
+.nova-sx-group-head.nova-ex-nameplate .nova-ex-head-tools { flex: 0 0 auto; padding-left: 0; }
+.nova-sx-group-head.nova-ex-nameplate .nova-sx-cols { color: var(--sh-ink); }
+.nova-ex-section-head.nova-sx-tabs-head { min-height: 46px; padding: 0; border-radius: 5px 5px 0 0; background: var(--sh-paper); box-shadow: inset 0 0 0 1px var(--sh-line); }
+.nova-sx-tabs-head .nova-sx-head-tabs button { color: var(--sh-muted); }
+.nova-sx-tabs-head .nova-sx-head-tabs button.active { color: var(--sh-ink); }
+.nova-sx-tabs-head .nova-sx-head-tabs button small { color: var(--sh-muted); background: transparent; }
+@container exmain (max-width: 639px) {
+  :is(.nova-ex-section-head, .nova-ex-games-head).nova-ex-nameplate { padding-right: 9px; padding-left: 12px; }
+  .nova-ex-nameplate .nova-ex-head-label { gap: 8px; }
+  .nova-ex-nameplate .nova-ex-head-label h2 { font-size: 17px; }
+  .nova-ex-nameplate .nova-ex-head-tools { gap: 7px; padding-left: 9px; }
+  .nova-ex-nameplate .nova-ex-head-tools .nova-ex-section-arrows { padding-left: 6px; }
+  .nova-ex-nameplate .nova-ex-head-tools .nova-ex-section-arrows button { width: 27px; }
+}
+@container exmain (max-width: 439px) {
+  .nova-ex-nameplate .nova-ex-head-label > .nova-ex-live-badge { width: 6px; height: 8px; gap: 0; padding: 0; color: transparent; background: transparent; font-size: 0; }
+  .nova-ex-nameplate .nova-ex-head-label > .nova-ex-live-badge i { width: 6px; height: 6px; background: var(--sh-accent); }
+}
+@container exrail (max-width: 359px) {
+  .nova-ex-nameplate .nova-ex-head-tools .nova-ex-games-all { width: 26px; min-height: 32px; padding: 0; font-size: 0; }
+  .nova-ex-nameplate .nova-ex-head-tools .nova-ex-games-all svg { width: 16px; height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-ex-nameplate .nova-ex-head-tools :is(.nova-ex-section-all, .nova-ex-games-all, .nova-ex-section-arrows button) { transition: none; }
+}

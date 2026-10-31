@@ -1,0 +1,89 @@
+.block {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 4px 5px 4px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.label {
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pre {
+  box-sizing: border-box;
+  max-height: 320px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre;
+  scrollbar-color: var(--sb) transparent;
+}
+
+.pre:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.wrap {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .code (kit p2): a charcoal block in both themes, 3px radius, --chrome-soft (#E2E3E3) monospace at 13px.
+   Its tokens switch to on-charcoal values so the CopyButton (an IconButton) in the header takes a muted
+   glyph, a white hover glyph on a light wash and a white focus ring without rules of its own (the
+   Topbar.module.css trick). Every selector is (0,2,1), over the base (0,1,0). */
+:global(html:not([data-skin='classic'])) .block {
+  --surf: var(--chrome-2);
+  --surf-3: rgba(255, 255, 255, .1);
+  --line: var(--chrome-line-2);
+  --hover: rgba(255, 255, 255, .1);
+  --press: rgba(255, 255, 255, .16);
+  --acc-soft-h: rgba(255, 255, 255, .18);
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft);
+  --ink-3: var(--chrome-muted);
+  --ring: #FFFFFF;
+  color-scheme: dark;
+  border-color: var(--chrome);
+  border-radius: var(--ui-radius);
+  background: var(--chrome);
+}
+
+:global(html:not([data-skin='classic'])) .header {
+  border-bottom-color: var(--chrome-line);
+}
+
+:global(html:not([data-skin='classic'])) .label {
+  color: var(--chrome-muted);
+}
+
+:global(html:not([data-skin='classic'])) .pre {
+  padding: 12px 14px;
+  color: var(--chrome-soft);
+  font-size: 13px;
+  scrollbar-color: var(--chrome-4) transparent;
+}

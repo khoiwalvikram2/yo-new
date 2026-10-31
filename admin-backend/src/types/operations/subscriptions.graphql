@@ -1,0 +1,31 @@
+type Subscription { 
+  heartbeat: String!
+  jackpotPot: Jackpot!
+  orderbook(marketId: ID!): OrderbookMessage!
+  # Live market odds
+  book(marketId: ID!): MarketBook!
+  fancyBook(marketId: ID!): FancyBook!
+  # Event-level live odds for all markets in an event
+  eventLive(eventId: ID!): EventLive!
+  # Live market state updates
+  marketState(marketId: ID, sport: String, event: String): Market!
+  drawStatus: Draw!
+  walletUpdated: Wallet!
+  # Live sports analytics
+  sportsLiveDashboard(scope: SportsLiveScope): SportsLiveDashboard!
+  sportsPlayerEvents(scope: SportsLiveScope): SportsPlayerEvent!
+  # Matka Results real-time
+  matkaResultEvents: MatkaResult!
+  # Agent sharing/commission updates
+  agentSharingUpdated(agentId: ID!): AgentSharingInfo!
+  agentCommissionUpdated(agentId: ID!): AgentCommissionInfo!
+  whitelabelSharingUpdated(whitelabelId: ID!): WhitelabelSharingInfo!
+  # Agent credit updates
+  agentCreditUpdated(agentId: ID!): CreditAllocation!
+  # Whitelabel credit updates
+  whitelabelCreditUpdated(whitelabelId: ID!): WhitelabelCreditInfo!
+  # Audit trail real-time updates
+  auditEvents(filters: AuditListFilter): AuditEvent!
+  # Deposit requests real-time updates
+  depositRequestUpdated(tenant: String): DepositRequest!
+}

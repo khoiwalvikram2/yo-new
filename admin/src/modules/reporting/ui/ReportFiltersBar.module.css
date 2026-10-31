@@ -1,0 +1,67 @@
+/* ReportFiltersBar — the reporting store's filter row on the kit FilterBar (page migration Task 121).
+   The kit FilterBar owns the controls row and its compact popover; this module owns the surface the
+   legacy bar drew for itself and the Refresh slot beside the bar. Tokens only. */
+
+/* The legacy bar was its own white bordered box, so by default the component draws one surface:
+   the mockup's .card (M:853-856). A page that puts the bar inside a Card asks for `bare` instead, so
+   no card sits inside a card (definition of done item 9). */
+.root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: var(--sh);
+}
+
+/* The FilterBar's own container stretches to this cell, so its width-based collapse (a container
+   query on the bar, ui/components/FilterBar.module.css) measures the row the bar actually has. */
+.filters {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: Refresh stays beside the bar at every width; inside the FilterBar it would fold
+   into the compact Filters popover with the filters, where the legacy phone layout kept it in view.
+   Its 12px end margin mirrors the bar's own 12px inline padding. */
+.refresh {
+  flex: none;
+  margin-right: 12px;
+}
+
+/* BEYOND-MOCKUP: a searchable option list (agent, campaign) is a search box beside a native select
+   until the kit Combobox lands; the two wrap as one unit. They wrap by their own flex basis rather
+   than a container query because the compact Filters popover portals them out of the bar. */
+.pair {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.search {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.select {
+  flex: 1 1 140px;
+  min-width: 0;
+  max-width: 220px;
+}
+
+/* The currency and domain selects take the legacy w-28 / w-36 widths in the bar. Zero specificity,
+   so the compact popover's full-width rule for its children (FilterBar.module.css) still wins. */
+:where(.currency) {
+  width: 112px;
+}
+
+:where(.domain) {
+  width: 144px;
+}

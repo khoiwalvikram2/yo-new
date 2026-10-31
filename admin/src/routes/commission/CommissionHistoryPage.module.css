@@ -1,0 +1,46 @@
+.panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.tabs {
+  min-width: 0;
+  margin: -4px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.periodField {
+  flex: 0 1 auto;
+}
+
+.agentField {
+  width: min(220px, 100%);
+}
+
+.amount {
+  color: var(--pos-ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.date {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.notes {
+  display: block;
+  min-width: 10em;
+  max-width: 32em;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}

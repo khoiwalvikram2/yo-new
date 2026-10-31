@@ -1,0 +1,112 @@
+/* The reports' period control: the mockup's range pill and preset rail side by side, as the page
+   header draws them (.ph-right M:763, the pill M:1737-1740, the seg M:1741-1746). The pill is the kit
+   DateRangeField (.pill-btn M:765-775) and the rail the kit SegmentedControl (.seg M:777-794); this file
+   only lays the two out. */
+.filter {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+/* The phone layout (M:1613-1616: `.pill-btn{flex:1}`, `.seg{flex:1}`, `.seg button{flex:1}`) is
+   decided by the space the filter is given, not by the viewport. The filter sizes to its two
+   controls; when its slot is narrower than both (the FilterBar's compact popover, a phone row), the
+   rail wraps under the pill and each grows to fill its own line. With room to spare nothing grows,
+   because an intrinsically sized filter has no free space to hand out. BEYOND-MOCKUP: the mockup
+   switches at the 767px viewport step; a report can sit in a narrow slot on a wide screen. */
+.pill {
+  flex: 1 1 auto;
+}
+
+/* the kit Button is `flex: none`; on its own line the pill fills it, its label centred (M:1614) */
+.pill > button {
+  flex: 1 1 auto;
+}
+
+.presets {
+  flex: 1 1 auto;
+}
+
+/* Equal segments once the rail is stretched (M:1616); at its natural width each keeps its label's
+   width, because a flex item never shrinks below its unwrapped text. */
+.presets > button {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+/* ---- PeriodSheet: the choices inside the FilterBar's folded Filters sheet. A caption, the four choices
+   in equal quarters, Custom's two dates side by side with Apply under them, and what is showing now. */
+.sheet {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.caption {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.sheetChoices {
+  display: flex;
+  width: 100%;
+}
+
+.sheetChoices > button {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+}
+
+/* the kit segmented rail sizes each choice to its label; here the four split the line, (0,4,2) */
+:global(html:not([data-skin='classic'])) .sheetChoices.sheetChoices > button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.sheetCustom {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.sheetDates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sheetApply {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.blocked {
+  margin-right: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.sheetNow {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.sheetNow b {
+  color: var(--ink);
+  font-weight: 700;
+}

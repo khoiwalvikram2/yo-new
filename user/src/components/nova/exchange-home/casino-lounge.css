@@ -1,0 +1,67 @@
+/* Actual curated games, composed in repeating tall / wide / compact groups. */
+.lg { display: grid; gap: 10px; min-width: 0; container: casino-lounge / inline-size; }
+.lg-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 180px; grid-auto-flow: dense; gap: 10px; min-width: 0; }
+.lg-cell { position: relative; min-width: 0; grid-column: span 4; }
+.lg-cell.is-feature { grid-column: span 5; grid-row: span 2; }
+.lg-cell.is-wide { grid-column: span 7; }
+.lg-cell.is-compact { grid-column: span 3; }
+.lg-grid.has-1 .lg-cell { grid-column: 1 / -1; grid-row: span 2; }
+.lg-grid.has-2 .lg-cell { grid-column: span 6; grid-row: span 2; }
+.lg-portal {
+  --lg-accent: #E1C291;
+  position: relative; display: block; width: 100%; height: 100%; padding: 0; overflow: hidden;
+  border: 1px solid rgb(225 194 145 / 24%); color: #FFF3DD; background: #172220; text-align: left;
+  cursor: pointer; isolation: isolate; font: inherit; container: lounge-card / inline-size;
+  transition: transform .25s ease, border-color .25s, box-shadow .25s;
+}
+.lg-portal::after { content: ''; position: absolute; inset: 0; z-index: 2; background: radial-gradient(circle 200px at var(--lg-light-x, 75%) var(--lg-light-y, 25%), rgb(255 223 168 / 24%), transparent 75%); opacity: 0; transition: opacity .3s; pointer-events: none; }
+.lg-portal:is(:hover, :focus-visible) { border-color: #D7B47D; box-shadow: 0 12px 20px -17px rgb(0 0 0 / 70%); transform: translateY(-3px); }
+.lg-portal:is(:hover, :focus-visible)::after { opacity: 1; }
+.lg-portal:focus-visible { outline: 2px solid #EBD5A7; outline-offset: -3px; }
+.lg-portal:disabled { cursor: progress; }
+.lg-game-image { display: block; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 35%; transition: transform .6s cubic-bezier(.2,.7,.2,1); }
+.lg-portal:is(:hover, :focus-visible) .lg-game-image { transform: scale(1.035); }
+.lg-game-shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgb(3 12 14 / 8%) 35%, rgb(3 12 14 / 40%) 60%, rgb(3 12 14 / 96%) 100%); pointer-events: none; }
+.lg-copy { position: absolute; right: 16px; bottom: 16px; left: 16px; z-index: 3; min-width: 0; }
+.lg-kicker { display: block; color: #ECD6B2; font-size: 10px; font-weight: 700; letter-spacing: .1em; line-height: 1.4; text-transform: uppercase; overflow-wrap: anywhere; }
+.lg-copy strong { display: block; margin-top: 5px; color: #FFF4DE; font-size: 21px; font-weight: 700; letter-spacing: -.015em; line-height: 1.12; overflow-wrap: anywhere; text-shadow: 0 2px 12px #000; }
+.is-feature .lg-copy { bottom: 24px; left: 22px; right: 22px; }
+.is-feature .lg-copy strong { font-size: clamp(28px, 9cqi, 42px); }
+.is-wide .lg-copy strong { font-size: clamp(24px, 6cqi, 34px); }
+.lg-enter { position: absolute; top: 12px; right: 12px; z-index: 3; display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgb(255 255 255 / 30%); color: #F2D7AB; background: rgb(5 12 12 / 65%); transition: color .2s, background-color .2s; pointer-events: none; }
+.lg-enter svg { width: 17px; height: 17px; }
+.lg-portal:is(:hover, :focus-visible) .lg-enter { color: #18221D; background: #E9D4AC; }
+.lg-launch-error { position: absolute; left: 8px; right: 8px; top: 8px; z-index: 4; padding: 8px 38px 8px 8px; margin: 0; background: #261414; color: #FFE3DC; font-size: 12px; }
+.lg-loading { display: grid; grid-template-columns: 5fr 4fr 3fr; gap: 10px; min-height: 180px; }
+.lg-loading i { background: var(--nova-surface, rgb(128 128 128 / 14%)); animation: lg-skeleton 1.4s ease-in-out infinite alternate; }
+.lg-loading.is-more { display: flex; justify-content: center; min-height: auto; padding: 12px; }
+.lg-spinner { animation: lg-spin 1s linear infinite; }
+.lg-feedback { color: var(--nova-text, inherit); font-size: 13px; }
+.lg-feedback p { margin: 4px 0 8px; }
+.lg-more, .lg-feedback button { justify-self: center; padding: 10px 22px; border: 1px solid #8C7859; background: transparent; color: var(--nova-text, inherit); font: inherit; font-size: 13px; cursor: pointer; }
+.lg-more:focus-visible, .lg-feedback button:focus-visible { outline: 2px solid #D7B47D; outline-offset: 3px; }
+@keyframes lg-spin { to { transform: rotate(360deg); } }
+@keyframes lg-skeleton { to { opacity: .4; } }
+@container lounge-card (max-width: 190px) {
+  .lg-copy { right: 12px; bottom: 12px; left: 12px; }
+  .lg-copy strong { font-size: 18px; }
+  .lg-kicker { font-size: 9px; letter-spacing: .05em; }
+  .lg-enter { top: 8px; right: 8px; width: 26px; height: 26px; }
+}
+@container casino-lounge (max-width: 639px) {
+  .lg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; }
+  .lg-cell, .lg-cell.is-compact { grid-column: auto; min-height: 200px; }
+  .lg-cell.is-feature { grid-column: 1 / -1; grid-row: auto; min-height: 280px; }
+  .lg-cell.is-wide { grid-column: 1 / -1; min-height: 180px; }
+  .lg-grid.has-1 .lg-cell { grid-column: 1 / -1; grid-row: auto; }
+  .lg-grid.has-2 .lg-cell { grid-column: auto; grid-row: auto; min-height: 230px; }
+  .lg-grid.has-2 .lg-copy strong { font-size: 22px; }
+  .lg-grid .lg-portal { min-height: inherit; }
+  .lg-loading { grid-template-columns: 1fr 1fr; }
+  .lg-loading i:last-child { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-spinner, .lg-loading i { animation: none; }
+  .lg-portal, .lg-portal::after, .lg-game-image, .lg-enter { transition: none; }
+  .lg-portal:is(:hover, :focus-visible), .lg-portal:is(:hover, :focus-visible) .lg-game-image { transform: none; }
+}

@@ -1,0 +1,238 @@
+/* .searchfield (M:692-703) with a native search input. The browser's built-in cancel decoration is
+   suppressed because the kit button supplies one labelled, consistently-sized clear target. */
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--font-ui);
+}
+
+.label {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.md {
+  height: 36px;
+}
+
+.sm {
+  height: 30px;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0 34px 0 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: normal;
+  transition: border-color var(--t-1) ease, background var(--t-1) ease;
+}
+
+.sm .input {
+  padding-inline: 30px;
+  border-radius: var(--ui-radius);
+  font-size: 12.5px;
+}
+
+.input::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+.input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.input:not(:disabled):hover {
+  border-color: var(--acc-soft-h);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+  border-color: var(--hair);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.searchIcon,
+.clearButton {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+
+.searchIcon {
+  left: 11px;
+  pointer-events: none;
+}
+
+.clearButton {
+  right: 5px;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  cursor: pointer;
+  transition: background var(--t-1) ease, color var(--t-1) ease;
+}
+
+.sm .searchIcon {
+  left: 9px;
+}
+
+.sm .clearButton {
+  right: 3px;
+  width: 24px;
+  height: 24px;
+}
+
+.clearButton:hover {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+.clearButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input,
+  .clearButton {
+    transition: none;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* The kit .ctl with a leading search glyph: 44px (sm 36px), 1px --line-2, 3px, --field, 15px. Here the
+   native input is the box, so hover, focus and disabled sit on .input. Focus swaps the base outline for
+   the kit's --focus-border plus 3px --focus-ring; a transparent outline stays for forced-colours mode.
+   The inline label takes the kit label face (14px 600 --ink-2). */
+:global(html:not([data-skin='classic'])) .label {
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .md {
+  height: 44px;
+}
+
+:global(html:not([data-skin='classic'])) .sm {
+  height: 36px;
+}
+
+:global(html:not([data-skin='classic'])) .input {
+  padding: 0 40px 0 40px;
+  border-color: var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--field);
+  color: var(--ink);
+  font-size: 15px;
+  transition: border-color var(--t-1) ease, box-shadow var(--t-1) ease, background var(--t-1) ease;
+}
+
+:global(html:not([data-skin='classic'])) .sm .input {
+  padding-inline: 34px;
+  border-radius: var(--ui-radius);
+  font-size: 14px;
+}
+
+:global(html:not([data-skin='classic'])) .input:not(:disabled):hover {
+  border-color: var(--line-3);
+}
+
+:global(html:not([data-skin='classic'])) .input:not(:disabled):focus {
+  border-color: var(--focus-border);
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+:global(html:not([data-skin='classic'])) .input:read-only:not(:disabled) {
+  border-style: dashed;
+  background: var(--panel-2);
+}
+
+:global(html:not([data-skin='classic'])) .input:disabled {
+  border-color: var(--line);
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+:global(html:not([data-skin='classic'])) .searchIcon {
+  left: 13px;
+  color: var(--ink-3);
+}
+
+:global(html:not([data-skin='classic'])) .sm .searchIcon {
+  left: 11px;
+}
+
+/* kit .ctl__clear */
+:global(html:not([data-skin='classic'])) .clearButton {
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--ui-radius);
+}
+
+:global(html:not([data-skin='classic'])) .sm .clearButton {
+  right: 5px;
+  width: 24px;
+  height: 24px;
+}
+
+:global(html:not([data-skin='classic'])) .clearButton:hover {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-skin='classic'])) .input {
+    transition: none;
+  }
+}

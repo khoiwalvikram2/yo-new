@@ -1,0 +1,551 @@
+/* Worli session detail (/matka/worli/:id). The route has no mockup page; the mockup keeps a record's
+   details in its drawer (.dr-body / .dr-sec / .dl, M:1150-1157), and this page composes the kit from the
+   generic page idioms. Every rule cites the mockup rule it transcribes or is marked BEYOND-MOCKUP. The
+   status chip, the reason prompt and the operator controls import this module too. */
+
+/* BEYOND-MOCKUP: the payments pages' 16px rhythm between the page's blocks (DepositRequests.module.css
+   .content); the mockup's own column gap is 20px (.gcol M:898). */
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- header ---------- */
+
+/* BEYOND-MOCKUP: the session pill, run date and id fingerprint as one wrapping line of facts under the
+   title, in the drawer subtitle's colour and figures (.dr-sub M:1149). */
+.headMeta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ids in the code face the kit CodeBlock uses (CodeBlock.module.css). */
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* The status pill with its countdown. BEYOND-MOCKUP: the countdown is a tabular figure (tbody td
+   M:990-995) and turns to the danger text under ten minutes, as the legacy red did. */
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.countdown {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdownUrgent {
+  color: var(--neg-ink);
+  font-weight: 600;
+}
+
+/* ---------- stats ---------- */
+
+/* The four stat tiles (.kpis/.kpi M:808-850). The mockup steps them by viewport; here the row answers to its
+   own width, because the context panel takes its share of the page (definition of done item 17). A
+   ₹999,999,999.00 figure at 24px/700 needs about 290px of tile, so two across from 600px and four from
+   1200px (as the agent overview totals). BEYOND-MOCKUP: the 12px gap the legacy stat row kept. */
+.statsZone {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+@container (min-width: 600px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1200px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* The stat tile is the kit Stat card's surface (Stat.module.css .card, after .kpi M:811-816), drawn by the
+   page around a bare Stat so the exposure bar can sit inside the tile, under the figure. */
+.statTile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: var(--sh);
+}
+
+.statNote {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.activeBetting {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pos-ink);
+  font-weight: 600;
+}
+
+/* The exposure level reads in capitals, as the legacy tag did; its text stays the lower-case word. */
+.level {
+  text-transform: uppercase;
+}
+
+/* The bar runs the tile's width under the figure (.bar M:1085, full width under a label). */
+.statMeter {
+  width: 100%;
+}
+
+.negative {
+  color: var(--neg-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.positive {
+  color: var(--pos-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+/* ---------- session times ---------- */
+
+/* BEYOND-MOCKUP: the three session times in one wrapping row under the card's `Session Times` title (the
+   card body's inset), each a decorative tile (the KPI tile, .tile M:823) beside its label and time (the
+   .srow label and value, M:1077-1081). */
+.schedule {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scheduleItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.scheduleTile {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--ui-radius);
+}
+
+.scheduleText {
+  display: grid;
+  gap: 2px;
+}
+
+.scheduleLabel {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.scheduleValue {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The decorative ramp steps the tiles take (.ftile M:1065-1069); the hues carry no meaning. */
+.hueBlu {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.hueAmb {
+  background: var(--h-amb-bg);
+  color: var(--h-amb);
+}
+
+.hueRed {
+  background: var(--h-red-bg);
+  color: var(--h-red);
+}
+
+.hueGrn {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.hueVio {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.hueInd {
+  background: var(--h-ind-bg);
+  color: var(--h-ind);
+}
+
+/* An unknown action takes the neutral snapshot tile (.stile M:1079). */
+.hueNone {
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+/* ---------- operator controls and their dialogs ---------- */
+
+/* The operator buttons wrap in one row, on the card tools' 8px gap (.card-tools M:867). */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dialogBody {
+  display: grid;
+  gap: 10px;
+}
+
+/* BEYOND-MOCKUP: a failed send is said under the field in the danger text colour, as the kit
+   ConfirmDialog says its own. */
+.dialogError {
+  margin: 0;
+  color: var(--neg-ink);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* ---------- live bets ---------- */
+
+/* The live bets list takes the feed's inset (.feed M:1061) and is capped at 256px and scrolled, as the
+   legacy list was; the scroller is focusable so it scrolls from the keyboard. */
+.feedScroller {
+  max-height: 256px;
+  overflow-y: auto;
+  border-radius: var(--ui-radius);
+}
+
+.feedScroller:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.feedList {
+  margin: 0;
+  padding: 0 var(--card-pad) 14px;
+}
+
+/* A selection (the bet's numbers) in the code face, bold, as the legacy did. */
+.selection {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- tabs ---------- */
+
+/* BEYOND-MOCKUP: the tab strip scrolls rather than wraps when its four labelled tabs do not fit a phone
+   row, as the credit page's strip does (CreditManagementPage.module.css .tabs); the 4px block pad keeps a
+   tab's focus ring inside the scroller and the negative block margin cancels it in the layout. */
+.tabs {
+  min-width: 0;
+  margin: -4px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* A visited tab stays mounted but hidden; the grid display would otherwise override [hidden]. */
+.panel[hidden] {
+  display: none;
+}
+
+/* ---------- overview ---------- */
+
+.rowList {
+  margin: 0;
+  padding: 0;
+}
+
+.rank {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* BEYOND-MOCKUP: the bid-type counts as small inset tiles (the .stile ground, M:1079) in an auto-filling
+   grid that needs no viewport query. */
+.distribution {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.distributionTile {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  text-align: center;
+}
+
+.distributionType {
+  color: var(--ink-3);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.distributionCount {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.distributionUnit {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* ---------- book groups ---------- */
+
+/* BEYOND-MOCKUP: one card per bid type, two to a row where they fit. */
+.bookGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The selections, three to a row, capped at 384px and scrolled, as before; focusable to scroll from the
+   keyboard. */
+.selectionScroller {
+  max-height: 384px;
+  overflow-y: auto;
+  border-radius: var(--ui-radius);
+}
+
+.selectionScroller:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.selectionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* BEYOND-MOCKUP: a selection tile; position: relative holds its visually hidden text inside the scroller. */
+.selectionTile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  text-align: center;
+}
+
+/* The bet count, a small pill on the violet ramp step the legacy badge wore (.av.a2 M:1014). */
+.betBadge {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius);
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plFigure {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- activity ---------- */
+
+/* An activity entry is a feed row (.fitem M:1062-1063) with a decorative tile per action (.ftile M:1064),
+   its reason quoted on the inset ground and its sequence number at the end. */
+.activityList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activityItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.activityItem:last-child {
+  border-bottom: 0;
+}
+
+.activityTile {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--ui-radius);
+}
+
+.activityBody {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.activityHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.activityTime {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.activityReason {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.activityReason svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-3);
+}
+
+.activityActor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+/* BEYOND-MOCKUP: the sequence number in a soft accent pill, as the legacy blue circle was. */
+.activityIndex {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--ui-radius-circle);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- bets table ---------- */
+
+.userId {
+  border-radius: var(--ui-radius);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+}
+
+.userId:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.amount {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

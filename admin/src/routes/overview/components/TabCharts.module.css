@@ -1,0 +1,255 @@
+/* The tab charts (TabCharts.tsx): the Revenue panel's axis text and grid (RevenueBars.module.css), marks in
+   the dashboard accents through data-accent (tokens.css), and the heatmap's cells shaded from the surface
+   towards blue by --heat (0..100). */
+.chartWrap {
+  min-width: 0;
+}
+
+.chart {
+  position: relative;
+  min-width: 0;
+}
+
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.chart text {
+  fill: var(--ink-3);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.grid {
+  stroke: var(--hair);
+  stroke-width: 1;
+}
+
+.zero {
+  stroke: var(--line-3);
+  stroke-width: 1;
+}
+
+.bar {
+  fill: var(--accent, var(--ink-3));
+}
+
+.bar:hover {
+  opacity: .82;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend li::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--accent, var(--ink-3));
+}
+
+/* ---- Heatmap ---- */
+.heatWrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.heat {
+  display: grid;
+  grid-template-columns: 34px repeat(24, minmax(14px, 1fr));
+  gap: 3px;
+  min-width: 460px;
+  font-family: var(--font-ui);
+}
+
+.heatRow {
+  display: contents;
+}
+
+.heatHour,
+.heatDay {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.heatHour {
+  padding-bottom: 2px;
+  text-align: left;
+}
+
+.heatDay {
+  align-self: center;
+}
+
+.heatCell {
+  height: 22px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--viz-blue, var(--ink-3)) calc(12% + var(--heat, 0) * 0.88%), var(--surf));
+}
+
+.heatCell[data-empty] {
+  background: var(--surf-3);
+}
+
+.heatKey {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.heatKey .heatCell {
+  width: 16px;
+  height: 12px;
+}
+
+/* ---- Split bar ---- */
+.split {
+  min-width: 0;
+}
+
+.splitHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.splitTitle {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.splitTotal {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.splitBar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surf-3);
+}
+
+.splitBar > span {
+  flex: 1 1 0;
+  min-width: 3px;
+  background: var(--accent, var(--ink-3));
+}
+
+.splitLegend {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.splitLegend li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto 52px;
+  align-items: center;
+  gap: 8px;
+}
+
+.splitLegend li::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--accent, var(--ink-3));
+}
+
+.splitName {
+  overflow: hidden;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.splitValue {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.splitShare {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---- Funnel ---- */
+.funnel {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.funnelHead,
+.funnelNote {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.funnelLabel {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.funnelValue {
+  color: var(--accent, var(--ink));
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The Meter, thickened into a funnel bar in the step's accent; (0,3,1) over the skin's track (0,2,1). */
+:global(html:not([data-skin='classic'])) .funnelBar.funnelBar {
+  --s1: var(--accent, var(--ink-3));
+  height: 14px;
+  margin: 6px 0 4px;
+}
+
+.funnelNote {
+  color: var(--ink-3);
+  font-size: 12px;
+}

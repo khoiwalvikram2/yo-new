@@ -1,0 +1,15 @@
+/* BEYOND-MOCKUP: event controls and intelligence dialogs compose the existing admin kit. */
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+.stack > * { min-width: 0; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.between { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-width: 0; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; min-width: 0; }
+.filters { display: grid; grid-template-columns: minmax(140px, 1fr) 140px 150px 150px auto; gap: 12px; align-items: end; min-width: 0; }
+.tabs { min-width: 0; max-width: 100%; overflow-x: auto; padding-block: 2px; }
+.muted { color: var(--ink-3); font-size: 12px; overflow-wrap: anywhere; }
+.positive { color: var(--pos-ink); font-variant-numeric: tabular-nums; }
+.negative { color: var(--neg-ink); font-variant-numeric: tabular-nums; }
+.popover { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; width: min(300px, calc(100vw - 48px)); }
+.list { display: grid; gap: 12px; padding: 0; list-style: none; margin: 0; min-width: 0; }
+.listItem { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--ui-radius); min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 767px) { .filters { grid-template-columns: minmax(0, 1fr); } }

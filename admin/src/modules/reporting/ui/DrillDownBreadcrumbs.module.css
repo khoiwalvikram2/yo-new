@@ -1,0 +1,115 @@
+/* DrillDownBreadcrumbs — the report's drill-down path (page migration Task 121).
+   BEYOND-MOCKUP: the mockup draws no breadcrumb (inventory mockup-generic-page.md §1). The crumbs
+   take the kit Breadcrumb's recipe (ui/components/Breadcrumb.module.css: the topbar type stack
+   M:717-719, link states from .linkbtn M:879-886); the surface is the one the kit FilterChips draws
+   (ui/components/FilterChips.module.css, from .card-tools M:867), because the legacy path and the
+   legacy active-filter strip were the same white pill box and sit together on the report pages.
+   margin, padding and list-style are explicit because antd's unlayered `ol { margin-bottom: 1em }`
+   is beaten only by a class that sets them. */
+.root {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: var(--sh);
+  font-family: var(--font-ui);
+}
+
+.list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.separator {
+  flex: none;
+  display: flex;
+  margin: 0 4px;
+  color: var(--ink-3);
+}
+
+/* 28px tall so each crumb is a comfortable pointer target inside the 6px box (legacy py-0.5 on
+   12px type was 20px). */
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 220px;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.home {
+  flex: none;
+  display: flex;
+}
+
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: color var(--t-1) var(--ease), text-decoration-color var(--t-1) var(--ease);
+}
+
+.link:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.current {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The current crumb takes focus (tabindex -1) when the crumb that was clicked leaves the DOM. */
+.current:focus {
+  outline: none;
+}
+
+.current:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link {
+    transition: none;
+  }
+}

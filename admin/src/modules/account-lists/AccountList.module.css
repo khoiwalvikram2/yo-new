@@ -1,0 +1,86 @@
+.page {
+  --r-ctl: var(--ui-radius);
+  --r-row: var(--ui-radius);
+  --r-card: var(--ui-radius);
+  --r-pill: var(--ui-radius);
+  --r-tile: var(--ui-radius);
+  --card-pad: 18px;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+  container: account-list / inline-size;
+}
+
+.header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px 24px; padding: 6px 0 2px; }
+.heading { min-width: 0; }
+.heading h1 { margin-top: 0; color: var(--ink); font-size: 30px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; }
+.headerActions, .panelTools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.headerActions { margin-left: auto; }
+.headerActions :is(button, a) { border-radius: var(--ui-radius); }
+
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.metric { min-width: 0; min-height: 96px; padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf); }
+.metric > div { height: 100%; gap: 12px; }
+.controls { display: grid; gap: 12px; min-width: 0; }
+.groups { min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.groups > fieldset { width: max-content; min-width: 0; }
+.groups label { white-space: nowrap; }
+/* The groups (the agents' schemes, the players' types) read as the admin's line tabs (the owner,
+   2026-10-29: every tab strip as on the profiles, ui/components/Tabs.module.css): a --surf bar in a --line
+   border, the chosen group in the accent ink over a 3px accent bar. They stay a radio group; only the look
+   changes. The repeated class outranks RadioGroup's segmented rules in both skins. */
+.groups.groups { overflow: visible; }
+.groups.groups > fieldset { width: 100%; }
+.groups.groups fieldset > span { display: flex; gap: 2px; width: 100%; padding: 0 8px; overflow-x: auto; border: 1px solid var(--line); background: var(--surf); scrollbar-width: none; }
+.groups.groups fieldset > span::-webkit-scrollbar { display: none; }
+.groups.groups.groups input[type='radio'] + label { position: relative; display: inline-flex; flex: none; align-items: center; min-height: 50px; padding: 0 12px; background: none; color: var(--ink-2); }
+.groups.groups.groups input[type='radio'] + label::after { content: ''; position: absolute; right: 0; bottom: 0; left: 0; height: 3px; border-radius: 3px 3px 0 0; background: transparent; }
+.groups.groups.groups input[type='radio'] + label > span { color: inherit; font-size: 15px; font-weight: 600; }
+.groups.groups.groups input[type='radio']:not(:disabled) + label:hover { background: var(--surf-3); color: var(--ink); }
+.groups.groups.groups input[type='radio']:checked + label,
+.groups.groups.groups input[type='radio']:checked + label:hover { background: none; color: var(--acc-ink); }
+.groups.groups.groups input[type='radio']:checked + label > span { font-weight: 700; }
+.groups.groups.groups input[type='radio']:checked + label::after { background: var(--acc); }
+.groups.groups.groups input[type='radio']:focus-visible + label { outline: 2px solid var(--ring); outline-offset: -4px; }
+
+.panel { min-width: 0; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surf); }
+.panelHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 17px 18px; border-bottom: 1px solid var(--line); }
+.panelCopy { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; min-width: 0; }
+.panelCopy h2 { color: var(--ink); font-size: 17px; font-weight: 650; letter-spacing: -.01em; line-height: 1.4; }
+.panelCopy p { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.panelTools { margin-left: auto; }
+.panelTools > button { border-radius: var(--ui-radius); }
+.paddedBody { padding: 18px; }
+.tableBody { min-width: 0; padding-bottom: 4px; }
+.tablePanel table { font-variant-numeric: tabular-nums; }
+.page .tablePanel table th { padding-top: 13px; padding-bottom: 13px; background: var(--panel-2, var(--surf-3)); color: var(--ink-3); font-size: 11px; font-weight: 650; letter-spacing: .045em; text-transform: uppercase; white-space: nowrap; }
+.page .tablePanel table td { padding-top: 16px; padding-bottom: 16px; vertical-align: top; }
+.page .tablePanel table :is(th, td):first-child { position: sticky; left: 0; z-index: 2; }
+.page .tablePanel table td:first-child { background: var(--surf); }
+.page .tablePanel table tbody tr:hover > td:first-child { background: var(--hover); }
+.tablePanel table a, .tablePanel table button { scroll-margin: 20px; }
+
+@container account-list (max-width: 1000px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container account-list (max-width: 760px) {
+  .page .tablePanel table :is(th, td):first-child,
+  .page .tablePanel table :is(th, td):last-child { position: static; }
+  .panelHeader { align-items: flex-start; }
+  .panelTools { margin-left: 0; width: 100%; justify-content: space-between; }
+}
+@container account-list (max-width: 480px) {
+  .metrics { grid-template-columns: minmax(0, 1fr); }
+  .metric { min-height: 92px; padding: 14px; }
+}
+@media (max-width: 767px) {
+  .headerActions { width: 100%; margin-left: 0; }
+  .heading h1 { font-size: 26px; }
+  .page { gap: 16px; }
+}
+
+/* Directory surfaces and controls follow the shared 5px radius in every skin. */
+.page :where(div, section, header, footer, fieldset, label, button, a, input:not([type='radio'], [type='checkbox']), select, textarea) {
+  border-radius: var(--ui-radius) !important;
+}

@@ -1,0 +1,384 @@
+/* Payment Methods (M:2422-2430). The mockup draws this page with the generic table template
+   (M:3361-3409): page head, one table card, status pills. The rows here are the whitelabel's own bank
+   accounts and UPI IDs rather than the mockup's payment rails, so the cells keep the legacy content and
+   take the table's metrics (M:984-1007); what the mockup does not draw is marked BEYOND-MOCKUP. */
+
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The tab panel is the grid item that holds the table card; without this it grows to the table's
+   minimum width on a phone instead of letting the table scroll inside its card. */
+.panel {
+  min-width: 0;
+}
+
+/* ---------- header actions ---------- */
+
+/* BEYOND-MOCKUP: the bank/UPI switch is the mockup's .seg in .ph-right (M:761, M:777-794) as a tab
+   strip. On a phone it fills its row, as the mockup's period seg does (M:1615-1616) and the legacy
+   switch did; the kit Tabs has no stretch option, so the page stretches its own strip. */
+@media (max-width: 767px) {
+  .tabs {
+    display: flex;
+    width: 100%;
+  }
+
+  .tabs > [role='tab'] {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 0 8px;
+  }
+
+  /* The add action takes the full phone row below the strip, as the legacy button did. */
+  .addLink {
+    width: 100%;
+  }
+}
+
+/* ---------- table cells ---------- */
+
+/* The method cell: a decorative tile beside the account's name and details. The tile is the mockup's
+   avatar shape (.av M:1009-1017) at the 34px size, on the decorative hue ramp, never a status. */
+.methodCell {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 0;
+}
+
+.methodIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ui-radius);
+}
+
+.bankIcon {
+  color: var(--h-blu);
+  background: var(--h-blu-bg);
+}
+
+.upiIcon {
+  color: var(--h-vio);
+  background: var(--h-vio-bg);
+}
+
+.methodBody {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.methodTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The key cell's ink and weight (td.k M:996). The legacy cell truncated a long name; the full name
+   stays in the title. */
+.methodTitle {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* BEYOND-MOCKUP: the legacy term/value lines with copy actions, in the .dl term and value colours
+   (M:1153-1156) at table size. */
+.detailList {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: 56px minmax(0, auto);
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.detailTerm {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* The CopyButton's visually hidden announcement is absolutely positioned; this value is its containing
+   block, or it escapes the table's horizontal scroller and widens the page. */
+.detailValue {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* The full value stays in the title and is what the copy action copies. */
+.detailText {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Notes and the QR state sit under a hairline, as the legacy cell set them apart. */
+.notes,
+.qrRow {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--hair);
+}
+
+.notes {
+  max-width: 320px;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qrRow {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the legacy "QR Code Uploaded" control is a button that looks like an ok status pill
+   (.pill.verified M:1018-1025); its hover outlines the pill in its own ink. */
+.qrButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: box-shadow var(--t-1) ease;
+}
+
+.qrButton:hover {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.qrButton:active {
+  background: var(--press);
+}
+
+.qrButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* BEYOND-MOCKUP: the legacy Min/Max pair, as a two-line term/value grid with right-aligned figures
+   (the mockup's numeric cells are right-aligned, td.r M:994). */
+.limits {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  justify-content: start;
+  column-gap: 10px;
+  row-gap: 2px;
+  margin: 0;
+}
+
+.limitTerm {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.limitValue {
+  margin: 0;
+  justify-self: end;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+/* BEYOND-MOCKUP: the legacy five-star priority. The stars are decorative (the amber step of the hue
+   ramp on the track colour); the weight beside them is the text that carries it. */
+.priority {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+
+.stars {
+  display: inline-flex;
+  gap: 1px;
+  color: var(--track);
+}
+
+.starOn {
+  color: var(--h-amb);
+}
+
+.weight {
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.statusCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusText {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* An enabled method reads in the positive ink, as the legacy green text did. */
+.statusActive {
+  color: var(--pos-ink);
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---------- QR code dialog (BEYOND-MOCKUP: the mockup draws no QR view) ---------- */
+
+/* The dialog title carries the account's name in the dim ink, as the legacy modal title did. */
+.qrTitleName {
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.qrBody {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.qrImage {
+  display: block;
+  max-width: 100%;
+  max-height: 400px;
+  height: auto;
+  border: 2px solid var(--line);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--sh);
+}
+
+/* The image keeps loading out of sight until it has loaded, as before. */
+.qrHidden {
+  display: none;
+}
+
+.qrCaption {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.qrStore {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.qrProblem {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 16px 8px;
+  min-width: 0;
+}
+
+.qrProblemIcon {
+  display: flex;
+  margin-bottom: 4px;
+  color: var(--ink-3);
+}
+
+.qrProblemError {
+  color: var(--neg-ink);
+}
+
+.qrProblemTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.qrProblemText {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.qrProblemCode {
+  max-width: 100%;
+  margin: 6px 0 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.qrEmpty {
+  margin: 0;
+  padding: 24px 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qrButton {
+    transition: none;
+  }
+}

@@ -1,0 +1,70 @@
+/* Shell root. Mockup .app (R6 §a.3, M:497): a flex row, not a grid (deviation D7), so the NavDrawer
+   wrapper can hold rail + panel at every width and turn into the fixed drawer below 1024px.
+   height:100vh + overflow:hidden: nothing relies on document scroll (#root is a scroll container,
+   R7-gap-6 §4). Type metrics are the shared shell metrics (contracts §3.3). */
+/* position: relative here and on .main: an absolutely positioned element with no positioned ancestor (the
+   screen-reader-only text of a table, a filter bar's status) is placed against the document, at its spot in
+   the page; one far down a long page stretched the document past the viewport, and the wheel then scrolled
+   the whole shell up and left a blank strip under it. With these two it stays inside .main's own scroll
+   area, and nothing in the shell can make the document scroll. */
+.app {
+  position: relative;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Column 3. Mockup .content (R6 §a.3, M:673). The topbar is flex:none above .main, and this column
+   clips, so the topbar stays at the top without position:sticky. */
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app);
+}
+
+/* With the kit's right tool rail (player skin, from 1024px): the topbar spans the column, then <main> and
+   the 64px rail share the row under it. Grid rather than a wrapper, so <main> keeps its place in the tree. */
+.withTools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.withTools > :first-child {
+  grid-row: 1;
+  grid-column: 1 / -1;
+}
+
+/* Placed, not auto-placed: the tool panel shares <main>'s cell (ToolRail.module.css), so the main must not
+   be moved on by auto-placement. */
+.withTools > .main {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+/* <main id="main-content">: the one scroll container, no page gutters (pages bring their own).
+   All active pages inherit the saved theme; no legacy forced-light region remains.
+   flex column: today's page wrapper is `flex-1 min-h-0 flex flex-col overflow-y-auto`
+   (components/Layout.tsx:139), and pages and the read-only banner (flex-shrink-0) are built against it.
+   Scrollbar: mockup .scroll-y (R6 §a.2), standard properties only. */
+.main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--app);
+  color: var(--ink);
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}

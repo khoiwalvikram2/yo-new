@@ -1,0 +1,76 @@
+# Unified Bet List API (Bet List page)
+enum BetDomain {
+  ALL
+  SPORTS
+  CASINO
+  MATKA
+}
+
+input BetsPageFilters {
+  status: [String!]
+  dateFrom: String
+  dateTo: String
+  agentUsername: String
+  playerSearch: String
+  search: String
+  walletType: String
+  userId: ID
+  sportId: ID
+  leagueId: ID
+  eventId: ID
+  vendorId: ID
+  gameId: ID
+  vendorName: String
+  gameName: String
+  matkaName: String
+  marketName: String
+  bidType: String
+  stakeMin: Float
+  stakeMax: Float
+}
+
+type BetsFilterOptions {
+  vendorNames: [String!]!
+  gameNames: [String!]!
+  matkaNames: [String!]!
+  marketNames: [String!]!
+  bidTypes: [String!]!
+}
+
+# Campaign details when bet is from bonus wallet (from bonus_awards -> bonus_campaigns)
+type BetCampaignDetail {
+  id: ID!
+  name: String!
+  type: String
+  # Payout type: instant_otp | instant_cash | roll_over
+  distributionType: String
+  wageringReq: Float
+  validTo: String
+  validFrom: String
+  domain: String
+  status: String
+  startDate: String
+  endDate: String
+  amount: Float
+  percentage: Float
+  amountType: String
+}
+
+type BetsPageResult {
+  items: [BetItem!]!
+  total: Int!
+}
+
+# Totals per domain in one request (for Bet List stats cards)
+type BetsPageTotals {
+  totalAll: Int!
+  totalSports: Int!
+  totalCasino: Int!
+  totalMatka: Int!
+  totalStake: Float!
+  totalStakeSports: Float!
+  totalStakeCasino: Float!
+  totalStakeMatka: Float!
+}
+
+union BetItem = SportsBet | CasinoBet | MatkaBet

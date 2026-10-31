@@ -1,0 +1,162 @@
+# Withdrawals (admin)
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+input AdminWithdrawalFilter {
+  status: WithdrawalStatus
+  userId: ID
+  accountId: ID
+  fromDate: String
+  toDate: String
+  offset: Int
+  limit: Int
+}
+
+type WithdrawalAccount {
+  id: ID!
+  method: String
+  accountNumber: String
+  ifscCode: String
+  bankName: String
+  accountHolderName: String
+}
+
+type WithdrawalUser {
+  id: ID!
+  name: String
+  phone: String
+  email: String
+}
+
+type AdminWithdrawalRequest {
+  id: ID!
+  userId: ID!
+  amount: Float!
+  currency: String
+  status: WithdrawalStatus!
+  reviewerId: ID
+  reviewedAt: String
+  note: String
+  createdAt: String!
+  updatedAt: String!
+  account: WithdrawalAccount
+  user: WithdrawalUser
+}
+
+type AdminWithdrawalRequestList {
+  items: [AdminWithdrawalRequest!]!
+  total: Int!
+}
+
+type WithdrawalHistoryItem {
+  status: WithdrawalStatus!
+  reviewerId: ID
+  reviewedAt: String
+  note: String
+}
+
+input SetWithdrawalStatusInput {
+  id: ID!
+  status: WithdrawalStatus!
+  note: String
+}
+
+type SetWithdrawalStatusResponse {
+  success: Boolean!
+  message: String
+  request: AdminWithdrawalRequest
+}
+
+extend type Mutation {
+  setWithdrawalStatus(input: SetWithdrawalStatusInput!): SetWithdrawalStatusResponse!
+  approvePayoutAccount(input: ApprovePayoutAccountInput!): PayoutAccountActionResponse!
+  rejectPayoutAccount(input: RejectPayoutAccountInput!): PayoutAccountActionResponse!
+}
+
+extend type Query {
+  adminWithdrawalRequests(input: AdminWithdrawalFilter): AdminWithdrawalRequestList!
+  adminWithdrawalHistory(id: ID!): [WithdrawalHistoryItem!]!
+  adminPayoutAccounts(input: AdminPayoutAccountFilter): AdminPayoutAccountList!
+}
+
+# Payout account approvals (user withdrawal accounts)
+enum PayoutAccountApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+type AdminPayoutAccount {
+  id: ID!
+  userId: ID!
+  method: String!
+  accountNumber: String!
+  ifscCode: String
+  bankName: String
+  accountHolderName: String!
+  approvalStatus: PayoutAccountApprovalStatus!
+  rejectionReason: String
+  approvedBy: ID
+  approvedAt: String
+  createdAt: String!
+  user: WithdrawalUser
+}
+
+type AdminPayoutAccountList {
+  items: [AdminPayoutAccount!]!
+  total: Int!
+}
+
+input AdminPayoutAccountFilter {
+  status: PayoutAccountApprovalStatus
+  userId: ID
+  method: String
+  query: String
+  fromDate: String
+  toDate: String
+  offset: Int
+  limit: Int
+}
+
+input ApprovePayoutAccountInput {
+  id: ID!
+}
+
+input RejectPayoutAccountInput {
+  id: ID!
+  reason: String
+}
+
+type PayoutAccountActionResponse {
+  success: Boolean!
+  message: String
+  account: AdminPayoutAccount
+}
+
+type WithdrawalRequestStats {
+  totalRequests: Int!
+  pending: Int!
+  processing: Int!
+  completed: Int!
+  failed: Int!
+  totalAmount: Float!
+  completionRate: Int!
+  failureRate: Int!
+}
+type PayoutAccountStats {
+  total: Int!
+  pending: Int!
+  approved: Int!
+  rejected: Int!
+  approvalRate: Int!
+  rejectionRate: Int!
+}
+extend type Query {
+  adminWithdrawalRequestStats: WithdrawalRequestStats!
+  adminPayoutAccountStats: PayoutAccountStats!
+}

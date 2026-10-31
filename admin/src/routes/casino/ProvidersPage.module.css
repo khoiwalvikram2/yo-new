@@ -1,0 +1,812 @@
+/* Casino Providers (/casino/providers). The mockup has no page for this route (inventory: mockupPage null), so
+   the page composes the generic table-page recipe (M:3361-3409) and the idioms of the sibling /casino/vendors
+   page (Task 144): a page head, the statistics, one card per table, and right-edge drawers (M:1136-1167).
+   Rules the mockup does not draw are marked BEYOND-MOCKUP and derive from the cited idiom. */
+
+/* BEYOND-MOCKUP: the payments pages' 16px rhythm between the statistics, the cards and the tables
+   (DepositRequests.module.css .content); the mockup's own column gap is 20px (.gcol M:898). */
+.content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- statistics ---------- */
+
+/* The KPI row (M:796-850) holds four figures. Whether four fit depends on the page's own width (the context
+   panel takes 205px of it), so the row answers a container query, not a viewport query. */
+.statsWrap {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+@container (min-width: 560px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1120px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- per-whitelabel visibility (Super Admin) ---------- */
+
+/* The card's trailing note sits where the mockup puts card tools (.card-tools M:867), in the .card-sub type
+   (M:866). */
+.cardNote {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.visibility {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.whitelabelField {
+  width: min(100%, 320px);
+}
+
+/* The hint is the card's supporting copy (.card-sub M:866). */
+.hint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.tabPanel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: each list sits in one bordered surface inside the card (the .card border and radius,
+   M:853-855, at the tile radius), as the legacy lists did. The table owns the gutter (M:975-983). */
+.listBox {
+  min-width: 0;
+  padding-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+/* The games list keeps the legacy 420px box and scrolls inside it, loading the next page near its end. */
+.gameScroll {
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb) transparent;
+}
+
+/* The kit table scroller is a scroll container of its own, which would keep the header from sticking to the
+   games box; inside the box it gives the scrolling back to the box. That only holds while the games table
+   never overflows sideways: the scroller still measures its overflow, and an overflowing table would get the
+   kit's edge-fade mask, which clips (not scrolls) the Disabled column. So the games table takes a fixed
+   layout below and always fits the box. */
+.gameScroll .gameTableWrap {
+  overflow: visible;
+}
+
+/* BEYOND-MOCKUP: the games table fits its box at every width (the legacy table-in-box, whose Disabled column
+   was a fixed 112px). The column takes the switch, its gap and the Yes / No (32 + 8 + 2em of 12px) plus the
+   cell paddings (7px and the card gutter), and the name column takes the rest, its long names cut with an
+   ellipsis that carries the full name as a title. */
+.gameTable {
+  table-layout: fixed;
+}
+
+.switchCol {
+  width: calc(80px + var(--card-pad));
+}
+
+.gameTable .entityName,
+.gameTable .entitySub {
+  max-width: min(100%, 280px);
+}
+
+/* The header stays in view while the games scroll (legacy sticky header), on the card surface. */
+.stickyHead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surf);
+}
+
+.sentinel {
+  height: 16px;
+}
+
+/* The loaded count under the games, in the mockup's strip type (.strip M:1097-1099). */
+.gameFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px var(--card-pad);
+  border-top: 1px solid var(--hair);
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- table cells ---------- */
+
+/* The name cell: a decorative tile beside two lines, as the feed rows lay out (.who-cell M:1008, .ftile
+   M:1064-1069, .fbody M:1070-1072). The tile hue is decorative: blue for providers, violet for vendors, green
+   for games, the legacy assignment. */
+.entity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+}
+
+.tileProvider {
+  background: var(--h-blu-bg);
+  color: var(--h-blu);
+}
+
+.tileVendor {
+  background: var(--h-vio-bg);
+  color: var(--h-vio);
+}
+
+.tileGame {
+  background: var(--h-grn-bg);
+  color: var(--h-grn);
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.entityBody {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The key cell (td.k M:997). */
+.entityName {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entitySub {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The provider name opens that provider's vendors, as the legacy name button did. It reads as the key cell
+   and takes the link colour on hover (.linkbtn M:879-886), with the legacy arrow appearing beside it. */
+.nameButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: var(--link, var(--acc-ink));
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--t-1) ease;
+}
+
+.nameButton:hover {
+  color: var(--link, var(--acc-ink));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.nameButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.nameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nameArrow {
+  display: inline-flex;
+  flex: none;
+  color: var(--acc-ink);
+  opacity: 0;
+  transition: opacity var(--t-1) ease;
+}
+
+.nameButton:hover .nameArrow,
+.nameButton:focus-visible .nameArrow {
+  opacity: 1;
+}
+
+/* BEYOND-MOCKUP: the status select over its sync note (legacy layout), the note in the .fbody span type
+   (M:1072). The cell is positioned for the reason .figureCell is: the kit Select's hidden label is absolutely
+   positioned, and without a positioned ancestor inside the scroller it escapes to the table region. */
+.statusCell {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.syncNote {
+  display: grid;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.syncTime {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+/* The figure cells: a leading figure over small notes (.srow .sval M:1081 over .fbody span M:1072). The
+   wrapper is positioned so the visually hidden trend word cannot escape the table's scroller. */
+.figureCell {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.figureLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.figure {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The legacy coloured dot before each figure (.live i M:869 shape). Its colour repeats the trend text beside
+   it, which carries the meaning. */
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+
+.dotUp {
+  background: var(--ok);
+}
+
+.dotDown {
+  background: var(--neg-ink);
+}
+
+.dotInfo {
+  background: var(--blue);
+}
+
+.trendLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trendUp {
+  color: var(--pos-ink);
+}
+
+.trendDown {
+  color: var(--neg-ink);
+}
+
+.trendNeutral {
+  color: var(--ink-3);
+}
+
+.miniList {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.miniItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+}
+
+.miniIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--h-vio);
+}
+
+.plugIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--h-blu);
+}
+
+.truncate {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* Row actions (.acts M:1034). */
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* The Yes / No the legacy switch printed in its track, beside the kit switch. */
+.switchCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.switchState {
+  min-width: 2em;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The card's error notice keeps the card gutter above the table (.card-head padding M:862). */
+.cardNotice {
+  padding: 0 var(--card-pad) 12px;
+}
+
+/* ---------- scope (providers or vendors) ---------- */
+
+.scope {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.scopePanel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* BEYOND-MOCKUP: the vendors scope's provider filter and trail sit in one bordered surface above the table,
+   as the legacy box did (the .card surface M:853-855; its padding is the card head's, M:862). */
+.scopeFilter {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px var(--card-pad);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: var(--sh);
+}
+
+.scopeProvider {
+  width: min(100%, 280px);
+}
+
+/* BEYOND-MOCKUP: the trail back to the providers (the legacy breadcrumb), in the .card-sub type (M:866). */
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.4;
+  list-style: none;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.crumbSeparator {
+  display: inline-flex;
+  color: var(--ink-3);
+}
+
+.crumbCurrent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.crumbIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--h-vio);
+}
+
+/* ---------- drawers ---------- */
+
+/* The drawer body's sections (.dr-body M:1150, .dr-sec M:1151); the drawer's own container answers the
+   narrow-width queries below. */
+.drawerBody {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Section headings take the drawer section type (.dr-sec M:1151). */
+.sectionTitle {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.sectionSub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* BEYOND-MOCKUP: three small figures in muted tiles (the .stile ground, M:1079). */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.summaryItem {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+}
+
+.summaryTerm {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.summaryValue {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* The total share keeps the legacy traffic-light colours, as text (the figure carries the value). */
+.tonePos {
+  color: var(--pos-ink);
+}
+
+.toneWarn {
+  color: var(--warn);
+}
+
+.toneNeg {
+  color: var(--neg-ink);
+}
+
+.inlineLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* BEYOND-MOCKUP: one bordered tile per vendor (the .card border at the tile radius, M:853-855). */
+.listItem {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.itemHead .entityBody {
+  flex: 1 1 auto;
+}
+
+.shareField {
+  max-width: 200px;
+}
+
+.meter {
+  width: 100%;
+}
+
+/* Small label-over-figure pairs inside a tile (the .dl type, M:1155-1156, stacked). */
+.pairs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--hair);
+}
+
+.pairsTwo {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pair {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pairTerm {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.pairValue {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.pairAccent {
+  color: var(--acc-ink);
+}
+
+/* The analytics period: a caption and the kit range trigger, in the .card-tools row (M:867). */
+.rangeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.rangeCaption {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.figures {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contribution {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* BEYOND-MOCKUP: the trend chip of a breakdown row (the .pill shape M:1018-1021 on the semantic grounds). */
+.trendChip {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  color: var(--ink-3);
+}
+
+.chipUp {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.chipDown {
+  background: var(--neg-bg);
+  color: var(--neg-ink);
+}
+
+/* ---------- drawer footers (the Withdrawals drawer footer, after .dr-foot M:1165) ---------- */
+
+.drawerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.footerHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.footerHint svg {
+  flex: none;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+@container (max-width: 459px) {
+  .summary,
+  .pairs,
+  .metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .drawerFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .footerActions {
+    flex-wrap: wrap;
+  }
+
+  .footerActions > * {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nameButton,
+  .nameArrow {
+    transition: none;
+  }
+}

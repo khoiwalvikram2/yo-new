@@ -1,0 +1,9 @@
+/* Public-route counterpart of AppShell. Viewport sizing belongs here, not to the login page. */
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--app);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}

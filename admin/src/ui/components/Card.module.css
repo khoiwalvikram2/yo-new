@@ -1,0 +1,190 @@
+/* Promoted from the approved Overview card (M:853-869). The component paints one surface; body
+   variants change only its content inset, so consumers never need to wrap a second card around a
+   table or a flush row list. */
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surf);
+  box-shadow: var(--sh);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px var(--card-pad) 14px;
+}
+
+.headText {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  line-height: 1.3;
+}
+
+.sub {
+  margin: 4px 0 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: var(--ui-radius-circle);
+  background: var(--ok);
+}
+
+.body {
+  min-width: 0;
+}
+
+.padded {
+  padding: 0 var(--card-pad) var(--card-pad);
+}
+
+.flush {
+  padding: 0;
+}
+
+/* M:1007. A table owns its horizontal gutter, so only the closing bottom inset remains. */
+.table {
+  padding: 0 0 12px;
+}
+
+@media (max-width: 400px) {
+  .head {
+    padding-top: 14px;
+    padding-bottom: 12px;
+  }
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .panel / .panel__head (kit p2): a flat hairline panel (no shadow; --r-card is 0 in this skin) with a
+   charcoal title bar in both themes. The head's tokens switch to on-charcoal values, so buttons, links,
+   pills, icon buttons and segmented controls placed in the title or the tools follow without rules of
+   their own (the Topbar.module.css trick): secondary buttons turn white-outline, the primary stays red.
+   --surf-3 is a light wash (IconButton/ghost hovers lighten, as the kit's .ibtn--bar does, matching
+   Dialog's head); the segmented rail reads --track, which takes the kit's .segc--bar black wash.
+   Every selector is (0,2,1) or more, over the base (0,1,0) and the 400px step's .head (0,1,0). */
+:global(html:not([data-skin='classic'])) .card {
+  box-shadow: none;
+}
+
+/* Light in the light theme (owner 2026-10-29): --head-bg with a hairline under it, page ink on it. In the
+   dark theme the bar stays charcoal and the rule after this one switches its tokens to on-charcoal values,
+   so the controls placed on it follow without rules of their own (the Topbar.module.css trick). */
+:global(html:not([data-skin='classic'])) .head {
+  --hover: var(--head-hover);
+  --press: var(--head-press);
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 46px;
+  padding: 7px var(--card-pad);
+  border-bottom: 1px solid var(--head-line);
+  background: var(--head-bg);
+  color: var(--ink);
+}
+
+:global(html:not([data-skin='classic'])[data-theme='dark']) .head,
+:global(html:not([data-skin='classic']) [data-theme='dark']) .head {
+  --surf: var(--chrome-2);
+  --surf-3: rgba(255, 255, 255, .1);
+  --panel-2: rgba(255, 255, 255, .08);
+  --field: var(--chrome-2);
+  --track: rgba(0, 0, 0, .18);
+  --line: rgba(255, 255, 255, .3);
+  --line-2: rgba(255, 255, 255, .3);
+  --line-3: rgba(255, 255, 255, .6);
+  --hair: rgba(255, 255, 255, .18);
+  --hover: rgba(255, 255, 255, .08);
+  --press: rgba(255, 255, 255, .14);
+  --ink: #FFFFFF;
+  --ink-2: var(--chrome-soft);
+  --ink-3: var(--bar-muted);
+  --acc-soft: rgba(255, 255, 255, .1);
+  --acc-soft-h: rgba(255, 255, 255, .18);
+  --acc-ink: var(--chrome-link);
+  --link: var(--chrome-link);
+  --ring: #FFFFFF;
+  --focus-border: #FFFFFF;
+  --focus-ring: rgba(255, 255, 255, .18);
+  --disabled-bg: rgba(255, 255, 255, .08);
+  --disabled-fg: var(--chrome-muted);
+  color-scheme: dark;
+}
+
+/* The kit sets the sub beside the title on the bar's one line (h2 + .panel__sub); it wraps under the
+   title only when the line is full, so a titled card keeps the 46px bar. */
+:global(html:not([data-skin='classic'])) .headText {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+:global(html:not([data-skin='classic'])) .title {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+:global(html:not([data-skin='classic'])) .sub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* .live (kit): muted text on the bar, the theme's green dot. */
+:global(html:not([data-skin='classic'])) .live {
+  gap: 7px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+:global(html:not([data-skin='classic'])) .liveDot {
+  width: 8px;
+  height: 8px;
+  background: var(--pos-ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pos-ink) 24%, transparent);
+}
+
+/* The bar has no bottom inset, so a padded body under it takes the card inset on top too (.panel__body).
+   A headless card keeps its base inset: pages already compensate for it (PaymentMethodCreateEditPage). */
+:global(html:not([data-skin='classic'])) .head + .padded {
+  padding-top: var(--card-pad);
+}

@@ -1,0 +1,33 @@
+/* Kit popover surface (R5 §3.3; R8-popover §1.1). Surface values mirror the mockup's floating surfaces
+   (.pal-box M:1174-1178). This element receives floatingStyles (position: fixed + transform), so it carries the
+   z-index and needs no enter/exit effect (R5 §4.8, §4.13). No inner spacing and no overflow rule: content
+   controls its own insets and scrolling (TopbarPopover.module.css .panel, T38). Consumers pass a width class on
+   an inner content root. Colours are tokens only (contracts §3.2). css-check.sh and the Step 8 counts grep
+   comments too, so this comment stays clear of those two style rules. */
+.popover {
+  z-index: var(--z-pop);
+  min-width: 220px;
+  max-width: min(360px, calc(100vw - 16px));
+  background: var(--float);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--sh-pop);
+  font-family: var(--font-ui);
+}
+
+/* getFloatingProps() gives the surface tabIndex=-1. The focus manager focuses the surface itself when nothing
+   inside is tabbable; that programmatic focus must not paint a ring around the whole card. */
+.popover:focus {
+  outline: none;
+}
+
+/* Player skin (admin UI kit; off under <html data-skin="classic">). */
+/* .dd-pop (kit p3): the menu's frame, a 3px --float card with a --line-2 border. Consumer width classes
+   (DateRangePicker, EventBetsSidebar) set no frame properties, so (0,2,1) here does not fight them. */
+:global(html:not([data-skin='classic'])) .popover {
+  border: 1px solid var(--line-2);
+  border-radius: var(--ui-radius);
+  background: var(--float);
+  box-shadow: var(--sh-pop);
+}

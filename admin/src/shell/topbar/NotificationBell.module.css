@@ -1,0 +1,49 @@
+/* Applied to the kit IconButton via className. The kit rule is .iconButton:not(...):hover (0,2,0+);
+   open state is separate, so equal specificity is enough here. */
+.bell[aria-expanded='true'] {
+  background: var(--surf-3);
+  color: var(--ink);
+}
+
+/* mockup .belldot: a bare 7px dot — the count is carried by the button's aria-label only, as the
+   reference does. Ring follows the button. */
+.count {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--acc);
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--app);
+  transition: box-shadow var(--t-1) ease;
+}
+
+.bell:hover .count,
+.bell[aria-expanded='true'] .count { box-shadow: 0 0 0 2px var(--surf-3); }
+.bell:active .count { box-shadow: 0 0 0 2px var(--press); }
+
+/* task bell: warn fill. 0,2,0 still beats .count's own background at 0,1,0. */
+.count.task {
+  background: var(--warn);
+}
+
+/* stands in for the whole trigger until stats first load (NotificationButton.tsx:129-133) */
+.skeleton {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--ui-radius);
+  background: var(--surf-3);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .count { transition: none; }
+  .skeleton { animation: none; }
+}
