@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client'
 import { useState, useMemo } from 'react'
 import { gql } from '@apollo/client'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { IconPlus } from '@tabler/icons-react'
+import { useSearchParamUpdates } from '@/shared/hooks/useSearchParamUpdates'
 import { StatsCards } from './components/StatsCards'
 import { FiltersBar } from './components/FiltersBar'
 import { BonusesTable } from './components/BonusesTable'
@@ -41,6 +42,10 @@ function notifySuccess(message: string) {
 function notifyError(message: string) {
   toast({ title: 'Error', message, tone: 'error', duration: NOTIFICATION_DURATION_MS })
 }
+
+/* The page reports each mutation's outcome itself (above), so the global mutation toast is skipped:
+   every save, end and status change was said twice (MAR-06). */
+const PAGE_REPORTS_OUTCOME = { skipNotification: true } as const
 
 const BONUS_CAMPAIGNS_QUERY = gql`
   query BonusCampaigns($status: BonusStatus, $domain: BonusDomain, $type: String, $search: String) {
@@ -126,7 +131,10 @@ export default function BonusesListPage() {
 
 function BonusesListPageContent() {
   const pageEyebrow = usePageEyebrow()
-  const [search, setSearch] = useState('')
+  // A link may carry the search (?search=, the global search's "See all Bonuses").
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
+  useSearchParamUpdates(setSearch)
   const [status, setStatus] = useState('')
   const [domain, setDomain] = useState('')
   const [type, setType] = useState('')
@@ -150,6 +158,7 @@ function BonusesListPageContent() {
   })
 
   const [deleteCampaign, { loading: deleting }] = useMutation(DELETE_CAMPAIGN_MUTATION, {
+    context: PAGE_REPORTS_OUTCOME,
     onCompleted: (data) => {
       if (data.deleteBonusCampaign.success) {
         notifySuccess(data.deleteBonusCampaign.message)
@@ -164,6 +173,7 @@ function BonusesListPageContent() {
   })
 
   const [updateCampaignStatus, { loading: updatingStatus }] = useMutation(UPDATE_CAMPAIGN_STATUS_MUTATION, {
+    context: PAGE_REPORTS_OUTCOME,
     onCompleted: (data) => {
       if (data.updateBonusCampaign.success) {
         notifySuccess(data.updateBonusCampaign.message)
@@ -182,6 +192,7 @@ function BonusesListPageContent() {
   })
 
   const [distributeBonusCampaign, { loading: distributing }] = useMutation(DISTRIBUTE_MUTATION, {
+    context: PAGE_REPORTS_OUTCOME,
     onCompleted: (data) => {
       const result = data.distributeBonusCampaign
       if (result.success) {
@@ -210,7 +221,8 @@ function BonusesListPageContent() {
   )
 
   // Each handler returns the mutation, so its confirmation stays busy until the server answers.
-  const handleDelete = (id: string) => deleteCampaign({ variables: { id } })
+  // deleteBonusCampaign ends the campaign (status ended); it does not remove it.
+  const handleEnd = (id: string) => deleteCampaign({ variables: { id } })
 
   const handleActivate = (id: string) =>
     updateCampaignStatus({
@@ -310,8 +322,9 @@ function BonusesListPageContent() {
 
         <BonusesTable
           campaigns={paginated.rows}
+          exportRows={campaigns}
           loading={loading || deleting || updatingStatus}
-          onDelete={handleDelete}
+          onEnd={handleEnd}
           onActivate={handleActivate}
           onDeactivate={handleDeactivate}
           onDistribute={(campaignId) => void handleDistributeClick(campaignId)}

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState, type RefCallback } from 'react'
 
 const EDGE_TOLERANCE_PX = 1
 
+/** Set on the scroller: its visible (client) width, read by content pinned to the visible part. */
+export const VIEW_WIDTH_PROPERTY = '--scroller-view-width'
+
 export interface OverflowCueState {
   /** The content is wider than its scroll container. */
   over: boolean
@@ -64,6 +67,15 @@ export function useOverflowCue<T extends HTMLElement = HTMLDivElement>(
     if (!element) return
     const next = readOverflowCue(element)
     setCue((previous) => (sameCue(previous, next) ? previous : next))
+    // The visible width, for content that has to stay in view while the rest scrolls: DataTable's
+    // loading/error/empty row spans the whole table, so in a wide one its centred text sat past the
+    // scroller's edge. Written only when it changes, since this also runs on every scroll. A hidden
+    // scroller measures 0, which is no width to pin to: the property is dropped and readers fall back.
+    const viewWidth = element.clientWidth > 0 ? `${element.clientWidth}px` : ''
+    if (element.style.getPropertyValue(VIEW_WIDTH_PROPERTY) !== viewWidth) {
+      if (viewWidth) element.style.setProperty(VIEW_WIDTH_PROPERTY, viewWidth)
+      else element.style.removeProperty(VIEW_WIDTH_PROPERTY)
+    }
   }, [element])
 
   useEffect(() => {

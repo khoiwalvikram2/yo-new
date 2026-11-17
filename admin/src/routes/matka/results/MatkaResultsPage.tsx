@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { IconCoin, IconPlus } from '@tabler/icons-react'
 import { useMatkaResults, useMatkaResultEvents } from '../../../modules/matka/results'
 import { useMatkas } from '../../../modules/matka'
+import { MatkaWhitelabelGate } from '../../../modules/matka/MatkaWhitelabelGate'
 import { ResultsTable } from './components/ResultsTable'
 import { FiltersBar } from './components/FiltersBar'
 import { StatsCards } from './components/StatsCards'
@@ -29,9 +30,13 @@ import {
 import styles from './MatkaResultsPage.module.css'
 
 export default function MatkaResultsPage() {
+  // A Super Admin in core mode is asked for a whitelabel: no results, statistics, markets or result events
+  // are read for the platform's own tenant.
   return (
     <RBACGuard required={[{ domain: 'matka.results', actions: ['view', 'create', 'rollback'] }]}>
-      <MatkaResultsPageContent />
+      <MatkaWhitelabelGate title="Matka Results">
+        <MatkaResultsPageContent />
+      </MatkaWhitelabelGate>
     </RBACGuard>
   )
 }

@@ -50,30 +50,5 @@ export const agentsSubscriptionResolvers = {
       return payload;
     },
   },
-  
-  agentCreditUpdated: {
-    subscribe: async function (_root: any, args: any, ctx: any) {
-      const { agentId } = args;
-      
-      // Validate agent can access this agentId
-      if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) {
-        if (ctx.user.agentId !== agentId) {
-          throw new Error('Unauthorized: You can only subscribe to your own credit updates');
-        }
-      }
-      
-      const topic = `AGENT_CREDIT_${agentId}`;
-      const iterator = await ctx.pubsub.subscribe(topic);
-      return iterator;
-    },
-    resolve: (payload: any) => {
-      // Return the credit allocation from payload
-      if (payload?.agentCreditUpdated) {
-        return payload.agentCreditUpdated;
-      }
-      // Fallback: return payload as-is (shouldn't happen normally)
-      return payload;
-    },
-  },
 }
 

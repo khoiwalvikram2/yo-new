@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client'
 
-/* The four operations /reporting/pnl sends, moved byte for byte out of PNLPage.tsx (page migration C,
-   W3 Task 122) so the page test can hand the same documents to MockedProvider. Gate 10 compares them
-   with the pre-image; none of them may change. */
+/* The operations /reporting/pnl sends, moved byte for byte out of PNLPage.tsx (page migration C,
+   W3 Task 122) so the page test can hand the same documents to MockedProvider. The first four are
+   unchanged; AGENT_COMMISSION_DAYS_QUERY was added for a COMMISSION agent's report (F-REP-13). */
 
 export const PNL_QUERY = gql`
   query PNL($range: String, $dateFrom: String, $dateTo: String) {
@@ -43,6 +43,16 @@ export const CASINO_KPIS_QUERY = gql`
       totalStakes
       totalPayouts
       netRevenue
+    }
+  }
+`;
+
+/** A COMMISSION agent's Commission Earned Report: the commission posted to its own ledger, per day. */
+export const AGENT_COMMISSION_DAYS_QUERY = gql`
+  query AgentCommissionDays($filter: AgentReportingFilter) {
+    agentTrends(filter: $filter) {
+      date
+      commission
     }
   }
 `;

@@ -56,7 +56,9 @@ export function useNotificationBell(category: NotificationCategory, enabled = tr
   const { data: notificationsData, loading: notificationsLoading, refetch: refetchNotifications } = useQuery(
     MY_NOTIFICATIONS_QUERY,
     {
-      variables: { category, limit: 10, offset: 0 },
+      // Unread rows only, whatever their age: the badge counts every unread notification, and the newest ten
+      // rows with the read ones dropped never listed one older than those ten.
+      variables: { category, limit: 10, offset: 0, unreadOnly: true },
       skip: !enabled,
       errorPolicy: 'all',
       fetchPolicy: 'cache-and-network',

@@ -1,8 +1,25 @@
 import { db } from '@/db/client.js'
-import { and, asc, desc, eq, gte, lte, like, sql, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lte, ilike, isNull, or, sql, inArray } from 'drizzle-orm'
 import { matkaWorliInstances, worliStatusEnum, matkas } from '@shared/db/schema.js'
 
 export type WorliStatus = typeof worliStatusEnum.enumValues[number]
+
+/**
+ * `worliSessionStatus` (shared/src/matka/schedule.ts) in SQL, so the status filter and sort see the status
+ * the page shows: a stored SCHEDULED/OPEN/LOCKED session moved on by the clock and the Lock Now / Close Now
+ * stamps. The two must stay the same rule; domains/matka-worli/__tests__/worliSessions.integration.test.ts
+ * compares them case by case.
+ */
+export function worliStatusSql(now: Date) {
+  const i = matkaWorliInstances, at = sql`${now.toISOString()}::timestamptz`
+  const lockAt = sql`CASE WHEN ${i.suspendMinutesOverride} IS NOT NULL THEN ${i.scheduledCloseAtUtc} - ${i.suspendMinutesOverride} * interval '1 minute' ELSE ${i.scheduledLockAtUtc} END`
+  return sql<WorliStatus>`(CASE
+    WHEN ${i.status} NOT IN ('SCHEDULED','OPENING_SOON','OPEN','LOCKED') THEN ${i.status}::text
+    WHEN ${i.actualCloseAtUtc} <= ${at} OR ${i.scheduledCloseAtUtc} <= ${at} THEN 'CLOSED'
+    WHEN ${i.status} = 'LOCKED' OR ${i.actualLockAtUtc} <= ${at} OR ${lockAt} <= ${at} THEN 'LOCKED'
+    WHEN ${i.status} = 'OPEN' OR ${i.scheduledOpenAtUtc} <= ${at} THEN 'OPEN'
+    ELSE ${i.status}::text END)`
+}
 
 export interface WorliInstanceCreateInput {
   marketId: string
@@ -93,19 +110,21 @@ export async function getWorliInstanceByUnique(marketId: string, runDate: string
   return rows[0] || null
 }
 
-export async function listWorliInstances(filters: WorliInstanceFilters = {}) {
+export async function listWorliInstances(filters: WorliInstanceFilters = {}, now = new Date()) {
   const page = Math.max(1, filters.page ?? 1)
   const limit = Math.min(100, Math.max(1, filters.limit ?? 50))
   const offset = (page - 1) * limit
+  const status = worliStatusSql(now)
 
-  const conds: any[] = []
+  // A deleted market's sessions leave the running list, as the market list and the player API drop the market.
+  const conds: any[] = [isNull(matkas.deletedAt)]
   if (filters.tenant !== undefined) conds.push(eq(matkas.tenant, filters.tenant))
   if (filters.marketId) conds.push(eq(matkaWorliInstances.marketId, filters.marketId))
   if (filters.date) conds.push(eq(matkaWorliInstances.runDate, filters.date as any))
   if (filters.status) {
     const s = Array.isArray(filters.status) ? filters.status : [filters.status]
     if (s.length > 0) {
-      conds.push(inArray(matkaWorliInstances.status, s as any[]))
+      conds.push(inArray(status, s as any[]))
     }
   }
   if (filters.hasResult === true) conds.push(sql`${matkaWorliInstances.resultPublishedAtUtc} IS NOT NULL`)
@@ -113,8 +132,9 @@ export async function listWorliInstances(filters: WorliInstanceFilters = {}) {
   if (filters.fromCloseAt) conds.push(gte(matkaWorliInstances.scheduledCloseAtUtc, new Date(filters.fromCloseAt)))
   if (filters.toCloseAt) conds.push(lte(matkaWorliInstances.scheduledCloseAtUtc, new Date(filters.toCloseAt)))
   if (filters.search && filters.search.trim()) {
+    // Case-insensitive, name or code, as the market list and the running-markets search match.
     const q = `%${filters.search.trim()}%`
-    conds.push(like(matkas.name, q))
+    conds.push(or(ilike(matkas.name, q), ilike(matkas.code, q)))
   }
 
   const where = conds.length ? and(...conds) : undefined
@@ -128,8 +148,8 @@ export async function listWorliInstances(filters: WorliInstanceFilters = {}) {
       case 'exposure:asc': return [asc(matkaWorliInstances.exposureTotalMinor)]
       case 'exposure:desc': return [desc(matkaWorliInstances.exposureTotalMinor)]
       case 'closeAt:asc': return [asc(matkaWorliInstances.scheduledCloseAtUtc)]
-      case 'status:asc': return [asc(matkaWorliInstances.status)]
-      case 'status:desc': return [desc(matkaWorliInstances.status)]
+      case 'status:asc': return [asc(status)]
+      case 'status:desc': return [desc(status)]
       case 'closeAt:desc':
       default: return [desc(matkaWorliInstances.scheduledCloseAtUtc)]
     }
@@ -141,14 +161,14 @@ export async function listWorliInstances(filters: WorliInstanceFilters = {}) {
       marketName: matkas.name,
     })
       .from(matkaWorliInstances)
-      .leftJoin(matkas, eq(matkaWorliInstances.marketId, matkas.id))
+      .innerJoin(matkas, eq(matkaWorliInstances.marketId, matkas.id))
       .where(where)
       .orderBy(...orderBy)
       .limit(limit)
       .offset(offset),
     db.select({ count: sql<number>`count(*)::int` })
       .from(matkaWorliInstances)
-      .leftJoin(matkas, eq(matkaWorliInstances.marketId, matkas.id))
+      .innerJoin(matkas, eq(matkaWorliInstances.marketId, matkas.id))
       .where(where),
   ])
   const items = rows.map((r) => ({ ...r.inst, __marketName: r.marketName }))
@@ -161,6 +181,8 @@ export async function updateWorliInstanceStatus(id: string, status: WorliStatus)
 }
 
 export async function patchWorliInstance(id: string, patch: Partial<{
+  status: WorliStatus
+  scheduledLockAtUtc: Date
   operatorMessage: string | null
   suspendMinutesOverride: number | null
   actualOpenAtUtc: Date | null

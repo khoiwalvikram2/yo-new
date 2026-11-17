@@ -60,7 +60,7 @@
 .m99-kit .m99-skip { position: fixed; z-index: 110; top: -100px; left: 250px; padding: 12px 20px; background: var(--m99-ink); color: var(--m99-surface); border-radius: var(--ui-radius); }
 .m99-kit .m99-skip:focus { top: 10px; }
 .m99-kit .m99-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 41px; padding: 10px 17px; border-radius: var(--ui-radius); font-size: 12px; font-weight: 700; line-height: 1.4; white-space: nowrap; text-decoration: none; }
-.m99-kit .m99-button-primary { background: var(--m99-brand); color: #fff; box-shadow: 0 3px 7px #df571a14; }
+.m99-kit .m99-button-primary { background: var(--m99-brand); color: var(--mb-on-red); box-shadow: 0 3px 7px #df571a14; }
 .m99-kit .m99-button-primary:hover:not(:disabled) { background: var(--m99-brand-hover); transform: translateY(-1px); }
 .m99-kit[data-theme='dark'] .m99-button-primary { color: #201e1a; }
 .m99-kit .m99-button-secondary { background: var(--m99-surface); border: 1px solid var(--m99-border); color: var(--m99-ink); }

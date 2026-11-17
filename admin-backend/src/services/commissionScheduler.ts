@@ -296,6 +296,8 @@ export async function startCommissionScheduler(): Promise<void> {
         connectionString,
         ssl: ssl === false ? undefined : ssl,
       });
+      // pg-boss re-emits pool errors; without a listener a dropped DB connection crashes the whole server
+      boss.on('error', (err) => console.error('[commissionScheduler] pg-boss error:', err.message));
       await boss.start();
       ownBoss = true;
       await registerCommissionAccrualJob(boss);

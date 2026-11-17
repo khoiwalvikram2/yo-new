@@ -78,7 +78,7 @@ export default function ProviderFilterDrawer({ isOpen, onClose, providers, loadi
   const apply = () => { onSelectProviders(tempSelected); onClose() }
 
   const dialog = (
-    <dialog ref={dialogRef} className="nova-panel nova-rail-panel nova-provider-panel" aria-label="Filter Providers"
+    <dialog ref={dialogRef} className="nova-panel nova-rail-panel nova-provider-panel" data-ui-radius="square" aria-label="Filter Providers"
       onCancel={event => { event.preventDefault(); onClose() }} onClick={event => { if (event.target === event.currentTarget) onClose() }}>
       <div className="nova-panel-content">
         <header>

@@ -119,17 +119,18 @@ export default function Topbar() {
   // Check if user is a credit player (should not see bonus wallet)
   const playerType = (user as any)?.playerType || 'REGULAR'
   const isCreditPlayer = playerType === 'AGENT_CREDIT' || playerType === 'WHITELABEL_CREDIT'
-  
-  // Derived wallet stats for richer UI
-  // For credit players, use creditAvailable instead of balance
-  const mainBalance = isCreditPlayer 
-    ? (user?.creditAvailable ?? 0) 
-    : ((user?.balance as number) || 0);
+
+  // Derived wallet stats for richer UI. A credit player's chips are the wallet cash (their agent deposits and
+  // withdraws them), so they get the cash player's main wallet, exposure and available figures.
+  const mainBalance = (user?.balance as number) || 0;
   const bonusBalance = (user?.bonusBalance as number) || 0;
   const referralBonusBalance = Number((user as any)?.referralBonusBalance ?? 0);
   const exposure = Number((user as any)?.exposure || 0);
-  const mainWalletDisplay = isCreditPlayer ? mainBalance : mainBalance - Math.abs(exposure);
-  
+  const mainWalletDisplay = mainBalance - Math.abs(exposure);
+  // Credit players have only the main wallet: a bonus choice saved on this device never shows for them, even before
+  // the effect below resets it.
+  const activeWallet = isCreditPlayer ? 'balance' : selectedWallet;
+
   // Reset selectedWallet to 'balance' if credit player has bonus or referralBonus selected
   useEffect(() => {
     if (isCreditPlayer && (selectedWallet === 'bonus' || selectedWallet === 'referralBonus')) {
@@ -195,18 +196,13 @@ export default function Topbar() {
   // Get wallet balance based on selected wallet type
   const getWalletBalance = () => {
     if (!isAuthenticated || !user) return 0;
-    
-    // Credit players should see creditAvailable (no exposure deduction needed)
-    if (isCreditPlayer) {
-      return Number(user.creditAvailable ?? 0)
-    }
-    
-    // Regular players: balance - exposure for main wallet, bonusBalance for bonus, referralBonusBalance for referral bonus
+
+    // Balance - exposure for main wallet (credit players' chips included), bonusBalance for bonus, referralBonusBalance for referral bonus
     const currentBalance = Number(user.balance || 0)
     const currentExposure = Math.abs(Number((user as any)?.exposure || 0))
     const netBalance = currentBalance - currentExposure
-    if (selectedWallet === 'referralBonus') return Number((user as any)?.referralBonusBalance ?? 0)
-    return selectedWallet === "balance" ? netBalance : (user as any).bonusBalance || 0
+    if (activeWallet === 'referralBonus') return Number((user as any)?.referralBonusBalance ?? 0)
+    return activeWallet === "balance" ? netBalance : (user as any).bonusBalance || 0
   };
 
   // Close dropdowns when clicking outside
@@ -290,15 +286,13 @@ export default function Topbar() {
               >
                 <Wallet className="nova-wallet-icon" aria-hidden="true" />
                 <span className="nova-wallet-selected">
-                  <small>{isCreditPlayer ? t('nova.availableCredit') : selectedWallet === "balance"
+                  <small>{activeWallet === "balance"
                     ? t('wallet.main')
-                    : selectedWallet === "referralBonus" ? 'Referral Bonus' : t('wallet.bonus')}</small>
+                    : activeWallet === "referralBonus" ? 'Referral Bonus' : t('wallet.bonus')}</small>
                   <strong>{formatAmount(getWalletBalance())}</strong>
                 </span>
-                {!isCreditPlayer && <>
-                  <span className="nova-wallet-exposure"><small>{t('wallet.exposure')}</small><strong>{formatAmount(Math.abs(exposure))}</strong></span>
-                  <span className="nova-wallet-available"><small>{t('financial.available')}</small><strong>{formatAmount(Math.max(0, mainBalance - Math.abs(exposure)))}</strong></span>
-                </>}
+                <span className="nova-wallet-exposure"><small>{t('wallet.exposure')}</small><strong>{formatAmount(Math.abs(exposure))}</strong></span>
+                <span className="nova-wallet-available"><small>{t('financial.available')}</small><strong>{formatAmount(Math.max(0, mainBalance - Math.abs(exposure)))}</strong></span>
                 <ChevronDown className={`nova-wallet-chevron ${isWalletDropdownOpen ? "rotate-180" : ""}`} aria-hidden="true" />
               </button>
 
@@ -310,7 +304,8 @@ export default function Topbar() {
                     <div className="nova-wallet-head">
                       <div>
                         <h3 id="topbar-wallet-title">{t('wallet.choose')}</h3>
-                        <p>{t('wallet.switchHint')}</p>
+                        {/* A credit player has one wallet and no Deposit/Withdraw: the hint says who moves their chips. */}
+                        <p>{isCreditPlayer ? t('wallet.chipsManagedByAgent') : t('wallet.switchHint')}</p>
                       </div>
                       <button type="button" onClick={closeWallet} aria-label={t('common.close')}>
                         <X aria-hidden="true" />
@@ -319,7 +314,7 @@ export default function Topbar() {
 
                     <div className="nova-wallet-options">
                       {([
-                        { key: 'balance', label: isCreditPlayer ? t('nova.availableCredit') : t('wallet.main'), amount: mainWalletDisplay, icon: Wallet, note: null },
+                        { key: 'balance', label: t('wallet.main'), amount: mainWalletDisplay, icon: Wallet, note: null },
                         // Bonus and referral wallets are hidden for credit players.
                         ...(isCreditPlayer ? [] : [
                           { key: 'bonus' as const, label: t('wallet.bonus'), amount: bonusBalance, icon: Gift, note: null },
@@ -333,12 +328,12 @@ export default function Topbar() {
                             if (selectedWallet !== key) setSelectedWallet(key)
                             closeWallet()
                           }}
-                          className={`nova-wallet-option${selectedWallet === key ? ' is-active' : ''}`}
-                          aria-pressed={selectedWallet === key}
+                          className={`nova-wallet-option${activeWallet === key ? ' is-active' : ''}`}
+                          aria-pressed={activeWallet === key}
                         >
                           <span className="nova-wallet-option-icon"><Icon aria-hidden="true" /></span>
                           <span className="nova-wallet-option-copy">
-                            <strong>{label}{selectedWallet === key && <em>{t('wallet.active')}</em>}</strong>
+                            <strong>{label}{activeWallet === key && <em>{t('wallet.active')}</em>}</strong>
                             {note && <small>{note}</small>}
                           </span>
                           <span className="nova-wallet-option-amount">{formatAmount(amount)}</span>
@@ -499,6 +494,7 @@ function ProfileDrawer(
         style={{ zIndex: 1 }}
       />
       <div
+        data-ui-radius="square"
         className={`nova-profile-sheet flex flex-col w-full max-w-sm h-full transform transition-transform duration-300 ease-out ${open ? "translate-x-0" : "translate-x-full"}`}
         style={{ zIndex: 2 }}
         onClick={(e) => e.stopPropagation()}

@@ -25,6 +25,8 @@ export interface SearchResult {
     status?: string
     referralCode?: string
     referrerId?: string
+    /** An agent's scheme (COMMISSION, SHARING, CREDIT): the agents list shows one scheme at a time. */
+    schemeType?: string
   }
   parentChain?: SearchResultParentChainItem[] | null
 }
@@ -235,7 +237,10 @@ export function useGlobalSearch(isOpen = false, matchPageResults?: (query: strin
   }, [data, query, pages])
 
   // Flatten results for keyboard navigation
-  // Page matches come first in both branches, so SearchResults' group offsets start after them.
+  // Page matches come first in both branches, so SearchResults' group offsets start after them. Bets come last
+  // (B006): that group is only the generic "Search bets: <term>" shortcut, never a match, and listed above the
+  // Bonuses it was the default selection, so Enter on a campaign's name opened an empty bet list. SearchResults
+  // renders the groups in this same order.
   const allResults = useMemo(() => {
     if (isAgent) {
       return [
@@ -254,8 +259,8 @@ export function useGlobalSearch(isOpen = false, matchPageResults?: (query: strin
       ...results.vipMembers,
       ...results.matkas,
       ...results.referralCodes,
-      ...results.bets,
       ...results.bonuses,
+      ...results.bets,
     ]
   }, [results, isAgent])
 

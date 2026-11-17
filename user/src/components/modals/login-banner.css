@@ -1,0 +1,5 @@
+/* User Panel Banner popup: the admin's image, whole, on the Matchbook modal surface. */
+.nova-modal-surface.mb-login-banner { position: relative; width: auto; max-width: min(90vw, 960px); padding: 0; overflow: hidden; background: var(--mb-panel); }
+.mb-login-banner-image { display: block; width: auto; height: auto; max-width: 90vw; max-height: 80vh; margin: 0 auto; object-fit: contain; }
+.mb-login-banner-close { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: rgb(0 0 0 / 55%); color: #FFFFFF; cursor: pointer; }
+.mb-login-banner-close:focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 2px; }

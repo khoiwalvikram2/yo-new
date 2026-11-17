@@ -82,6 +82,8 @@ export const users = pgTable('users', {
   index('users_tenant_created_idx').on(table.tenant, table.createdAt.desc()),
   uniqueIndex('users_id_tenant_unique').on(table.id, table.tenant),
   uniqueIndex('users_tenant_email_unique').on(table.tenant, table.email),
+  // PLA-06: one username per tenant, case- and space-insensitive (shared/drizzle/0021_payout_soft_delete_username_unique.sql)
+  uniqueIndex('users_tenant_username_ci_unique').on(table.tenant, sql`lower(btrim(${table.username}))`).where(sql`${table.username} IS NOT NULL AND btrim(${table.username}) <> ''`),
   // Note: Partial unique index on (tenant, phone) WHERE phone IS NOT NULL is created via migration
   // See: shared/drizzle/0041_add_phone_uniqueness.sql
 ])

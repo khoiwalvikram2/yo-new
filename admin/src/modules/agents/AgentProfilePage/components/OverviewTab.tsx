@@ -7,10 +7,11 @@ import { DataTable } from '@/ui/components/DataTable'
 import { DescriptionList } from '@/ui/components/DescriptionList'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { LoadingState } from '@/ui/components/LoadingState'
-import { Meter } from '@/ui/components/Meter'
 import { StatusPill } from '@/ui/components/StatusPill'
+import { chipTone, refPnlNote, signedChips, useChipFormat, type ChipAccount } from '@/modules/chips'
 import { AgentKpiGrid, type ProfileStatsPeriod } from './AgentKpiGrid'
 import { profileLevelNames, profileSchemeLabels, profileSchemeNotes, type ProfileAgent, type ProfileStats } from './agentProfileModel'
+import { tallyIsOn } from '@/routes/agents/agentEditorModel'
 import styles from './AgentProfileComponents.module.css'
 
 interface OverviewTabProps {
@@ -25,6 +26,9 @@ interface OverviewTabProps {
   onRetryStats: () => void
   onTabChange: (tab: string) => void
   hasSubAgents: boolean
+  /** A CREDIT agent's chips account, for its Chips card. */
+  chipAccount?: ChipAccount | null
+  chipLoading?: boolean
 }
 
 const PRODUCTS = ['sports', 'casino', 'matka'] as const
@@ -39,9 +43,10 @@ const CARD_HEIGHT = 200
  * (headline KPIs, each product, downline money), the agent's setup and network on the right. Everything comes
  * from the profile and dashboard-stats queries: no other tab's data loads here.
  */
-export function OverviewTab({ agent, stats, statsLoading, statsFailed, period, onPresetChange, onCustomRange, onRetryStats, onTabChange, hasSubAgents }: OverviewTabProps) {
+export function OverviewTab({ agent, stats, statsLoading, statsFailed, period, onPresetChange, onCustomRange, onRetryStats, onTabChange, hasSubAgents, chipAccount = null, chipLoading = false }: OverviewTabProps) {
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
   const { formatDateTime } = useFormatDate()
+  const formatChips = useChipFormat(chipAccount?.currency)
   const pending = statsLoading && !stats
   // On a phone the products table keeps the two money columns; the rates have their own card.
   const { isMobile } = useBreakpoint()
@@ -101,7 +106,7 @@ export function OverviewTab({ agent, stats, statsLoading, statsFailed, period, o
       { term: 'Level', value: agent.levelIndex ? `L${agent.levelIndex} · ${profileLevelNames[agent.levelIndex] || `Level ${agent.levelIndex}`}` : 'No level assigned' },
       { term: 'Position', value: agent.parentAgentId ? 'Under a parent agent' : 'Top level' },
       { term: 'Domains', value: domains.length ? <span className={styles.pills}>{domains.map(domain => <StatusPill key={domain} tone="ok">{domainName(domain)}</StatusPill>)}</span> : 'None' },
-      { term: 'Tally', value: agent.tallyEnabled ? `On${agent.tallyDomains?.length ? ` · ${agent.tallyDomains.map(domainName).join(', ')}` : ''}` : 'Off' },
+      { term: 'Tally', value: tallyIsOn(agent.tallyEnabled, agent.tallyDomains) ? `On · ${(agent.tallyDomains ?? []).map(domainName).join(', ')}` : 'Off' },
       { term: 'Created', value: agent.createdAt ? formatDateTime(agent.createdAt, "MMM d, yyyy 'at' HH:mm") : '—' },
       { term: 'Agent ID', value: <span className={styles.mono}>{agent.id}</span> },
       { term: 'Tenant', value: agent.tenantId || '—' },
@@ -115,18 +120,20 @@ export function OverviewTab({ agent, stats, statsLoading, statsFailed, period, o
     </div> })}</div>
   </Card> : null
 
-  const creditLimit = Number(agent.creditLimit || 0)
-  const creditUsed = Number(agent.creditUsed || 0)
-  const usedShare = creditLimit > 0 ? Math.min(100, Math.round((creditUsed / creditLimit) * 100)) : 0
-  const creditCard = isCredit ? <Card title="Credit" tools={link('Credit', 'credit')}>
-    <DescriptionList items={[
-      { term: 'Limit', value: formatAmount(creditLimit) },
-      { term: 'Used', value: <span className={styles.share}><Meter value={usedShare} tone={usedShare > 80 ? 'warn' : 'acc'} className={styles.shareMeter} /><span>{usedShare}%</span></span> },
-      { term: 'Available', value: formatAmount(Number(agent.creditAvailable || 0)) },
-      { term: 'Alert at', value: agent.creditAlertThreshold != null ? `${agent.creditAlertThreshold}% used` : 'Not set' },
-    ]} />
+  // A CREDIT agent's chips (spec 2026-11-02 §2): its own balance, what its downline holds and has in open bets,
+  // its credit reference and the Ref P/L between them. Read now, not for the period.
+  const refTone = chipAccount ? chipTone(chipAccount.refPnl) : undefined
+  const chipsCard = isCredit ? <Card title="Chips" sub="Now" tools={link('Chips', 'chips')}>
+    {chipLoading && !chipAccount ? <LoadingState height={150} label="Loading chips" /> : chipAccount ? <DescriptionList items={[
+      { term: 'Balance', value: formatChips(chipAccount.balance) },
+      { term: 'Downline balance', value: formatChips(chipAccount.downlineBalance) },
+      { term: 'Exposure', value: formatChips(chipAccount.exposure) },
+      { term: 'Credit reference', value: formatChips(chipAccount.creditReference) },
+      { term: 'Ref P/L', value: <span className={styles.rowDetails}><strong className={refTone ? styles[refTone] : undefined}>{signedChips(chipAccount.refPnl, formatChips)}</strong><span className={styles.muted}>{refPnlNote(chipAccount.refPnl)}</span></span> },
+    ]} /> : <p className={styles.muted}>Chip figures are not available.</p>}
   </Card> : null
 
+  // A CREDIT agent's downline money is in its Chips card, as chips (sub-agents' and players').
   const network = <Card title="Network" tools={<span className={styles.inlineValue}>{link('Players', 'players')}{hasSubAgents ? link('Sub-Agents', 'sub-agents') : null}</span>}>
     {pending ? <LoadingState height={CARD_HEIGHT} label="Loading network" /> : <DescriptionList items={[
       { term: 'Players', value: stats ? count(stats.totalPlayers) : '—' },
@@ -135,10 +142,6 @@ export function OverviewTab({ agent, stats, statsLoading, statsFailed, period, o
       { term: 'Active (24h)', value: stats ? count(stats.activePlayers24h) : '—' },
       { term: 'New today', value: stats ? count(stats.newPlayersToday) : '—' },
       { term: 'Sub-agents', value: stats ? count(stats.totalSubAgents) : '—' },
-      ...(isCredit ? [
-        { term: 'Downline balance', value: stats ? formatAmount(money(stats.totalDownlineBalance)) : '—' },
-        { term: 'Downline exposure', value: stats ? formatAmount(money(stats.totalDownlineExposure)) : '—' },
-      ] : []),
     ]} />}
   </Card>
 
@@ -150,7 +153,7 @@ export function OverviewTab({ agent, stats, statsLoading, statsFailed, period, o
     <aside className={styles.overviewSide} aria-label="Agent details">
       {details}
       {rateCard}
-      {creditCard}
+      {chipsCard}
       {network}
     </aside>
   </div>

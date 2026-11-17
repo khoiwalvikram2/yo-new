@@ -14,7 +14,6 @@ import {
   SUB_MATKA_PLAYER_EVENTS,
 } from "@/lib/graphql/matkaLive";
 import { useCurrentWhitelabel } from "@/shared/core/useWhitelabels";
-import { useAuthStore } from "@/shared/core/authStore";
 import { HeaderControls } from "./components/HeaderControls";
 import { HeaderStatsSection } from "./components/HeaderStatsSection";
 import { NavigationSidebar } from "./components/NavigationSidebar";
@@ -29,6 +28,7 @@ import { ComparisonTab } from "./tabs/comparison/ComparisonTab";
 import { PlayersTab } from "./tabs/players/PlayersTab";
 import { TestingTab } from "./tabs/testing/TestingTab";
 import { RBACGuard } from "@/shared/core/RBACGuard";
+import { MatkaWhitelabelGate } from "@/modules/matka/MatkaWhitelabelGate";
 
 type MatkaLiveKpiSnapshot = MatkaKpis
 type MatkaLiveDashboardSnapshot = MatkaDashboard
@@ -41,16 +41,19 @@ type DocumentWithFullscreen = Document & {
 };
 
 export default function LiveAnalysisPage() {
+  // A Super Admin in core mode is asked for a whitelabel: the live streams would otherwise subscribe for the
+  // platform's own tenant ("default") and show zeros. Agents and whitelabel admins always get the workspace.
   return (
     <RBACGuard required={[{ domain: 'matka.live-analysis', actions: ['view'] }]} bypassForAgents>
-      <MatkaLiveAnalysisPageContent />
+      <MatkaWhitelabelGate title="Live Matka Intelligence">
+        <MatkaLiveAnalysisPageContent />
+      </MatkaWhitelabelGate>
     </RBACGuard>
   );
 }
 
 function MatkaLiveAnalysisPageContent() {
   const { whitelabel } = useCurrentWhitelabel();
-  const agent = useAuthStore(s => s.agent);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -71,15 +74,15 @@ function MatkaLiveAnalysisPageContent() {
   const pageContainerRef = useRef<HTMLDivElement>(null);
 
   // Use whitelabel ID for both tenant and whitelabelId to ensure consistent filtering
-  // based on the selected whitelabel in admin panel top bar
+  // based on the selected whitelabel in admin panel top bar. No agent id: LiveScope has no such field (an
+  // agent's subscriptions were refused whole for it), and the server scopes an agent from its own session.
   const scope = useMemo(
     () => ({
       tenant: whitelabel?.id || "default",
       whitelabelId: whitelabel?.id || "default",
-      agentId: agent?.id || undefined,
       // No windowMins needed - backend filters by status (pending/active) for open bets
     }),
-    [whitelabel?.id, agent?.id]
+    [whitelabel?.id]
   );
 
   const scopeKey = JSON.stringify(scope)

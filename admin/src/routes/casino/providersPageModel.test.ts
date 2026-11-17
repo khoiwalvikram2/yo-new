@@ -5,10 +5,9 @@ import {
   ANALYTICS_PRESETS,
   EMPTY_VENDOR_ANALYTICS,
   PROVIDER_COMPARATORS,
-  PROVIDER_GGR_TREND,
-  PROVIDER_SHARE_TREND,
   PROVIDER_STATUS_OPTIONS,
   VENDOR_COMPARATORS,
+  absoluteGgrTotal,
   addDays,
   analyticsDrawerTitle,
   analyticsProviderIds,
@@ -16,7 +15,6 @@ import {
   avgBet,
   configuredCount,
   contributionPercent,
-  deltaDirection,
   filterProviderSettings,
   filterVendorOverrides,
   formatRangeDay,
@@ -40,6 +38,7 @@ import {
   providerPerformance,
   providerSettingsEmptyText,
   providerStats,
+  providerStatusLabel,
   providerStatusMessage,
   providerStatusOptions,
   rangeLabel,
@@ -56,15 +55,11 @@ import {
   toVendorRows,
   totalShare,
   totalShareTone,
-  trendPercent,
-  trendText,
   trendWord,
   vendorAnalyticsMap,
-  vendorGgrTrend,
   vendorOptionsFor,
   vendorOverridesEmptyText,
   vendorRowKey,
-  vendorShareTrend,
   vendorStatsFor,
   vendorsCardSub,
   vendorsEmptyText,
@@ -239,6 +234,9 @@ describe('providers table', () => {
     assert.deepEqual(providerStatusOptions('inactive'), [...PROVIDER_STATUS_OPTIONS])
     assert.deepEqual(providerStatusOptions('maintenance').at(-1), { value: 'maintenance', label: 'maintenance' })
     assert.equal(providerStatusOptions('maintenance').length, 4)
+    // The read-only status for everyone but the platform administrator.
+    assert.equal(providerStatusLabel('suspended'), 'Suspended')
+    assert.equal(providerStatusLabel('maintenance'), 'maintenance')
     assert.equal(providerStatusMessage('QTech', 'suspended'), 'Provider "QTech" status updated to Suspended')
     assert.deepEqual(statusUpdateVariables('p1', 'inactive'), { id: 'p1', input: { status: 'inactive' } })
     const written = withProviderStatus([QTECH, SPRIBE], 'p2', 'active')
@@ -262,14 +260,11 @@ describe('providers table', () => {
     assert.equal(vendorStatsFor([QTECH], 'p2', 'v2'), null)
   })
 
-  test('today\'s placeholder trend divides by the legacy constants', () => {
+  test('today\'s figure: the sign of the GGR and the transactions (no "vs yesterday" figure)', () => {
     assert.equal(ggrTrend(10), 'up')
     assert.equal(ggrTrend(-1), 'down')
     assert.equal(ggrTrend(0), 'neutral')
     assert.equal(ggrTrend(Number.NaN), 'neutral')
-    assert.equal(trendPercent(2500, 10000), '25.0')
-    assert.equal(trendPercent(-2500, 5000), '50.0')
-    assert.equal(trendPercent(0, 10000), '0')
     assert.equal(sumTransactions([{ vendorId: 'a', transactionCount: 3 }, { vendorId: 'b', transactionCount: null }, { vendorId: 'c' }]), 3)
     assert.equal(trendWord('up'), 'Up')
     assert.equal(trendWord('down'), 'Down')
@@ -291,7 +286,7 @@ describe('vendors table', () => {
       {
         providerId: 'p1',
         vendorBreakdown: [
-          { vendorId: 'v1', ggr: 1200, shareAmount: 120, transactionCount: 9 },
+          { vendorId: 'v1', ggr: 1200, shareAmount: 120, transactionCount: 9, totalStake: 4500 },
           { vendorId: '', ggr: 5 },
           { vendorId: 'v2', ggr: null, shareAmount: null, transactionCount: null },
         ],
@@ -299,11 +294,13 @@ describe('vendors table', () => {
       { providerId: null, vendorBreakdown: [{ vendorId: 'v9', ggr: 1 }] },
     ])
     assert.deepEqual([...map.keys()], ['p1:v1', 'p1:v2'])
-    assert.deepEqual(map.get('p1:v1'), { ggr: 1200, shareAmount: 120, transactionCount: 9 })
-    assert.deepEqual(map.get('p1:v2'), EMPTY_VENDOR_ANALYTICS)
+    assert.deepEqual(map.get('p1:v1'), { ggr: 1200, shareAmount: 120, transactionCount: 9, totalStake: 4500 })
+    // No stakes in the reply: unknown, not 0, so no average is made up from them.
+    assert.deepEqual(map.get('p1:v2'), { ggr: 0, shareAmount: 0, transactionCount: 0, totalStake: null })
+    assert.deepEqual(EMPTY_VENDOR_ANALYTICS, { ggr: 0, shareAmount: 0, transactionCount: 0, totalStake: 0 })
   })
 
-  test('labels and the average bet', () => {
+  test('labels and the average bet (stake per bet, never |GGR| per bet)', () => {
     assert.equal(gamesLabel(1), '1 game')
     assert.equal(gamesLabel(0), '0 games')
     assert.equal(vendorsCardSub(3, undefined, undefined), '3 vendors across all providers')
@@ -311,8 +308,12 @@ describe('vendors table', () => {
     assert.equal(vendorsCardSub(0, 'p9', undefined), '0 vendors for ')
     assert.equal(vendorsEmptyText(undefined), 'No vendors found')
     assert.equal(vendorsEmptyText('p1'), 'No vendors found for this provider')
-    assert.equal(avgBet(-500, 4), 125)
-    assert.equal(avgBet(500, 0), 0)
+    // September's figures: 7,465 bets staking 41,353,263.30 average 5,539.62; |GGR| / bets read 89.04.
+    assert.equal(avgBet(41_353_263.3, 7465)?.toFixed(2), '5539.62')
+    assert.equal(avgBet(500, 4), 125)
+    assert.equal(avgBet(500, 0), null, 'no bets, no average')
+    assert.equal(avgBet(null, 4), null, 'stakes unknown, no average')
+    assert.equal(avgBet(undefined, 4), null)
   })
 })
 
@@ -412,7 +413,7 @@ describe('analytics drawer', () => {
     assert.equal(rangeLabel({ preset: 'custom', from: '2026-01-02', to: '2026-02-03' }), 'Jan 02, 2026 – Feb 03, 2026')
   })
 
-  test('the provider summary and contribution', () => {
+  test('the provider summary: an active vendor took bets, whatever its GGR', () => {
     const breakdown = [
       { vendorId: 'v1', ggr: 600, shareAmount: 60, transactionCount: 10 },
       { vendorId: 'v2', ggr: -100, shareAmount: 0, transactionCount: 5 },
@@ -421,23 +422,28 @@ describe('analytics drawer', () => {
     assert.deepEqual(providerAnalyticsSummary(500, breakdown), {
       totalTransactions: 15,
       totalShare: 60,
-      activeVendors: 1,
+      activeVendors: 2,
       vendorCount: 3,
       avgPerVendor: 500 / 3,
     })
     assert.equal(providerAnalyticsSummary(10, []).avgPerVendor, 0)
-    assert.equal(contributionPercent(600, 500), 120)
-    assert.equal(contributionPercent(600, 0), 0)
   })
 
-  test('the fixed legacy badges and the players figure', () => {
-    assert.equal(trendText(PROVIDER_GGR_TREND), '12.5%')
-    assert.equal(trendText(PROVIDER_SHARE_TREND), '8.3%')
-    assert.deepEqual(vendorGgrTrend(0), { value: 15.2, direction: 'down' })
-    assert.deepEqual(vendorGgrTrend(1), { value: 15.2, direction: 'up' })
-    assert.deepEqual(vendorShareTrend(0), { value: 10.8, direction: 'neutral' })
-    assert.equal(deltaDirection('neutral'), 'flat')
-    assert.equal(deltaDirection('down'), 'down')
+  test('a contribution is a signed share of every vendor\'s |GGR|, so it reads right when the total is negative', () => {
+    // September: Ezugi -652,334.41, Evolution 314,605.13, Spribe -91,155.24 (total -428,884.52). The share of the
+    // negative total read 0.0% for all three.
+    const breakdown = [{ vendorId: 'ezugi', ggr: -652_334.41 }, { vendorId: 'evo', ggr: 314_605.13 }, { vendorId: 'spribe', ggr: -91_155.24 }]
+    const base = absoluteGgrTotal(breakdown)
+    assert.equal(base.toFixed(2), '1058094.78')
+    assert.equal(contributionPercent(314_605.13, base)?.toFixed(1), '29.7')
+    assert.equal(contributionPercent(-652_334.41, base)?.toFixed(1), '-61.7')
+    // With every vendor in profit it is the plain share of the total, as before.
+    assert.equal(contributionPercent(1000, absoluteGgrTotal([{ vendorId: 'a', ggr: 1000 }, { vendorId: 'b', ggr: 500 }]))?.toFixed(1), '66.7')
+    assert.equal(contributionPercent(0, 0), null, 'no money moved: no share')
+    assert.equal(absoluteGgrTotal([{ vendorId: 'a', ggr: null }]), 0)
+  })
+
+  test('the players figure', () => {
     assert.equal(playersFigure(0), '0')
     assert.equal(playersFigure(3), '—')
   })

@@ -1,0 +1,77 @@
+/* Home page Live Casino and Slots rows (owner 2026-11-02: creative, on the home page only; the casino lobby keeps
+   its own cards). Art keeps its 3:2 shape and the name stays under it.
+   Both rows are studio monitors: a dark broadcast card, an accent line under the picture with a light running
+   along it, a lower-third caption and a solid play button. Live tables add a LIVE tag with level bars; slots get a
+   light sweeping across the art on hover. */
+.gw-home-strip .nova-ex-strip-track {
+  gap: 12px;
+  padding: 12px 0 10px;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent 100%);
+}
+.gw-home-strip .nova-ex-tile {
+  position: relative; flex-basis: 220px; isolation: isolate;
+  border-color: #272D36; color: #F4F6F9; background: linear-gradient(180deg, #1A1F27 0%, #0F1217 100%);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s;
+}
+.gw-home-strip .nova-ex-tile:not(.is-skeleton):is(:hover, :focus-visible) {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--mb-red) 70%, #272D36);
+  box-shadow: 0 16px 26px -18px color-mix(in srgb, var(--mb-red) 85%, transparent), 0 0 0 1px color-mix(in srgb, var(--mb-red) 40%, transparent);
+}
+.gw-home-strip .nova-ex-tile-art { border-bottom: 0; background: #0B0E12; }
+.gw-home-strip .nova-ex-tile-art::after {
+  content: ''; position: absolute; right: 0; bottom: 0; left: 0; z-index: 2; height: 3px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 80%), transparent) -67% 0 / 40% 100% no-repeat, var(--mb-red);
+  animation: gw-strip-air 2.6s linear infinite;
+}
+.gw-home-strip .nova-ex-tile-copy { padding: 10px 10px 11px 12px; }
+.gw-home-strip .nova-ex-tile-name strong { color: #F4F6F9; font-size: 15px; font-weight: 800; letter-spacing: -.005em; }
+.gw-home-strip .nova-ex-tile-name small { color: #8D96A5; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.gw-home-strip .nova-ex-tile-play { border-color: transparent; color: var(--mb-on-red); background: var(--mb-red); transition: box-shadow .2s; }
+.gw-home-strip .nova-ex-tile:is(:hover, :focus-visible) .nova-ex-tile-play { box-shadow: 0 0 0 4px color-mix(in srgb, var(--mb-red) 30%, transparent); }
+
+/* Live: a shaded top edge under a LIVE tag with three level bars, rising and falling like a broadcast meter */
+.gw-home-strip.is-live .nova-ex-tile-art::before { content: ''; position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgb(0 0 0 / 38%), transparent 38%); pointer-events: none; }
+.gw-home-strip.is-live .nova-ex-tile-live {
+  z-index: 2; gap: 6px; padding: 3px 8px 3px 7px; border: 1px solid rgb(255 255 255 / 18%);
+  color: #FFFFFF; background: rgb(8 10 14 / 70%); backdrop-filter: blur(4px); font-size: 10px; letter-spacing: .12em;
+}
+.gw-home-strip.is-live .nova-ex-tile-live i {
+  --ui-radius: 0;
+  width: 10px; height: 9px; border-radius: 0;
+  background:
+    linear-gradient(var(--mb-red), var(--mb-red)) 0 100% / 2px 55% no-repeat,
+    linear-gradient(var(--mb-red), var(--mb-red)) 50% 100% / 2px 100% no-repeat,
+    linear-gradient(var(--mb-red), var(--mb-red)) 100% 100% / 2px 35% no-repeat;
+  animation: gw-strip-levels 1.1s ease-in-out infinite;
+}
+
+/* Slots: a light sweeps across the art on hover, like a lit machine glass */
+.gw-home-strip.is-slots .nova-ex-tile-art::before {
+  content: ''; position: absolute; top: -20%; bottom: -20%; left: -60%; z-index: 1; width: 42%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 50%), transparent);
+  transform: skewX(-18deg); opacity: 0; pointer-events: none;
+}
+.gw-home-strip.is-slots .nova-ex-tile:is(:hover, :focus-visible) .nova-ex-tile-art::before { animation: gw-strip-shine .9s ease-out; }
+
+/* loading tiles hold the real tile height, so the row does not jump when the games arrive */
+.gw-home-strip .nova-ex-tile.is-skeleton { height: 203px; }
+@container exmain (max-width: 639px) {
+  .gw-home-strip .nova-ex-tile { flex-basis: 176px; }
+  .gw-home-strip .nova-ex-tile-name strong { font-size: 14px; }
+  .gw-home-strip .nova-ex-tile.is-skeleton { height: 173px; }
+}
+
+@keyframes gw-strip-air { to { background-position: 167% 0, 0 0; } }
+@keyframes gw-strip-levels {
+  33% { background-size: 2px 100%, 2px 40%, 2px 75%; }
+  66% { background-size: 2px 35%, 2px 80%, 2px 100%; }
+}
+@keyframes gw-strip-shine { 0% { left: -60%; opacity: 1; } 100% { left: 120%; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .gw-home-strip .nova-ex-tile { transition: none; }
+  .gw-home-strip .nova-ex-tile:not(.is-skeleton):is(:hover, :focus-visible) { transform: none; }
+  .gw-home-strip .nova-ex-tile-art::after,
+  .gw-home-strip.is-live .nova-ex-tile-live i,
+  .gw-home-strip.is-slots .nova-ex-tile:is(:hover, :focus-visible) .nova-ex-tile-art::before { animation: none; }
+}

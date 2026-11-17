@@ -1,6 +1,6 @@
 import { normalizeBid } from '@shared/matka/rules.js'
 import { db } from '@src/db/client.js'
-import { mapGrossSettlementToCredit } from '@src/domains/agents/services/creditSettlementMapping.js'
+import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
 import { eq, and, gte, lte, desc, sql, inArray, notInArray, or, ilike, getTableColumns } from 'drizzle-orm'
 import { matkaBets, matkas, users } from '@shared/db/schema.js'
 import { getWhitelabelCurrency, getWhitelabelTimezone } from '@src/shared/whitelabelConfig.js'
@@ -312,39 +312,8 @@ export async function getMatkaBetsCountAndStake(filter: MatkaBetFilter): Promise
   return { count: row?.count ?? 0, stakeSum: Number(row?.stakeSum ?? 0) }
 }
 
-/**
- * Count pending bets for a matka on a specific date
- * Checks bets created on that date that are still pending
- */
-export async function countPendingBetsForMatkaDate(
-  matkaId: string,
-  date: string, // ISO yyyy-mm-dd
-  marketSession?: string, // 'open' or 'close'
-  tenant = 'default'
-): Promise<number> {
-  const tz = await getWhitelabelTimezone(tenant)
-  const dateStart = parseDateFrom(date, tz)
-  const dateEnd = parseDateTo(date, tz)
-  
-  const conditions = [
-    eq(matkaBets.tenant, tenant),
-    eq(matkaBets.matkaId, matkaId),
-    eq(matkaBets.status, 'pending'),
-    gte(matkaBets.createdAt, dateStart),
-    lte(matkaBets.createdAt, dateEnd),
-  ]
-  
-  if (marketSession) {
-    conditions.push(eq(matkaBets.marketSession, marketSession))
-  }
-  
-  const [result] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(matkaBets)
-    .where(and(...conditions))
-  
-  return result?.count || 0
-}
+// The results list's waiting-bet count is countOpenMatkaBets (domains/matka/services/runningMarkets.ts): it
+// counted only "pending" bets on their created_at day, and Matka bets are stored as active.
 
 export async function getMatkaBetById(id: string) {
   const [bet] = await db.select().from(matkaBets)
@@ -371,63 +340,54 @@ export async function updateMatkaBetStatus(
   if (result !== undefined) updateData.result = result
   if (settledAt !== undefined) updateData.settledAt = settledAt
 
-  // `won`, `lost` and `void` are terminal, and reaching any of them releases
-  // the player's credit below. The UPDATE carried no status predicate, so
-  // voiding an already-void bet — or settling an already-settled one — matched
-  // the row again and released the credit a second time. A rollback moves a bet
-  // back to `pending` first, so a legitimate re-settlement still passes.
+  // `won`, `lost` and `void` are terminal. The UPDATE carried no status
+  // predicate, so voiding an already-void bet — or settling an already-settled
+  // one — matched the row again and ran the settlement hooks a second time. A
+  // rollback moves a bet back to `pending` first, so a legitimate re-settlement
+  // still passes.
   const TERMINAL = ['won', 'lost', 'void']
   const enteringTerminal = TERMINAL.includes(status)
-
-  const bet = await db.transaction(async (tx): Promise<Awaited<ReturnType<typeof getMatkaBetById>>> => {
-    const where = enteringTerminal
-      ? and(eq(matkaBets.id, id), notInArray(matkaBets.status, TERMINAL as any))
-      : eq(matkaBets.id, id)
-    const [updated] = await tx.update(matkaBets).set(updateData).where(where).returning()
-    // Lost the race, or the bet was already terminal: no transition, and
-    // critically no second credit release.
-    if (!updated && enteringTerminal) return await getMatkaBetById(id)
-    const row = updated ?? null
-    if (!row || (status !== 'won' && status !== 'lost' && status !== 'void')) return row
-
-    try {
-      const [player] = await tx
-        .select({ playerType: users.playerType, agentId: users.agentId })
-        .from(users)
-        .where(and(eq(users.id, row.userId), eq(users.tenant, tenant)))
-        .limit(1)
-
-      if (player?.playerType !== 'AGENT_CREDIT' && player?.playerType !== 'WHITELABEL_CREDIT') return row
-
-      const { BetCreditValidationService } = await import('@src/domains/agents/services/BetCreditValidationService.js')
-      const { AgentsRepo } = await import('@src/repos/agents/AgentsRepo.js')
-      const { AgentPlayerCreditsRepo } = await import('@src/repos/agents/AgentPlayerCreditsRepo.js')
-      const agentsRepo = new AgentsRepo()
-      const playerCreditsRepo = new AgentPlayerCreditsRepo()
-      const betCreditService = new BetCreditValidationService(agentsRepo, playerCreditsRepo)
-
-      const stake = Number(betBefore?.betAmount || 0)
-      // Stored returns include the stake; credit balances book only the net result.
-      const { betResult, payoutAmount } = status === 'won' || status === 'lost'
-        ? mapGrossSettlementToCredit(stake, Number(actualWin ?? row.actualWin ?? 0))
-        : { betResult: 'void' as const, payoutAmount: 0 }
-      await betCreditService.releaseCreditForBet(row.userId, stake, betResult, payoutAmount, tenant, row.id, 'matka', tx)
-    } catch (creditError: any) {
-    }
-    return row
-  })
+  const where = enteringTerminal
+    ? and(eq(matkaBets.id, id), notInArray(matkaBets.status, TERMINAL as any))
+    : eq(matkaBets.id, id)
+  // This records the status only and moves no money, for every player type.
+  // Credit players (AGENT_CREDIT, WHITELABEL_CREDIT) are on the cash-wallet path
+  // as well, so nothing is released or booked on credit figures and nothing is
+  // pushed to the agent's or the whitelabel's balances.
+  const [updated] = await db.update(matkaBets).set(updateData).where(where).returning()
+  // Lost the race, or the bet was already terminal: no transition, so no hooks.
+  if (!updated && enteringTerminal) return await getMatkaBetById(id)
+  const bet = updated ?? null
 
   if (bet && (status === 'won' || status === 'lost') && betBefore) {
     const stake = Number(betBefore.betAmount || 0)
     const win = actualWin !== undefined ? Number(actualWin) : 0
     const netRevenue = win - stake
     try {
-      const { referralIntegrationService } = await import('@src/services/referrals/referralIntegrationService.js')
-      await referralIntegrationService.handleBetSettlement(tenant, bet.userId, netRevenue, (bet.currency || 'INR') as any, 'matka')
+      // Credit players' bets earn no referral loss-share.
+      if ((await referralEligibleMatkaBets(tenant, [bet])).length) {
+        const { referralIntegrationService } = await import('@src/services/referrals/referralIntegrationService.js')
+        await referralIntegrationService.handleBetSettlement(tenant, bet.userId, netRevenue, (bet.currency || 'INR') as any, 'matka')
+      }
     } catch (err) {
     }
   }
-  return bet ?? null
+  return bet
+}
+
+/**
+ * The settled bets whose losses can earn the player's referrer loss-share. Credit
+ * players' bets cannot: their chips move only through the upline's Deposit /
+ * Withdraw, so they get no referral cash or loss-share.
+ */
+export async function referralEligibleMatkaBets<T extends { userId: number }>(tenant: string, bets: T[], executor: any = db): Promise<T[]> {
+  if (!bets.length) return []
+  const players: Array<{ id: number; playerType: string | null }> = await executor
+    .select({ id: users.id, playerType: users.playerType })
+    .from(users)
+    .where(and(eq(users.tenant, tenant), inArray(users.id, [...new Set(bets.map((bet) => bet.userId))])))
+  const credit = new Set(players.filter((player) => isCreditPlayer(player.playerType)).map((player) => Number(player.id)))
+  return bets.filter((bet) => !credit.has(Number(bet.userId)))
 }
 
 export async function listBetsByInstance(instanceId: string, limit = 200, offset = 0) {
@@ -443,6 +403,21 @@ export async function aggregateInstanceBets(instanceId: string) {
     .from(matkaBets)
     .where(and(eq(matkaBets.instanceId, instanceId), notInArray(matkaBets.status, ['void', 'cancelled'])))
   return { totalStakeMinor: Number(totalStakeMinor || 0), betCount: Number(betCount || 0) }
+}
+
+/**
+ * A bound of the session bets list's time filter (worliBets' timeFrom / timeTo): blank is no bound; anything else
+ * must read as a date and time created_at can be compared with. "abc" made an Invalid Date, whose toISOString() threw
+ * the raw "Invalid time value" at the query, and a year outside 0001-9999 (the lenient Date parser reads "99999" as
+ * one) binds as '+099998-...' or '0000-...', which Postgres refuses. Both are refused by name, before any query.
+ */
+function betTimeBound(value: string | null | undefined, label: 'timeFrom' | 'timeTo'): Date | undefined {
+  const text = value == null ? '' : String(value).trim()
+  if (!text) return undefined
+  const at = new Date(text)
+  const year = at.getUTCFullYear()
+  if (Number.isNaN(year) || year < 1 || year > 9999) throw new Error(`${label} is not a valid date and time`)
+  return at
 }
 
 export async function listBetsByInstanceWithFilters(
@@ -468,8 +443,9 @@ export async function listBetsByInstanceWithFilters(
   if (filters.bidType) conds.push(eq(matkaBets.bidType, normalizeBid(filters.bidType)))
   if (filters.stakeMin != null) conds.push(sql`${matkaBets.betAmount}::decimal >= ${filters.stakeMin}`)
   if (filters.stakeMax != null) conds.push(sql`${matkaBets.betAmount}::decimal <= ${filters.stakeMax}`)
-  if (filters.timeFrom) conds.push(gte(matkaBets.createdAt, new Date(filters.timeFrom)))
-  if (filters.timeTo) conds.push(lte(matkaBets.createdAt, new Date(filters.timeTo)))
+  const timeFrom = betTimeBound(filters.timeFrom, 'timeFrom'), timeTo = betTimeBound(filters.timeTo, 'timeTo')
+  if (timeFrom) conds.push(gte(matkaBets.createdAt, timeFrom))
+  if (timeTo) conds.push(lte(matkaBets.createdAt, timeTo))
   const where = and(...conds)
   const size = Math.max(1, Math.min(100, limit))
   const offset = (Math.max(1, page) - 1) * size
@@ -478,6 +454,27 @@ export async function listBetsByInstanceWithFilters(
     db.select({ count: sql<number>`count(*)::int` }).from(matkaBets).where(where),
   ])
   return { items, total: count }
+}
+
+/**
+ * One session's open book by selection: what is staked on each selection and what it pays if it wins, in
+ * minor units (a legacy bet without a stored potential win pays stake x multiplier). The worst-outcome
+ * figure on the Worli session page is worked out from this.
+ */
+export async function openBookEntriesByInstance(instanceId: string) {
+  const selection = sql<string>`coalesce(${matkaBets.selectionKey}, ${matkaBets.betNumbers})`
+  const rows = await db
+    .select({
+      bidType: matkaBets.bidType,
+      selection,
+      matkaType: matkaBets.matkaType,
+      stakeMinor: sql<string>`coalesce(sum(round(${matkaBets.betAmount} * 100)), 0)::text`,
+      payoutMinor: sql<string>`coalesce(sum(round(coalesce(${matkaBets.potentialWin}, ${matkaBets.betAmount} * ${matkaBets.payoutMultiplier}) * 100)), 0)::text`,
+    })
+    .from(matkaBets)
+    .where(and(eq(matkaBets.instanceId, instanceId), inArray(matkaBets.status, ['active', 'pending'])))
+    .groupBy(matkaBets.bidType, selection, matkaBets.matkaType)
+  return rows.map((row) => ({ ...row, stakeMinor: BigInt(row.stakeMinor), payoutMinor: BigInt(row.payoutMinor) }))
 }
 
 export async function computeWorliBookByInstance(instanceId: string) {

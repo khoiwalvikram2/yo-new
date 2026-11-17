@@ -3,7 +3,7 @@ import { DateTime } from 'luxon'
 import { matkaActivityLogs, matkaBets, matkaResults, matkas, matkaWorliInstances, users } from '../db/schema.js'
 import type { SharedDb } from '../db/registry.js'
 import { evaluateMatkaSelection, matkaKind, moneyDecimal, moneyMinor, payoutMinor, validateMatkaResult, type MatkaSession } from './rules.js'
-import { changeMatkaCredit, changeMatkaWallet, type MatkaWallet } from './wallet.js'
+import { changeMatkaWallet, matkaFundingWallet } from './wallet.js'
 import { updateMatkaBonusWagering } from './bonus.js'
 
 export type MatkaImpact = { betsSettled: number; winners: number; totalPayout: number }
@@ -69,8 +69,9 @@ export async function declareAndSettleMatka(db: SharedDb, input: { matkaId: stri
       await tx.select({ id: users.id }).from(users).where(and(eq(users.id, bet.userId), eq(users.tenant, operator.tenant))).for('update')
       const stake = moneyMinor(bet.betAmount), payout = won ? payoutMinor(stake, bet.payoutMultiplier) : 0n
       const movement = { tenant: operator.tenant, userId: bet.userId, referenceId: bet.id, category: 'matka_win', description: `Matka ${market.name}: ${won ? 'win' : 'loss'}` }
-      if (bet.walletType === 'credit') await changeMatkaCredit(tx, { ...movement, exposureDelta: -stake, profitDelta: payout - stake })
-      else await changeMatkaWallet(tx, { ...movement, walletType: bet.walletType as Exclude<MatkaWallet, 'credit'>, delta: payout })
+      // Every player, credit players included, settles on the wallet it staked from; a win pays the
+      // gross return there. Nothing moves on the agent's or the whitelabel's balances.
+      await changeMatkaWallet(tx, { ...movement, walletType: matkaFundingWallet(bet.walletType), delta: payout })
       const [updated] = await tx.update(matkaBets).set({ status: won ? 'won' : 'lost', actualWin: moneyDecimal(payout), result: value, settledAt: now, settlementResultId: result.id, updatedAt: now }).where(and(eq(matkaBets.id, bet.id), eq(matkaBets.tenant, operator.tenant))).returning()
       settled.push(updated); impact.betsSettled++; if (won) impact.winners++
     }
@@ -105,8 +106,7 @@ export async function reverseMatkaResult(db: SharedDb, input: { id: string; reas
       await tx.select({ id: users.id }).from(users).where(and(eq(users.id, bet.userId), eq(users.tenant, operator.tenant))).for('update')
       if (bet.walletType === 'bonus' && bet.bonusAwardId) await updateMatkaBonusWagering(tx, { tenant: operator.tenant, userId: bet.userId, awardId: bet.bonusAwardId, stake: moneyMinor(bet.betAmount), reverse: true })
       const stake = moneyMinor(bet.betAmount), payout = moneyMinor(bet.actualWin || '0'), movement = { tenant: operator.tenant, userId: bet.userId, referenceId: bet.id, category: 'matka_result_reversal', description: `Matka ${market.name}: result rollback` }
-      if (bet.walletType === 'credit') await changeMatkaCredit(tx, { ...movement, exposureDelta: stake, profitDelta: stake - payout })
-      else await changeMatkaWallet(tx, { ...movement, walletType: bet.walletType as Exclude<MatkaWallet, 'credit'>, delta: -payout })
+      await changeMatkaWallet(tx, { ...movement, walletType: matkaFundingWallet(bet.walletType), delta: -payout })
       await tx.update(matkaBets).set({ status: 'active', actualWin: null, result: null, settledAt: null, settlementResultId: null, updatedAt: now }).where(and(eq(matkaBets.id, bet.id), eq(matkaBets.tenant, operator.tenant)))
     }
     const [updated] = await tx.update(matkaResults).set({ rolledBackAt: now, rolledBackBy: operator.actorId, rollbackReason: input.reason, rollbackTag: input.tag || null }).where(eq(matkaResults.id, result.id)).returning()
@@ -128,8 +128,7 @@ export async function voidAndRefundMatkaBet(db: SharedDb, id: string, reason: st
     if (!['pending', 'active'].includes(bet.status)) throw new Error('Rollback the settled result before voiding this bet')
     await tx.select({ id: users.id }).from(users).where(and(eq(users.id, bet.userId), eq(users.tenant, operator.tenant))).for('update')
     const stake = moneyMinor(bet.betAmount), movement = { tenant: operator.tenant, userId: bet.userId, referenceId: bet.id, category: 'matka_refund', description: `Matka ${market.name}: void refund` }
-    if (bet.walletType === 'credit') await changeMatkaCredit(tx, { ...movement, exposureDelta: -stake, profitDelta: 0n })
-    else await changeMatkaWallet(tx, { ...movement, walletType: bet.walletType as Exclude<MatkaWallet, 'credit'>, delta: stake })
+    await changeMatkaWallet(tx, { ...movement, walletType: matkaFundingWallet(bet.walletType), delta: stake })
     const [updated] = await tx.update(matkaBets).set({ status: 'void', actualWin: moneyDecimal(stake), result: 'VOID', settledAt: new Date(), updatedAt: new Date() }).where(eq(matkaBets.id, bet.id)).returning()
     if (bet.instanceId) await tx.insert(matkaActivityLogs).values({ instanceId: bet.instanceId, actorId: operator.actorId, action: 'VOID_BET', reason, metaJson: JSON.stringify({ betId: id }) })
     if (bet.runDate) await refreshMatkaCounters(tx, market.id, bet.runDate)

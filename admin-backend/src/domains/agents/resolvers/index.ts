@@ -7,8 +7,38 @@ import { hasPermission } from '@src/domains/common/auth.js';
 import { guardAgentMutations } from './guardAgentMutations.js'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { readAgentAccountRates } from '../services/agentAccountRates.js'
+import { agentAccountChips, buildChipQueryResolvers } from './chipResolvers.js'
 
-const queryResolvers = buildAgentsQueryResolvers();
+// The chip reads (spec 2026-11-02 §7) sit beside the other agent reads, behind the same agents.list:view gate, except
+// the two the Chips page (/credit) makes: that page is open to credit.management:view as well (owner decision
+// 2026-11-04; Finance Manager holds it without agents.list:view), so chipPool and chipDownline admit either. Read-only
+// and scoped as before by ChipService: an admin reads its tenant's CREDIT accounts, an agent its own subtree.
+// The chip moves are spread into buildAgentsMutationResolvers, so guardAgentMutations wraps them like the rest.
+export const CHIPS_PAGE_READS: ReadonlySet<string> = new Set(['chipPool', 'chipDownline']);
+
+const AGENTS_FORBIDDEN = 'Forbidden: insufficient permissions to access agents';
+const mayListAgents = (ctx: any) => hasPermission(ctx?.permissions ?? [], 'agents.list', 'view');
+const mayReadChipsPage = (ctx: any) => hasPermission(ctx?.permissions ?? [], 'credit.management', 'view');
+
+/**
+ * Query.agents now lets a credit.management:view caller in for the Chips page reads, so every other AgentsQuery field
+ * asks for agents.list:view itself, exactly as the namespace did for all of them.
+ */
+function requireAgentsList<T extends Record<string, (...args: any[]) => any>>(fields: T): T {
+	const gated: Record<string, unknown> = {};
+	for (const [name, resolve] of Object.entries(fields)) {
+		gated[name] = CHIPS_PAGE_READS.has(name)
+			? resolve
+			: async (parent: unknown, args: unknown, ctx: any, info: unknown) => {
+					if (!ctx?.user) throw new Error('Unauthorized: authentication required');
+					if (!mayListAgents(ctx)) throw new Error(AGENTS_FORBIDDEN);
+					return resolve(parent, args, ctx, info);
+				};
+	}
+	return gated as T;
+}
+
+const queryResolvers = requireAgentsList({ ...buildAgentsQueryResolvers(), ...buildChipQueryResolvers() });
 
 const configsRepo = new AgentConfigsRepo();
 const agentsRepo = new AgentsRepo();
@@ -16,8 +46,9 @@ const agentsRepo = new AgentsRepo();
 export const agentsResolvers = {
 	Query: {
 		agents: (_: any, __: any, ctx: any) => {
-			if (!hasPermission(ctx?.permissions ?? [], 'agents.list', 'view')) {
-				throw new Error('Forbidden: insufficient permissions to access agents');
+			// agents.list:view opens every field; credit.management:view only CHIPS_PAGE_READS (requireAgentsList).
+			if (!mayListAgents(ctx) && !mayReadChipsPage(ctx)) {
+				throw new Error(AGENTS_FORBIDDEN);
 			}
 			return {};
 		},
@@ -87,6 +118,32 @@ export const agentsResolvers = {
 					settlementBalanceCasino: 0,
 					settlementBalanceMatka: 0,
 				};
+			} catch (error) {
+				return null;
+			}
+		},
+		/**
+		 * A CREDIT agent's chip figures (null for every other scheme), batched per request: a list of agents costs
+		 * one figures read, not one per row. Scoped to the caller's tenant, and for an agent caller to its own
+		 * subtree, so the redacted upline that parentAgent returns to an agent never carries chips.
+		 */
+		chips: (parent: any, args: unknown, ctx: any) => agentAccountChips(parent, args, ctx),
+		/**
+		 * The ancestor that blocks this agent (SUSPENDED / BLOCKED) or makes it read-only (INACTIVE), which its own
+		 * status does not show: the restriction cascades down the subtree (owner decision 1, 2026-10-21) and is only
+		 * applied at sign-in and per request. The profile head names it. An agent caller is told only of one inside its
+		 * own subtree, never of its upline's statuses. Read per agent: only the profile asks for it.
+		 */
+		blockedByAncestor: async (parent: any, _args: any, ctx: any) => {
+			if (!parent?.id || parent.parentAgentId === null) return null;
+			try {
+				const block = await agentsRepo.findRestrictingAncestor(String(parent.id));
+				if (!block) return null;
+				if (ctx?.user?.type === 'agent') {
+					const callerId = ctx?.user?.agentId ? String(ctx.user.agentId) : '';
+					if (!callerId || !(await agentsRepo.getDescendantIds(callerId)).includes(block.id)) return null;
+				}
+				return block;
 			} catch (error) {
 				return null;
 			}

@@ -22,7 +22,22 @@ const SEARCH_CATEGORY_PERMISSIONS: Record<string, { domain: string; action: stri
   sports: { domain: 'sports.events', action: 'view' },
   vipMembers: { domain: 'vip.members', action: 'view' },
   matkas: { domain: 'matka.management', action: 'view' },
+  // The search panel offered these three and the repo searched them, but with no entry here every request
+  // dropped them, and asking for one alone failed on the result lists the empty answer left out.
+  referralCodes: { domain: 'referrals.overview', action: 'view' },
+  bets: { domain: 'sports.bets', action: 'view' },
+  bonuses: { domain: 'bonuses.list', action: 'view' },
 }
+
+/**
+ * What an agent searches: the two categories the repo narrows to the agent's own tree. Every other one reads the
+ * whole whitelabel (its bonus campaigns, referral codes, catalogues), and an agent holds some of those
+ * permissions as base grants (bonuses:read) with no screen that shows them. The agent panel offers only these.
+ */
+const AGENT_SEARCH_CATEGORIES = new Set(['players', 'agents'])
+
+/** Every result list empty: the answer when the caller may search nothing, with each list the schema requires. */
+const emptySearchResult = () => Object.fromEntries(Object.keys(SEARCH_CATEGORY_PERMISSIONS).map((category) => [category, []]))
 function pruneOld(timestamps: number[], windowMs: number): number[] {
   const cutoff = Date.now() - windowMs
   return timestamps.filter((t) => t > cutoff)
@@ -63,11 +78,12 @@ export const searchQueryResolvers = {
       ? args.categories
       : Object.keys(SEARCH_CATEGORY_PERMISSIONS)
     const categories = requested.filter(c => {
+      if (agentId && !AGENT_SEARCH_CATEGORIES.has(c)) return false
       const required = SEARCH_CATEGORY_PERMISSIONS[c]
       return required ? hasPermission(ctx?.permissions ?? [], required.domain, required.action) : false
     })
     if (categories.length === 0) {
-      return { players: [], agents: [], whitelabels: [], casinoGames: [], sports: [], vipMembers: [], matkas: [] }
+      return emptySearchResult()
     }
 
     const rateKey = String(ctx?.user?.id ?? ctx?.user?.sub ?? ctx?.req?.ip ?? 'anonymous')

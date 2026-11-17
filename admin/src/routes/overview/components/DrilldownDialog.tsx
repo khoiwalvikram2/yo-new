@@ -6,6 +6,7 @@ import { useDashboardStore } from '@/state/dashboardStore'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { ROUTES } from '@/shared/core/constants'
 import { useFormatDate } from '@/shared/core/useFormatDate'
+import { useNeedsWhitelabelSelection } from '@/modules/matka/whitelabelScope'
 import { Button } from '@/ui/components/Button'
 import { buttonClassName } from '@/ui/components/buttonClassName'
 import { Dialog } from '@/ui/components/Dialog'
@@ -93,6 +94,9 @@ function DrilldownDialog({ request, onClose }: { request: DrillRequest; onClose:
   })
   const d: Drilldown | undefined = data?.dashboardDrilldown
   const title = request.title ?? d?.title ?? 'Details'
+  // A Super Admin in core mode drills into every whitelabel's players, whose profiles core mode cannot open
+  // ("Player not found", PLA-05): the name is plain text there, as on the dashboard's cards (DashboardPlayerName).
+  const crossSite = useNeedsWhitelabelSelection()
 
   const money = (value: string) => {
     const n = Number(value)
@@ -103,7 +107,7 @@ function DrilldownDialog({ request, onClose }: { request: DrillRequest; onClose:
     if (value === null || value === '') return <span className={styles.none}>—</span>
     switch (column.kind) {
       case 'player':
-        return row.playerId !== null
+        return row.playerId !== null && !crossSite
           ? <Link className={styles.link} to={ROUTES.PLAYERS_PROFILE.replace(':playerId', String(row.playerId))} onClick={onClose}>{value}</Link>
           : value
       case 'agent':

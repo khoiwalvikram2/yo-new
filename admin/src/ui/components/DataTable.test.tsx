@@ -88,6 +88,30 @@ describe('DataTable', () => {
     assert.equal(retry.mock.calls.length, 1)
   })
 
+  test('keeps each state inside the box pinned to the scroller\'s visible part (wide tables, phones)', () => {
+    // The state cell spans the whole table: in one wider than its scroller (/matka/live's Bet List, width
+    // "wide") the centred "No bets match your filters" ran past the scroller's edge, and off-screen on a phone.
+    const pinned = (node: HTMLElement) => {
+      const box = node.closest(`.${styles.stateContent}`)
+      assert.ok(box, 'the state is not inside the pinned box')
+      assert.ok(box.parentElement?.classList.contains(styles.stateCell), 'the pinned box is not the cell\'s child')
+    }
+    const view = render(
+      <DataTable columns={COLUMNS} rows={[]} rowKey={(row) => row.id} label="Bets" width="wide" state="loading" />,
+    )
+    pinned(screen.getByRole('status'))
+
+    view.rerender(
+      <DataTable columns={COLUMNS} rows={[]} rowKey={(row) => row.id} label="Bets" width="wide" empty={<p>No bets match your filters</p>} />,
+    )
+    pinned(screen.getByText('No bets match your filters'))
+
+    view.rerender(
+      <DataTable columns={COLUMNS} rows={[]} rowKey={(row) => row.id} label="Bets" width="wide" state="error" error="Gateway unavailable" />,
+    )
+    pinned(screen.getByText('Gateway unavailable'))
+  })
+
   test('keeps old rows visible during a refetch or a partial error', () => {
     const view = render(
       <DataTable

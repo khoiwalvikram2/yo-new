@@ -23,7 +23,8 @@ export interface PlayerIntelligenceProfile {
   } | null
   devices?: { ipAddress?: string | null; userAgent?: string | null; location?: string | null; country?: string | null; firstUsed?: string | null; lastUsed?: string | null; betCount?: number | null }[] | null
   relatedPlayers?: { userId: string; userName?: string | null; relationshipType?: string | null; confidence: number }[] | null
-  agentChain?: { agentId: string; agentName?: string | null; commissionRate?: number | null; creditLimit?: number | null; creditUsed?: number | null }[] | null
+  /** creditLimit is a CREDIT agent's credit reference since the chips model (spec 2026-11-02 decision 9). */
+  agentChain?: { agentId: string; agentName?: string | null; commissionRate?: number | null; creditLimit?: number | null }[] | null
   recentBets?: ProfileBet[] | null
 }
 

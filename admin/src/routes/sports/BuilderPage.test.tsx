@@ -6,6 +6,8 @@ import { MockedProvider } from '@apollo/client/testing'
 import { MemoryRouter } from 'react-router-dom'
 import { useAuthStore } from '@/shared/core/authStore'
 import { builderFixtureResponse, builderFixtureState, type BuilderFixtureState } from '../../../test/sportsBuilderPreviewData'
+import { builderMutationActions } from './builder-page-components/builderModel'
+import type { BuilderAuditRow } from './builder-page-components/types'
 import SportsBuilderPage from './BuilderPage'
 // The first query of the page waits on the provider sports load; the first test in the file also pays
 // the module warm-up, which took it past testing-library's 1 s default on a busy machine (a flaky failure).
@@ -14,18 +16,26 @@ let state: BuilderFixtureState
 let calls: Array<{ name: string; variables: Record<string, unknown>; uiToast?: unknown }>
 let hold: string | null
 let release: (() => void) | undefined
+/** Answers ListSportsBuilderAudit in place of the fixture when set (it gets the read's variables, so its limit). */
+let auditAnswer: ((variables: Record<string, unknown>) => unknown) | null
+// The Audits tab asks for each builder action by name (ListSportsBuilderAudit, one alias per action); it is
+// answered from the fixture's audit rows, sorted to their actions, so a non-builder row never reaches it.
+function builderAuditResponse(config: BuilderFixtureState) {
+  const { data } = builderFixtureResponse({ operationName: 'ListSportsAudit', variables: {} }, config) as { data: { audit: BuilderAuditRow[] } }
+  return { data: Object.fromEntries([...builderMutationActions].map(action => [action, data.audit.filter(row => row.action === action)])) }
+}
 function page() {
   const config = state; const operations = calls
   const link = new ApolloLink(operation => new Observable(observer => {
     operations.push({ name: operation.operationName, variables: structuredClone(operation.variables) as Record<string, unknown>, uiToast: operation.getContext().uiToast })
-    const respond = () => { try { observer.next(builderFixtureResponse(operation, config)); observer.complete() } catch (error) { observer.error(error) } }
+    const respond = () => { try { observer.next(operation.operationName === 'ListSportsBuilderAudit' ? auditAnswer?.(operation.variables) ?? builderAuditResponse(config) : builderFixtureResponse(operation, config)); observer.complete() } catch (error) { observer.error(error) } }
     if (hold === operation.operationName) release = respond
     else queueMicrotask(respond)
   }))
   return render(<MockedProvider cache={new InMemoryCache()} link={link}><MemoryRouter><SportsBuilderPage /></MemoryRouter></MockedProvider>)
 }
 beforeEach(() => {
-  state = builderFixtureState(); calls = []; hold = null; release = undefined
+  state = builderFixtureState(); calls = []; hold = null; release = undefined; auditAnswer = null
   useAuthStore.setState({ agent: undefined, user: undefined, permissions: [{ domain: 'sports.builder', actions: ['view'] }], roles: [], agentPermissions: [] })
 })
 async function manualEvents() {
@@ -119,11 +129,31 @@ test('delete configuration stays open on refusal and successful explicit retry r
   state.refuse = undefined; await act(async () => { fireEvent.click(within(confirm).getByRole('button', { name: 'Delete' })) }); await waitFor(() => assert.equal(Boolean(screen.queryByRole('alertdialog', { name: 'Delete Configuration?' })), false))
   assert.deepEqual(calls.find(call => call.name === 'DeleteAutoConfig')?.variables, { sportId: 'sport-cricket' }); assert.deepEqual(state.configs.map(config => config.sportId), ['sport-football'])
 })
-test('audit retains action:null query, fifteen-row paging and client-only manual/auto mutation filters', async () => {
+test('audit asks for each builder action by name, with fifteen-row paging and client-only manual/auto filters', async () => {
   page(); await screen.findByRole('checkbox', { name: 'Cricket' }, FIRST_RENDER); fireEvent.click(screen.getByRole('tab', { name: 'Audits' })); const table = await screen.findByRole('table', { name: 'Builder audits' })
-  assert.deepEqual(calls.find(call => call.name === 'ListSportsAudit')?.variables, { action: null }); assert.equal(within(table).getAllByRole('row').length, 16)
+  // Not every action of the tenant (action: null), which a hundred logins crowded the builder rows out of.
+  assert.deepEqual(calls.find(call => call.name === 'ListSportsBuilderAudit')?.variables, { limit: 200 }); assert.equal(calls.some(call => call.name === 'ListSportsAudit'), false)
+  assert.equal(within(table).getAllByRole('row').length, 16)
   fireEvent.click(screen.getByRole('button', { name: 'Next page' })); assert.equal(within(table).getAllByRole('row').length, 2)
   const filters = screen.getByRole('group', { name: 'Audit source' }); fireEvent.click(within(filters).getByRole('button', { name: 'Manual' })); assert.equal(within(table).getAllByRole('row').length, 9)
   assert.equal(Boolean(within(table).queryByText('Updated auto config')), false); assert.ok(within(table).getAllByText('Added selections').length > 0)
-  fireEvent.click(within(filters).getByRole('button', { name: 'Auto' })); assert.equal(within(table).getAllByRole('row').length, 9); assert.equal(calls.filter(call => call.name === 'ListSportsAudit').length, 1)
+  fireEvent.click(within(filters).getByRole('button', { name: 'Auto' })); assert.equal(within(table).getAllByRole('row').length, 9); assert.equal(calls.filter(call => call.name === 'ListSportsBuilderAudit').length, 1)
+  assert.equal(screen.queryByRole('button', { name: 'Load older changes' }), null, 'a history that fits one read offers nothing older')
+})
+/* B003: grandwinn's Builder had 213 changes of one kind. The tab read the newest 200 of each and the pager said
+   "of 200 changes", with nothing to say the 13 oldest were left out. */
+test('a history longer than one read says so, and Load older changes brings the rest', async () => {
+  const persisted = Array.from({ length: 213 }, (_, index) => ({ __typename: 'AuditEvent', id: `persist-${index}`, actorId: 'admin-1', domain: 'sports', action: 'persistSportsSelections', resourceType: 'selection', resourceId: `selection-${index}`, before: null,
+    after: { leaguesUpserted: 1, eventsUpserted: 1, marketsUpserted: 1, runnersUpserted: 1, skippedEventsCount: 0 }, timestamp: new Date(Date.UTC(2026, 9, 30, 12, 5) - index * 60_000).toISOString(),
+    actor: { __typename: 'AuditActor', name: 'Preview operator', type: 'admin' } }))
+  auditAnswer = variables => ({ data: Object.fromEntries([...builderMutationActions].map(action => [action, action === 'persistSportsSelections' ? persisted.slice(0, Number(variables.limit)) : []])) })
+  page(); await screen.findByRole('checkbox', { name: 'Cricket' }, FIRST_RENDER); fireEvent.click(screen.getByRole('tab', { name: 'Audits' }))
+  await screen.findByRole('table', { name: 'Builder audits' })
+  await screen.findByText('The newest 200 changes of each kind are shown; older ones are not loaded')
+  assert.ok(document.body.textContent?.includes('of 200 changes'))
+  fireEvent.click(screen.getByRole('button', { name: 'Load older changes' }))
+  await waitFor(() => assert.ok(document.body.textContent?.includes('of 213 changes'), 'the older changes were not loaded'))
+  assert.deepEqual(calls.filter(call => call.name === 'ListSportsBuilderAudit').map(call => call.variables), [{ limit: 200 }, { limit: 400 }])
+  assert.equal(screen.queryByRole('button', { name: 'Load older changes' }), null, 'nothing older is left to load')
+  assert.ok(screen.getByText('Latest activity across Manual and Auto'))
 })

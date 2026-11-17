@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   IconBuildingBank,
   IconCircleCheck,
+  IconCurrencyTether,
   IconQrcode,
 } from '@tabler/icons-react'
 import clsx from 'clsx'
@@ -24,24 +25,31 @@ import { Notice } from '@/ui/components/Notice'
 import { NumberField } from '@/ui/components/NumberField'
 import { Page } from '@/ui/components/Page'
 import { PageHeader } from '@/ui/components/PageHeader'
+import { Select } from '@/ui/components/Select'
 import { Steps } from '@/ui/components/Steps'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { Switch } from '@/ui/components/Switch'
 import { Textarea } from '@/ui/components/Textarea'
 import { TextField } from '@/ui/components/TextField'
 import { toast } from '@/ui/components/toast'
 import { useForm } from '@/ui/form/useForm'
+import { CRYPTO_COIN, CRYPTO_NETWORKS, cryptoWalletTitle } from './cryptoWalletModel'
 import {
+  CRYPTO_NO_RATE_REVIEW_NOTICE,
   METHODS_LIST_PATH,
   STEP_COUNT,
-  bankFormValues,
+  buildCryptoMethodsInput,
   buildPaymentMethodsInput,
   createInitialValues,
+  cryptoLimitsNote,
+  cryptoRateReviewRow,
   detailReviewRows,
-  findStoredBank,
+  findStoredCrypto,
   findStoredUpi,
   isImageFile,
   limitReviewRows,
   limitsIntro,
+  methodKindOf,
   pageSub,
   pageTitle,
   paymentMethodSchema,
@@ -51,15 +59,19 @@ import {
   saveFailureMessage,
   stepFields,
   stepsFor,
+  storedFormValues,
   submitLabel,
-  upiFormValues,
   type PaymentMethodFormValues,
+  type PaymentMethodKind,
   type ReviewRow,
   type StoredPaymentMethods,
 } from './paymentMethodFormModel'
 import styles from './PaymentMethodCreateEditPage.module.css'
 
 const FORM_ACCESS_REQUIREMENT = [{ domain: 'payments.methods', actions: ['create', 'update'] }]
+
+/** The stored QR row's note when its image cannot be shown (a legacy file, or one that will not load). */
+const QR_UNAVAILABLE = 'Cannot be shown. Choose the QR code again to replace it.'
 
 function reviewItems(rows: ReviewRow[]) {
   return rows.map((row) => ({ key: row.label, term: row.label, value: row.value }))
@@ -104,8 +116,10 @@ function PaymentMethodFormContent() {
   // In edit mode the type is the list the id belongs to
   const editType = useMemo(() => (isEdit ? resolveEditType(methods, params.id) : null), [isEdit, methods, params.id])
   const activeType = resolveActiveType(isEdit, editType, selectedType, urlType)
-  const isBank = activeType === 'bank'
-  const steps = stepsFor(isBank)
+  const kind = methodKindOf(activeType)
+  const isBank = kind === 'bank'
+  const isCrypto = kind === 'crypto'
+  const steps = stepsFor(kind)
   const isReviewStep = currentStep === STEP_COUNT - 1
 
   // Set selected type from URL if provided
@@ -126,7 +140,7 @@ function PaymentMethodFormContent() {
     },
   })
 
-  const schema = useMemo(() => paymentMethodSchema(isBank), [isBank])
+  const schema = useMemo(() => paymentMethodSchema(kind), [kind])
   const [initialValues] = useState(() => createInitialValues(isEdit ? null : maxAmountFromUrl))
 
   const saveMethod = useCallback(async (values: PaymentMethodFormValues) => {
@@ -139,13 +153,17 @@ function PaymentMethodFormContent() {
     try {
       await upsertMethods({
         variables: {
-          input: buildPaymentMethodsInput(methods, values, { isBank, isEdit, editId: params.id }),
+          // A wallet save sends the wallet list alone; the server keeps everything an upsert omits.
+          input: kind === 'crypto'
+            ? buildCryptoMethodsInput(methods, values, { isEdit, editId: params.id })
+            : buildPaymentMethodsInput(methods, values, { isBank: kind === 'bank', isEdit, editId: params.id }),
         },
       })
     } catch (error: unknown) {
+      // The server's own reason, e.g. "Invalid input: A TRC20 address must start with T…", is shown as is.
       toast({ message: saveFailureMessage(error, isEdit), tone: 'error' })
     }
-  }, [currentStep, isBank, isEdit, methods, params.id, upsertMethods, loading, error, data, editType])
+  }, [currentStep, kind, isEdit, methods, params.id, upsertMethods, loading, error, data, editType])
 
   const form = useForm({ schema, initialValues, onSubmit: saveMethod })
   const { reset, setValue, validate, values } = form
@@ -154,12 +172,11 @@ function PaymentMethodFormContent() {
   const loadedRecordId = useRef<string | null>(null)
   useEffect(() => {
     if (!isEdit || !methods || !params.id || loadedRecordId.current === params.id) return
-    const bank = isBank ? findStoredBank(methods, params.id) : null
-    const upi = isBank ? null : findStoredUpi(methods, params.id)
-    if (!bank && !upi) return
+    const storedValues = storedFormValues(methods, params.id, kind)
+    if (!storedValues) return
     loadedRecordId.current = params.id
-    reset(bank ? bankFormValues(bank) : upiFormValues(upi as NonNullable<typeof upi>))
-  }, [isBank, isEdit, methods, params.id, reset])
+    reset(storedValues)
+  }, [kind, isEdit, methods, params.id, reset])
 
   // A failed Next moves focus to the first field it flagged.
   useEffect(() => {
@@ -168,19 +185,19 @@ function PaymentMethodFormContent() {
   }, [focusRequest])
 
   /**
-   * Get current UPI for edit mode.
-   * qrUrl/qrKey are read straight from the stored record — both now carry the
-   * base64 data URI directly, no presigned URL generation involved.
+   * The UPI account or wallet being edited: the two types that carry a QR code.
+   * qrUrl/qrKey are read straight from the stored record: the QR's base64 data
+   * URI. qrUrl is null for a legacy value the server can no longer serve.
    */
-  const currentUpi = useMemo(
-    () => (isEdit && !isBank ? findStoredUpi(methods, params.id) : null),
-    [isBank, isEdit, methods, params.id],
-  )
+  const currentQrMethod = useMemo(() => {
+    if (!isEdit || kind === 'bank') return null
+    return kind === 'crypto' ? findStoredCrypto(methods, params.id) : findStoredUpi(methods, params.id)
+  }, [kind, isEdit, methods, params.id])
 
   // The QR image to preview: a freshly picked file (qrPreview) wins over the saved one.
-  const qrSrc = qrPreview || currentUpi?.qrUrl || ''
+  const qrSrc = qrPreview || currentQrMethod?.qrUrl || ''
   // Reset the load-error flag whenever the source changes, so a stale failure (e.g. a
-  // legacy S3 QR that could not load) never hides a newly-selected, valid preview.
+  // legacy QR that could not load) never hides a newly-selected, valid preview.
   useEffect(() => {
     setQrImgError(false)
   }, [qrSrc])
@@ -209,11 +226,11 @@ function PaymentMethodFormContent() {
   const handleQrRemove = () => {
     setQrImgError(false)
     setQrPreview(null)
-    setValue('qrKey', currentUpi?.qrKey ?? null)
+    setValue('qrKey', currentQrMethod?.qrKey ?? null)
   }
 
   const goNext = async () => {
-    const valid = await validate(stepFields(currentStep, isBank))
+    const valid = await validate(stepFields(currentStep, kind))
     if (!valid) {
       setFocusRequest((request) => request + 1)
       return
@@ -223,16 +240,26 @@ function PaymentMethodFormContent() {
 
   const goPrevious = () => setCurrentStep((step) => Math.max(step - 1, 0))
 
-  const chooseType = (type: 'bank' | 'upi') => {
+  const chooseType = (type: PaymentMethodKind) => {
     setSelectedType(type)
     setCurrentStep(0)
+  }
+
+  // A pasted address is re-checked as soon as the network changes: an address valid on one network is
+  // usually not one on another, and funds sent across networks are lost.
+  const changeNetwork = (next: string) => {
+    setValue('network', next)
+    if (values.walletAddress.trim()) void validate(['walletAddress'])
   }
 
   const symbol = getCurrencySymbol()
   const waitingForRecord = loading && !data
   const missingRecord = isEdit && !loading && !error && !editType
   const showWizard = !loading && !error && !missingRecord && ((!isEdit && Boolean(selectedType)) || isEdit)
-  const qrAttached = Boolean(qrPreview || currentUpi?.qrUrl)
+  const qrAttached = Boolean(qrPreview || currentQrMethod?.qrUrl)
+  const qrAlt = isCrypto ? 'Wallet QR Code' : 'UPI QR Code'
+  const defaultWalletName = cryptoWalletTitle({ network: values.network })
+  const detailRows = detailReviewRows(values, kind, qrAttached)
 
   const accountName = form.field('accountName')
   const accountNumber = form.field('accountNumber')
@@ -241,10 +268,41 @@ function PaymentMethodFormContent() {
   const branch = form.field('branch')
   const notes = form.field('notes')
   const upiId = form.field('upiId')
+  const network = form.field('network')
+  const walletAddress = form.field('walletAddress')
   const displayName = form.field('displayName')
   const minAmount = form.field('minAmount')
   const maxAmount = form.field('maxAmount')
   const weight = form.field('weight')
+
+  // UPI accounts and wallets share the QR picker. The row is the QR preview: the status as its name,
+  // "Saved" under it for the stored image, and Remove only for a freshly picked one (it returns to the
+  // stored QR).
+  const qrField = (
+    <FileField
+      className={styles.fullRow}
+      label="QR Code Image"
+      help="Ready to save"
+      accept="image/*"
+      fit="contain"
+      prompt={qrPreview || currentQrMethod?.qrUrl || currentQrMethod?.qrKey ? 'Change QR Code' : 'Select QR Code'}
+      busy={qrProcessing}
+      busyLabel="Processing QR code…"
+      files={qrSrc || (isEdit && currentQrMethod?.qrKey) ? [{
+        id: 'qr',
+        name: qrStatusText(Boolean(qrPreview), Boolean(currentQrMethod?.qrUrl)),
+        // A stored QR the server can no longer serve (null qrUrl) or that will not load is a placeholder naming
+        // it, never a broken image (SYS-18), and the row says how to replace it.
+        meta: qrPreview ? undefined : currentQrMethod?.qrUrl && !qrImgError ? 'Saved' : QR_UNAVAILABLE,
+        thumbnail: (
+          <StoredImage src={qrSrc || null} alt={qrAlt} placeholderClassName={styles.qrPlaceholder} onError={() => setQrImgError(true)} />
+        ),
+        removeLabel: 'Remove',
+        onRemove: qrPreview ? handleQrRemove : undefined,
+      }] : []}
+      onFiles={([file]) => { if (file) void handleQrSelect(file) }}
+    />
+  )
 
   return (
     <Page>
@@ -252,8 +310,8 @@ function PaymentMethodFormContent() {
         eyebrow={pageEyebrow}
         back={{ to: METHODS_LIST_PATH, label: 'Back to list' }}
         // Until the edited record is known its type is not, so the header uses the route's own label.
-        title={waitingForRecord || error || missingRecord ? (isEdit ? 'Edit Payment Method' : 'Add Payment Method') : pageTitle(isEdit, isBank)}
-        sub={waitingForRecord || error || missingRecord ? undefined : pageSub(isEdit, isBank)}
+        title={waitingForRecord || error || missingRecord ? (isEdit ? 'Edit Payment Method' : 'Add Payment Method') : pageTitle(isEdit, kind)}
+        sub={waitingForRecord || error || missingRecord ? undefined : pageSub(isEdit, kind)}
 
       />
 
@@ -282,6 +340,15 @@ function PaymentMethodFormContent() {
                   <span className={styles.typeText}>
                     <span className={styles.typeTitle}>UPI Account</span>
                     <span className={styles.typeSub}>Add UPI account for deposits</span>
+                  </span>
+                </button>
+                <button type="button" className={styles.typeOption} onClick={() => chooseType('crypto')}>
+                  <span className={clsx(styles.typeIcon, styles.cryptoIcon)} aria-hidden="true">
+                    <IconCurrencyTether size={20} stroke={strokeFor(20)} />
+                  </span>
+                  <span className={styles.typeText}>
+                    <span className={styles.typeTitle}>Crypto Wallet</span>
+                    <span className={styles.typeSub}>Add {CRYPTO_COIN} wallet for deposits</span>
                   </span>
                 </button>
               </div>
@@ -318,44 +385,51 @@ function PaymentMethodFormContent() {
                   </FormSection>
                 ) : null}
 
-                {currentStep === 0 && !isBank ? (
+                {currentStep === 0 && kind === 'upi' ? (
                   <FormSection title={steps[0].title}>
                     <TextField {...upiId} label="UPI ID" placeholder="e.g. merchant@paytm" required />
                     <TextField {...displayName} label="Display Name (Optional)" placeholder="Display name for UPI" />
-                    {/* The row is the QR preview: the status as its name, "Saved" under it for the stored
-                        image, and Remove only for a freshly picked one (it returns to the stored QR). */}
-                    <FileField
-                      className={styles.fullRow}
-                      label="QR Code Image"
-                      help="Ready to save"
-                      accept="image/*"
-                      fit="contain"
-                      prompt={qrPreview || currentUpi?.qrUrl || currentUpi?.qrKey ? 'Change QR Code' : 'Select QR Code'}
-                      busy={qrProcessing}
-                      busyLabel="Processing QR code…"
-                      files={qrSrc || (isEdit && currentUpi?.qrKey) ? [{
-                        id: 'qr',
-                        name: qrStatusText(Boolean(qrPreview), Boolean(currentUpi?.qrUrl)),
-                        meta: currentUpi?.qrUrl && !qrPreview && !qrImgError ? 'Saved' : undefined,
-                        thumbnail: !qrSrc ? (
-                          <span className={styles.qrPlaceholder}>Generating URL…</span>
-                        ) : qrImgError ? (
-                          <span className={styles.qrPlaceholder}>Failed to load</span>
-                        ) : (
-                          <img key={qrSrc} src={qrSrc} alt="UPI QR Code" onError={() => setQrImgError(true)} />
-                        ),
-                        removeLabel: 'Remove',
-                        onRemove: qrPreview ? handleQrRemove : undefined,
-                      }] : []}
-                      onFiles={([file]) => { if (file) void handleQrSelect(file) }}
+                    {qrField}
+                  </FormSection>
+                ) : null}
+
+                {currentStep === 0 && isCrypto ? (
+                  <FormSection title={steps[0].title}>
+                    <Select
+                      {...network}
+                      onChange={changeNetwork}
+                      label={`${CRYPTO_COIN} Network`}
+                      layout="stacked"
+                      options={CRYPTO_NETWORKS}
+                      help="Players are told to send on this network only"
+                      required
                     />
+                    <TextField
+                      {...displayName}
+                      label="Display Name (Optional)"
+                      placeholder={defaultWalletName}
+                      help={`Leave empty to show ${defaultWalletName}`}
+                      maxLength={64}
+                    />
+                    <TextField
+                      {...walletAddress}
+                      className={styles.fullRow}
+                      inputClassName={styles.address}
+                      label="Wallet Address"
+                      placeholder="Paste the wallet address"
+                      help="Checked against the network: funds sent on another network are lost"
+                      autoComplete="off"
+                      spellCheck={false}
+                      required
+                    />
+                    {qrField}
                   </FormSection>
                 ) : null}
 
                 {currentStep === 1 ? (
                   <FormSection
                     title={steps[1].title}
-                    description={limitsIntro(isEdit)}
+                    description={isCrypto ? `${limitsIntro(isEdit)} ${cryptoLimitsNote(symbol)}` : limitsIntro(isEdit)}
                     cols={{ base: 1, md: 3 }}
                   >
                     <NumberField
@@ -413,15 +487,22 @@ function PaymentMethodFormContent() {
                     <div className={styles.reviewGrid}>
                       <DescriptionList.Section
                         className={styles.reviewPanel}
-                        title={isBank ? 'Bank Details' : 'UPI Details'}
+                        title={steps[0].title}
                       >
-                        <DescriptionList items={reviewItems(detailReviewRows(values, isBank, qrAttached))} />
+                        <DescriptionList
+                          items={reviewItems(isCrypto
+                            ? [...detailRows, cryptoRateReviewRow(methods?.cryptoRate, (amount) => formatAmount(amount))]
+                            : detailRows)}
+                        />
                       </DescriptionList.Section>
                       <DescriptionList.Section className={styles.reviewPanel} title="Limits & Priority">
                         <DescriptionList items={reviewItems(limitReviewRows(values, (amount) => formatAmount(amount)))} />
                         <p>VIP access: {values.vipTierIds == null ? 'All eligible tiers' : `${values.vipTierIds.length} selected tier(s)`}</p>
                       </DescriptionList.Section>
                     </div>
+                    {isCrypto && methods?.cryptoRate == null ? (
+                      <Notice tone="warn">{CRYPTO_NO_RATE_REVIEW_NOTICE}</Notice>
+                    ) : null}
                   </section>
                 ) : null}
 
@@ -453,7 +534,7 @@ function PaymentMethodFormContent() {
                       icon={<IconCircleCheck size={16} stroke={strokeFor(16)} />}
                       loading={form.submitting}
                     >
-                      {submitLabel(isEdit, isBank)}
+                      {submitLabel(isEdit, kind)}
                     </Button>
                   )}
                 </FormActions>

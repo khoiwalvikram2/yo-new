@@ -15,7 +15,8 @@ const count = (args: unknown, ctx: unknown) => (reportingResolvers.Query as any)
 describe('agentExportRowCount', () => {
   it('is in the schema, nullable, with a one-line comment the probes read past', () => {
     const schema = readFileSync(join('src', 'types', 'operations', 'queries.graphql'), 'utf8')
-    assert.match(schema, /\n  agentExportRowCount\(reportType: String!, filtersJson: JSON\): Int\n/)
+    // \r?: the checkout may have CRLF line endings (queries.graphql has had them since 2026-11-02)
+    assert.match(schema, /\r?\n  agentExportRowCount\(reportType: String!, filtersJson: JSON\): Int\r?\n/)
   })
 
   it('needs reporting.exports:view', async () => {

@@ -18,7 +18,8 @@ import { Drawer } from '@/ui/components/Drawer'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { Textarea } from '@/ui/components/Textarea'
 import { strokeFor } from '@/ui/components/icons'
-import { cloneVariables, statusLabel, statusTone, type MatkaRecord } from '../matkaManagementModel'
+import { toast } from '@/ui/components/toast'
+import { cloneVariables, matkaErrorText, matkaStatus, statusLabel, statusTone, type MatkaRecord } from '../matkaManagementModel'
 import styles from '../ManagementPage.module.css'
 
 interface ActionsDrawerProps {
@@ -43,6 +44,8 @@ export function ActionsDrawer({ matka, open, onClose, onRefetch }: ActionsDrawer
     setDeleteReason('')
   }
 
+  // The error link toasts nothing for a mutation, and the notification link reports only a successful
+  // { success, message } payload, so a refusal is reported here (the drawer stays open).
   const handleStatusChange = async (newStatus: 'active' | 'inactive' | 'suspend') => {
     if (!record) return
     try {
@@ -51,8 +54,8 @@ export function ActionsDrawer({ matka, open, onClose, onRefetch }: ActionsDrawer
       await setMatkaStatus({ variables: { id: record.id, toStatus: newStatus.toUpperCase() as never } })
       onRefetch()
       onClose()
-    } catch {
-      // Apollo's mutation link owns the existing error notification contract.
+    } catch (error) {
+      toast({ message: matkaErrorText(error, 'The matka status could not be changed.'), tone: 'error' })
     }
   }
 
@@ -62,8 +65,8 @@ export function ActionsDrawer({ matka, open, onClose, onRefetch }: ActionsDrawer
       await cloneMatka({ variables: cloneVariables(record) })
       onRefetch()
       onClose()
-    } catch {
-      // Apollo's mutation link owns the existing error notification contract.
+    } catch (error) {
+      toast({ message: matkaErrorText(error, 'The matka could not be cloned.'), tone: 'error' })
     }
   }
 
@@ -71,13 +74,19 @@ export function ActionsDrawer({ matka, open, onClose, onRefetch }: ActionsDrawer
     if (!record || !deleteReason.trim()) return
     try {
       await deleteMatka({ variables: { id: record.id, reason: deleteReason } })
-      closeDelete()
-      onRefetch()
-      onClose()
-    } catch {
-      // Apollo's mutation link owns the existing error notification contract.
+    } catch (error) {
+      toast({ message: matkaErrorText(error, 'The matka could not be deleted.'), tone: 'error' })
+      return
     }
+    // deleteMatka answers a bare Boolean, which the notification link has nothing to say about.
+    toast({ message: `${record.name} deleted`, tone: 'ok' })
+    closeDelete()
+    onRefetch()
+    onClose()
   }
+
+  // The API sends the upper-case MatkaStatus enum; compared as typed in lower case, every button showed.
+  const currentStatus = matkaStatus(record?.status)
 
   const formatDate = (value?: string) => {
     if (!value) return '—'
@@ -166,7 +175,7 @@ export function ActionsDrawer({ matka, open, onClose, onRefetch }: ActionsDrawer
             <section className={styles.drawerSection}>
               <h3 className={styles.sectionTitle}>Status Management</h3>
               <div className={styles.drawerStack}>
-                {record.status !== 'active' ? (
+                {currentStatus !== 'ACTIVE' ? (
                   <Button
                     block
                     loading={changingStatus}
@@ -176,7 +185,7 @@ export function ActionsDrawer({ matka, open, onClose, onRefetch }: ActionsDrawer
                     Activate
                   </Button>
                 ) : null}
-                {record.status !== 'inactive' ? (
+                {currentStatus !== 'INACTIVE' ? (
                   <Button
                     block
                     loading={changingStatus}
@@ -186,7 +195,7 @@ export function ActionsDrawer({ matka, open, onClose, onRefetch }: ActionsDrawer
                     Deactivate
                   </Button>
                 ) : null}
-                {record.status !== 'suspend' ? (
+                {currentStatus !== 'SUSPEND' ? (
                   <Button
                     block
                     variant="danger"

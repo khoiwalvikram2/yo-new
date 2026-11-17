@@ -22,7 +22,6 @@ export const parentDefaultRoutes: Record<string, string> = {
   'Players': '/players/search',
   'Agents': '/agents',
   'Reporting': '/reporting/exposure',
-  'Promotions': '/promotions/campaigns',
   'Bonuses': '/bonuses',
   'Referrals': '/referrals',
   'VIP Tiers': '/vip/tiers',
@@ -131,10 +130,6 @@ export const routeConfig: RouteConfigMap = {
   '/reporting/exports': { label: 'Export Center', parent: 'Reporting' },
   '/reporting/agents': { label: 'Agent Performance', parent: 'Reporting' },
 
-  // Promotions routes
-  '/promotions/campaigns': { label: 'Campaigns', parent: 'Promotions' },
-  '/promotions/content': { label: 'Content', parent: 'Promotions' },
-
   // Bonuses routes
   '/bonuses': { label: 'Bonuses' },
   '/bonuses/new': { label: 'Create Bonus', parent: 'Bonuses' },
@@ -176,10 +171,9 @@ export const routeConfig: RouteConfigMap = {
   // Currency routes
   '/currency': { label: 'Currency Management' },
 
-  // Credit Management (Whitelabel)
-  '/credit': { label: 'Credit Management' },
-  // Agent Credit Management
-  '/agent/credit': { label: 'Credit Management', parent: 'Agent' },
+  // The whitelabel's and a CREDIT agent's Chips pages (Deposit/Withdraw chips, spec 2026-11-02 §8)
+  '/credit': { label: 'Chips' },
+  '/agent/credit': { label: 'Chips', parent: 'Agent' },
   '/agent/referral': { label: 'Invite Players', parent: 'Agent' },
 
   // Payment routes

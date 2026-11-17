@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { gql, useMutation, useQuery } from '@apollo/client'
 import { IconPlus } from '@tabler/icons-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { WhitelabelsStatsCards } from './components/WhitelabelsStatsCards'
 import { WhitelabelsTable } from './components/WhitelabelsTable'
 import { WhitelabelDetailsDrawer } from './components/WhitelabelDetailsDrawer'
@@ -9,6 +9,7 @@ import { useCurrency } from '@/shared/core/CurrencyContext'
 import { RBACGuard } from '@/shared/core/RBACGuard'
 import { useAuthStore } from '@/shared/core/authStore'
 import { useSearch } from '@/shared/hooks/useSearch'
+import { useSearchParamUpdates } from '@/shared/hooks/useSearchParamUpdates'
 import { notify } from '@/shared/services/notification'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { Button } from '@/ui/components/Button'
@@ -149,9 +150,15 @@ function WhitelabelsListPageContent() {
   const { formatAmount, getCurrencySymbol } = useCurrency()
   const roles = useAuthStore((state) => state.roles)
   const isSuperAdmin = isSuperAdminRole(roles)
-  const { query: searchQuery, setQuery: setSearchQuery, debouncedQuery } = useSearch({ minLength: 2 })
+  // A link may carry the search (?search=, the global search's "See all Whitelabels").
+  const [searchParams] = useSearchParams()
+  const { query: searchQuery, setQuery: setSearchQuery, debouncedQuery } = useSearch({ minLength: 2, initialQuery: searchParams.get('search') ?? '' })
 
   const [currentPage, setCurrentPage] = useState(1)
+  useSearchParamUpdates((term) => {
+    setSearchQuery(term)
+    setCurrentPage(1)
+  })
   const [pageSize, setPageSize] = useState(10)
   const [selectedWhitelabel, setSelectedWhitelabel] = useState<Whitelabel | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)

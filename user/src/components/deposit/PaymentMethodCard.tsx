@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Building, QrCode, CreditCard, Copy, Check } from 'lucide-react'
+import { Building, QrCode, CreditCard, Coins, Copy, Check } from 'lucide-react'
 import { formatAmount } from '@/lib/currency'
+import { CRYPTO_COIN, cryptoBonusFor, cryptoBonusPercent, cryptoNetworkWarning, formatBonusPercent, formatUsdt, usdtFor } from '@/lib/cryptoDeposit'
 
 export interface PaymentMethod {
   id: string
-  type: 'upi' | 'bank' | 'gateway'
+  type: 'upi' | 'bank' | 'gateway' | 'crypto'
   name: string
   displayName?: string
   accountNumber?: string
@@ -20,6 +21,12 @@ export interface PaymentMethod {
   isActive?: boolean
   iconUrl?: string
   provider?: string
+  // type 'crypto' only: a USDT wallet and the whitelabel rate (wallet currency per 1 USDT)
+  walletAddress?: string
+  network?: string
+  cryptoRate?: number
+  /** Extra % of the deposit paid into the cash wallet on approval (unset = no bonus) */
+  cryptoBonusPercent?: number
 }
 
 interface PaymentMethodCardProps {
@@ -29,14 +36,21 @@ interface PaymentMethodCardProps {
   disabled?: boolean
   showDetails?: boolean
   prominentAccountLimits?: boolean
+  /** Deposit amount entered so far; a crypto wallet shows the USDT it costs */
+  amount?: number
 }
 
-function CopyableField({ label, value }: { label: string; value: string }) {
+/**
+ * `copyValue` is what lands on the clipboard when it differs from the text shown (an amount without
+ * its unit). `wrap` shows a long value in full instead of cutting it off: a wallet address must be
+ * readable to the last character.
+ */
+export function CopyableField({ label, value, copyValue, wrap = false }: { label: string; value: string; copyValue?: string; wrap?: boolean }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
-    navigator.clipboard.writeText(value).then(() => {
+    navigator.clipboard.writeText(copyValue ?? value).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     })
@@ -46,7 +60,7 @@ function CopyableField({ label, value }: { label: string; value: string }) {
     <div className="dep-copy">
       <div className="dep-copy-text">
         <span className="dep-copy-label">{label}</span>
-        <span className="dep-copy-value">{value}</span>
+        <span className={`dep-copy-value${wrap ? ' is-wrap' : ''}`}>{value}</span>
       </div>
       <button
         type="button"
@@ -57,6 +71,35 @@ function CopyableField({ label, value }: { label: string; value: string }) {
         {copied ? <Check /> : <Copy />}
       </button>
     </div>
+  )
+}
+
+/** The coin a crypto wallet takes and the network it is on: the two things a player must not get wrong. */
+export function CryptoCoinBadge({ network }: { network?: string }) {
+  return (
+    <span className="dep-crypto-badge">
+      {CRYPTO_COIN}{network ? ` · ${network}` : ''}
+    </span>
+  )
+}
+
+/** '+5% bonus' on a crypto wallet whose deposits earn one */
+export function CryptoBonusBadge({ percent }: { percent?: number }) {
+  const p = cryptoBonusPercent(percent)
+  if (p === null) return null
+  return <span className="dep-crypto-bonus">+{formatBonusPercent(p)} bonus</span>
+}
+
+/** What a crypto deposit of `amount` credits with its bonus. The server fixes the bonus when the request is made. */
+export function CryptoBonusSummary({ amount, percent }: { amount: number; percent?: number }) {
+  const p = cryptoBonusPercent(percent)
+  const bonus = p === null ? 0 : cryptoBonusFor(amount, p)
+  if (p === null || bonus <= 0) return null
+  return (
+    <p className="dep-crypto-summary">
+      You get <strong>{formatAmount(amount + bonus)}</strong> on approval:{' '}
+      {formatAmount(amount)} + {formatAmount(bonus)} bonus ({formatBonusPercent(p)})
+    </p>
   )
 }
 
@@ -84,13 +127,16 @@ export function PaymentMethodCard({
   disabled = false,
   showDetails = false,
   prominentAccountLimits = false,
+  amount,
 }: PaymentMethodCardProps) {
   const isAvailable = method.isActive !== false
+  const usdtToSend = method.type === 'crypto' && amount != null ? usdtFor(amount, method.cryptoRate) : null
 
   const methodIconsSmall = {
     upi: <QrCode />,
     bank: <Building />,
     gateway: <CreditCard />,
+    crypto: <Coins />,
   }
 
   const handleSelect = (e: React.MouseEvent) => {
@@ -117,7 +163,7 @@ export function PaymentMethodCard({
         </div>
 
         <div className="dep-method-main">
-          <div className="dep-method-title">
+          <div className={`dep-method-title${method.type === 'crypto' ? ' is-wrap' : ''}`}>
             <h4 className="dep-method-name">
               {method.displayName || method.name}
             </h4>
@@ -126,6 +172,8 @@ export function PaymentMethodCard({
                 {method.provider}
               </span>
             )}
+            {method.type === 'crypto' && <CryptoCoinBadge network={method.network} />}
+            {method.type === 'crypto' && <CryptoBonusBadge percent={method.cryptoBonusPercent} />}
           </div>
           {(method.minAmount != null || method.maxAmount != null) &&
             (prominentAccountLimits ? (
@@ -154,8 +202,36 @@ export function PaymentMethodCard({
       </div>
 
       {/* Full details - always visible */}
-      {showDetails && (method.type === 'upi' || method.type === 'bank') && (
+      {showDetails && (method.type === 'upi' || method.type === 'bank' || method.type === 'crypto') && (
         <div className="dep-method-details">
+          {method.type === 'crypto' && (
+            <>
+              <div className="dep-crypto">
+                {method.qrUrl && (
+                  // White in both themes: a QR code only scans dark-on-light
+                  <div className="dep-qr is-scan">
+                    <img
+                      src={method.qrUrl}
+                      alt="Wallet QR Code"
+                      style={{ width: 200, height: 200 }}
+                    />
+                  </div>
+                )}
+                <div className="dep-copy-list">
+                  {method.walletAddress && <CopyableField label="Wallet Address" value={method.walletAddress} wrap />}
+                  {usdtToSend !== null && <CopyableField label="Amount to Send" value={formatUsdt(usdtToSend)} copyValue={usdtToSend.toFixed(2)} />}
+                  {usdtToSend !== null && amount != null && <CryptoBonusSummary amount={amount} percent={method.cryptoBonusPercent} />}
+                </div>
+              </div>
+              <div className="dep-crypto-meta">
+                {method.cryptoRate != null && (
+                  <span className="dep-crypto-rate">1 {CRYPTO_COIN} = {formatAmount(method.cryptoRate)}</span>
+                )}
+                {method.network && <span className="dep-crypto-net">{cryptoNetworkWarning(method.network)}</span>}
+              </div>
+            </>
+          )}
+
           {method.type === 'upi' && (
             <div className="dep-upi">
               {method.qrUrl && (

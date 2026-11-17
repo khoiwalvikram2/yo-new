@@ -1,6 +1,6 @@
 import type { Dayjs } from 'dayjs'
 
-/** Refresh interval for the topbar IST clock, shared with useIstClock's setInterval. */
+/** Refresh interval for the shell's IST clock, shared with useIstClock's setInterval. */
 export const IST_CLOCK_REFRESH_MS = 30_000
 
 export interface IstClock {

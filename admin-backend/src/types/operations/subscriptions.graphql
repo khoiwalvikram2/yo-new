@@ -20,8 +20,6 @@ type Subscription {
   agentSharingUpdated(agentId: ID!): AgentSharingInfo!
   agentCommissionUpdated(agentId: ID!): AgentCommissionInfo!
   whitelabelSharingUpdated(whitelabelId: ID!): WhitelabelSharingInfo!
-  # Agent credit updates
-  agentCreditUpdated(agentId: ID!): CreditAllocation!
   # Whitelabel credit updates
   whitelabelCreditUpdated(whitelabelId: ID!): WhitelabelCreditInfo!
   # Audit trail real-time updates

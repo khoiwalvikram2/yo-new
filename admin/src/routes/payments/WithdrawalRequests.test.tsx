@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
+import { Kind, visit, type DocumentNode } from 'graphql'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import { ADMIN_WITHDRAWAL_REQUESTS, SET_WITHDRAWAL_STATUS } from '@/lib/graphql/withdrawals'
 import { ADMIN_WITHDRAWAL_HISTORY } from '@/lib/graphql/withdrawalHistory'
@@ -79,6 +80,16 @@ const hooks = vi.hoisted(() => ({
   useMutation: vi.fn(),
   refetch: vi.fn(),
   setStatus: vi.fn(),
+  sendPayout: vi.fn(),
+  refreshPayout: vi.fn(),
+  rejectPayout: vi.fn(),
+}))
+
+/** The payment whitelabel of the signed-in admin: a whitelabel admin, so payouts are never blocked on a selection. */
+vi.mock('./usePaymentWhitelabelScope', () => ({
+  usePaymentWhitelabelScope: () => ({
+    key: 'admin-1:site-a', superAdmin: false, selectionRequired: false, expectedTenant: null, readOnly: false, isCurrent: () => true,
+  }),
 }))
 
 const feedback = vi.hoisted(() => ({
@@ -159,13 +170,14 @@ vi.mock('@/ui/components/Drawer', async () => {
 })
 
 vi.mock('@/ui/components/Dialog', () => ({
-  Dialog: ({ open, onOpenChange, title, children }: OverlayProps) => (open ? (
+  Dialog: ({ open, onOpenChange, title, children, footer }: OverlayProps) => (open ? (
     <div role="dialog" aria-label={typeof title === 'string' ? title : undefined}>
       <h2>{title}</h2>
       <button type="button" aria-label="Close dialog" onClick={() => onOpenChange(false)}>
         Close
       </button>
       {children}
+      {footer ? <footer>{footer}</footer> : null}
     </div>
   ) : null),
 }))
@@ -216,6 +228,18 @@ function operationName(document: unknown): string | undefined {
   return definition?.name?.value
 }
 
+/** The fields each `account { ... }` selection of a document asks for, in order. */
+function accountSelections(document: DocumentNode): string[][] {
+  const selections: string[][] = []
+  visit(document, {
+    Field(node) {
+      if (node.name.value !== 'account' || !node.selectionSet) return
+      selections.push(node.selectionSet.selections.flatMap((selection) => (selection.kind === Kind.FIELD ? [selection.name.value] : [])))
+    },
+  })
+  return selections
+}
+
 function makeRequest(overrides: Partial<WithdrawalRequest> = {}): WithdrawalRequest {
   return {
     id: 'wd-1',
@@ -248,6 +272,9 @@ function makeRequest(overrides: Partial<WithdrawalRequest> = {}): WithdrawalRequ
 
 let queryData: { adminWithdrawalRequests: { items: WithdrawalRequest[]; total: number } }
 let queryLoading = false
+/** The task-link lookup (the list query filtered by `id`), answered apart from the list. */
+let linkData: { adminWithdrawalRequests: { items: WithdrawalRequest[]; total: number } } | undefined
+let latestLinkOptions: { variables: { input: Record<string, unknown> }; skip: boolean; fetchPolicy: string } | undefined
 let historyData: { adminWithdrawalHistory: WithdrawalHistoryEntry[] } | undefined
 let historyLoading = false
 let latestQueryOptions: QueryOptions | undefined
@@ -255,13 +282,20 @@ let latestHistoryOptions: HistoryQueryOptions | undefined
 let mutationOptions: MutationOptions | undefined
 let mutationDocument: unknown
 let refetchSnapshots: Array<QueryOptions['variables']>
+let gatewayConfig: { tenant: string | null; payoutEnabled: boolean } | undefined
 
-function renderPage() {
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location-search">{location.search}</output>
+}
+
+function renderPage(entry = '/payments/withdrawal-requests') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}>
       <PageEyebrowProvider value="Payment operations">
         <WithdrawalRequestsPage />
       </PageEyebrowProvider>
+      <LocationProbe />
     </MemoryRouter>,
   )
 }
@@ -295,6 +329,8 @@ function chooseStatus(dialog: HTMLElement, status: string) {
 beforeEach(() => {
   queryData = { adminWithdrawalRequests: { items: [makeRequest()], total: 25 } }
   queryLoading = false
+  linkData = undefined
+  latestLinkOptions = undefined
   historyData = undefined
   historyLoading = false
   latestQueryOptions = undefined
@@ -302,6 +338,7 @@ beforeEach(() => {
   mutationOptions = undefined
   mutationDocument = undefined
   refetchSnapshots = []
+  gatewayConfig = { tenant: 'site-a', payoutEnabled: false }
   rbacCalls.length = 0
   rbacState.allowed = true
 
@@ -309,6 +346,9 @@ beforeEach(() => {
   hooks.useMutation.mockReset()
   hooks.refetch.mockReset()
   hooks.setStatus.mockReset()
+  hooks.sendPayout.mockReset()
+  hooks.refreshPayout.mockReset()
+  hooks.rejectPayout.mockReset()
   feedback.confirm.mockReset()
   feedback.toast.mockReset()
 
@@ -323,10 +363,21 @@ beforeEach(() => {
         ? { data: undefined, loading: false }
         : { data: historyData, loading: historyLoading }
     }
+    if (operationName(document) === 'WithdrawalGatewayConfig') {
+      return { data: gatewayConfig ? { withdrawalGatewayConfig: gatewayConfig } : undefined, loading: false }
+    }
+    if ('id' in (options.variables?.input ?? {})) {
+      latestLinkOptions = options as unknown as typeof latestLinkOptions
+      return options.skip ? { data: undefined, loading: false } : { data: linkData, loading: false }
+    }
     latestQueryOptions = options
     return { data: queryData, loading: queryLoading, refetch: hooks.refetch }
   })
   hooks.useMutation.mockImplementation((document: unknown, options: MutationOptions) => {
+    const name = operationName(document)
+    if (name === 'SendWelivepayPayout') return [hooks.sendPayout, { loading: false }]
+    if (name === 'RefreshWelivepayPayout') return [hooks.refreshPayout, { loading: false }]
+    if (name === 'RejectWelivepayPayout') return [hooks.rejectPayout, { loading: false }]
     mutationDocument = document
     mutationOptions = options
     return [hooks.setStatus, { loading: false }]
@@ -379,6 +430,12 @@ describe('WithdrawalRequestsPage query and access contracts', () => {
     hooks.refetch.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     assert.equal(hooks.refetch.mock.calls.length, 1)
+  })
+
+  test('asks for the payout account deletedAt in the list and in the status answer, so both can mark it Deleted', () => {
+    const account = ['id', 'method', 'accountNumber', 'ifscCode', 'bankName', 'accountHolderName', 'deletedAt']
+    assert.deepStrictEqual(accountSelections(ADMIN_WITHDRAWAL_REQUESTS), [account])
+    assert.deepStrictEqual(accountSelections(SET_WITHDRAWAL_STATUS), [account])
   })
 
   test('does not mount page content or start a query or mutation when the guard denies access', () => {
@@ -549,6 +606,49 @@ describe('WithdrawalRequestsPage drawer', () => {
     assert.ok(within(dialog).getByText('HDFC Bank'))
     assert.ok(within(dialog).getByRole('group', { name: 'New status' }))
     assert.ok(hasDialogButton(dialog, 'Update Status'))
+  })
+
+  test('marks an account the player deleted beside its method, says when, and leaves a live account unmarked', async () => {
+    queryData = {
+      adminWithdrawalRequests: {
+        items: [
+          makeRequest({
+            status: 'COMPLETED',
+            account: {
+              id: 'acc-2',
+              method: 'BANK',
+              accountNumber: '001122334455',
+              ifscCode: 'HDFC0001234',
+              bankName: 'HDFC Bank',
+              accountHolderName: 'Asha Player',
+              deletedAt: '2026-11-04T06:15:00.000Z',
+            },
+          }),
+          makeRequest({ id: 'wd-2' }),
+        ],
+        total: 2,
+      },
+    }
+    renderPage()
+    const dialog = await openRequest()
+
+    const methodRow = within(dialog).getByText('Method').parentElement as HTMLElement
+    assert.ok(within(methodRow).getByText('BANK'))
+    const pill = within(methodRow).getByText('Deleted')
+    assert.equal(pill.closest('[title]')?.getAttribute('title'), 'The player deleted this payout account')
+    const deletedAtRow = within(dialog).getByText('Deleted At').parentElement as HTMLElement
+    const deletedAt = within(deletedAtRow).getByText('formatted:2026-11-04T06:15:00.000Z:dd MMM yyyy, HH:mm:ss')
+    assert.equal(deletedAt.tagName, 'TIME')
+    assert.equal(deletedAt.getAttribute('datetime'), '2026-11-04T06:15:00.000Z')
+    assert.ok(within(dialog).getByText('001122334455'), 'the deleted account is still shown in full')
+    assert.ok(within(dialog).getByRole('button', { name: 'Copy IFSC' }))
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close dialog' }))
+    await waitFor(() => assert.equal(screen.queryByRole('dialog'), null))
+    const live = await openRequest('wd-2')
+    assert.ok(within(live).getByText('Account Details'))
+    assert.equal(within(live).queryByText('Deleted'), null)
+    assert.equal(within(live).queryByText('Deleted At'), null)
   })
 
   test('renders a settled request read-only without a player link or account section', async () => {
@@ -744,6 +844,108 @@ describe('WithdrawalRequestsPage status update', () => {
     assert.ok(within(dialog).getByText('Update to Completed'))
     assert.equal(feedback.toast.mock.calls.length, 0)
   })
+
+  test('a request settled meanwhile is shown as it stands, with the server refusal in the confirmation', async () => {
+    let confirmationFailure: Error | undefined
+    feedback.confirm.mockImplementation(async (options: ConfirmOptions) => {
+      try {
+        await options.onConfirm?.()
+      } catch (error) {
+        confirmationFailure = error as Error
+      }
+      return false
+    })
+    hooks.setStatus.mockResolvedValue({
+      data: {
+        setWithdrawalStatus: {
+          success: false,
+          message: 'This request is already COMPLETED. Nothing was changed.',
+          request: makeRequest({ status: 'COMPLETED', reviewerId: '7', reviewedAt: '2026-09-22T09:00:00.000Z' }),
+        },
+      },
+    })
+
+    renderPage()
+    const dialog = await openRequest()
+    chooseStatus(dialog, 'CANCELLED')
+    fireEvent.click(dialogButton(dialog, 'Update Status'))
+
+    await waitFor(() => assert.equal(confirmationFailure?.message, 'This request is already COMPLETED. Nothing was changed.'))
+    await waitFor(() => assert.ok(within(dialog).getByText('This request has been completed')))
+    assert.equal(within(dialog).queryByRole('group', { name: 'New status' }), null, 'no status choice for a settled request')
+    assert.equal(hasDialogButton(dialog, 'Update Status'), false)
+    assert.equal(hooks.refetch.mock.calls.length, 1, 'the list is read again')
+    assert.equal(feedback.toast.mock.calls.length, 0)
+  })
+
+  /* FIN-05 follow-up: a refusal the server throws (an unapproved payout account, a request WeLivePay manages) reached
+     only the toast; the confirmation said "Failed to update withdrawal status". The status mutation now has no hook
+     onError (Apollo resolved a refused call with no data when it had one), so the call rejects as Apollo does. */
+  test.each([
+    "This withdrawal's payout account is waiting for approval, so it cannot be paid. Approve the account under Payout Account Approvals first, or cancel the request to refund the player.",
+    'This withdrawal is managed by WeLivePay. Refresh gateway status instead of changing it manually.',
+  ])('a thrown refusal shows its reason in the confirmation as well as the toast: %s', async (reason) => {
+    let confirmationFailure: Error | undefined
+    feedback.confirm.mockImplementation(async (options: ConfirmOptions) => {
+      try {
+        await options.onConfirm?.()
+      } catch (error) {
+        confirmationFailure = error as Error
+      }
+      return false
+    })
+    hooks.setStatus.mockRejectedValue(new Error(reason))
+
+    renderPage()
+    const dialog = await openRequest()
+    chooseStatus(dialog, 'COMPLETED')
+    fireEvent.click(dialogButton(dialog, 'Update Status'))
+
+    await waitFor(() => assert.equal(confirmationFailure?.message, reason))
+    assert.equal(mutationOptions?.onError, undefined, 'a hook onError would make Apollo resolve the refusal with no data')
+    assert.deepStrictEqual(feedback.toast.mock.calls.map(([options]) => options), [{ message: reason, tone: 'error' }])
+    // The drawer keeps the request and the choice for a retry or a cancel.
+    assert.ok(screen.getByRole('dialog', { name: 'Withdrawal Request - #wd-1' }))
+    assert.ok(within(dialog).getByText('Update to Completed'))
+    assert.equal(hooks.refetch.mock.calls.length, 0)
+  })
+})
+
+describe('WithdrawalRequestsPage task links', () => {
+  test('?withdrawalId opens that request whatever the list filters, and closing it drops the link', async () => {
+    linkData = { adminWithdrawalRequests: { items: [makeRequest({ id: '1141', status: 'COMPLETED', createdAt: '2026-01-02T10:00:00.000Z' })], total: 1 } }
+    renderPage('/payments/withdrawal-requests?withdrawalId=1141')
+
+    const dialog = await screen.findByRole('dialog', { name: 'Withdrawal Request - #1141' })
+    assert.deepStrictEqual(latestLinkOptions, {
+      variables: { input: { id: '1141', offset: 0, limit: 1 } },
+      skip: false,
+      fetchPolicy: 'network-only',
+    })
+    assert.equal(latestQueryOptions?.variables.input.status, 'PENDING', 'the list keeps its own filters')
+    assert.equal(screen.getByTestId('location-search').textContent, '?withdrawalId=1141')
+
+    fireEvent.click(dialogButton(dialog, 'Close'))
+    await waitFor(() => assert.equal(screen.queryByRole('dialog'), null))
+    await waitFor(() => assert.equal(screen.getByTestId('location-search').textContent, ''))
+  })
+
+  test('a link to a request that is not there says so and is dropped', async () => {
+    linkData = { adminWithdrawalRequests: { items: [], total: 0 } }
+    renderPage('/payments/withdrawal-requests?withdrawalId=999')
+
+    await waitFor(() => assert.deepStrictEqual(feedback.toast.mock.calls[0]?.[0], {
+      message: 'Withdrawal request #999 was not found',
+      tone: 'error',
+    }))
+    assert.equal(screen.queryByRole('dialog'), null)
+    await waitFor(() => assert.equal(screen.getByTestId('location-search').textContent, ''))
+  })
+
+  test('without a link the lookup is skipped', () => {
+    renderPage()
+    assert.equal(latestLinkOptions?.skip, true)
+  })
 })
 
 describe('WithdrawalRequestsPage history', () => {
@@ -805,5 +1007,70 @@ describe('WithdrawalRequestsPage history', () => {
 
     const history = await screen.findByRole('dialog', { name: 'Withdrawal History' })
     assert.ok(within(history).getByText('No data'))
+  })
+})
+
+describe('WithdrawalRequestsPage WeLivePay payouts', () => {
+  const bankRequest = (overrides: Partial<WithdrawalRequest> = {}) => makeRequest({
+    account: { id: 'acc-2', method: 'BANK', accountNumber: '012345678901', ifscCode: 'SBIN0001234', bankName: 'Test Bank', accountHolderName: 'Asha Player' },
+    ...overrides,
+  })
+  const processing = { orderId: 'WLP_WD_1_abc', status: 'processing', amount: 1250, utr: null, failureReason: null, merchantTransactionId: null, canReject: false }
+
+  test('offers nothing while payouts are off and the request was never sent', async () => {
+    queryData = { adminWithdrawalRequests: { items: [bankRequest()], total: 1 } }
+    renderPage()
+    const drawer = await openRequest()
+    assert.equal(within(drawer).queryByText('WeLivePay Payout'), null)
+    assert.ok(within(drawer).getByRole('group', { name: 'New status' }), 'manual status update stays')
+  })
+
+  test('Pay via WeLivePay confirms, sends the withdrawal id, toasts the gateway answer and refreshes', async () => {
+    gatewayConfig = { tenant: 'site-a', payoutEnabled: true }
+    queryData = { adminWithdrawalRequests: { items: [bankRequest()], total: 1 } }
+    feedback.confirm.mockImplementation(async ({ onConfirm }: { onConfirm: () => Promise<void> }) => { await onConfirm(); return true })
+    hooks.sendPayout.mockResolvedValue({ data: { sendWelivepayPayout: processing } })
+    renderPage()
+    const drawer = await openRequest()
+    fireEvent.click(dialogButton(drawer, 'Pay via WeLivePay'))
+    await waitFor(() => assert.equal(hooks.sendPayout.mock.calls.length, 1))
+    assert.deepStrictEqual(hooks.sendPayout.mock.calls[0][0], { variables: { id: 'wd-1' } })
+    assert.match(String(feedback.confirm.mock.calls[0][0].description), /Retrying keeps the same reference/)
+    await waitFor(() => assert.ok(feedback.toast.mock.calls.some(([toastArgs]) => /WeLivePay payout: Processing/.test(toastArgs.message))))
+    assert.ok(hooks.refetch.mock.calls.length >= 1)
+  })
+
+  test('a request WeLivePay manages hides the manual status update and can be refreshed', async () => {
+    gatewayConfig = { tenant: 'site-a', payoutEnabled: true }
+    queryData = { adminWithdrawalRequests: { items: [bankRequest({ status: 'PROCESSING', gatewayPayout: processing })], total: 1 } }
+    hooks.refreshPayout.mockResolvedValue({ data: { refreshWelivepayPayout: { ...processing, status: 'success', utr: 'UTR123' } } })
+    renderPage()
+    const drawer = await openRequest()
+    assert.equal(within(drawer).getAllByText('Managed by WeLivePay').length, 2, 'the notice and the footer line')
+    assert.equal(within(drawer).queryByRole('group', { name: 'New status' }), null)
+    assert.ok(within(drawer).getByText('WLP_WD_1_abc'))
+    assert.ok(dialogButton(drawer, 'Retry same payout'))
+    fireEvent.click(dialogButton(drawer, 'Refresh gateway status'))
+    await waitFor(() => assert.equal(hooks.refreshPayout.mock.calls.length, 1))
+    await waitFor(() => assert.ok(feedback.toast.mock.calls.some(([toastArgs]) => /UTR UTR123/.test(toastArgs.message))))
+  })
+
+  test('Reject payout needs a reason and sends it trimmed', async () => {
+    gatewayConfig = { tenant: 'site-a', payoutEnabled: true }
+    const unsent = { ...processing, status: 'pending', canReject: true }
+    queryData = { adminWithdrawalRequests: { items: [bankRequest({ status: 'PROCESSING', gatewayPayout: unsent })], total: 1 } }
+    hooks.rejectPayout.mockResolvedValue({ data: { rejectWelivepayPayout: { ...unsent, status: 'rejected', canReject: false } } })
+    renderPage()
+    const drawer = await openRequest()
+    fireEvent.click(dialogButton(drawer, 'Reject payout'))
+    const dialog = await screen.findByRole('dialog', { name: 'Reject payout - #wd-1' })
+    fireEvent.click(dialogButton(dialog, 'Reject and refund'))
+    assert.ok(await within(dialog).findByText('Enter a rejection reason'))
+    assert.equal(hooks.rejectPayout.mock.calls.length, 0)
+    fireEvent.change(within(dialog).getByLabelText('Reason'), { target: { value: '  Project balance too low  ' } })
+    fireEvent.click(dialogButton(dialog, 'Reject and refund'))
+    await waitFor(() => assert.equal(hooks.rejectPayout.mock.calls.length, 1))
+    assert.deepStrictEqual(hooks.rejectPayout.mock.calls[0][0], { variables: { id: 'wd-1', note: 'Project balance too low' } })
+    await waitFor(() => assert.ok(feedback.toast.mock.calls.some(([toastArgs]) => /refunded/.test(toastArgs.message))))
   })
 })

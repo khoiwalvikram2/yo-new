@@ -86,11 +86,11 @@ export async function ensureActorMayGrantPermissions(
   }
   if (hasAllStar) return
 
-  const actorPermSet = new Set<string>()
-  aggregatePermissionPairs(actorPerms).forEach(({ domain, actions }) => {
-    if (actions.includes('*')) actorPermSet.add(`${domain}:*`)
-    else actions.forEach((action) => actorPermSet.add(`${domain}:${action}`))
-  })
+  // What the actor holds is decided by the predicate that authorizes them everywhere else, so a pair they
+  // reach through a flat grant counts. A literal comparison of stored pairs refused a Whitelabel Admin every
+  // nested permission the role editor offers (it holds flat `audit:read`, so `audit.events:view` was "not
+  // held") while that same admin read the audit trail through it.
+  const actorHeld = aggregatePermissionPairs(actorPerms)
 
   for (const { domain, action } of proposed) {
     // `all:*` is the platform wildcard. Only a holder of it may hand it out,
@@ -100,8 +100,7 @@ export async function ensureActorMayGrantPermissions(
         'Cannot grant permission "all:*": only a platform Super Admin may define a role that holds it.'
       )
     }
-    if (actorPermSet.has(`${domain}:${action}`)) continue
-    if (actorPermSet.has(`${domain}:*`)) continue
+    if (callerHasPermission(actorHeld, domain, action)) continue
     throw new Error(
       `Cannot grant permission "${domain}:${action}": you do not hold it. ` +
         'Privilege escalation is not allowed.'
@@ -175,54 +174,18 @@ export async function ensureNoPrivilegeEscalation(
     return // Super admin can assign any role
   }
   
-  // Build permission sets for comparison
-  const actorPermSet = new Set<string>()
-  actorAggregated.forEach(({ domain, actions }) => {
-    if (actions.includes('*')) {
-      // Domain wildcard means all actions in that domain
-      actorPermSet.add(`${domain}:*`)
-    } else {
-      actions.forEach(action => {
-        actorPermSet.add(`${domain}:${action}`)
-      })
+  // Check if actor has all permissions that target role has. "Has" is the predicate that authorizes the
+  // actor everywhere else (exact, wildcard, or through a flat grant), as in ensureActorMayGrantPermissions;
+  // a domain wildcard in the role needs a wildcard (or all:*) in the actor.
+  for (const { domain, actions } of targetAggregated) {
+    for (const action of actions.includes('*') ? ['*'] : actions) {
+      if (callerHasPermission(actorAggregated, domain, action)) continue
+      // Actor doesn't have this permission
+      throw new Error(
+        `Cannot assign role: actor lacks permission "${domain}:${action}". ` +
+        `Privilege escalation is not allowed.`
+      )
     }
-  })
-  
-  const targetPermSet = new Set<string>()
-  targetAggregated.forEach(({ domain, actions }) => {
-    if (actions.includes('*')) {
-      targetPermSet.add(`${domain}:*`)
-    } else {
-      actions.forEach(action => {
-        targetPermSet.add(`${domain}:${action}`)
-      })
-    }
-  })
-  
-  // Check if actor has all permissions that target role has
-  for (const targetPerm of targetPermSet) {
-    const [domain, action] = targetPerm.split(':')
-    
-    // Check exact match
-    if (actorPermSet.has(targetPerm)) {
-      continue
-    }
-    
-    // Check domain wildcard
-    if (actorPermSet.has(`${domain}:*`)) {
-      continue
-    }
-    
-    // Check global wildcard
-    if (actorPermSet.has('all:*')) {
-      continue
-    }
-    
-    // Actor doesn't have this permission
-    throw new Error(
-      `Cannot assign role: actor lacks permission "${targetPerm}". ` +
-      `Privilege escalation is not allowed.`
-    )
   }
 }
 

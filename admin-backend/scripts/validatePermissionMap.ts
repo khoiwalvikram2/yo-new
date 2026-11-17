@@ -34,7 +34,6 @@ export const PROPOSED: Record<string, [string, string]> = {
   playerOverview: ['players.profile', 'view'],
   playerBets: ['players.bets', 'view'],
   playerTransactions: ['players.transactions', 'view'],
-  playerCreditTransactions: ['players.credit', 'view'],
   playerBonuses: ['players.bonuses', 'view'],
   playerVip: ['players.vip', 'view'],
   playerDevices: ['players.devices', 'view'],
@@ -48,6 +47,8 @@ export const PROPOSED: Record<string, [string, string]> = {
   // *creating* one; requiring it here would take the screen away from every
   // role holding plain audit read, Whitelabel Admin included.
   auditExportJobs: ['audit.events', 'view'],
+  // Downloading one of those jobs' files (the caller's own) is gated like the list.
+  auditExportJobDownload: ['audit.events', 'view'],
   auditAnnotations: ['audit.annotations', 'view'],
 
   // Aggregate financial reporting.
@@ -65,6 +66,10 @@ export const PROPOSED: Record<string, [string, string]> = {
   savedReports: ['reporting.exports', 'view'],
   exportJobs: ['reporting.exports', 'view'],
   exportJobDownloadUrl: ['reporting.exports', 'view'],
+
+  // Deposit review. One request's payment proof (its screenshot), read when a reviewer opens it: gated like the
+  // deposit list it belongs to (adminDepositRequests), which carries only whether there is one.
+  depositRequestProof: ['payments.deposits', 'view'],
 
   // Matka operational data.
   draws: ['matka.management', 'view'],

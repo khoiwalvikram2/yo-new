@@ -1,6 +1,6 @@
 /**
  * /notifications mounted against MockedProvider and a MemoryRouter: the exact MyNotifications document
- * and options (variables, poll fallback, policies), the RBAC requirement, the tab strip and its
+ * and options (variables, poll fallback, policies), that no RBAC guard stands in front, the tab strip and its
  * location-state and agent rules, the realtime merge and its refetch triggers, row navigation with the
  * mark-read mutation, Mark all read, and the loading, empty and error states. The live subscription hook
  * is stubbed (it opens a socket), as are the currency and tenant date formatters; the notification
@@ -254,14 +254,15 @@ describe('NotificationsPage', () => {
     assert.ok(screen.getByRole('link', { name: /Maintenance done/ }))
   })
 
-  test('is guarded by notifications.list view, and a denied caller starts no query', () => {
+  test('opens for any signed-in reader: no RBAC guard, the server scopes the inbox to its recipient', async () => {
+    // A caller the old notifications.list:view guard refused: a Whitelabel Admin or an agent, whose bells list
+    // these same rows and whose View all lands here.
     rbac.allowed = false
     renderPage([listMock('general', [DEPOSIT])])
 
-    assert.deepEqual(rbac.calls[0], [{ domain: 'notifications.list', actions: ['view'] }])
-    assert.ok(screen.getByRole('alert'))
-    assert.equal(apollo.queries.length, 0)
-    assert.equal(apollo.mutations.length, 0)
+    await screen.findByRole('link', { name: /Deposit received/ })
+    assert.equal(rbac.calls.length, 0)
+    assert.equal(screen.queryByText('Access denied'), null)
   })
 
   test('falls back to a 30-second poll while the live subscription is failing', async () => {

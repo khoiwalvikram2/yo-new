@@ -38,40 +38,46 @@ export const useConvertCurrency = () => {
   })
 }
 
+/* Refetched after every currency change: the management page's list (GetCurrencies) and the panel's own
+   currency list (Currencies, CurrencyContext), which drives the topbar's currency choice and every
+   formatAmount / convertAmount. Without the second, the topbar list and the display rates stayed as they
+   were until a reload. */
+const CURRENCY_LISTS = ['GetCurrencies', 'Currencies']
+
 // Mutation hooks
 export const useCreateCurrency = () => {
   return useMutation(CREATE_CURRENCY, {
-    refetchQueries: ['GetCurrencies'], // Refetch currencies after creation
+    refetchQueries: CURRENCY_LISTS, // Refetch currencies after creation
   })
 }
 
 export const useUpdateCurrency = () => {
   return useMutation(UPDATE_CURRENCY, {
-    refetchQueries: ['GetCurrencies'], // Refetch currencies after update
+    refetchQueries: CURRENCY_LISTS, // Refetch currencies after update
   })
 }
 
 export const useDeleteCurrency = () => {
   return useMutation(DELETE_CURRENCY, {
-    refetchQueries: ['GetCurrencies'], // Refetch currencies after deletion
+    refetchQueries: CURRENCY_LISTS, // Refetch currencies after deletion
   })
 }
 
 export const useUpdateExchangeRates = () => {
   return useMutation(UPDATE_EXCHANGE_RATES, {
-    refetchQueries: ['GetCurrencies'], // Refetch currencies after rate update
+    refetchQueries: CURRENCY_LISTS, // Refetch currencies after rate update
   })
 }
 
 export const useActivateCurrency = () => {
   return useMutation(ACTIVATE_CURRENCY, {
-    refetchQueries: ['GetCurrencies'], // Refetch currencies after activation
+    refetchQueries: CURRENCY_LISTS, // Refetch currencies after activation
   })
 }
 
 export const useDeactivateCurrency = () => {
   return useMutation(DEACTIVATE_CURRENCY, {
-    refetchQueries: ['GetCurrencies'], // Refetch currencies after deactivation
+    refetchQueries: CURRENCY_LISTS, // Refetch currencies after deactivation
   })
 }
 

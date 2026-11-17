@@ -5,6 +5,7 @@ import {
   categoryCountLabel,
   categoryFormInitialValues,
   categoryFormSchema,
+  categoryOrderAfterMove,
   categoryReorderInputs,
   categoryStats,
   categoryStatusLabel,
@@ -129,6 +130,26 @@ describe('casino categories model', () => {
     ])
   })
 
+  test('a drag under a Type filter is saved in the whole order, so hidden categories keep their numbers', () => {
+    // Live Casino: General g1..g5, Featured 6, Top 7, two new Generals (no order), then the lounge at 90.
+    const all = ['g1', 'g2', 'g3', 'g4', 'g5', 'featured', 'top', 'alpha', 'beta', 'lounge']
+    const generals = ['g1', 'g2', 'g3', 'g4', 'g5', 'alpha', 'beta']
+    // Beta dragged above Alpha with Type = General: it used to send the 7 Generals as 1..7, giving Alpha and Beta
+    // the 6 and 7 of Featured and Top.
+    const whole = categoryOrderAfterMove(all, generals, 'beta', 'alpha')
+    assert.deepEqual(whole, ['g1', 'g2', 'g3', 'g4', 'g5', 'featured', 'top', 'beta', 'alpha', 'lounge'])
+    const numbers = categoryReorderInputs(whole ?? []).map((input) => input.order)
+    assert.equal(new Set(numbers).size, all.length, 'every number is used once')
+    // Moving up past hidden rows lands before the target; moving down lands after it.
+    assert.deepEqual(categoryOrderAfterMove(all, generals, 'alpha', 'g5'), ['g1', 'g2', 'g3', 'g4', 'alpha', 'g5', 'featured', 'top', 'beta', 'lounge'])
+    assert.deepEqual(categoryOrderAfterMove(all, generals, 'g5', 'beta'), ['g1', 'g2', 'g3', 'g4', 'featured', 'top', 'alpha', 'beta', 'g5', 'lounge'])
+    // The shown rows keep the order already on screen (a drag not yet refetched).
+    assert.deepEqual(categoryOrderAfterMove(['a', 'x', 'b', 'c'], ['c', 'a', 'b'], 'b', 'c'), ['b', 'c', 'x', 'a'])
+    // Unfiltered it is the plain move; a drop on itself changes nothing.
+    assert.deepEqual(categoryOrderAfterMove(['a', 'b', 'c'], ['a', 'b', 'c'], 'a', 'c'), moveId(['a', 'b', 'c'], 'a', 'c'))
+    assert.equal(categoryOrderAfterMove(all, generals, 'alpha', 'alpha'), null)
+  })
+
   test('keeps the saved game order and ignores games no longer returned', () => {
     const games = [
       { id: 'g2', name: 'Two', slug: 'two' },
@@ -217,12 +238,14 @@ describe('casino categories model', () => {
       preview: 'https://cdn.test/icon.png',
       value: null,
     })
-    assert.deepEqual(initialIconState('folder/icon.png'), { preview: null, value: 'folder/icon.png' })
+    assert.deepEqual(initialIconState('data:image/png;base64,AAAA'), { preview: 'data:image/png;base64,AAAA', value: null })
+    // A legacy storage key (the server now answers null for one) is neither shown nor sent back on a save.
+    assert.deepEqual(initialIconState('folder/icon.png'), { preview: null, value: null })
     assert.equal(isImageType('image/png'), true)
     assert.equal(isImageType('text/plain'), false)
   })
 
-  test('builds create values and the exact legacy update patch', () => {
+  test('builds create values and the exact update patch; an emptied subtitle is cleared, not skipped', () => {
     const values = categorySubmitValues({
       mainCategory: 'CASINO',
       type: 'FEATURED',
@@ -241,15 +264,34 @@ describe('casino categories model', () => {
       iconData: 'data:image/png;base64,new',
       isActive: true,
     })
+    // A missing key leaves the stored subtitle; the emptied field used to save nothing and say "Category Updated".
     assert.deepEqual(categoryUpdatePatch(values), {
       mainCategory: 'CASINO',
       name: 'Featured',
       slug: 'featured',
-      subtitle: undefined,
+      subtitle: null,
       iconData: 'data:image/png;base64,new',
       isActive: true,
       type: 'FEATURED',
     })
+    assert.equal(categoryUpdatePatch({ ...values, subtitle: 'Lobby picks' }).subtitle, 'Lobby picks')
+    assert.equal(categoryUpdatePatch({ ...values, subtitle: '   ' }).subtitle, null)
+  })
+
+  test('sends the icon only when it changed: null when removed, nothing when kept', () => {
+    const form = {
+      mainCategory: 'CASINO', type: 'GENERAL', name: 'Live', slug: 'live', subtitle: 'Sub', isActive: true,
+      // A stored icon reaches the drawer as its data URI: only the preview, never sent back unchanged.
+      iconData: 'data:image/png;base64,c3RvcmVk',
+    }
+    const kept = categorySubmitValues(form, null)
+    assert.equal(kept.iconData, undefined)
+    assert.equal('iconData' in JSON.parse(JSON.stringify(categoryUpdatePatch(kept))), false, 'no icon key on the wire')
+    const removed = categorySubmitValues({ ...form, iconData: null }, null, true)
+    assert.equal(removed.iconData, null)
+    assert.equal(categoryUpdatePatch(removed).iconData, null)
+    // A freshly compressed icon travels as the icon value.
+    assert.equal(categorySubmitValues(form, 'data:image/png;base64,new').iconData, 'data:image/png;base64,new')
   })
 
   test('keeps success/error toast copy and timings', () => {

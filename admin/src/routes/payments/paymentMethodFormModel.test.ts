@@ -3,12 +3,19 @@ import assert from 'node:assert/strict'
 import {
   bankEntry,
   bankFormValues,
+  buildCryptoMethodsInput,
   buildPaymentMethodsInput,
   createInitialValues,
+  cryptoEntry,
+  cryptoFormValues,
+  cryptoLimitsNote,
+  cryptoRateReviewRow,
   detailReviewRows,
+  findStoredCrypto,
   isImageFile,
   limitReviewRows,
   limitsIntro,
+  methodKindOf,
   pageSub,
   pageTitle,
   paymentMethodSchema,
@@ -18,11 +25,14 @@ import {
   saveFailureMessage,
   stepFields,
   stepsFor,
+  storedFormValues,
   submitLabel,
   upiEntry,
   upiFormValues,
   type PaymentMethodFormValues,
+  type PaymentMethodKind,
   type StoredBank,
+  type StoredCrypto,
   type StoredPaymentMethods,
   type StoredUpi,
 } from './paymentMethodFormModel'
@@ -31,8 +41,8 @@ function values(overrides: Partial<PaymentMethodFormValues> = {}): PaymentMethod
   return { ...createInitialValues(null), ...overrides }
 }
 
-function issues(isBank: boolean, input: PaymentMethodFormValues): Record<string, string> {
-  const result = paymentMethodSchema(isBank).safeParse(input)
+function issues(kind: PaymentMethodKind, input: PaymentMethodFormValues): Record<string, string> {
+  const result = paymentMethodSchema(kind).safeParse(input)
   if (result.success) return {}
   const found: Record<string, string> = {}
   for (const issue of result.error.issues) found[issue.path.join('.')] ??= issue.message
@@ -79,41 +89,41 @@ function stored(overrides: Partial<StoredPaymentMethods> = {}): StoredPaymentMet
 
 describe('steps and rules', () => {
   test('keeps the legacy step copy and the fields each Next validates', () => {
-    assert.deepStrictEqual(stepsFor(true).map((step) => [step.title, step.description, step.short]), [
+    assert.deepStrictEqual(stepsFor('bank').map((step) => [step.title, step.description, step.short]), [
       ['Bank Details', 'Account holder & routing', 'Bank Details'],
       ['Limits & Priority', 'Tiers, weight & status', 'Limits'],
       ['Review & Save', 'Confirm before publishing', 'Review'],
     ])
-    assert.deepStrictEqual(stepsFor(false)[0], { title: 'UPI Details', description: 'UPI handle & QR', short: 'UPI Details' })
-    assert.deepStrictEqual(stepFields(0, true), ['accountName', 'accountNumber', 'ifsc', 'bankName', 'branch'])
-    assert.deepStrictEqual(stepFields(0, false), ['upiId'])
-    assert.deepStrictEqual(stepFields(1, true), ['minAmount', 'maxAmount', 'weight', 'enabled', 'vipTierIds'])
-    assert.deepStrictEqual(stepFields(2, false), [])
+    assert.deepStrictEqual(stepsFor('upi')[0], { title: 'UPI Details', description: 'UPI handle & QR', short: 'UPI Details' })
+    assert.deepStrictEqual(stepFields(0, 'bank'), ['accountName', 'accountNumber', 'ifsc', 'bankName', 'branch'])
+    assert.deepStrictEqual(stepFields(0, 'upi'), ['upiId'])
+    assert.deepStrictEqual(stepFields(1, 'bank'), ['minAmount', 'maxAmount', 'weight', 'enabled', 'vipTierIds'])
+    assert.deepStrictEqual(stepFields(2, 'upi'), [])
   })
 
   test('a bank needs its five details, as entered; a UPI needs only its UPI ID', () => {
-    assert.deepStrictEqual(issues(true, values()), {
+    assert.deepStrictEqual(issues('bank', values()), {
       accountName: 'Required', accountNumber: 'Required', ifsc: 'Required', bankName: 'Required', branch: 'Required',
     })
-    assert.deepStrictEqual(issues(false, values()), { upiId: 'Required' })
-    assert.deepStrictEqual(issues(false, values({ upiId: 'x@ybl' })), {})
+    assert.deepStrictEqual(issues('upi', values()), { upiId: 'Required' })
+    assert.deepStrictEqual(issues('upi', values({ upiId: 'x@ybl' })), {})
     // antd's required rule let whitespace through and the save trimmed it; that is unchanged
-    assert.deepStrictEqual(issues(false, values({ upiId: '   ' })), {})
+    assert.deepStrictEqual(issues('upi', values({ upiId: '   ' })), {})
   })
 
   test('amounts and weight: non-negative, the legacy max-below-min rule, and a whole-number weight', () => {
     const base = values({ upiId: 'x@ybl' })
-    assert.deepStrictEqual(issues(false, { ...base, minAmount: -1, maxAmount: -5 }), {
+    assert.deepStrictEqual(issues('upi', { ...base, minAmount: -1, maxAmount: -5 }), {
       minAmount: 'Value must be at least 0',
       maxAmount: 'Value must be at least 0',
     })
-    assert.deepStrictEqual(issues(false, { ...base, minAmount: 500, maxAmount: 100 }), { maxAmount: 'Must be > min' })
-    assert.deepStrictEqual(issues(false, { ...base, minAmount: 500, maxAmount: 500 }), {}, 'equal is allowed')
-    assert.deepStrictEqual(issues(false, { ...base, minAmount: 0, maxAmount: 100 }), {}, 'a zero minimum is no minimum')
-    assert.deepStrictEqual(issues(false, { ...base, minAmount: null, maxAmount: 1 }), {})
-    assert.deepStrictEqual(issues(false, { ...base, weight: 2.5 }), { weight: 'Enter a whole number' })
-    assert.deepStrictEqual(issues(false, { ...base, weight: -1 }), { weight: 'Value must be at least 0' })
-    assert.deepStrictEqual(issues(false, { ...base, weight: null }), {})
+    assert.deepStrictEqual(issues('upi', { ...base, minAmount: 500, maxAmount: 100 }), { maxAmount: 'Must be > min' })
+    assert.deepStrictEqual(issues('upi', { ...base, minAmount: 500, maxAmount: 500 }), {}, 'equal is allowed')
+    assert.deepStrictEqual(issues('upi', { ...base, minAmount: 0, maxAmount: 100 }), {}, 'a zero minimum is no minimum')
+    assert.deepStrictEqual(issues('upi', { ...base, minAmount: null, maxAmount: 1 }), {})
+    assert.deepStrictEqual(issues('upi', { ...base, weight: 2.5 }), { weight: 'Enter a whole number' })
+    assert.deepStrictEqual(issues('upi', { ...base, weight: -1 }), { weight: 'Value must be at least 0' })
+    assert.deepStrictEqual(issues('upi', { ...base, weight: null }), {})
   })
 })
 
@@ -121,7 +131,8 @@ describe('initial values and types', () => {
   test('a new method is active with weight 0, and takes a numeric tier max from the link', () => {
     assert.deepStrictEqual(createInitialValues(null), {
       accountName: '', accountNumber: '', ifsc: '', bankName: '', branch: '', notes: '',
-      upiId: '', displayName: '', qrKey: null, minAmount: null, maxAmount: null, weight: 0, enabled: true, vipTierIds: null,
+      upiId: '', network: 'TRC20', walletAddress: '', displayName: '', qrKey: null, minAmount: null, maxAmount: null,
+      weight: 0, enabled: true, vipTierIds: null,
     })
     assert.equal(createInitialValues('50000').maxAmount, 50000)
     assert.equal(createInitialValues('2500.5').maxAmount, 2500.5)
@@ -236,20 +247,20 @@ describe('review and copy', () => {
   const format = (amount: number) => `INR ${amount.toFixed(2)}`
 
   test('lists the legacy review rows with dashes for empty values', () => {
-    assert.deepStrictEqual(detailReviewRows(values({ accountName: 'Vijay', ifsc: 'HDFC0001204' }), true, false), [
+    assert.deepStrictEqual(detailReviewRows(values({ accountName: 'Vijay', ifsc: 'HDFC0001204' }), 'bank', false), [
       { label: 'Account Name', value: 'Vijay' },
       { label: 'Account No.', value: '—' },
       { label: 'IFSC', value: 'HDFC0001204' },
       { label: 'Bank', value: '—' },
       { label: 'Branch', value: '—' },
     ])
-    assert.deepStrictEqual(detailReviewRows(values({ notes: 'IMPS only' }), true, false).at(-1), { label: 'Notes', value: 'IMPS only' })
-    assert.deepStrictEqual(detailReviewRows(values({ upiId: 'a@b' }), false, true), [
+    assert.deepStrictEqual(detailReviewRows(values({ notes: 'IMPS only' }), 'bank', false).at(-1), { label: 'Notes', value: 'IMPS only' })
+    assert.deepStrictEqual(detailReviewRows(values({ upiId: 'a@b' }), 'upi', true), [
       { label: 'UPI ID', value: 'a@b' },
       { label: 'Display Name', value: '—' },
       { label: 'QR Code', value: 'Attached' },
     ])
-    assert.equal(detailReviewRows(values(), false, false)[2]?.value, 'Not added')
+    assert.equal(detailReviewRows(values(), 'upi', false)[2]?.value, 'Not added')
   })
 
   test('prints limits the legacy way, a zero minimum as no minimum', () => {
@@ -265,14 +276,14 @@ describe('review and copy', () => {
   })
 
   test('keeps the titles, labels and messages', () => {
-    assert.equal(pageTitle(false, true), 'Add Payment Method')
-    assert.equal(pageTitle(true, true), 'Edit Bank Account')
-    assert.equal(pageTitle(true, false), 'Edit UPI Account')
-    assert.equal(pageSub(false, false), 'Add a new bank account or UPI account for deposits')
-    assert.equal(pageSub(true, true), 'Update bank account details')
-    assert.equal(pageSub(true, false), 'Update UPI account details')
-    assert.equal(submitLabel(false, true), 'Create Bank Account')
-    assert.equal(submitLabel(true, false), 'Update UPI Account')
+    assert.equal(pageTitle(false, 'bank'), 'Add Payment Method')
+    assert.equal(pageTitle(true, 'bank'), 'Edit Bank Account')
+    assert.equal(pageTitle(true, 'upi'), 'Edit UPI Account')
+    assert.equal(pageSub(false, 'upi'), 'Add a new bank account, UPI account or crypto wallet for deposits')
+    assert.equal(pageSub(true, 'bank'), 'Update bank account details')
+    assert.equal(pageSub(true, 'upi'), 'Update UPI account details')
+    assert.equal(submitLabel(false, 'bank'), 'Create Bank Account')
+    assert.equal(submitLabel(true, 'upi'), 'Update UPI Account')
     assert.equal(limitsIntro(false), 'Set account amount limits, VIP access and display priority.')
     assert.equal(limitsIntro(true), 'Update account amount limits, VIP access and display priority.')
     assert.equal(saveFailureMessage(new Error('Network down'), false), 'Network down')
@@ -283,5 +294,123 @@ describe('review and copy', () => {
     assert.equal(qrStatusText(false, false), 'Saved')
     assert.equal(isImageFile({ type: 'image/png' }), true)
     assert.equal(isImageFile({ type: 'application/pdf' }), false)
+  })
+})
+
+describe('crypto wallets', () => {
+  const TRON = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+  const EVM = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
+  const TIER = '11111111-1111-4111-8111-111111111111'
+  const WALLET: StoredCrypto = {
+    __typename: 'CryptoDetails',
+    id: 'c1',
+    network: 'TRC20',
+    walletAddress: TRON,
+    displayName: null,
+    qrKey: 'data:image/png;base64,CCCC',
+    qrUrl: 'data:image/png;base64,CCCC',
+    minAmount: 1000,
+    maxAmount: null,
+    weight: 2,
+    enabled: true,
+    vipTierIds: [TIER],
+  } as StoredCrypto
+  const format = (amount: number) => `INR ${amount.toFixed(2)}`
+
+  test('a wallet is its own type: steps, the fields its Next checks, its copy and how it is found', () => {
+    assert.deepStrictEqual(stepsFor('crypto')[0], {
+      title: 'Wallet Details', description: 'Network, address & QR', short: 'Wallet Details',
+    })
+    assert.deepStrictEqual(stepFields(0, 'crypto'), ['network', 'walletAddress'])
+    assert.deepStrictEqual(stepFields(1, 'crypto'), ['minAmount', 'maxAmount', 'weight', 'enabled', 'vipTierIds'])
+    assert.deepStrictEqual(['bank', 'upi', 'crypto', null, 'other'].map(methodKindOf), ['bank', 'upi', 'crypto', 'upi', 'upi'])
+    assert.equal(resolveEditType(stored({ cryptos: [WALLET] }), 'c1'), 'crypto')
+    assert.equal(pageTitle(true, 'crypto'), 'Edit Crypto Wallet')
+    assert.equal(pageSub(true, 'crypto'), 'Update crypto wallet details')
+    assert.equal(submitLabel(false, 'crypto'), 'Create Crypto Wallet')
+    assert.equal(submitLabel(true, 'crypto'), 'Update Crypto Wallet')
+    assert.equal(cryptoLimitsNote('₹'), 'Limits are in the deposit currency (₹), not in USDT.')
+  })
+
+  test('the address is required and must be one on the chosen network', () => {
+    assert.deepStrictEqual(issues('crypto', values()), { walletAddress: 'Required' })
+    assert.deepStrictEqual(issues('crypto', values({ walletAddress: '   ' })), { walletAddress: 'Required' })
+    assert.deepStrictEqual(issues('crypto', values({ walletAddress: TRON })), {})
+    assert.deepStrictEqual(issues('crypto', values({ walletAddress: ` ${TRON} ` })), {}, 'checked as it is saved: trimmed')
+    assert.deepStrictEqual(issues('crypto', values({ network: 'BEP20', walletAddress: TRON })), {
+      walletAddress: 'A BEP20 address must start with 0x followed by 40 hex characters',
+    })
+    assert.deepStrictEqual(issues('crypto', values({ network: 'ERC20', walletAddress: EVM })), {})
+    assert.deepStrictEqual(issues('crypto', values({ network: '', walletAddress: TRON })), { network: 'Required' })
+    assert.deepStrictEqual(issues('crypto', values({ network: 'ARBITRUM', walletAddress: TRON })), {
+      network: 'Choose a supported network',
+    })
+    assert.deepStrictEqual(issues('upi', values({ upiId: 'x@ybl', network: '' })), {}, 'other types ask for no wallet')
+  })
+
+  test('reads a stored wallet into the form, by the kind of the edited record', () => {
+    assert.deepStrictEqual(cryptoFormValues(WALLET), {
+      ...createInitialValues(null),
+      network: 'TRC20', walletAddress: TRON, displayName: '', qrKey: 'data:image/png;base64,CCCC',
+      minAmount: 1000, maxAmount: null, weight: 2, enabled: true, vipTierIds: [TIER],
+    })
+    const methods = stored({ cryptos: [WALLET] })
+    assert.deepStrictEqual(storedFormValues(methods, 'c1', 'crypto'), cryptoFormValues(WALLET))
+    assert.deepStrictEqual(storedFormValues(methods, 'b1', 'bank'), bankFormValues(BANK))
+    assert.deepStrictEqual(storedFormValues(methods, 'u1', 'upi'), upiFormValues(UPI))
+    assert.equal(storedFormValues(methods, 'b1', 'crypto'), null)
+    assert.equal(findStoredCrypto(undefined, 'c1'), null)
+  })
+
+  test('a wallet entry trims its address and name and sends empty optional values as null', () => {
+    assert.deepStrictEqual(
+      cryptoEntry(values({ walletAddress: `  ${TRON} `, displayName: '  ', qrKey: '', weight: null }), 'crypto-1'),
+      {
+        id: 'crypto-1', network: 'TRC20', walletAddress: TRON, displayName: null, qrKey: null, minAmount: null,
+        maxAmount: null, weight: 0, enabled: true, vipTierIds: null,
+      },
+    )
+    assert.equal(cryptoEntry(values({ displayName: ' Main Tron ' }), 'c').displayName, 'Main Tron')
+  })
+
+  test('saving a wallet sends the wallet list alone, the stored wallets without output-only fields', () => {
+    const methods = stored({ cryptos: [WALLET], cryptoRate: 92.5 })
+    const created = buildCryptoMethodsInput(methods, values({ network: 'ERC20', walletAddress: EVM }), { isEdit: false, now: 42 })
+    assert.deepStrictEqual(Object.keys(created), ['cryptos'], 'banks, UPIs, limits and the rate are kept by the server')
+    assert.deepStrictEqual(created.cryptos, [
+      {
+        id: 'c1', network: 'TRC20', walletAddress: TRON, displayName: null, qrKey: 'data:image/png;base64,CCCC',
+        minAmount: 1000, maxAmount: null, weight: 2, enabled: true, vipTierIds: [TIER],
+      },
+      {
+        id: 'crypto-42', network: 'ERC20', walletAddress: EVM, displayName: null, qrKey: null, minAmount: null,
+        maxAmount: null, weight: 0, enabled: true, vipTierIds: null,
+      },
+    ])
+
+    const edited = buildCryptoMethodsInput(
+      methods,
+      { ...cryptoFormValues(WALLET), displayName: 'Tron main' },
+      { isEdit: true, editId: 'c1' },
+    )
+    assert.deepStrictEqual(edited.cryptos.map((wallet) => [wallet.id, wallet.displayName, wallet.vipTierIds]), [
+      ['c1', 'Tron main', [TIER]],
+    ])
+    assert.deepStrictEqual(
+      buildCryptoMethodsInput(undefined, values({ walletAddress: TRON }), { isEdit: false, now: 7 }).cryptos.map((wallet) => wallet.id),
+      ['crypto-7'],
+    )
+  })
+
+  test('the review lists the wallet, then the whitelabel rate every wallet uses', () => {
+    assert.deepStrictEqual(detailReviewRows(values({ network: 'BEP20', walletAddress: ` ${EVM} ` }), 'crypto', true), [
+      { label: 'Coin', value: 'USDT' },
+      { label: 'Network', value: 'BEP20 (BNB Smart Chain)' },
+      { label: 'Wallet Address', value: EVM },
+      { label: 'Display Name', value: '—' },
+      { label: 'QR Code', value: 'Attached' },
+    ])
+    assert.deepStrictEqual(cryptoRateReviewRow(92.5, format), { label: 'USDT Rate', value: '1 USDT = INR 92.50' })
+    assert.deepStrictEqual(cryptoRateReviewRow(null, format), { label: 'USDT Rate', value: 'Not set' })
   })
 })

@@ -20,6 +20,8 @@ import { buttonClassName } from '@/ui/components/buttonClassName'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { Notice } from '@/ui/components/Notice'
 import { EmptyState } from '@/ui/components/EmptyState'
+import { useVipTierActions } from './useVipTierActions'
+import { tierStatusChange } from './vipTierActionsModel'
 import styles from './TiersPage.module.css'
 
 // GraphQL String serializes a Date as a millisecond timestamp. Also accept
@@ -40,7 +42,9 @@ function VIPTiersPageContent() {
   const { data: statsData } = useVIPStats()
   // Preserve the existing near-next query scope. Its legacy view is a placeholder.
   useVIPNearNext(0.2, 8)
-  const { data: validateData } = useVIPValidate()
+  const { data: validateData, refetch: refetchValidate, loading: validating } = useVIPValidate()
+  // A status change or delete reshapes the ladder, so the Validation card is read again.
+  const tierActions = useVipTierActions({ onChanged: () => { void refetchValidate() } })
   const { formatAmount, convertFromWhitelabelCurrency, getWhitelabelBaseCurrencyCode } = useCurrency()
   const { formatDate, formatTime } = useFormatDate()
   const tiers = useMemo(() => [...(tiersData?.vipTiers || [])].sort((a, b) => a.level - b.level), [tiersData?.vipTiers])
@@ -63,7 +67,7 @@ function VIPTiersPageContent() {
   const columns: DataTableColumn<VIPTier>[] = [
     { key: 'tier', header: 'Tier Details', cell: (tier) => <div className={styles.identity}>
       <span className={styles.swatch} style={{ backgroundColor: tier.color }} aria-hidden="true" />
-      <div><div className={styles.name}>{tier.name}</div><div className={styles.secondary}>Benefits: {tier.benefits.length}</div>
+      <div><div className={styles.name}><Link to={`/vip/tiers/${tier.id}`} className={styles.nameLink}>{tier.name}</Link></div><div className={styles.secondary}>Benefits: {tier.benefits.length}</div>
         <div className={styles.secondary}>Perks: {tier.perks.length}</div></div></div> },
     { key: 'level', header: 'Level', cell: (tier) => <StatusPill>Level {tier.level}</StatusPill> },
     { key: 'deposit', header: 'Min Monthly Deposit', align: 'right',
@@ -77,8 +81,16 @@ function VIPTiersPageContent() {
       const created = tierCreatedDate(tier.createdAt)
       return created ? <div>{formatDate(created, 'MMM d, yyyy')}<div className={styles.secondary}>{formatTime(created, 'HH:mm')}</div></div> : '—'
     } },
-    { key: 'actions', header: 'Actions', align: 'right', sticky: 'end', cell: (tier) =>
-      <Link to={`/vip/tiers/${tier.id}/edit`} className={buttonClassName({ size: 'sm' })} aria-label={`Edit ${tier.name}`}>Edit</Link> },
+    { key: 'actions', header: 'Actions', align: 'right', sticky: 'end', cell: (tier) => {
+      const change = tierStatusChange(tier)
+      return <div className={styles.rowActions}>
+        <Link to={`/vip/tiers/${tier.id}/edit`} className={buttonClassName({ size: 'sm' })} aria-label={`Edit ${tier.name}`}>Edit</Link>
+        {tierActions.canChangeStatus ? <Button size="sm" aria-label={`${change.label} ${tier.name}`}
+          onClick={() => tierActions.requestStatusChange(tier)}>{change.label}</Button> : null}
+        {tierActions.canDelete ? <Button size="sm" variant="danger" aria-label={`Delete ${tier.name}`}
+          onClick={() => tierActions.requestDelete(tier)}>Delete</Button> : null}
+      </div>
+    } },
   ]
   const issues: { code: string; message: string }[] = validateData?.vipTierValidate || []
   return <Page maxWidth="wide">
@@ -102,7 +114,7 @@ function VIPTiersPageContent() {
           state={loading ? 'loading' : error && !tiers.length ? 'error' : 'ready'} error={error?.message}
           onRetry={() => void refetch()} empty={<EmptyState title="No VIP tiers configured" />} pagination={false} width="wide" />
       </Card>
-      <Card title="Validation" tools={<Button onClick={() => window.location.reload()}>Re-run</Button>}>
+      <Card title="Validation" tools={<Button loading={validating} onClick={() => { void refetchValidate() }}>Re-run</Button>}>
         {issues.length ? <ul className={styles.issues}>{issues.map((issue, index) => <li key={index}><strong>[{issue.code}]</strong> {issue.message}</li>)}</ul> :
           <Notice tone="ok">All good. No validation issues.</Notice>}
       </Card>

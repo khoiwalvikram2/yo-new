@@ -2,10 +2,9 @@ import { describe, expect, test } from 'vitest'
 import {
   agentDisplayName,
   canCreateHierarchyAgent,
-  creditUsagePercent,
-  creditUsageTone,
   filterHierarchyAgents,
   hierarchyDepthLabel,
+  hierarchySchemeFigure,
   hierarchyStatusCount,
   type HierarchyAgentNode,
 } from './hierarchyModel'
@@ -13,11 +12,11 @@ import {
 const agents: HierarchyAgentNode[] = [
   {
     id: 'agent-alpha-123', username: 'Alpha Partner', schemeType: 'CREDIT', status: 'ACTIVE',
-    levelIndex: 2, creditLimit: 1000, creditUsed: 650, creditAvailable: 350, parentAgentId: 'root',
+    levelIndex: 2, parentAgentId: 'root', chips: null,
   },
   {
     id: 'agent-beta-456', username: null, schemeType: 'SHARING', status: 'SUSPENDED',
-    levelIndex: 3, creditLimit: 0, creditUsed: 0, creditAvailable: 0, parentAgentId: 'root',
+    levelIndex: 3, parentAgentId: 'root', chips: null,
   },
 ]
 
@@ -35,15 +34,6 @@ describe('hierarchyModel', () => {
     expect(agentDisplayName(agents[1])).toBe('Agent agent-be')
   })
 
-  test('clamps credit usage and maps threshold tones', () => {
-    expect(creditUsagePercent(agents[0])).toBe(65)
-    expect(creditUsagePercent({ creditLimit: 100, creditUsed: 150 })).toBe(100)
-    expect(creditUsagePercent({ creditLimit: 0, creditUsed: 20 })).toBe(0)
-    expect(creditUsageTone(60)).toBe('acc')
-    expect(creditUsageTone(61)).toBe('warn')
-    expect(creditUsageTone(81)).toBe('neg')
-  })
-
   test('searches all visible identity and state fields case-insensitively', () => {
     expect(filterHierarchyAgents(agents, ' alpha ')).toEqual([agents[0]])
     expect(filterHierarchyAgents(agents, 'SUSPENDED')).toEqual([agents[1]])
@@ -57,5 +47,14 @@ describe('hierarchyModel', () => {
     expect(hierarchyStatusCount(agents, ' blocked ')).toBe(0)
     expect(hierarchyDepthLabel(3)).toBe('Level 3')
     expect(hierarchyDepthLabel(null)).toBe('Level not assigned')
+  })
+
+  test("the scheme figure counts the signed-in agent's scheme and names any other scheme as itself (AGE-17)", () => {
+    // Every non-CREDIT sub-agent used to be called a "sharing account", COMMISSION ones included.
+    const commission: HierarchyAgentNode[] = [{ id: 'c1', schemeType: 'COMMISSION', status: 'ACTIVE' }]
+    expect(hierarchySchemeFigure(commission, 'COMMISSION')).toEqual({ label: 'Commission accounts', value: 1, note: 'All on your scheme' })
+    expect(hierarchySchemeFigure(agents, 'credit')).toEqual({ label: 'Credit accounts', value: 1, note: '1 sharing account' })
+    expect(hierarchySchemeFigure([...agents, ...commission, ...commission], 'SHARING')).toEqual({ label: 'Sharing accounts', value: 1, note: '1 credit account · 2 commission accounts' })
+    expect(hierarchySchemeFigure([], 'SHARING')).toEqual({ label: 'Sharing accounts', value: 0, note: 'None yet' })
   })
 })

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 import { vipTierInput, vipTierSchema, vipTierValues } from './vipTierEditorModel'
 import type { VIPTier } from '@/modules/vip/types'
-const DEPOSIT_POLICY = { enabled: true, methods: ['BANK_TRANSFER', 'UPI', 'GATEWAY'], min: null, max: null, daily: null, monthly: null }
+const DEPOSIT_POLICY = { enabled: true, methods: ['BANK_TRANSFER', 'UPI', 'GATEWAY', 'CRYPTO'], min: null, max: null, daily: null, monthly: null }
 
 describe('VIP tier form contracts', () => {
   test('create defaults keep unset required numbers and the supplied persisted swatch', () => {

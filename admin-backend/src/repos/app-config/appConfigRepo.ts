@@ -1,19 +1,21 @@
 import { db } from '@src/db/client.js'
 import { appConfigs, type AnalyticsConfig, type DomainsConfig, type SmtpConfig, type SmsConfig, type WebhooksConfig, type ObservabilityConfig, type PwaConfig, type AdminUiNotificationsConfig, type WhitelabelTheme, type SportsGlobalConfig } from '@shared/db/schema.js'
 import { eq } from 'drizzle-orm'
+import type { PlayerTheme } from '@shared/theme/playerTheme.js'
 
 export type AppConfigDbInput = {
 	// appName removed - use whitelabels.name instead
-	supportEmail?: string
-	supportPhone?: string
-	whatsappSupportPhone?: string
+	// The optional text settings take null to clear them (undefined keeps the stored value).
+	supportEmail?: string | null
+	supportPhone?: string | null
+	whatsappSupportPhone?: string | null
 	defaultLocale?: string
 	timeZone?: string
 	baseCurrency?: string
 	domains?: DomainsConfig
-	seoTitle?: string
-	seoDescription?: string
-	ogImageUrl?: string
+	seoTitle?: string | null
+	seoDescription?: string | null
+	ogImageUrl?: string | null
 	socialLinks?: Record<string, string | undefined>
 	analytics?: AnalyticsConfig
 	maintenance?: boolean
@@ -61,6 +63,7 @@ export type AppConfigDbInput = {
 	// user panel banners
 	preLoginBannerUrl?: string | null
 	postLoginBannerUrl?: string | null
+	playerTheme?: PlayerTheme | null
 }
 
 function mergeJson<T extends Record<string, any> | undefined>(current: T, incoming?: Partial<T> | null): T {
@@ -182,6 +185,7 @@ export async function upsertAppConfigDb(tenant: string, input: AppConfigDbInput)
 			sportsGlobalConfig: input.sportsGlobalConfig,
 			preLoginBannerUrl: input.preLoginBannerUrl ?? null,
 			postLoginBannerUrl: input.postLoginBannerUrl ?? null,
+			playerTheme: input.playerTheme ?? null,
 		})
 		return { success: true }
 	}
@@ -302,6 +306,8 @@ export async function upsertAppConfigDb(tenant: string, input: AppConfigDbInput)
 
 	merged.preLoginBannerUrl = preserveOrUpdate(input.preLoginBannerUrl, existing.preLoginBannerUrl)
 	merged.postLoginBannerUrl = preserveOrUpdate(input.postLoginBannerUrl, existing.postLoginBannerUrl)
+	// The player theme is replaced whole (null clears it); a deep merge would keep stale colours.
+	if (input.playerTheme !== undefined) merged.playerTheme = input.playerTheme
 
 	// Remove undefined values to avoid setting them to null/empty
 	Object.keys(merged).forEach(key => {

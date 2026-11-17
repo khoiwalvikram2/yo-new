@@ -42,7 +42,7 @@ export const userMutationResolvers = {
   },
   changePassword: async (_: unknown, args: { currentPassword: string; newPassword: string }, ctx: ResolverContext) => {
     requireAuth(ctx.auth)
-    await changePassword(ctx.auth.userId!, args.currentPassword, args.newPassword, ctx.auth.tenant)
+    await changePassword(ctx.auth.userId!, args.currentPassword, args.newPassword, ctx.auth.tenant, buildRequestMeta(ctx))
     return { success: true, message: 'Password updated' }
   },
   requestResetOtp: async (_: unknown, args: { phone: string }, ctx: ResolverContext) => {
@@ -50,7 +50,7 @@ export const userMutationResolvers = {
     return resp
   },
   resetPassword: async (_: unknown, args: { phone: string; otp: string; newPassword: string }, ctx: ResolverContext) => {
-    const resp = await resetPassword(args.phone, args.otp, args.newPassword, ctx.auth.requestTenant)
+    const resp = await resetPassword(args.phone, args.otp, args.newPassword, ctx.auth.requestTenant, buildRequestMeta(ctx))
     return resp
   },
   transferReferralBalanceToCash: async (_: unknown, args: { amount: number }, ctx: ResolverContext) => {

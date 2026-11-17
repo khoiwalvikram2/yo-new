@@ -11,6 +11,7 @@ import type { ShellRow, ShellSection } from './shellTypes'
 const harness = vi.hoisted(() => ({
   roles: { showGeneralBell: true, showTaskBell: true },
   isAgent: false,
+  taskUnread: 3,
   jobs: [] as Array<Record<string, unknown>>,
   queryOptions: [] as Array<Record<string, unknown>>,
   markAll: vi.fn(async () => undefined),
@@ -42,7 +43,7 @@ vi.mock('./topbar/useNotificationBell', async () => {
       const [open, setOpen] = react.useState(false)
       return {
         open, setOpen, initialLoading: false, listLoading: false,
-        unreadCount: category === 'general' ? 7 : 3,
+        unreadCount: category === 'general' ? 7 : harness.taskUnread,
         notifications: category === 'general'
           ? [{ id: 'n1', type: 'deposit', title: 'Deposit flagged', message: 'vikram_88 · risk rules', createdAt: new Date().toISOString(), metadata: {} }]
           : [],
@@ -56,7 +57,8 @@ vi.mock('@apollo/client', async (importOriginal) => ({
   useApolloClient: () => ({}),
   useQuery: (_query: unknown, options: Record<string, unknown>) => {
     harness.queryOptions.push(options)
-    return { data: options.skip ? undefined : { exportJobs: harness.jobs }, loading: false, error: undefined, startPolling: vi.fn(), stopPolling: vi.fn() }
+    // The shape EXPORT_JOBS_QUERY really returns: a page of jobs.
+    return { data: options.skip ? undefined : { exportJobsPage: { items: harness.jobs } }, loading: false, error: undefined, startPolling: vi.fn(), stopPolling: vi.fn() }
   },
 }))
 
@@ -78,6 +80,7 @@ function LocationProbe() { return <span data-testid="current-path">{useLocation(
 beforeEach(() => {
   harness.roles = { showGeneralBell: true, showTaskBell: true }
   harness.isAgent = false
+  harness.taskUnread = 3
   harness.jobs = []
   harness.queryOptions = []
   useSidebarStore.setState({ favorites: [] })
@@ -138,6 +141,24 @@ describe('the right tool rail', () => {
     fireEvent.click(within(drawer).getByRole('button', { name: 'View all' }))
     assert.equal(harness.markAll.mock.calls.length, 1)
     assert.equal(harness.viewAll.mock.calls.length, 1)
+  })
+
+  test('Tasks offers Clear all while the badge counts unread items its list does not hold', async () => {
+    mount()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Tasks, 3 unread' })) })
+    const drawer = await screen.findByRole('dialog', { name: 'Tasks' })
+    assert.ok(within(drawer).getByText('No new tasks'))
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Clear all' }))
+    assert.equal(harness.markAll.mock.calls.length, 1)
+  })
+
+  test('Tasks has nothing to clear when nothing is unread', async () => {
+    harness.taskUnread = 0
+    mount()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Tasks' })) })
+    const drawer = await screen.findByRole('dialog', { name: 'Tasks' })
+    assert.equal(within(drawer).queryByRole('button', { name: 'Clear all' }), null)
+    assert.ok(within(drawer).getByRole('button', { name: 'View all' }))
   })
 
   test('Favourites saves the page in view and lists it', async () => {

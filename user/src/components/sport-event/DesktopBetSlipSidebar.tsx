@@ -364,20 +364,10 @@ export default function DesktopBetSlipSidebar({
     }
   }, [bet, updateQuickBet]);
 
-  // Get available balance (balance - exposure for regular players, creditAvailable for credit players)
+  // Get available balance: balance - exposure, for credit players too (their chips are the wallet cash)
   const getAvailableBalance = useCallback(() => {
     if (!isAuthenticated || !user) return 0;
-    
-    // Check if user is a credit player
-    const playerType = (user as any)?.playerType || 'REGULAR'
-    const isCreditPlayer = playerType === 'AGENT_CREDIT' || playerType === 'WHITELABEL_CREDIT'
-    
-    // Credit players should use creditAvailable (no exposure deduction needed)
-    if (isCreditPlayer) {
-      return Number(user.creditAvailable ?? 0)
-    }
-    
-    // Regular players: balance - exposure
+
     const currentBalance = Number(user.balance || 0);
     const currentExposure = Math.abs(Number((user as any)?.exposure || 0));
     const netBalance = currentBalance - currentExposure;

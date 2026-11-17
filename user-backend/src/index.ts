@@ -3,12 +3,10 @@ import mercurius from 'mercurius'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
-import multipart from '@fastify/multipart'
 import { typeDefs, resolvers } from './schema.js'
 import { buildAuthContext } from './domains/common/auth.js'
 import { getAppConfig } from './config/app.js'
 import { pool } from './db/client.js'
-import { uploadFileToS3 } from './services/storage/s3.js'
 import { registerCasinoCallbackRoutes } from './domains/casino/casinoCallbackRoutes.js'
 import { registerGmagCallbackRoutes } from './domains/casino/gmagCallbackRoutes.js'
 import { registerGmagTestRoutes } from './domains/casino/gmagTestRoutes.js'
@@ -17,6 +15,7 @@ import { registerBetToolRoutes } from './domains/betTool/betToolRoutes.js'
 import { registerWelivepayWebhookRoutes } from './domains/payments/welivepayWebhookRoutes.js'
 import { registerSiteAssetRoutes } from './routes/siteAssetRoutes.js'
 import { startWelivepayExpiryJob } from './services/welivepayExpiryJob.js'
+import { startWelivepayReconciliationJob, stopWelivepayReconciliationJob } from './services/welivepayReconciliationJob.js'
 import { queryDepthLimit } from './graphql/depth.js'
 import { registerPlayerSupportChat } from './routes/supportChat.js'
 
@@ -26,7 +25,7 @@ const config = getAppConfig()
 // the JSON body rather than as multipart. Fastify's 1 MiB default would silently
 // reject them. The largest such payload is a base64 deposit proof (~2MB file ->
 // ~2.7MB base64), leaving room for the rest of the GraphQL body and batched queries.
-// Note: the @fastify/multipart fileSize limit below is a separate, unrelated limit.
+// There is no multipart upload route any more: the deposit-proof one went with S3.
 const app = Fastify({ logger: true, trustProxy: config.trustProxy, bodyLimit: 8 * 1024 * 1024 })
 
 const isDevelopment = process.env.NODE_ENV === 'development'
@@ -83,12 +82,8 @@ if (isDevelopment) {
 }
 await registerBetToolRoutes(app)
 await registerWelivepayWebhookRoutes(app)
+app.addHook('onClose', async () => { stopWelivepayReconciliationJob() })
 await registerSiteAssetRoutes(app)
-await app.register(multipart, {
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max
-  },
-})
 
 await registerPlayerSupportChat(app,config.corsOrigins)
 await app.register(mercurius, {
@@ -113,49 +108,16 @@ app.graphql.addHook('preExecution', async (_schema, _document, context) => {
   }
 })
 
-// File upload endpoint for deposit proof
-app.post('/api/upload/deposit-proof', async (request, reply) => {
-  try {
-    const auth = await buildAuthContext(request)
-    if (!auth.userId) {
-      return reply.status(401).send({ success: false, message: 'Unauthorized' })
-    }
-
-    const data = await request.file()
-    if (!data) {
-      return reply.status(400).send({ success: false, message: 'No file uploaded' })
-    }
-
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
-    const contentType = data.mimetype?.toLowerCase() || ''
-    if (!allowedTypes.includes(contentType)) {
-      return reply.status(400).send({ 
-        success: false, 
-        message: `Invalid file type. Allowed: ${allowedTypes.join(', ')}` 
-      })
-    }
-
-    const buffer = await data.toBuffer()
-    const result = await uploadFileToS3(buffer, data.filename, contentType, 'deposits')
-    
-    return reply.send({ 
-      success: true, 
-      data: { key: result.key, url: result.url } 
-    })
-  } catch (error: any) {
-    app.log.error('Upload error:', error)
-    return reply.status(500).send({ 
-      success: false, 
-      message: error?.message || 'Upload failed' 
-    })
-  }
-})
+// The deposit proof is no longer uploaded on its own (POST /api/upload/deposit-proof went with S3): the player app
+// sends the screenshot as a base64 data URI with createAdminDeposit (domains/userApp/services/depositProof.ts).
 
 const start = async () => {
   await app.listen({ port: config.port, host: '0.0.0.0' })
   app.log.info(`User backend running at http://localhost:${config.port}/graphql`)
   // Background cleanup: mark stale pending WeLivePay orders as expired.
   startWelivepayExpiryJob()
+  // Settle pay-ins and payouts whose callbacks never arrived (authenticated status reads only).
+  startWelivepayReconciliationJob()
 }
 
 start().catch((err) => {

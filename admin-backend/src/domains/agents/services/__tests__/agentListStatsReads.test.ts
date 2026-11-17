@@ -4,6 +4,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { db, pool } from '@src/db/client.js';
 import { AgentSettlementsRepo } from '@src/repos/agents/AgentSettlementsRepo.js';
 import { AgentListStatsService } from '../AgentListStatsService.js';
+import { ChipService } from '../ChipService.js';
 import { agentListPlayerScope, readAgentListHierarchy, readAgentListPayments, readAgentListGgr, readAgentListTurnover } from '../agentListStatsReads.js';
 
 afterEach(() => mock.restoreAll());
@@ -84,15 +85,24 @@ describe('Agent list grouped reads', () => {
     assert.equal(queries.length, 0);
   });
 
-  it('keeps CREDIT balance absolute, SHARING pending signed, and POSTED settlement history separate', async () => {
+  it('keeps CREDIT pending as |Ref P/L| from the chips, SHARING pending signed, and POSTED settlement history separate', async () => {
+    // settlement_balance is no longer written for CREDIT agents (spec 2026-11-02): a stale value must not show.
     const roster = [
-      { id: 'credit-negative', schemeType: 'CREDIT', settlementBalance: '-120.25' },
-      { id: 'credit-positive', schemeType: 'CREDIT', settlementBalance: '45' },
+      { id: 'credit-negative', schemeType: 'CREDIT', settlementBalance: '999' },
+      { id: 'credit-positive', schemeType: 'CREDIT', settlementBalance: '-999' },
       { id: 'credit-zero', schemeType: 'CREDIT', settlementBalance: null },
       { id: 'sharing', schemeType: 'SHARING' }, { id: 'commission', schemeType: 'COMMISSION' },
     ];
     const chain: any = { from: () => chain, where: async () => roster };
     mock.method(db, 'select', () => chain);
+    const chipReads: unknown[][] = [];
+    mock.method(ChipService.prototype, 'chipAccountsForAgents', async (tenant: string, ids: readonly string[]) => {
+      chipReads.push([tenant, [...ids]]);
+      return new Map([
+        ['credit-negative', { refPnl: -120.25 }],
+        ['credit-positive', { refPnl: 45 }],
+      ]) as any;
+    });
     mock.method(AgentSettlementsRepo.prototype, 'listBatch', async () => [
       { agentId: 'sharing', status: 'OPEN', totalAmount: '1000', periodTo: new Date('2026-10-24') },
       { agentId: 'sharing', status: 'POSTED', totalAmount: '15.50', periodTo: new Date('2026-10-15') },
@@ -104,7 +114,8 @@ describe('Agent list grouped reads', () => {
       return { remaining: -67.50 };
     } };
     const stats = new Map<string, any>(roster.map(row => [row.id, service.getDefaultStats()]));
-    await service.fetchSettlementInfo(roster.map(row => row.id), stats);
+    await service.fetchSettlementInfo(roster.map(row => row.id), stats, 'brand-a');
+    assert.deepEqual(chipReads, [['brand-a', ['credit-negative', 'credit-positive', 'credit-zero']]], 'one chips read for the CREDIT agents of the page');
     assert.equal(stats.get('credit-negative').pendingSettlement, 120.25);
     assert.equal(stats.get('credit-positive').pendingSettlement, 45);
     assert.equal(stats.get('credit-zero').pendingSettlement, 0);

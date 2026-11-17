@@ -1,11 +1,12 @@
 import { recordAuditDb } from '@/repos/audit/auditRepo.js'
 import { hasPermission } from '@/domains/common/auth.js'
-import { updateWithdrawalStatusAdmin, getWithdrawalRequestById, getPayoutAccount, getUserBasic } from '@/repos/payments/withdrawalRequestsRepo.js'
+import { applyWithdrawalStatusAdmin, getWithdrawalRequestById, getPayoutAccount, getUserBasic } from '@/repos/payments/withdrawalRequestsRepo.js'
 import { approvePayoutAccount as approvePayoutAccountRepo, rejectPayoutAccount as rejectPayoutAccountRepo } from '@/repos/payments/payoutAccountsRepo.js'
 import { NotificationsRepo } from '@/repos/notifications/notificationsRepo.js'
 import { NotificationService } from '@/domains/notifications/services/NotificationService.js'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { pgSettingsMutationResolvers } from './pgSettings.js'
+import { welivepayPayoutResolvers } from './welivepay.js'
 
 /**
  * The acting admin's numeric id.
@@ -20,8 +21,48 @@ function reviewerIdOf(ctx: any): number | null {
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
+type WithdrawalRequestRow = NonNullable<Awaited<ReturnType<typeof getWithdrawalRequestById>>>
+
+/** The AdminWithdrawalRequest a status change answers with: the row, its payout account and its player. */
+async function withdrawalRequestView(row: WithdrawalRequestRow, tenant: string) {
+  const account = row.payoutAccountId ? await getPayoutAccount(row.payoutAccountId, tenant) : null
+  const user = await getUserBasic(row.userId, tenant).catch(() => null)
+  return {
+    id: String(row.id),
+    userId: String(row.userId),
+    amount: Number(row.amount ?? 0),
+    currency: row.currency,
+    status: row.status,
+    reviewerId: row.reviewerId ? String(row.reviewerId) : null,
+    reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
+    note: row.note,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    account: account
+      ? {
+          id: String(account.id),
+          method: account.method,
+          accountNumber: account.accountNumber,
+          ifscCode: account.ifscCode,
+          bankName: account.bankName,
+          accountHolderName: account.accountHolderName,
+          deletedAt: account.deletedAt ? account.deletedAt.toISOString() : null,
+        }
+      : null,
+    user: user
+      ? {
+          id: String(user.id),
+          name: user.name,
+          phone: user.phone,
+          email: user.email,
+        }
+      : null,
+  }
+}
+
 export const paymentsMutationResolvers = {
   ...pgSettingsMutationResolvers,
+  ...welivepayPayoutResolvers,
   setWithdrawalStatus: async (_: any, args: any, ctx: any) => {
     // CRITICAL: For Director Admin, use effective tenant based on mode
     const directorTenant = getEffectiveTenantForDirector(ctx)
@@ -47,7 +88,7 @@ export const paymentsMutationResolvers = {
       throw new Error('Invalid status')
     }
     const before = await getWithdrawalRequestById(Number(input?.id), tenant)
-    const updated = await updateWithdrawalStatusAdmin(
+    const result = await applyWithdrawalStatusAdmin(
       Number(input?.id),
       tenant,
       nextStatus,
@@ -57,10 +98,21 @@ export const paymentsMutationResolvers = {
       reviewerIdOf(ctx) ?? undefined,
       input?.note
     )
-    if (!updated) {
+    if (!result) {
       return { success: false, message: 'Not found' }
     }
-    
+    const updated = result.row
+    if (!result.changed) {
+      // Another reviewer settled the request while this one had it open. The repo
+      // wrote nothing, so nothing is audited, announced or marked done here: the
+      // audit and history used to gain a status change that never happened.
+      return {
+        success: false,
+        message: `This request is already ${updated.status}. Nothing was changed.`,
+        request: await withdrawalRequestView(updated, tenant),
+      }
+    }
+
     // Publish whitelabel credit subscription when withdrawal is completed and whitelabel credit was adjusted
     const isWhitelabel = tenant && tenant !== 'default'
     if (nextStatus === 'COMPLETED' && updated.amount && isWhitelabel && ctx?.pubsub) {
@@ -102,10 +154,12 @@ export const paymentsMutationResolvers = {
       domain: 'payments',
       action: 'withdrawal_status_update',
       resourceType: 'withdrawal_request',
-      resourceId: String(input?.id),
+      // The row's id, which adminWithdrawalHistory looks the audits up by ("0575" would never match).
+      resourceId: String(updated.id),
       before: before
         ? {
-            status: before.status,
+            // The status this call moved it from (read under the row lock), not the earlier read.
+            status: result.previousStatus,
             note: before.note ?? null,
             amount: Number(before.amount ?? 0),
             payoutAccountId: before.payoutAccountId ? String(before.payoutAccountId) : null,
@@ -147,41 +201,10 @@ export const paymentsMutationResolvers = {
       }
     }
 
-    const account = updated.payoutAccountId ? await getPayoutAccount(updated.payoutAccountId, tenant) : null
-    const user = await getUserBasic(updated.userId, tenant).catch(() => null)
     return {
       success: true,
       message: `Updated to ${nextStatus}`,
-      request: {
-        id: String(updated.id),
-        userId: String(updated.userId),
-        amount: Number(updated.amount ?? 0),
-        currency: updated.currency,
-        status: updated.status,
-        reviewerId: updated.reviewerId ? String(updated.reviewerId) : null,
-        reviewedAt: updated.reviewedAt ? updated.reviewedAt.toISOString() : null,
-        note: updated.note,
-        createdAt: updated.createdAt.toISOString(),
-        updatedAt: updated.updatedAt.toISOString(),
-        account: account
-          ? {
-              id: String(account.id),
-              method: account.method,
-              accountNumber: account.accountNumber,
-              ifscCode: account.ifscCode,
-              bankName: account.bankName,
-              accountHolderName: account.accountHolderName,
-            }
-          : null,
-        user: user
-          ? {
-              id: String(user.id),
-              name: user.name,
-              phone: user.phone,
-              email: user.email,
-            }
-          : null,
-      },
+      request: await withdrawalRequestView(updated, tenant),
     }
   },
 

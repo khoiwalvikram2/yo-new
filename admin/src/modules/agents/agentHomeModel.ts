@@ -1,14 +1,3 @@
-export interface CreditAllocation {
-  agentId?: string
-  creditLimit: number
-  creditUsed: number
-  creditAvailable: number
-  creditAlertThreshold: number
-  usagePercentage: number
-  isOverLimit: boolean
-  isNearThreshold: boolean
-}
-export interface CreditResult { agents?: { creditAllocation?: CreditAllocation | null } }
 export interface AgentActivity { id: string; type?: string; timestamp?: string; playerName?: string; details?: string }
 export interface ActivityResult { agents?: { agentActivity?: AgentActivity[] | null } }
 export interface GgrTrend { date?: string; sportsGGR?: number; casinoGGR?: number; matkaGGR?: number; totalGGR?: number }

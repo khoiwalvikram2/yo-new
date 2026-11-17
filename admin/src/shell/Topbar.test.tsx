@@ -1,6 +1,6 @@
 /**
- * Topbar.tsx composes ~10 widgets (search, Super Admin switcher, tenant/currency selects, one of four
- * wallets, clock, two notification bells, theme toggle, profile menu) and had no render/mount test at
+ * Topbar.tsx composes ~9 widgets (search, Super Admin switcher, tenant/currency selects, one of four
+ * wallets, two notification bells, theme toggle, profile menu) and had no render/mount test at
  * all: a `vite build` proves it compiles, never that mounting it does not throw (e.g. a child widget's
  * hook expecting a context that is not there). This is a smoke test, not a re-test of each widget's own
  * Apollo wiring (that already happens in NotificationBell/wallet/SuperAdminSwitcher's own hook and View
@@ -8,7 +8,7 @@
  * only Topbar.tsx itself is responsible for: which widget shows for which role (topbarRoles.ts), and that
  * the whole tree mounts for representative role states without throwing.
  *
- * Widgets NOT mocked here (SearchTrigger, DateTime, ThemeToggle, ProfileMenu + ChangePasswordModal,
+ * Widgets NOT mocked here (SearchTrigger, ThemeToggle, ProfileMenu + ChangePasswordModal,
  * Breadcrumb, GlobalSearch) touch no Apollo query that fires on mount (GlobalSearch's search is a
  * useLazyQuery that only fires on submit; ChangePasswordModal's useMutation only fires on submit), but
  * they do need router (useNavigate/useLocation/Link) and Apollo (useLazyQuery/useMutation read client
@@ -158,6 +158,14 @@ describe('Topbar', () => {
     // showGeneralBell / showTaskBell are both `!isSuperAdmin` (and task also needs `!isAgent`).
     assert.ok(screen.getByTestId('notification-bell-general'))
     assert.ok(screen.getByTestId('notification-bell-task'))
+  })
+
+  // The clock lives in the panel footer now (PanelFooter.tsx), so the bar must not carry a second one.
+  test('the topbar shows no date and time', () => {
+    signInAdmin(['Administrator'])
+    renderTopbar()
+    // A boolean, not the element: assert.equal would inspect the whole jsdom node on failure.
+    assert.ok(screen.queryByText(/\bIST$/) === null, 'no "... IST" clock label in the topbar')
   })
 
   test('with the right tool rail showing, the bells move to the rail and the theme switch stays', () => {

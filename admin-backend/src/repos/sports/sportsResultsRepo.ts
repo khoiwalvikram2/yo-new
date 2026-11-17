@@ -1,6 +1,6 @@
 import { db } from '@src/db/client.js'
-import { and, eq, gte, lte, desc, asc, sql, or, ilike, isNull, isNotNull } from 'drizzle-orm'
-import { sportsResultsTable } from '@shared/db/schema.js'
+import { and, eq, gte, lte, desc, asc, sql, or, ilike, isNull, isNotNull, inArray } from 'drizzle-orm'
+import { sportsResultsTable, users } from '@shared/db/schema.js'
 import { sportsTable } from '@shared/db/schema.js'
 import { sportsLeaguesTable, sportsEventsTable, sportsMarketsTable, sportsRunnersTable } from '@shared/db/schema.js'
 import { getClientIp, getClientUserAgent } from '@src/utils/getClientIp.js'
@@ -367,10 +367,23 @@ async function sportsResultConditions(filter: SportsResultListFilter) {
 
   if (filter.search) {
     const searchTerm = `%${filter.search}%`
+    // declared_by holds the admin's user id; the list shows that admin's name, looked up in the same
+    // tenant (sportsResults resolver), so the name is searched there too. Searching "shaan" found nothing
+    // while the hidden id 187 found every result shaan declared. The event name is searched as well.
+    const declarerIds = db
+      .select({ id: sql<string>`${users.id}::text` })
+      .from(users)
+      .where(and(eq(users.tenant, tenant), or(ilike(users.name, searchTerm), ilike(users.username, searchTerm))))
+    const eventIds = db
+      .select({ id: sportsEventsTable.id })
+      .from(sportsEventsTable)
+      .where(ilike(sportsEventsTable.name, searchTerm))
     conditions.push(
       or(
         ilike(sportsResultsTable.selectionName, searchTerm),
-        ilike(sportsResultsTable.declaredBy, searchTerm)
+        ilike(sportsResultsTable.declaredBy, searchTerm),
+        inArray(sportsResultsTable.declaredBy, declarerIds),
+        inArray(sportsResultsTable.eventId, eventIds)
       )
     )
   }

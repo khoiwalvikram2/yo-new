@@ -3,19 +3,24 @@
  * the exact admin and agent documents, their variables and the notification context; the legacy rules
  * and messages; the failed-submit summary and first-invalid focus; the success, false-success, GraphQL
  * error and network error paths; reset on every way out; single flight; and that no typed secret
- * reaches the markup, the console or storage. The auth store is a stub (isAgent only) and the kit toast
- * is a spy. Every password is an obviously fake placeholder typed here.
+ * reaches the markup, the console or storage. The auth store is a stub (isAgent, the session's token and
+ * logout) and the kit toast is a spy. Every password is an obviously fake placeholder typed here.
+ *
+ * An admin's change ends every session of that admin on the server (users.token_version moves on), so a
+ * successful one signs the panel out and asks for a sign-in with the new password; before, the next request
+ * met a generic "Session ended". An agent's change leaves its session standing.
  */
 import { beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
 import { ApolloLink, Observable } from '@apollo/client'
 import { GraphQLError, parse, print, type DocumentNode } from 'graphql'
 import { ChangePasswordModal } from './ChangePasswordModal'
 
-const auth = vi.hoisted(() => ({ isAgent: false }))
+const auth = vi.hoisted(() => ({ isAgent: false, token: 'session-token' as string | undefined, logout: vi.fn() }))
 const feedback = vi.hoisted(() => ({ toast: vi.fn() }))
 const apollo = vi.hoisted(() => ({
   mutations: [] as Array<{ mutation: DocumentNode; options: unknown }>,
@@ -33,7 +38,8 @@ vi.mock('@apollo/client', async (importOriginal) => {
 })
 
 vi.mock('@/shared/core/authStore', () => ({
-  useAuthStore: <T,>(selector: (state: { isAgent: () => boolean }) => T) => selector({ isAgent: () => auth.isAgent }),
+  useAuthStore: <T,>(selector: (state: { isAgent: () => boolean; token?: string; logout: () => void }) => T) =>
+    selector({ isAgent: () => auth.isAgent, token: auth.token, logout: auth.logout }),
 }))
 
 vi.mock('@/ui/components/toast', () => ({ toast: feedback.toast }))
@@ -99,15 +105,25 @@ function Harness({ onClose, initialOpen }: { onClose: () => void; initialOpen: b
   )
 }
 
+/** Where the panel is: the dialog opens over a shell page, and an admin's change sends it to /login. */
+function LocationProbe() {
+  return <output data-testid="location">{useLocation().pathname}</output>
+}
+
 function renderDialog(mocks: MockedResponse[] = [], initialOpen = true, link?: ApolloLink) {
   const onClose = vi.fn()
   render(
     <MockedProvider mocks={mocks} link={link}>
-      <Harness onClose={onClose} initialOpen={initialOpen} />
+      <MemoryRouter initialEntries={['/players/search']}>
+        <Harness onClose={onClose} initialOpen={initialOpen} />
+        <LocationProbe />
+      </MemoryRouter>
     </MockedProvider>,
   )
   return { onClose }
 }
+
+const currentPath = () => screen.getByTestId('location').textContent
 
 const dialog = () => screen.getByRole('dialog', { name: 'Change Password' })
 const input = (label: string) => within(dialog()).getByLabelText(label) as HTMLInputElement
@@ -163,6 +179,8 @@ function assertCleared() {
 
 beforeEach(() => {
   auth.isAgent = false
+  auth.token = 'session-token'
+  auth.logout.mockReset()
   apollo.mutations.length = 0
   feedback.toast.mockReset()
 })
@@ -341,22 +359,86 @@ describe('ChangePasswordModal', () => {
     assertAbsent(within(dialog()).queryByText('Password not changed'), 'the summary after a success')
   })
 
-  test('admin success sends the exact variables, toasts, closes and clears the fields', async () => {
+  test('admin success sends the exact variables, closes, clears the fields, signs out and asks for a sign-in', async () => {
     const { onClose } = renderDialog([adminMock({ success: true, message: 'Password updated' })])
     await screen.findByRole('dialog', { name: 'Change Password' })
+    assert.equal(currentPath(), '/players/search')
     fillValid()
     await submit()
 
     await waitFor(() => assert.equal(onClose.mock.calls.length, 1))
+    // The change ended this session on the server: the panel signs out at once and says what comes next.
+    assert.equal(auth.logout.mock.calls.length, 1)
+    assert.equal(currentPath(), '/login')
     assert.deepEqual(feedback.toast.mock.calls, [[{
       title: 'Password Changed Successfully',
-      message: 'Password updated',
+      message: 'Sign in with your new password.',
       tone: 'ok',
       duration: 4500,
     }]])
 
     await reopen()
     assertCleared()
+  })
+
+  test('at sign-in (Reset Password pending) it sends the sign-in token, says why, and has no session to end', async () => {
+    auth.token = undefined // the sign-in page keeps no session while the change is pending
+    const order: string[] = []
+    const onChanged = vi.fn(() => order.push('changed'))
+    const onClose = vi.fn(() => order.push('closed'))
+    render(
+      <MockedProvider mocks={[adminMock({ success: true, message: 'Password changed successfully' })]}>
+        <MemoryRouter initialEntries={['/login']}>
+          <ChangePasswordModal open sessionToken="sign-in-token" onChanged={onChanged} onClose={onClose} />
+          <LocationProbe />
+        </MemoryRouter>
+      </MockedProvider>,
+    )
+    await screen.findByRole('dialog', { name: 'Change Password' })
+    assert.ok(within(dialog()).getByText('Your administrator asked you to choose a new password before you continue.'))
+    // The admin document, with the sign-in token on the request (the auth link adds none: nobody is signed in).
+    assert.equal(print(lastMutation().mutation), print(ADMIN_DOCUMENT))
+    assert.deepEqual(lastMutation().options, {
+      context: { uiToast: 'notification', headers: { authorization: 'Bearer sign-in-token' } },
+    })
+
+    fillValid()
+    await submit()
+
+    await waitFor(() => assert.deepEqual(order, ['changed', 'closed']))
+    assert.equal(auth.logout.mock.calls.length, 0)
+    assert.equal(currentPath(), '/login')
+    assert.deepEqual(feedback.toast.mock.calls, [[{
+      title: 'Password Changed Successfully',
+      message: 'Sign in with your new password.',
+      tone: 'ok',
+      duration: 4500,
+    }]])
+  })
+
+  test('a sign-in change is an admin change even if an agent session lingers in the store', async () => {
+    auth.isAgent = true
+    render(
+      <MockedProvider mocks={[]}>
+        <MemoryRouter initialEntries={['/login']}>
+          <ChangePasswordModal open sessionToken="sign-in-token" onClose={() => {}} />
+        </MemoryRouter>
+      </MockedProvider>,
+    )
+    await screen.findByRole('dialog', { name: 'Change Password' })
+    assert.equal(print(lastMutation().mutation), print(ADMIN_DOCUMENT))
+    assert.equal(input('New Password').placeholder, 'Enter new password (min 8 characters)')
+  })
+
+  test('a failed admin change keeps the session', async () => {
+    renderDialog([{ request: { query: ADMIN_DOCUMENT, variables: { currentPassword: OLD, newPassword: NEW } }, result: { errors: [new GraphQLError('Current password is incorrect')] } }])
+    await screen.findByRole('dialog', { name: 'Change Password' })
+    fillValid()
+    await submit()
+
+    await waitFor(() => assert.equal(feedback.toast.mock.calls.length, 1))
+    assert.equal(auth.logout.mock.calls.length, 0)
+    assert.equal(currentPath(), '/players/search')
   })
 
   test('agent: the nested agent mutation, a 6-character minimum and the fallback success copy', async () => {
@@ -383,6 +465,9 @@ describe('ChangePasswordModal', () => {
       tone: 'ok',
       duration: 4500,
     }]])
+    // An agent's change leaves its session standing.
+    assert.equal(auth.logout.mock.calls.length, 0)
+    assert.equal(currentPath(), '/players/search')
   })
 
   test('a false success keeps the dialog open with the typed values and raises nothing here', async () => {

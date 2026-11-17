@@ -370,6 +370,48 @@ describe('ExposurePage query, access and persona contracts', () => {
       cleanup()
     }
   })
+
+  test('an agent does not ask for the total of a domain it lacks, so the All tab raises no warning (SCO-07)', () => {
+    // What the API answers an agent for a domain it lacks: no data, a permission refusal.
+    const refused = (domain: string): QueryState => ({
+      loading: false,
+      error: { message: `Forbidden: insufficient permissions: the ${domain} domain is not enabled for this agent` },
+    })
+    const scenarios = [
+      // the 113 COMMISSION agents: casino and sports only; the total is the sports one (100, converted ×2)
+      { allowedDomains: ['casino', 'sports'], sportsSkip: false, matkaSkip: true, total: '₹200.00' },
+      { allowedDomains: ['casino', 'matka'], sportsSkip: true, matkaSkip: false, total: '₹400.00' },
+      { allowedDomains: ['casino'], sportsSkip: true, matkaSkip: true, total: '₹0.00' },
+    ]
+    for (const scenario of scenarios) {
+      setReadyData()
+      if (scenario.sportsSkip) apollo.states.SportsKPIs = refused('sports')
+      if (scenario.matkaSkip) apollo.states.MatkaKPIs = refused('matka')
+      auth.isAgent = true
+      auth.agent = { schemeType: 'COMMISSION', allowedDomains: scenario.allowedDomains }
+      renderPage()
+
+      const label = scenario.allowedDomains.join(',')
+      assert.equal(queryOptions('SportsKPIs').skip, scenario.sportsSkip, label)
+      assert.equal(queryOptions('MatkaKPIs').skip, scenario.matkaSkip, label)
+      assert.equal(screen.queryByText('Some totals could not be loaded'), null, label)
+      const stats = screen.getByLabelText('Exposure statistics')
+      assert.equal(within(stats).getByText('Total Exposure').parentElement?.querySelector('div + div')?.textContent, scenario.total, label)
+      assert.ok(screen.getAllByRole('row').length > 1, `${label}: the exposure rows still load`)
+      cleanup()
+    }
+  })
+
+  test('an agent with every domain asks for both totals and still hears of a real failure', () => {
+    apollo.states.SportsKPIs.error = { message: 'sports totals unavailable' }
+    auth.isAgent = true
+    auth.agent = { schemeType: 'SHARING', allowedDomains: ['sports', 'casino', 'matka'] }
+    renderPage()
+
+    assert.equal(queryOptions('SportsKPIs').skip, false)
+    assert.equal(queryOptions('MatkaKPIs').skip, false)
+    assert.ok(screen.getByText('Some totals could not be loaded'))
+  })
 })
 
 describe('ExposurePage filters, sorting and pagination', () => {
@@ -499,6 +541,24 @@ describe('ExposurePage metrics and data states', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     await waitFor(() => assert.equal(apollo.refetchExposure.mock.calls.length, 1))
+  })
+
+  test('a domain tab’s cards count that domain’s rows only (F-REP-17)', async () => {
+    setReadyData([
+      { date: '2026-01-02T10:00:00.000Z', dimension: 'SPORTS', value: 100 },
+      { date: '2026-01-02T10:00:00.000Z', dimension: 'MATKA', value: 83_000 },
+      { date: '2026-01-01T10:00:00.000Z', dimension: 'SPORTS', value: 300 },
+    ])
+    renderPage()
+    const stats = screen.getByLabelText('Exposure statistics')
+    assert.equal(within(stats).getByText('Records').parentElement?.querySelector('div + div')?.textContent, '3')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sports' }))
+    await waitFor(() => assert.equal(within(stats).getByText('Records').parentElement?.querySelector('div + div')?.textContent, '2'))
+    // the 83,000 matka row is no longer the Peak under Sports; the average is over the two sports rows
+    assert.equal(within(stats).getByText('Peak Exposure').parentElement?.querySelector('div + div')?.textContent, '₹600.00')
+    assert.equal(within(stats).getByText('Avg Exposure').parentElement?.querySelector('div + div')?.textContent, '₹400.00')
+    assert.ok(within(stats).getByText('2 records'))
   })
 
   test('retains table headers for loading and empty states', () => {

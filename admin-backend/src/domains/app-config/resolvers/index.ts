@@ -1,29 +1,7 @@
 import { appConfigQueryResolvers } from '@src/domains/app-config/resolvers/queries.js'
 import { appConfigMutationResolvers } from '@src/domains/app-config/resolvers/mutations.js'
 import { appConfigSubscriptionResolvers } from '@src/domains/app-config/resolvers/subscriptions.js'
-
-// Helper to convert stored S3 keys (or base64/data URLs) into displayable URLs
-async function convertS3KeyToUrl(key: string | null | undefined): Promise<string | null> {
-  if (!key) return null
-
-  // Already a usable URL or data URI
-  if (key.startsWith('http://') || key.startsWith('https://') || key.startsWith('data:')) {
-    return key
-  }
-
-  try {
-    // Prefer presigned URL so private buckets also work
-    const { generatePresignedGetUrl, getS3ObjectUrl } = await import('@src/services/storage/s3.js')
-    try {
-      const presigned = await generatePresignedGetUrl(key, 7 * 24 * 3600) // 7 days
-      if (presigned) return presigned
-    } catch {}
-    // Fallback to public URL construction (for public buckets/CloudFront)
-    return getS3ObjectUrl(key)
-  } catch (err) {
-    return key
-  }
-}
+import { displayableAsset } from '@shared/utils/dataUri.js'
 
 export const appConfigResolvers = {
   Query: {
@@ -123,22 +101,8 @@ export const appConfigResolvers = {
     },
   },
   Advertisement: {
-    imageUrl: async (parent: any) => {
-      // Convert S3 key to full URL for display, but keep original key in parent for updates
-      if (!parent.imageUrl) {
-        return null
-      }
-      try {
-        const url = await convertS3KeyToUrl(parent.imageUrl)
-        // If conversion returns the key itself (failed), log it
-        if (url && url === parent.imageUrl && !url.startsWith('http://') && !url.startsWith('https://')) {
-        }
-        return url
-      } catch (error) {
-        // Return the key as-is if conversion fails - frontend might handle it
-        return parent.imageUrl
-      }
-    },
+    // The stored data URI or link as it is; a legacy S3 key is null, since nothing can fetch it any more.
+    imageUrl: (parent: any) => displayableAsset(parent.imageUrl),
   },
 }
 

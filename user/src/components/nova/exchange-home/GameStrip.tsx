@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useCasinoGameList } from '../../casino/useCasinoGameList'
 import { useLaunchGame } from '../../casino/useLaunchGame'
 import SectionHeader from './SectionHeader'
+import './game-strip.css'
 
 /** Auto-run speed in px per second: slow enough to read titles as they pass. */
 const SPEED = 40
@@ -123,7 +124,7 @@ export default function GameStrip({ kind, title, allTo }: { kind: 'live' | 'slot
   const rendered = loops ? [...games, ...games] : games
   const Icon = live ? Dices : Gamepad2
 
-  return <section className="nova-ex-strip" aria-labelledby={`nova-ex-strip-${kind}`}>
+  return <section className={`nova-ex-strip gw-home-strip is-${kind}`} aria-labelledby={`nova-ex-strip-${kind}`}>
     <SectionHeader icon={<Icon className="nova-ex-strip-icon" aria-hidden="true" />} title={title} titleId={`nova-ex-strip-${kind}`} badge={live ? <span className="nova-ex-live-badge"><i aria-hidden="true" />{t('nova.live')}</span> : undefined}>
       <Link to={allTo} className="nova-ex-section-all">{t('exchangeHome.seeAll', { defaultValue: 'See All' })}</Link>
       {!empty && <span className="nova-ex-section-arrows">

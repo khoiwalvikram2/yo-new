@@ -80,7 +80,7 @@ export function commissionResponse(operation: Operation, options: CommissionFixt
     case 'CancelCommissionAdjustment': result = { cancelCommissionAdjustment: { success: !options.adjustmentRefused, message: options.adjustmentRefused ? 'Only a PENDING adjustment can be cancelled (this one is APPLIED)' : 'Adjustment cancelled', adjustment: null } }; break
     default: throw new Error(`Unexpected commission operation: ${operation.operationName}`)
   }
-  if (operation.operationName === 'CommissionAdjustmentsPage') { const all = result.commissionAdjustments ?? []; result.commissionAdjustmentsPage = { items: all.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)), total: all.length }; }
+  if (operation.operationName === 'CommissionAdjustmentsPage') { const all = (result.commissionAdjustments ?? []) as unknown[]; result.commissionAdjustmentsPage = { items: all.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)), total: all.length }; }
   const definition = operation.query.definitions.find((node) => node.kind === 'OperationDefinition')
   if (!definition || definition.kind !== 'OperationDefinition') throw new Error('Missing operation')
   return { data: complete(definition.selectionSet, result) as Record<string, unknown> }

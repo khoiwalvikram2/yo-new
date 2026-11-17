@@ -4,29 +4,7 @@ import { listAdvertisementsDb } from '@src/repos/app-config/advertisementsRepo.j
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { hasPermission } from '@src/domains/common/auth.js'
 import { requireReadPermission } from '@src/domains/common/auth.js'
-
-// Helper to convert stored S3 keys (or base64/data URLs) into displayable URLs
-async function convertS3KeyToUrl(key: string | null | undefined): Promise<string | null> {
-  if (!key) return null
-
-  // Already a usable URL or data URI
-  if (key.startsWith('http://') || key.startsWith('https://') || key.startsWith('data:')) {
-    return key
-  }
-
-  try {
-    // Prefer presigned URL so private buckets also work
-    const { generatePresignedGetUrl, getS3ObjectUrl } = await import('@src/services/storage/s3.js')
-    try {
-      const presigned = await generatePresignedGetUrl(key, 7 * 24 * 3600) // 7 days
-      if (presigned) return presigned
-    } catch {}
-    // Fallback to public URL construction (for public buckets/CloudFront)
-    return getS3ObjectUrl(key)
-  } catch (err) {
-    return key
-  }
-}
+import { displayableAsset } from '@shared/utils/dataUri.js'
 
 export const appConfigQueryResolvers = {
   appDisplayConfig: async (_: any, __: any, ctx: any) => {
@@ -47,15 +25,11 @@ export const appConfigQueryResolvers = {
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
     const config = await getAppConfigDb(tenant)
-    // Resolve S3 keys to presigned URLs so the admin panel can display previews
-    const [preLoginBannerUrl, postLoginBannerUrl] = await Promise.all([
-      convertS3KeyToUrl((config as any).preLoginBannerUrl),
-      convertS3KeyToUrl((config as any).postLoginBannerUrl),
-    ])
+    // The popup banners as stored (data URIs, or links); a legacy S3 key is null, since nothing can fetch it.
     return {
       ...config,
-      preLoginBannerUrl: preLoginBannerUrl ?? (config as any).preLoginBannerUrl ?? null,
-      postLoginBannerUrl: postLoginBannerUrl ?? (config as any).postLoginBannerUrl ?? null,
+      preLoginBannerUrl: displayableAsset((config as any).preLoginBannerUrl),
+      postLoginBannerUrl: displayableAsset((config as any).postLoginBannerUrl),
     }
   },
   cmsPages: async (_: any, args: { locale?: string; status?: 'DRAFT' | 'PUBLISHED' }, ctx: any) => {

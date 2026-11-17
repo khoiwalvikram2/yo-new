@@ -12,6 +12,8 @@ import {
   BACKFILL_RANGE_REQUIRED,
   TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZE_OPTIONS,
+  backfillRefusalMessage,
+  backfillTargetText,
   fixActionLabel,
   gapsSummary,
   pageRows,
@@ -88,8 +90,10 @@ export function SnapshotHealthMissingTable({
         dateTo: resolved.dateTo,
       })
       resetRange()
-    } catch {
-      // The Apollo error link has already raised the failure as a toast; the range stays for a retry.
+    } catch (refusal) {
+      // The error link raises no toast for a mutation, so the server's reason (e.g. "Range too large
+      // (max 31 days)") is the field's error; the range stays for a retry (F-REP-11: nothing was shown).
+      setRangeError(backfillRefusalMessage(refusal))
     }
   }
 
@@ -151,7 +155,12 @@ export function SnapshotHealthMissingTable({
       {first && canTrigger ? (
         <div className={styles.backfill}>
           <Form aria-label="Backfill range" onSubmit={(event) => void submitRange(event)}>
-            <FormField label="Date range" required error={rangeError ?? undefined}>
+            <FormField
+              label="Date range"
+              required
+              help={backfillTargetText(first)}
+              error={rangeError ?? undefined}
+            >
               <div className={styles.rangeRow}>
                 <div className={styles.rangeInputs}>
                   <DateField

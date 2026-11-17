@@ -108,7 +108,7 @@ export function plural(count: number, singular: string, many: string): string {
   return count === 1 ? singular : many
 }
 
-/** The card's count line: the rows on this page, as the legacy table header printed it. */
+/** The card's count line: every role the search matched, on every page (the legacy header counted this page only). */
 export function roleCountLabel(count: number): string {
   return `${count} ${plural(count, 'role', 'roles')}`
 }
@@ -155,7 +155,7 @@ export function isShownUpdatedAt(updatedAt: string | null | undefined): updatedA
   }
 }
 
-/** The legacy Excel columns (the export writes the rows on screen, titled with their count). */
+/** The legacy Excel columns (the export writes every role the search matched, titled with their count). */
 export function roleExportColumns(formatDate: (date: string) => string): TableExportColumn<GraphQLRole>[] {
   return [
     { header: 'Role', key: 'name', width: 24, getter: (r) => r.name ?? '' },

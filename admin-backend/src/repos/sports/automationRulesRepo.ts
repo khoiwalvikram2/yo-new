@@ -187,17 +187,31 @@ export async function upsertAutomationRule(
   }
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
  * Delete automation rule
+ *
+ * Only a rule of the given tenant and whitelabel, the scope getAutomationRules
+ * lists and upsertAutomationRule writes. Deleting by id alone let an admin of
+ * one whitelabel remove another whitelabel's live rule, which user-backend then
+ * silently stopped applying. A malformed id is not found rather than a SQL error.
  */
 export async function deleteAutomationRule(
-  ruleId: string
+  ruleId: string,
+  tenant: string,
+  whitelabelId: string
 ): Promise<boolean> {
+  if (!UUID_PATTERN.test(String(ruleId))) return false
   const result = await db
     .delete(automationRulesTable)
-    .where(eq(automationRulesTable.id, ruleId))
+    .where(and(
+      eq(automationRulesTable.id, ruleId),
+      eq(automationRulesTable.tenant, tenant),
+      eq(automationRulesTable.whitelabelId, whitelabelId),
+    ))
     .returning()
-  
+
   return result.length > 0
 }
 

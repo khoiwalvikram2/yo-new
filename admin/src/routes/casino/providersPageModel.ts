@@ -242,6 +242,14 @@ export function providerStatusOptions(current: string): Option[] {
     : [...PROVIDER_STATUS_OPTIONS, { value: current, label: current }]
 }
 
+/**
+ * The status as text, for anyone but the platform administrator: casino_api_providers has no whitelabel, so one
+ * row serves every whitelabel and only `all:*` may change it (the server refuses everyone else).
+ */
+export function providerStatusLabel(status: string): string {
+  return PROVIDER_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status
+}
+
 export const PROVIDER_STATUS_ERROR = 'Failed to update provider status'
 
 export function providerStatusMessage(name: string, status: string): string {
@@ -281,22 +289,17 @@ export function providerPerformance(provider: ProviderWithVendors | undefined): 
   }
 }
 
-/* ---------- today's figures (legacy placeholders, kept as they were) ---------- */
+/* ---------- today's figures ---------- */
 
 export type Trend = 'up' | 'down' | 'neutral'
 
+/** The sign of a GGR figure, for its coloured dot: the house won, lost or broke even. */
 export function ggrTrend(value: number): Trend {
   return value > 0 ? 'up' : value < 0 ? 'down' : 'neutral'
 }
 
-/* The "vs yesterday" figure is not a comparison: the legacy divided today's GGR by a constant (10,000 for a
-   provider, 5,000 for a vendor). It is kept verbatim and listed for the owner. */
-export const PROVIDER_TREND_DIVISOR = 10000
-export const VENDOR_TREND_DIVISOR = 5000
-
-export function trendPercent(value: number, divisor: number): string {
-  return value !== 0 ? Math.abs((value / divisor) * 100).toFixed(1) : '0'
-}
+/* There is no "vs yesterday" figure. The legacy one divided today's GGR by a constant (10,000 for a provider,
+   5,000 for a vendor) and called it a comparison, so it was removed rather than kept. */
 
 export interface VendorBreakdownEntry {
   vendorId: string
@@ -304,6 +307,8 @@ export interface VendorBreakdownEntry {
   ggr?: number | null
   shareAmount?: number | null
   transactionCount?: number | null
+  /** The settled stakes in the range; absent when the query did not ask for them. */
+  totalStake?: number | null
 }
 
 export function sumTransactions(breakdown: readonly VendorBreakdownEntry[]): number {
@@ -355,9 +360,12 @@ export interface VendorAnalyticsData {
   ggr: number
   shareAmount: number
   transactionCount: number
+  /** Null when the figures came without the stakes: the average bet is then not shown rather than guessed. */
+  totalStake: number | null
 }
 
-export const EMPTY_VENDOR_ANALYTICS: VendorAnalyticsData = { ggr: 0, shareAmount: 0, transactionCount: 0 }
+/* A vendor missing from the batch had no settled bets in the range, so its stakes are a real 0. */
+export const EMPTY_VENDOR_ANALYTICS: VendorAnalyticsData = { ggr: 0, shareAmount: 0, transactionCount: 0, totalStake: 0 }
 
 export interface ProviderAnalyticsEntry {
   providerId?: string | number | null
@@ -381,6 +389,7 @@ export function vendorAnalyticsMap(list: readonly ProviderAnalyticsEntry[]): Map
           ggr: Number(v.ggr ?? 0),
           shareAmount: Number(v.shareAmount ?? 0),
           transactionCount: Number(v.transactionCount ?? 0),
+          totalStake: v.totalStake != null ? Number(v.totalStake) : null,
         })
       }
     })
@@ -415,8 +424,12 @@ export function vendorsEmptyText(selectedProviderId: string | undefined): string
   return selectedProviderId ? 'No vendors found for this provider' : 'No vendors found'
 }
 
-export function avgBet(ggr: number, transactionCount: number): number {
-  return transactionCount > 0 ? Math.abs(ggr) / transactionCount : 0
+/**
+ * The average stake of a settled bet, or null when the stakes are unknown or there were no bets. The legacy
+ * figure was |GGR| / bets, which is no average bet (September: 89.04 against a true average stake of 5,539.62).
+ */
+export function avgBet(totalStake: number | null | undefined, transactionCount: number): number | null {
+  return totalStake != null && transactionCount > 0 ? totalStake / transactionCount : null
 }
 
 /* ---------- statistics ---------- */
@@ -602,44 +615,33 @@ export interface ProviderAnalyticsSummary {
   avgPerVendor: number
 }
 
+/** An active vendor took bets in the range; the legacy count was the vendors with a positive GGR. */
 export function providerAnalyticsSummary(totalGGR: number, breakdown: readonly VendorBreakdownEntry[]): ProviderAnalyticsSummary {
   return {
     totalTransactions: sumTransactions(breakdown),
     totalShare: breakdown.reduce((sum: number, v) => sum + (v.shareAmount || 0), 0),
-    activeVendors: breakdown.filter((v) => (v.ggr ?? 0) > 0).length,
+    activeVendors: breakdown.filter((v) => (v.transactionCount ?? 0) > 0).length,
     vendorCount: breakdown.length,
     avgPerVendor: breakdown.length > 0 ? totalGGR / breakdown.length : 0,
   }
 }
 
-export function contributionPercent(ggr: number, totalGGR: number): number {
-  return totalGGR > 0 ? (ggr / totalGGR) * 100 : 0
+/** Every vendor's |GGR| added up: the base a vendor's contribution is a share of. */
+export function absoluteGgrTotal(breakdown: readonly VendorBreakdownEntry[]): number {
+  return breakdown.reduce((sum: number, v) => sum + Math.abs(Number(v.ggr ?? 0)), 0)
 }
 
-/* The hard-coded trend badges of the legacy figures (not computed from data; listed for the owner). */
-export interface FixedTrend {
-  value: number
-  direction: Trend
+/**
+ * A vendor's signed share of the provider's result, out of every vendor's |GGR|; null when no vendor moved any
+ * money. GGR nets the house's wins against its losses, so a share of the net total read 0% for every vendor when
+ * the total was negative, and over 100% when it was small.
+ */
+export function contributionPercent(ggr: number, absoluteTotal: number): number | null {
+  return absoluteTotal > 0 ? (ggr / absoluteTotal) * 100 : null
 }
 
-export function trendText(trend: FixedTrend): string {
-  return `${Math.abs(trend.value).toFixed(1)}%`
-}
-
-export function deltaDirection(direction: Trend): 'up' | 'down' | 'flat' {
-  return direction === 'neutral' ? 'flat' : direction
-}
-
-export const PROVIDER_GGR_TREND: FixedTrend = { value: 12.5, direction: 'up' }
-export const PROVIDER_SHARE_TREND: FixedTrend = { value: 8.3, direction: 'up' }
-
-export function vendorGgrTrend(ggr: number): FixedTrend {
-  return { value: 15.2, direction: ggr > 0 ? 'up' : 'down' }
-}
-
-export function vendorShareTrend(shareAmount: number): FixedTrend {
-  return { value: 10.8, direction: shareAmount > 0 ? 'up' : 'neutral' }
-}
+/* The headline figures carry no trend badge. The legacy badges were fixed numbers (12.5%, 8.3%, 15.2%, 10.8%)
+   shown whatever the data, with no previous period behind them. */
 
 /** Players are not tracked: 0 when there were no transactions, a dash otherwise. */
 export function playersFigure(transactionCount: number): string {

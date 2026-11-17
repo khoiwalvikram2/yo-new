@@ -57,6 +57,7 @@ export type MatkaFormField =
   | 'limits.minBet'
   | 'limits.maxBet'
   | 'status'
+  | 'settings.autoPauseOnLiabilityThreshold'
   | 'settings.betWindowMinsBeforeOpen'
   | 'settings.betWindowMinsBeforeClose'
 
@@ -220,8 +221,33 @@ export function selectedDaysSummary(selected: readonly number[]): string {
   return `${selected.length} day${selected.length > 1 ? 's' : ''} selected`
 }
 
-/** Next on step 0 validates only these fields; step 1 intentionally has no hard validation. */
+/** The fields the Betting Configuration step shows; every other field is on Basic Info. */
+const BETTING_STEP_FIELDS = new Set([
+  'limits.minBet', 'limits.maxBet', 'status', 'settings.autoPauseOnLiabilityThreshold', 'settings.betWindowMinsBeforeOpen',
+  'settings.betWindowMinsBeforeClose', 'settings.notes', 'settings.message',
+])
+
+/** The first step showing a field with one of these errors, or null for none (a form-level error has no step).
+ *  The Review step shows no fields, so a submit refused there goes back to it. */
+export function matkaErrorStep(errorPaths: readonly string[]): number | null {
+  const steps = errorPaths.filter((path) => path && path !== '_form').map((path) => (BETTING_STEP_FIELDS.has(path) ? 1 : 0))
+  return steps.length ? Math.min(...steps) : null
+}
+
+/** The fields Next validates on each step, with the full-submit rules (matkaFormSchema, which follows the server).
+ *  Betting Configuration used to validate nothing, so a Min Bet of 0 went on to Review and was refused only by
+ *  Create Matka; its limits, status and cutoffs now stop Next on their own step. Review has no fields. */
 export function matkaStepFields(step: number, isEdit: boolean): MatkaFormField[] {
+  if (step === 1) {
+    return [
+      'limits.minBet',
+      'limits.maxBet',
+      'status',
+      'settings.autoPauseOnLiabilityThreshold',
+      'settings.betWindowMinsBeforeOpen',
+      'settings.betWindowMinsBeforeClose',
+    ]
+  }
   if (step !== 0) return []
   return [
     'name',
@@ -244,15 +270,19 @@ export function matkaFormSchema(isEdit: boolean) {
     if (values.schedule.daysOfWeek.length === 0) {
       context.addIssue({ code: 'custom', path: ['schedule', 'daysOfWeek'], message: 'Select at least one day' })
     }
+    // The server needs a positive minimum and a maximum no lower than it (shared/src/matka/config.ts); a form
+    // it would refuse is stopped here, at the field.
     if (values.limits.minBet === null) {
       context.addIssue({ code: 'custom', path: ['limits', 'minBet'], message: 'Please enter min bet amount' })
-    } else if (values.limits.minBet < 0) {
-      context.addIssue({ code: 'custom', path: ['limits', 'minBet'], message: 'Value must be at least 0' })
+    } else if (values.limits.minBet <= 0) {
+      context.addIssue({ code: 'custom', path: ['limits', 'minBet'], message: 'Value must be more than 0' })
     }
     if (values.limits.maxBet === null) {
       context.addIssue({ code: 'custom', path: ['limits', 'maxBet'], message: 'Please enter max bet amount' })
     } else if (values.limits.maxBet < 0) {
       context.addIssue({ code: 'custom', path: ['limits', 'maxBet'], message: 'Value must be at least 0' })
+    } else if (values.limits.minBet !== null && values.limits.minBet > 0 && values.limits.maxBet < values.limits.minBet) {
+      context.addIssue({ code: 'custom', path: ['limits', 'maxBet'], message: 'Max bet must be at least the min bet' })
     }
     if (!values.status) context.addIssue({ code: 'custom', path: ['status'], message: 'Required' })
     if (values.priority !== null && values.priority < 0) {

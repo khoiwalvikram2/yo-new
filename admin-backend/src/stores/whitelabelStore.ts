@@ -1,3 +1,5 @@
+import { displayableAsset } from '@shared/utils/dataUri.js'
+
 export type WhitelabelTheme = {
   primary: string
   success: string
@@ -40,36 +42,8 @@ const fallback: Whitelabel = {
   theme: defaultTheme, // Keep for backward compatibility
 }
 
-/**
- * Convert S3 key to presigned URL if it's not already a URL
- * Uses presigned URLs which work for both public and private buckets
- */
-async function convertS3KeyToUrl(key: string | null | undefined): Promise<string | null> {
-  if (!key) return null
-  
-  // If already a full URL (http/https) or data URI, return as-is
-  if (key.startsWith('http://') || key.startsWith('https://') || key.startsWith('data:')) {
-    return key
-  }
-  
-  // Otherwise, assume it's an S3 key and generate presigned URL
-  try {
-    const { generatePresignedGetUrl } = await import('../services/storage/s3.js')
-    const { getS3ObjectUrl } = await import('../services/storage/s3.js')
-    // Generate presigned URL with 7 days expiry for display purposes
-    const presigned = await generatePresignedGetUrl(key, 7 * 24 * 3600) // 7 days
-    return presigned || getS3ObjectUrl(key)
-  } catch (error) {
-    // If S3 is not configured or fails, try public URL as fallback
-    try {
-      const { getS3ObjectUrl } = await import('../services/storage/s3.js')
-      return getS3ObjectUrl(key)
-    } catch {
-      // If both fail, return the key as-is (might be handled by frontend)
-      return key
-    }
-  }
-}
+// Logos and favicons are read with displayableAsset: as stored (a data URI, or a link), and a legacy S3 key as
+// null, since S3 is gone (owner decision 2026-11-04) and nothing can fetch it.
 
 export async function listWhitelabels(): Promise<Whitelabel[]> {
   const { listWhitelabelsDb } = await import('../repos/common/whitelabelRepo.js')
@@ -77,11 +51,11 @@ export async function listWhitelabels(): Promise<Whitelabel[]> {
     const rows = await listWhitelabelsDb()
     if (!rows?.length) return [fallback]
     
-    // Convert S3 keys to full URLs
+    // Logos and favicons as a page can show them
     const rowsWithUrls = await Promise.all(rows.map(async (row: any) => ({
       ...row,
-      logoUrl: await convertS3KeyToUrl(row.logoUrl),
-      faviconUrl: await convertS3KeyToUrl(row.faviconUrl),
+      logoUrl: displayableAsset(row.logoUrl),
+      faviconUrl: displayableAsset(row.faviconUrl),
     })))
     
     return rowsWithUrls
@@ -123,11 +97,11 @@ export async function findWhitelabelByHost(host?: string | null): Promise<Whitel
     
     if (!match) return null
     
-    // Convert S3 keys to full URLs
+    // Logo and favicon as a page can show them
     return {
       ...match,
-      logoUrl: await convertS3KeyToUrl((match as any).logoUrl),
-      faviconUrl: await convertS3KeyToUrl((match as any).faviconUrl),
+      logoUrl: displayableAsset((match as any).logoUrl),
+      faviconUrl: displayableAsset((match as any).faviconUrl),
     } as any
   } catch {
     return null
@@ -163,8 +137,8 @@ export async function getCurrentWhitelabel(ctx?: any): Promise<Whitelabel> {
         if (wl) {
           return {
             ...wl,
-            logoUrl: await convertS3KeyToUrl(wl.logoUrl),
-            faviconUrl: await convertS3KeyToUrl(wl.faviconUrl),
+            logoUrl: displayableAsset(wl.logoUrl),
+            faviconUrl: displayableAsset(wl.faviconUrl),
           } as any
         } else {
         }

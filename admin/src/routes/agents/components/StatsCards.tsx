@@ -1,12 +1,15 @@
+import { useEffect, useRef } from 'react'
 import { useQuery, gql } from '@apollo/client'
-import { IconUsers, IconHierarchy, IconChartLine, IconAlertTriangle, IconWallet, IconCoins, IconScale } from '@tabler/icons-react'
+import { IconUsers, IconHierarchy, IconChartLine, IconLock, IconCoins, IconScale } from '@tabler/icons-react'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { AccountListMetric } from '@/modules/account-lists/AccountList'
+import { CHIP_READ_OPTIONS, chipTone, refPnlNote, roundChips, signedChips } from '@/modules/chips'
 import { strokeFor } from '@/ui/components/icons'
 import styles from '@/modules/account-lists/AccountList.module.css'
 import own from './AgentsSearchComponents.module.css'
 import { AGENT_OVERVIEW_QUERY, type AgentOverviewItem } from './agentOverview'
-import { HIGH_CREDIT_USE, agentLevelNames, topLevelAgents, type AgentListStats } from './agentsSearchModel'
+import { AGENT_CHIP_TOTALS_QUERY, chipNetworkTotals, type AgentChipTotalsData } from './agentChips'
+import { agentLevelNames, topLevelAgents, type AgentListStats } from './agentsSearchModel'
 
 /** Every agent of one scheme with its stats, for the money cards whose figures are not on the agent
  *  record itself (commission and sharing). One request for the scheme, after the list has loaded. */
@@ -41,16 +44,17 @@ type StatsCardsProps = {
   defer?: boolean;
   /** A logged-in agent sees its own network rather than every agent of the scheme. */
   ownNetwork?: boolean;
+  /** Bumped by the page after chips moved, so the CREDIT totals are read again. */
+  chipsVersion?: number;
 };
 
 const SCHEME_LABELS: Record<string, string> = { COMMISSION: 'Commission Agents', CREDIT: 'Credit Agents', SHARING: 'Sharing Agents' };
 const LEVELS = [1, 2, 3, 4];
-const HIGH_CREDIT_PERCENT = Math.round(HIGH_CREDIT_USE * 100);
 
 const sum = <T,>(rows: readonly T[], value: (row: T) => number | string | null | undefined) =>
   rows.reduce((total, row) => total + Number(value(row) ?? 0), 0);
 
-export function StatsCards({ schemeType, defer = false, ownNetwork = false }: StatsCardsProps) {
+export function StatsCards({ schemeType, defer = false, ownNetwork = false, chipsVersion = 0 }: StatsCardsProps) {
   const { formatAmount } = useCurrency();
   const { data, loading } = useQuery(AGENT_OVERVIEW_QUERY, {
     fetchPolicy: "cache-and-network",
@@ -64,6 +68,19 @@ export function StatsCards({ schemeType, defer = false, ownNetwork = false }: St
     nextFetchPolicy: "cache-first",
     skip: defer || !moneyFromStats,
   });
+  // CREDIT money is the agents' chips (spec 2026-11-02 §2), read outside the cache like every chips read.
+  const creditScheme = schemeType === 'CREDIT';
+  const chipTotals = useQuery<AgentChipTotalsData>(AGENT_CHIP_TOTALS_QUERY, {
+    ...CHIP_READ_OPTIONS,
+    skip: defer || !creditScheme,
+  });
+  const { refetch: refetchChipTotals } = chipTotals;
+  const seenChipsVersion = useRef(chipsVersion);
+  useEffect(() => {
+    if (seenChipsVersion.current === chipsVersion) return;
+    seenChipsVersion.current = chipsVersion;
+    if (creditScheme && !defer) void refetchChipTotals().catch(() => { /* the cards show the read's own failure */ });
+  }, [chipsVersion, creditScheme, defer, refetchChipTotals]);
 
   const allAgents: AgentOverviewItem[] = data?.agents?.agentsPage?.items ?? [];
   const agents = schemeType
@@ -83,17 +100,13 @@ export function StatsCards({ schemeType, defer = false, ownNetwork = false }: St
   const deeper = agents.filter((a) => (a.levelIndex ?? 0) > LEVELS.length).length;
   if (deeper) levels.push({ name: `Level ${LEVELS.length + 1}+`, count: deeper });
 
-  // Credit: a parent's limit and use already hold what it allocated below it, so add up top-level agents.
-  const creditRoots = topLevelAgents(agents);
-  const creditLimit = sum(creditRoots, (a) => a.creditLimit);
-  const creditUsed = sum(creditRoots, (a) => a.creditUsed);
-  const creditPercent = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0;
-  const creditToSettle = creditRoots.filter((a) => Number(a.settlementBalance ?? 0) !== 0);
-  const creditPending = sum(creditToSettle, (a) => Math.abs(Number(a.settlementBalance)));
-  const nearLimit = agents.filter((a) => {
-    const limit = Number(a.creditLimit ?? 0);
-    return limit > 0 && Number(a.creditUsed ?? 0) / limit > HIGH_CREDIT_USE;
-  }).length;
+  // Credit: chips. An agent's downline balance, exposure and Ref P/L cover everything beneath it, so the
+  // network adds up its top-level agents only (chipNetworkTotals).
+  const chipNetwork = chipNetworkTotals(chipTotals.data?.agents?.agentsPage?.items ?? []);
+  const chipFormat = (value: number) => formatAmount(roundChips(value), chipNetwork.currency ?? undefined);
+  const chipsPending = (defer || chipTotals.loading) && !chipTotals.data;
+  const chipsFailed = !chipsPending && !chipTotals.data && !!chipTotals.error;
+  const refTone = chipTone(chipNetwork.refPnl);
 
   // Commission and sharing: turnover, P/L and pending cover each agent's downline, so they are added up over
   // top-level agents; commission earned is each agent's own share after its sub-agents, so over all of them.
@@ -122,12 +135,15 @@ export function StatsCards({ schemeType, defer = false, ownNetwork = false }: St
     tooltip={levels.map((level) => `${level.name} ${level.count}`).join(' · ')}
     icon={icon(IconHierarchy)} hue="vio" loading={pending} />
 
-  return <div className={styles.metrics} role="group" aria-label="Agent statistics" aria-busy={pending || (moneyFromStats && moneyPending) || undefined}>
+  const chipNote = (note: string) => chipsFailed ? 'Not available right now' : note
+  return <div className={styles.metrics} role="group" aria-label="Agent statistics" aria-busy={pending || (moneyFromStats && moneyPending) || (creditScheme && chipsPending) || undefined}>
     <AccountListMetric label={SCHEME_LABELS[schemeType ?? ''] ?? 'Total Agents'} value={agents.length} note={statusNote} icon={icon(IconUsers)} hue="blu" loading={pending} />
-    {schemeType === 'CREDIT' ? <>
-      <AccountListMetric label="Credit Used" value={formatAmount(creditUsed)} note={creditLimit > 0 ? `${creditPercent}% of ${formatAmount(creditLimit)} limit` : 'No credit given yet'} icon={icon(IconWallet)} hue="ind" loading={pending} />
-      <AccountListMetric label="Pending Settlement" value={formatAmount(creditPending)} note={toSettle(creditToSettle.length)} icon={icon(IconScale)} hue="vio" loading={pending} />
-      <AccountListMetric label="Near Credit Limit" value={nearLimit} note={nearLimit > 0 ? `Agents above ${HIGH_CREDIT_PERCENT}% used` : `None above ${HIGH_CREDIT_PERCENT}% used`} icon={icon(IconAlertTriangle)} hue="amb" loading={pending} />
+    {creditScheme ? <>
+      <AccountListMetric label="Chips" value={chipsFailed ? '—' : chipFormat(chipNetwork.chips)} note={chipNote(ownNetwork ? 'With you and your downline' : 'With agents and their players')} icon={icon(IconCoins)} hue="ind" loading={chipsPending} />
+      <AccountListMetric label="Exposure" value={chipsFailed ? '—' : chipFormat(chipNetwork.exposure)} note={chipNote('Held for open bets')} icon={icon(IconLock)} hue="amb" loading={chipsPending} />
+      <AccountListMetric label="Ref P/L"
+        value={chipsFailed ? '—' : <span className={refTone === 'gain' ? own.positive : refTone === 'loss' ? own.negative : undefined}>{signedChips(chipNetwork.refPnl, chipFormat)}</span>}
+        note={chipNote(`${refPnlNote(chipNetwork.refPnl)} · credit ref ${chipFormat(chipNetwork.creditReference)}`)} icon={icon(IconScale)} hue="vio" loading={chipsPending} />
     </> : schemeType === 'SHARING' ? <>
       {levelsCard}
       <AccountListMetric label="P/L" value={moneyFailed ? '—' : <span className={profitLoss > 0 ? own.positive : profitLoss < 0 ? own.negative : undefined}>{formatAmount(profitLoss)}</span>} note={moneyNote(network('sharing'))} icon={icon(IconChartLine)} hue="grn" loading={moneyPending} />

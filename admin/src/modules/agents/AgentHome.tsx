@@ -16,7 +16,7 @@ import { Button } from '@/ui/components/Button'
 import { Notice } from '@/ui/components/Notice'
 import { Page } from '@/ui/components/Page'
 import { PageHeader } from '@/ui/components/PageHeader'
-import CreditMeter from './components/CreditMeter'
+import ChipSummary from './components/ChipSummary'
 import FinancialSummary from './components/FinancialSummary'
 import PerformanceCharts from './components/PerformanceCharts'
 import SubAgentPerformance from './components/SubAgentPerformance'
@@ -83,6 +83,8 @@ export default function AgentHome() {
   const isCreditAgent = agent.schemeType === 'CREDIT'
   const isCommissionAgent = agent.schemeType === 'COMMISSION'
   const fmt = (value: number) => formatAmount(convertFromWhitelabelCurrency(value))
+  // pendingDeposits / pendingWithdrawals count the requests; the money waiting is in their *Amount fields.
+  const awaiting = (count: number | undefined) => `${Number(count ?? 0).toLocaleString()} awaiting approval`
   const metricRows = [
     { label: 'Total GGR', value: fmt(periodGGR), raw: periodGGR, note: 'Gross Gaming Revenue', icon: <IconCoin size={20} />, hue: 'grn' as const, to: '/reporting/agents/performance' },
     { label: 'Total Players', value: stats?.totalPlayers?.toLocaleString() || '0', raw: stats?.totalPlayers || 0, note: 'All registered', icon: <IconUsers size={20} />, hue: 'blu' as const, to: '/players' },
@@ -90,27 +92,31 @@ export default function AgentHome() {
     { label: 'New Players', value: stats?.newPlayersToday?.toLocaleString() || '0', raw: stats?.newPlayersToday || 0, note: 'Today', icon: <IconPlus size={20} />, hue: 'vio' as const, to: '/reporting/players/activity' },
     { label: 'Total Deposits', value: fmt(stats?.totalDeposits ?? 0), raw: stats?.totalDeposits || 0, note: 'Incoming funds', icon: <IconCoin size={20} />, hue: 'blu' as const, to: '/reporting/agents/performance' },
     { label: 'Total Withdrawals', value: fmt(stats?.totalWithdrawals ?? 0), raw: stats?.totalWithdrawals || 0, note: 'Outgoing funds', icon: <IconCoin size={20} />, hue: 'red' as const, to: '/reporting/agents/performance' },
-    { label: 'Pending Deposits', value: fmt(stats?.pendingDeposits ?? 0), raw: stats?.pendingDeposits || 0, note: 'Awaiting approval', icon: <IconBuildingBank size={20} />, hue: 'amb' as const, to: '/players' },
-    { label: 'Pending Withdrawals', value: fmt(stats?.pendingWithdrawals ?? 0), raw: stats?.pendingWithdrawals || 0, note: 'Awaiting approval', icon: <IconBuildingBank size={20} />, hue: 'amb' as const, to: '/players' },
+    { label: 'Pending Deposits', value: fmt(stats?.pendingDepositsAmount ?? 0), raw: stats?.pendingDepositsAmount || 0, note: awaiting(stats?.pendingDeposits), icon: <IconBuildingBank size={20} />, hue: 'amb' as const, to: '/players' },
+    { label: 'Pending Withdrawals', value: fmt(stats?.pendingWithdrawalsAmount ?? 0), raw: stats?.pendingWithdrawalsAmount || 0, note: awaiting(stats?.pendingWithdrawals), icon: <IconBuildingBank size={20} />, hue: 'amb' as const, to: '/players' },
   ]
   const overview = <div className={styles.stack}>
     <div className={styles.kpis}>{metricRows.map(m => <Stat key={m.label} className={styles.stat} label={m.label} value={m.value} note={m.note} icon={m.icon} hue={m.hue} />)}</div>
-    {isCreditAgent && <CreditMeter agentId={agent.id} />}
+    {/* A CREDIT agent's chips (D/W): its figures replace the credit-limit meter, and its alerts carry no credit warnings. */}
+    {isCreditAgent && <ChipSummary />}
     {isCreditAgent && <AgentAlerts agentId={agent.id} />}
     <section className={styles.stack} aria-label="Performance Analytics">
       <h2>Performance Analytics</h2>
       <PerformanceCharts agentId={agent.id} periodFrom={periodFrom} periodTo={periodTo} />
     </section>
   </div>
-  const financial = <div className={styles.stack}>
-    <section className={styles.stack} aria-label="Financial Summary"><h2>Financial Summary</h2><FinancialSummary agentId={agent.id} periodFrom={periodFrom} periodTo={periodTo} schemeType={agent.schemeType as 'COMMISSION' | 'SHARING' | 'CREDIT'} /></section>
+  // A CREDIT agent settles nothing since 2026-11-02 (spec §6): its money is its chips, and what it owes or is
+  // owed is its Ref P/L. So its financial view is its chips account and the way to its Chips page, not the
+  // settlement summary (no settlement due, no last settlement, no share).
+  const financial = isCreditAgent ? <div className={styles.stack}><ChipSummary /></div> : <div className={styles.stack}>
+    <section className={styles.stack} aria-label="Financial Summary"><h2>Financial Summary</h2><FinancialSummary agentId={agent.id} periodFrom={periodFrom} periodTo={periodTo} schemeType={agent.schemeType as 'COMMISSION' | 'SHARING'} /></section>
     <Button variant="primary" icon={<IconCoin size={16} />} onClick={() => navigate(isCommissionAgent ? '/commission/overview' : '/settlement/overview')}>View Detailed {isCommissionAgent ? 'Commission' : 'Settlement'} Report</Button>
   </div>
   // Preserved dormant tab definitions: the production page still exposes only Overview and Financial.
   // Keeping these business widgets and destinations does not grant or expose new actions.
   const _tabItems = [
     { key: 'overview', label: 'Overview', children: <div className={styles.stack}>
-      {isCreditAgent && <CreditMeter agentId={agent.id} />}
+      {isCreditAgent && <ChipSummary />}
       <div className={styles.kpis}>{metricRows.map((m, i) => <Card key={m.label}><div className={styles.stack}><Stat variant="bare" label={i === 3 ? 'New Players Today' : m.label} value={i === 0 || i >= 4 ? `${rawAmount(m.raw, '')} ${getWhitelabelBaseCurrencyCode()}` : m.raw} note={m.note} /><Button size="sm" onClick={() => navigate(m.to)}>View report</Button></div></Card>)}</div>
       {isCreditAgent && <AgentAlerts agentId={agent.id} />}
       <PerformanceCharts agentId={agent.id} periodFrom={periodFrom} periodTo={periodTo} />

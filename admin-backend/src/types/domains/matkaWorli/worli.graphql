@@ -20,6 +20,8 @@ type WorliInstance {
   scheduledLockAt: String!
   scheduledCloseAt: String!
   operatorMessage: String
+  "Lock Now or Close Now stopped it, no result was ever declared for it (one rolled back since counts) and its scheduled close is ahead: Unlock reopens it."
+  canUnlock: Boolean!
   counters: WorliCounters!
   bidRulesVersionId: ID
 }
@@ -57,6 +59,7 @@ extend type Mutation {
   resumeWorliInstance(id: ID!, reason: String!): WorliMutationPayload!
   lockNowWorliInstance(id: ID!, reason: String!): WorliMutationPayload!
   closeNowWorliInstance(id: ID!, reason: String!): WorliMutationPayload!
+  unlockWorliInstance(id: ID!, reason: String!): WorliMutationPayload!
   setWorliMarketMessage(id: ID!, message: String!): WorliMutationPayload!
   adjustWorliSuspendMinutes(id: ID!, minutes: Int!, reason: String!): WorliMutationPayload!
   voidMatkaBet(id: ID!, reason: String!): WorliMutationPayload!

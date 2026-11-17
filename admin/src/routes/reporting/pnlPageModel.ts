@@ -108,6 +108,29 @@ export function isCommissionAgent(isAgent: boolean, schemeType: string | null | 
   return isAgent && schemeType === 'COMMISSION'
 }
 
+/** A day of the agentTrends answer the Commission Earned Report reads. */
+export interface PnlCommissionDay {
+  date: string
+  commission: number
+}
+
+/**
+ * A COMMISSION agent's rows: the commission posted to its own ledger, per day (agentTrends: the IST
+ * day each settlement period ends), for the domain tab the query was sent for. The page showed the
+ * downline's GGR (stakes minus payouts) under the commission names, which went negative whenever the
+ * players won (F-REP-13). A day with bets but nothing posted is not a commission row.
+ */
+export function commissionPnlRows(days: readonly PnlCommissionDay[] | null | undefined, domain: PnlDomain): PnlDataPoint[] {
+  return (days ?? [])
+    .filter((day) => isDayString(day.date) && Number(day.commission) !== 0)
+    .map((day) => ({ date: `${day.date}T00:00:00.000Z`, dimension: domain === 'all' ? 'All' : domain, value: Number(day.commission) }))
+}
+
+/** The Commission Earned Report's total: the posted commission of the tab's rows, converted. */
+export function commissionTotal(rows: readonly PnlDataPoint[], convertAmount: (amount: number) => number): number {
+  return convertAmount(rows.reduce((sum, row) => sum + row.value, 0))
+}
+
 /** Every visible string that depends on the persona, word for word from the legacy page. */
 export function pnlCopy(commissionAgent: boolean): PnlCopy {
   return commissionAgent ? COMMISSION_COPY : PNL_COPY
@@ -128,6 +151,22 @@ export function visiblePnlDomains(
   if (!isAgent || allowed.includes('casino')) domains.push('casino')
   if (!isAgent || allowed.includes('matka')) domains.push('matka')
   return domains
+}
+
+/**
+ * Which domain totals the page does not ask for. A COMMISSION agent asks for none (its report is the
+ * commission posted to its ledger, F-REP-13). Any other agent never asks for a domain its allowed domains
+ * lack: the API refuses it (SCO-07), which read "You do not have access to the <domain> report" for a domain
+ * the agent was never meant to have. A refusal of a total the caller does ask for still raises that notice.
+ */
+export function pnlKpiSkips(
+  commissionAgent: boolean,
+  isAgent: boolean,
+  allowedDomains?: readonly string[] | null,
+): Readonly<Record<PnlKpiDomain, boolean>> {
+  const allowed = allowedDomains || DEFAULT_ALLOWED_DOMAINS
+  const skip = (domain: PnlKpiDomain) => commissionAgent || (isAgent && !allowed.includes(domain))
+  return { sports: skip('sports'), casino: skip('casino'), matka: skip('matka') }
 }
 
 function istDay(day: string): TZDate {
@@ -172,26 +211,24 @@ export function formatPnlSearchDate(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? 'Invalid Date' : format(date, 'yyyy-MM-dd')
 }
 
+/** The rows of a domain tab: all of them under All Domains, otherwise the domain's own rows only. */
+export function pnlDomainRows(rows: readonly PnlDataPoint[], domain: PnlDomain): PnlDataPoint[] {
+  if (domain === 'all') return [...rows]
+  return rows.filter((row) => row.dimension?.toLowerCase() === domain)
+}
+
 /**
- * The legacy domain and search rules, then newest first. A domain keeps its own rows and the
- * server's `All` rows. The search runs only when it has more than spaces, and then matches the raw
- * lower-cased text against the domain, the local day and the converted, formatted amount.
+ * The domain and search rules, then newest first. A domain keeps its own rows: the server labels
+ * every row with its domain (F-REP-07: the live rows were one combined `All` row per day, which this
+ * kept under every domain tab, so a matka loss showed under Sports). The search runs only when it has
+ * more than spaces, and then matches the raw lower-cased text against the domain, the local day and
+ * the converted, formatted amount.
  */
 export function filterPnlRows(
   rows: readonly PnlDataPoint[],
   { domain, search, formatAmount, convertAmount }: PnlFilterOptions,
 ): PnlDataPoint[] {
-  let filtered: readonly PnlDataPoint[] = rows
-
-  if (domain !== 'all') {
-    filtered = filtered.filter((row) => {
-      const rowDomain = row.dimension?.toLowerCase()
-      if (domain === 'sports') return rowDomain === 'sports' || rowDomain === 'all'
-      if (domain === 'casino') return rowDomain === 'casino' || rowDomain === 'all'
-      if (domain === 'matka') return rowDomain === 'matka' || rowDomain === 'all'
-      return true
-    })
-  }
+  let filtered: readonly PnlDataPoint[] = pnlDomainRows(rows, domain)
 
   if (search.trim()) {
     const query = search.toLowerCase()
@@ -235,7 +272,26 @@ export function sortPnlPage<T extends PnlDataPoint>(
   })
 }
 
-/** The cards' figures, from every row the PNL operation returned (not the filtered rows). */
+/**
+ * One row per day, oldest first: the domain tab's rows of a day added up (under All Domains a day has
+ * a row per domain). The cards count days, so they read these (F-REP-17: they read every row the
+ * server returned, whatever the tab).
+ */
+export function pnlDailyTotals(rows: readonly PnlDataPoint[]): PnlDataPoint[] {
+  const days = new Map<string, PnlDataPoint>()
+  for (const row of rows) {
+    const day = days.get(row.date)
+    if (day) {
+      day.value += row.value
+      if (day.dimension !== row.dimension) day.dimension = 'All'
+    } else {
+      days.set(row.date, { date: row.date, dimension: row.dimension, value: row.value })
+    }
+  }
+  return [...days.values()].sort((left, right) => legacyUnixSeconds(left.date) - legacyUnixSeconds(right.date))
+}
+
+/** The cards' figures, from the days of the domain tab (pnlDailyTotals), oldest first. */
 export function calculatePnlMetrics(rows: readonly PnlDataPoint[]): PnlMetrics {
   const count = rows.length
   const positiveDays = rows.filter((row) => row.value > 0).length

@@ -8,6 +8,8 @@ import { beforeEach, describe, test, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import {
   CREATE_MATKA_MUTATION,
@@ -122,6 +124,18 @@ function matkaMock(): MockedResponse {
     request: { query: MATKA_QUERY, variables: { id: '7' } },
     maxUsageCount: Number.POSITIVE_INFINITY,
     result: { data: { matka: MATKA } },
+  }
+}
+
+/** The server refusing a write with a GraphQL error, as admin-backend answers a rule it enforces. */
+function refusedMock(query: typeof CREATE_MATKA_MUTATION, message: string, calls: VariablesCall[]): MockedResponse {
+  return {
+    request: { query },
+    variableMatcher: (variables) => {
+      calls.push(variables as VariablesCall)
+      return true
+    },
+    result: { errors: [{ message }] },
   }
 }
 
@@ -324,7 +338,7 @@ describe('MatkaCreateEditPage create', () => {
     assert.equal(screen.getByRole('switch', { name: 'Featured' }).getAttribute('aria-checked'), 'false')
   })
 
-  test('Betting Configuration Next has no hard validation; final submit still validates all fields', async () => {
+  test('Betting Configuration Next checks its fields with the submit rules and stays on the step until they pass', async () => {
     renderAt('/matka/create')
     change('Name', 'Milan Day')
     await waitFor(() => assert.equal(textbox('Code').value, 'milan-day'))
@@ -332,16 +346,18 @@ describe('MatkaCreateEditPage create', () => {
     change('Min Bet Amount', '')
     change('Betting Cutoff (Before Open)', '')
 
-    await next(/Review/)
-    assert.ok(screen.getByRole('heading', { level: 2, name: 'Review Matka Information' }))
-    fireEvent.click(button('Create Matka'))
-    await act(async () => undefined)
-    assert.equal(server.creates.length, 0)
-    assert.match(currentStep()?.textContent ?? '', /Review/)
-
-    fireEvent.click(button('Previous'))
-    await waitFor(() => assert.ok(screen.getByText('Please enter min bet amount')))
+    // It used to go on to Review, and only Create Matka found the errors.
+    fireEvent.click(button('Next Step'))
+    assert.ok(await screen.findByText('Please enter min bet amount'))
     assert.ok(screen.getByText('Please enter betting cutoff before open'))
+    assert.match(currentStep()?.textContent ?? '', /Betting Configuration/)
+    await waitFor(() => assert.ok(document.activeElement === textbox('Min Bet Amount'), 'focus moves to the first invalid field'))
+
+    change('Min Bet Amount', '25')
+    change('Betting Cutoff (Before Open)', '15')
+    await next(/Review/)
+    assert.ok(screen.getByText('INR 25.00'))
+    assert.equal(server.creates.length, 0)
   })
 
   test('review keeps the entered facts, days, amounts, status, featured flag and notes', async () => {
@@ -397,10 +413,46 @@ describe('MatkaCreateEditPage create', () => {
     fireEvent.click(button('Create Matka'))
 
     await waitFor(() => assert.equal(feedback.error.mock.calls.length, 1))
-    assert.deepEqual(feedback.error.mock.calls[0], ['Failed to save matka. Please check the form and try again.'])
+    assert.deepEqual(feedback.error.mock.calls[0], ['Network down'])
     assert.equal(feedback.close.mock.calls.length, 1)
     assert.ok(button('Create Matka'))
     assert.equal(screen.queryByTestId('location'), null)
+  })
+
+  test('a create the server refuses shows its reason instead of the catch-all', async () => {
+    renderAt('/matka/create', [refusedMock(CREATE_MATKA_MUTATION, 'A matka with this code already exists', server.creates), listMock])
+    change('Name', 'Milan Day')
+    await waitFor(() => assert.equal(textbox('Code').value, 'milan-day'))
+    await next(/Betting Configuration/)
+    await next(/Review/)
+    fireEvent.click(button('Create Matka'))
+
+    await waitFor(() => assert.equal(feedback.error.mock.calls.length, 1))
+    assert.deepEqual(feedback.error.mock.calls[0], ['A matka with this code already exists'])
+    assert.equal(screen.queryByTestId('location'), null)
+  })
+
+  test('Min Bet 0 is stopped at Next on Betting Configuration, and the field hint states the same rule', async () => {
+    renderAt('/matka/create')
+    change('Name', 'Milan Day')
+    await waitFor(() => assert.equal(textbox('Code').value, 'milan-day'))
+    await next(/Betting Configuration/)
+    // The hint read "Minimum: 0." beside the error "Value must be more than 0".
+    const described = () => (textbox('Min Bet Amount').getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean)
+      .map((id) => document.getElementById(id)?.textContent ?? '').join(' | ')
+    assert.equal(described(), 'Must be more than 0.')
+    change('Min Bet Amount', '0')
+    fireEvent.blur(textbox('Min Bet Amount'))
+    fireEvent.click(button('Next Step'))
+
+    // It used to reach Review ("Min Bet Amount ₹0.00"); only Create Matka refused it.
+    assert.ok(await screen.findByText('Value must be more than 0'))
+    assert.match(currentStep()?.textContent ?? '', /Betting Configuration/)
+    assert.ok(screen.queryByRole('heading', { level: 2, name: 'Review Matka Information' }) === null, 'Review is not reached')
+    assert.equal(described(), 'Must be more than 0. | Value must be more than 0')
+    assert.equal(textbox('Min Bet Amount').getAttribute('aria-invalid'), 'true')
+    assert.equal(server.creates.length, 0)
+    assert.equal(feedback.error.mock.calls.length, 0)
   })
 })
 
@@ -471,6 +523,35 @@ describe('MatkaCreateEditPage edit and access', () => {
     assert.equal(feedback.close.mock.calls.length, 1)
   })
 
+  test('an edit the server refuses (open bets on a schedule change) says why and stays on the form', async () => {
+    const reason = 'Settle or void pending bets before changing the market type or schedule'
+    renderAt('/matka/edit/7', [matkaMock(), refusedMock(UPDATE_MATKA_MUTATION, reason, server.updates), statusMock(), listMock])
+    await loadEdit()
+    fireEvent.change(screen.getByLabelText(/Close Time/), { target: { value: '12:35' } })
+    await next(/Betting Configuration/)
+    await next(/Review/)
+    fireEvent.click(button('Save Changes'))
+
+    await waitFor(() => assert.equal(feedback.error.mock.calls.length, 1))
+    assert.deepEqual(feedback.error.mock.calls[0], [reason])
+    assert.equal(server.updates.length, 1)
+    assert.equal(screen.queryByTestId('location'), null)
+  })
+
+  test('a submit refused for a field no Next checks still returns to the step that shows it', async () => {
+    // An old record's negative priority passes both Next checks; the full submit still finds it on Basic Info.
+    const record: MockedResponse = { request: { query: MATKA_QUERY, variables: { id: '7' } }, maxUsageCount: Number.POSITIVE_INFINITY, result: { data: { matka: { ...MATKA, priority: -1 } } } }
+    renderAt('/matka/edit/7', [record, updateMock(), statusMock(), listMock])
+    await loadEdit()
+    await next(/Betting Configuration/)
+    await next(/Review/)
+    fireEvent.click(button('Save Changes'))
+
+    await waitFor(() => assert.match(currentStep()?.textContent ?? '', /Basic Info/))
+    assert.ok(await screen.findByText('Value must be at least 0'))
+    assert.equal(server.updates.length, 0)
+  })
+
   test('Apply accepts an empty reason and sends the legacy default', async () => {
     renderAt('/matka/edit/7')
     await loadEdit()
@@ -483,6 +564,37 @@ describe('MatkaCreateEditPage edit and access', () => {
 
     await waitFor(() => assert.equal(server.statuses.length, 1))
     assert.deepEqual(server.statuses[0], { id: '7', toStatus: 'SUSPEND', reason: 'Status change' })
+  })
+
+  test('an id the server does not return opens a not-found state, not an empty savable editor (SCO-11)', async () => {
+    // Another whitelabel's or a deleted matka answers matka: null with no error.
+    const foreign = '726fc97a-cf23-4e5c-98d3-64a51e2a2a7e'
+    const missing: MockedResponse = { request: { query: MATKA_QUERY, variables: { id: foreign } }, result: { data: { matka: null } } }
+    const view = renderAt(`/matka/edit/${foreign}`, [missing, updateMock(), statusMock(), listMock])
+    assert.ok(await screen.findByText('Matka not found'))
+    assert.ok(screen.getByText('There is no such matka in this whitelabel. It may have been deleted.'))
+    assert.ok(screen.getByRole('heading', { level: 1, name: 'Edit Matka' }))
+    assert.equal(screen.queryByRole('button', { name: 'Next Step' }), null)
+    assert.equal(screen.queryByRole('textbox', { name: 'Name' }), null)
+    fireEvent.click(button('Back to Matkas'))
+    assert.equal((await screen.findByTestId('location')).textContent, '/matka/list')
+    assert.equal(server.updates.length + server.statuses.length, 0)
+    view.unmount()
+
+    // A failed load says so, with the server's reason.
+    const failed: MockedResponse = { request: { query: MATKA_QUERY, variables: { id: '9' } }, result: { errors: [{ message: 'Matka lookup failed' }] } }
+    renderAt('/matka/edit/9', [failed, listMock])
+    assert.ok(await screen.findByText('Error loading matka'))
+    assert.ok(screen.getByText('Matka lookup failed'))
+    assert.equal(screen.queryByRole('button', { name: 'Next Step' }), null)
+  })
+
+  test('while the matka loads the editor is not replaced by the not-found state', async () => {
+    renderAt('/matka/edit/7')
+    assert.equal(screen.queryByText('Matka not found'), null)
+    await loadEdit()
+    assert.equal(screen.queryByText('Matka not found'), null)
+    assert.ok(button('Next Step'))
   })
 
   test('Cancel and Back to Matkas return to the list without a mutation', async () => {
@@ -500,5 +612,55 @@ describe('MatkaCreateEditPage edit and access', () => {
     assert.equal(apollo.queries.length, 0)
     assert.equal(apollo.mutations.length, 0)
     assert.equal(screen.queryByRole('heading', { level: 1 }), null)
+  })
+
+  test('a Super Admin in core mode is asked to select a whitelabel on create and edit: no lookup, no form, no write', async () => {
+    // Core mode has no whitelabel: Create Matka wrote to the platform's own tenant ('default'), where no whitelabel
+    // sees it, and an edit read that tenant and called a real matka "not found".
+    const auth = useAuthStore.getState(), ui = useUIStore.getState()
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      // The permission check still comes first.
+      rbac.allowed = false
+      const denied = renderAt('/matka/create')
+      assert.equal(screen.getByRole('alert').textContent, 'Access denied')
+      assert.ok(screen.queryByText('Select a whitelabel') === null, 'the denial, not the select state')
+      denied.unmount()
+      rbac.allowed = true
+
+      const create = renderAt('/matka/create')
+      assert.ok(await screen.findByText('Select a whitelabel'))
+      assert.ok(screen.getByRole('heading', { level: 1, name: 'Create Matka' }))
+      assert.ok(screen.queryByRole('button', { name: 'Next Step' }) === null, 'no Next Step')
+      assert.ok(screen.queryByRole('textbox', { name: 'Name' }) === null, 'no form')
+      create.unmount()
+
+      const edit = renderAt('/matka/edit/7')
+      assert.ok(await screen.findByText('Select a whitelabel'))
+      assert.ok(screen.getByRole('heading', { level: 1, name: 'Edit Matka' }))
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+      assert.ok(screen.queryByText('Matka not found') === null, 'no misleading not-found')
+      assert.equal(apollo.queries.length, 0, 'no Matka lookup')
+      assert.equal(apollo.mutations.length, 0, 'no create, update or status mutation is prepared')
+      assert.equal(server.creates.length + server.updates.length + server.statuses.length, 0)
+      edit.unmount()
+
+      // With a site selected the same admin gets the editor, as a whitelabel admin always does.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      const selected = renderAt('/matka/edit/7')
+      await loadEdit()
+      assert.ok(screen.queryByText('Select a whitelabel') === null, 'no select state with a site selected')
+      assert.ok(button('Next Step'))
+      selected.unmount()
+
+      // A whitelabel admin is never asked, whatever mode the store holds.
+      useAuthStore.setState({ roles: ['Whitelabel Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+      renderAt('/matka/create')
+      assert.ok(screen.getByRole('textbox', { name: 'Name' }))
+      assert.ok(screen.queryByText('Select a whitelabel') === null, 'no select state for a whitelabel admin')
+    } finally {
+      rbac.allowed = true
+      useAuthStore.setState({ roles: auth.roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
   })
 })

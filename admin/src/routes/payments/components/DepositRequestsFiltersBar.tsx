@@ -30,6 +30,8 @@ const METHOD_OPTIONS = [
   { value: '', label: 'All Methods' },
   { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
   { value: 'UPI', label: 'UPI' },
+  { value: 'CRYPTO', label: 'Crypto (USDT)' },
+  { value: 'GATEWAY', label: 'Payment Gateway' },
 ]
 
 type DepositRequestsFiltersBarProps = {

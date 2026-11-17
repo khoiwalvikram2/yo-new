@@ -12,8 +12,9 @@ import {
   exportVIPTiers,
   addVIPAudit
 } from '@/stores/index.js'
-import { createVipTierDb, updateVipTierDb, deleteVipTierDb, addVipAuditDb } from '@src/repos/vip/vipRepo.js'
+import { createVipTierDb, updateVipTierDb, deleteVipTierDb, addVipAuditDb, listVipTiersDb } from '@src/repos/vip/vipRepo.js'
 import { resolveVipTenant } from '@src/domains/vip/vipTenantContext.js'
+import { vipTierIdentityConflict } from '@src/domains/vip/tierValidation.js'
 import { z } from 'zod'
 import { vipDepositPolicySchema } from '@shared/vip/depositPolicy.js'
 import { hasPermission } from '@src/domains/common/auth.js'
@@ -98,6 +99,10 @@ export const vipMutationResolvers = {
       const { input } = VIPTierInput.parse(args)
       assertCanEditAccounts(ctx, input.receivingAccountIds)
       const tenant = resolveVipTenant(ctx)
+      // A second tier at a level (or name) the tenant already uses made the ladder ambiguous and
+      // was accepted silently (MAR-12).
+      const conflict = vipTierIdentityConflict(await listVipTiersDb(tenant), input)
+      if (conflict) throw new Error(conflict)
       // Persist in DB
       const dbTier = await createVipTierDb({ ...input, status: 'active', tenant })
       if (!dbTier) throw new Error('Failed to create VIP tier')
@@ -122,6 +127,12 @@ export const vipMutationResolvers = {
     try {
       const { id, input } = UpdateVIPTierInput.parse(args)
       assertCanEditAccounts(ctx, input.receivingAccountIds)
+      if (input.level !== undefined || input.name !== undefined) {
+        // Checked against the other tiers only, so saving a tier with its own level passes.
+        const others = (await listVipTiersDb(resolveVipTenant(ctx))).filter(tier => tier.id !== id)
+        const conflict = vipTierIdentityConflict(others, input)
+        if (conflict) throw new Error(conflict)
+      }
       const updated = await updateVipTierDb(id, input, resolveVipTenant(ctx))
       if (!updated) {
         return {

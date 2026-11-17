@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { IconCash, IconUsers, IconCreditCard, IconTrendingUp, IconCalendar, IconChartPie, IconChartBar, IconChartLine } from '@tabler/icons-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, LineChart, Line, Legend, CartesianGrid } from 'recharts';
+import { IconCash, IconUsers, IconTrendingUp, IconCalendar, IconChartPie, IconChartLine } from '@tabler/icons-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line, Legend, CartesianGrid } from 'recharts';
 import { useCurrency } from '@/shared/core/CurrencyContext';
 import { useFormatDate } from '@/shared/core/useFormatDate';
 import { Card } from '@/ui/components/Card';
@@ -14,6 +14,11 @@ import styles from '../SettlementCenter.module.css';
 
 interface SettlementDashboardTabProps { isAgent: boolean; agentSchemeType?: SettlementScheme; dashboard?: SettlementDashboard | null; activityPeriodLabel?: string; settlement?: SettlementSummary | null; loading?: boolean; error?: Error | null }
 const PENDING_HUES = ['chartBlue', 'chartViolet', 'chartPositive', 'chartWarning'] as const;
+// The trend chart's legend. A component, not an element: recharts clones an element with its legend props
+// (iconSize, payload, layout...), which React reports as unknown attributes on the <ul>.
+function TrendLegend() {
+  return <ul className={styles.legend}><li><span className={clsx(styles.marker, styles.chartBlue)} />Settled</li><li><span className={clsx(styles.marker, styles.chartPositive)} />Commission</li></ul>;
+}
 export function SettlementDashboardTab({ isAgent, agentSchemeType, dashboard, activityPeriodLabel, settlement, loading, error }: SettlementDashboardTabProps) {
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency();
   const { formatDateTime } = useFormatDate();
@@ -43,32 +48,33 @@ export function SettlementDashboardTab({ isAgent, agentSchemeType, dashboard, ac
   // Pending Sharing is NET (to pay − to collect) and can be negative, so the parts are shown on their own.
   const sharing = sharingDashboardSplit(dashboard);
   const sharingNote = `${Math.abs(sharing.net) < 0.005 ? 'Net settled' : sharing.net > 0 ? 'Net to pay' : 'Net to collect'} · To pay ${formatCurrency(sharing.toAgents)} · To collect ${formatCurrency(sharing.fromAgents)}`;
-  // Each part is a size, so a negative net no longer drops Sharing out of the chart.
+  // Each part is a size, so a negative net no longer drops Sharing out of the chart. CREDIT is not here: since
+  // 2026-11-02 a CREDIT account settles by moving chips (D / W of its Ref P/L) on the Chips pages, not here.
   const pieData = [
     { name: 'Sharing to pay', value: sharing.toAgents },
     { name: 'Sharing to collect', value: sharing.fromAgents },
-    { name: 'Credit', value: Math.abs(Number(dashboard?.pendingCreditSettlements ?? 0) || 0) },
     { name: 'Commission', value: Math.abs(Number(dashboard?.pendingCommissionPayouts ?? 0) || 0) },
   ].filter(row => row.value > 0);
   const pieTotal = pieData.reduce((sum, row) => sum + row.value, 0);
   // Inputs are already in display currency; axes/tooltips below must not convert them twice.
-  const domainChartData = dashboard?.domainBreakdown?.map(row => ({ name: row.domain.charAt(0).toUpperCase() + row.domain.slice(1), balance: convertFromWhitelabelCurrency(Number(row.settlementBalance ?? 0)) })) ?? [];
   const monthlyTrendData = dashboard?.monthlyTrend?.map(row => ({ month: row.month, settled: convertFromWhitelabelCurrency(Number(row.totalSettled ?? 0)), commission: convertFromWhitelabelCurrency(Number(row.commissionPaid ?? 0)) })) ?? [];
-  const legend = <ul className={styles.legend}><li><span className={clsx(styles.marker, styles.chartBlue)} />Settled</li><li><span className={clsx(styles.marker, styles.chartPositive)} />Commission</li></ul>;
   const tooltip = (formatValue: (value: number) => string) => ({ active, payload, label }: { active?: boolean; payload?: ReadonlyArray<{ name?: string | number; value?: unknown }>; label?: unknown }) => active && payload?.length ? <div className={styles.chartTip}>{label != null && <strong>{String(label)}</strong>}{payload.map((row, index) => <span key={index}>{row.name}: {formatValue(Number(row.value))}</span>)}</div> : null;
+  const pieCard = pieData.length > 0 ? <Card title={<span className={styles.inline}><IconChartPie size={18} aria-hidden="true" />Pending by type</span>}><div className={styles.chart}><ResponsiveContainer width="100%" height={256}><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value" nameKey="name">{pieData.map((_, index) => <Cell key={index} className={styles[PENDING_HUES[index % PENDING_HUES.length]]} />)}</Pie><Tooltip content={tooltip(formatCurrency)} /></PieChart></ResponsiveContainer><ul className={styles.legend}>{pieData.map((row, index) => <li key={row.name}><span className={clsx(styles.marker, styles[PENDING_HUES[index % PENDING_HUES.length]])} />{row.name} {((row.value / pieTotal) * 100).toFixed(0)}%</li>)}</ul></div></Card> : null;
+  const trendCard = monthlyTrendData.length > 0 ? <Card title={<span className={styles.inline}><IconChartLine size={18} aria-hidden="true" />Settled & Commission over time{filteredActivity ? ` · ${activityPeriodLabel}` : ''}</span>}><div className={styles.chart}><ResponsiveContainer width="100%" height={256}><LineChart data={monthlyTrendData} margin={{ left: 10, right: 10 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tickFormatter={value => formatAmount(Number(value))} tick={{ fontSize: 11 }} /><Tooltip content={tooltip(formatAmount)} /><Legend content={TrendLegend} /><Line type="monotone" dataKey="settled" name="Settled" className={styles.chartBlue} strokeWidth={2} dot={{ r: 3, className: styles.chartBlue }} /><Line type="monotone" dataKey="commission" name="Commission" className={styles.chartPositive} strokeWidth={2} dot={{ r: 3, className: styles.chartPositive }} /></LineChart></ResponsiveContainer></div></Card> : null;
+  // The live pending figures on the first row, the period's activity on the second: both rows stay full.
   return <div className={styles.stack}>
-    <div className={styles.metrics} aria-busy={loadingFigures || undefined}>
-      <Stat label="Pending Sharing" value={formatCurrency(Math.abs(sharing.net))} note={sharingNote} icon={<IconUsers size={18} />} hue="blu" loading={loadingFigures} />
-      <Stat label="Pending Credit" value={formatCurrency(Number(dashboard?.pendingCreditSettlements ?? 0))} icon={<IconCreditCard size={18} />} hue="vio" loading={loadingFigures} />
-      <Stat label="Pending Commission" note="All unpaid weeks" value={formatCurrency(Number(dashboard?.pendingCommissionPayouts ?? 0))} icon={<IconCash size={18} />} hue="grn" loading={loadingFigures} />
-      <Stat label={filteredActivity ? "Paid to Agents" : "Total Settled (This Month)"} value={formatCurrency(totalSettled)} note={filteredActivity ? activityPeriodLabel : "Paid and collected"} icon={<IconTrendingUp size={18} />} hue="ind" loading={loadingFigures} />
-      <Stat label={filteredActivity ? "Collected from Agents" : "Total Settled (Last 30 Days)"} value={formatCurrency(Number(filteredActivity ? dashboard?.totalCollectedFromAgentsInPeriod ?? 0 : dashboard?.totalSettledLast30Days ?? 0))} note={filteredActivity ? activityPeriodLabel : "Paid and collected"} icon={<IconCalendar size={18} />} hue="blu" loading={loadingFigures} />
-      <Stat label={filteredActivity ? "Commission Paid" : "Commission Paid (MTD)"} note={filteredActivity ? activityPeriodLabel : undefined} value={formatCurrency(Number(filteredActivity ? dashboard?.totalCommissionPaidInPeriod ?? 0 : dashboard?.totalCommissionPaidThisMonth ?? 0))} icon={<IconCash size={18} />} hue="amb" loading={loadingFigures} />
+    <div className={styles.metricRows} aria-busy={loadingFigures || undefined}>
+      <div className={clsx(styles.metrics, styles.pendingMetrics)}>
+        <Stat label="Pending Sharing" value={formatCurrency(Math.abs(sharing.net))} note={sharingNote} icon={<IconUsers size={18} />} hue="blu" loading={loadingFigures} />
+        <Stat label="Pending Commission" note="All unpaid weeks" value={formatCurrency(Number(dashboard?.pendingCommissionPayouts ?? 0))} icon={<IconCash size={18} />} hue="grn" loading={loadingFigures} />
+      </div>
+      <div className={styles.metrics}>
+        <Stat label={filteredActivity ? "Paid to Agents" : "Total Settled (This Month)"} value={formatCurrency(totalSettled)} note={filteredActivity ? activityPeriodLabel : "Paid and collected"} icon={<IconTrendingUp size={18} />} hue="ind" loading={loadingFigures} />
+        <Stat label={filteredActivity ? "Collected from Agents" : "Total Settled (Last 30 Days)"} value={formatCurrency(Number(filteredActivity ? dashboard?.totalCollectedFromAgentsInPeriod ?? 0 : dashboard?.totalSettledLast30Days ?? 0))} note={filteredActivity ? activityPeriodLabel : "Paid and collected"} icon={<IconCalendar size={18} />} hue="blu" loading={loadingFigures} />
+        <Stat label={filteredActivity ? "Commission Paid" : "Commission Paid (MTD)"} note={filteredActivity ? activityPeriodLabel : undefined} value={formatCurrency(Number(filteredActivity ? dashboard?.totalCommissionPaidInPeriod ?? 0 : dashboard?.totalCommissionPaidThisMonth ?? 0))} icon={<IconCash size={18} />} hue="amb" loading={loadingFigures} />
+      </div>
     </div>
-    <div className={styles.split}>
-      {pieData.length > 0 && <Card title={<span className={styles.inline}><IconChartPie size={18} aria-hidden="true" />Pending by type</span>}><div className={styles.chart}><ResponsiveContainer width="100%" height={256}><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value" nameKey="name">{pieData.map((_, index) => <Cell key={index} className={styles[PENDING_HUES[index % PENDING_HUES.length]]} />)}</Pie><Tooltip content={tooltip(formatCurrency)} /></PieChart></ResponsiveContainer><ul className={styles.legend}>{pieData.map((row, index) => <li key={row.name}><span className={clsx(styles.marker, styles[PENDING_HUES[index % PENDING_HUES.length]])} />{row.name} {((row.value / pieTotal) * 100).toFixed(0)}%</li>)}</ul></div></Card>}
-      {domainChartData.length > 0 && <Card title={<span className={styles.inline}><IconChartBar size={18} aria-hidden="true" />Credit balance by domain</span>}><div className={styles.chart}>{domainChartData.every(row => row.balance === 0) ? <EmptyState title="No pending credit balance" /> : <ResponsiveContainer width="100%" height={256}><BarChart data={domainChartData} layout="vertical" margin={{ left: 50, right: 20 }}><XAxis type="number" tickFormatter={value => formatAmount(Number(value))} /><YAxis type="category" dataKey="name" width={70} /><Tooltip content={tooltip(formatAmount)} /><Bar dataKey="balance" name="Balance" radius={[0, 4, 4, 0]} className={styles.chartIndigo} /></BarChart></ResponsiveContainer>}</div></Card>}
-    </div>
-    {monthlyTrendData.length > 0 && <Card title={<span className={styles.inline}><IconChartLine size={18} aria-hidden="true" />Settled & Commission over time{filteredActivity ? ` · ${activityPeriodLabel}` : ''}</span>}><div className={styles.chart}><ResponsiveContainer width="100%" height={256}><LineChart data={monthlyTrendData} margin={{ left: 10, right: 10 }}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tickFormatter={value => formatAmount(Number(value))} tick={{ fontSize: 11 }} /><Tooltip content={tooltip(formatAmount)} /><Legend content={legend} /><Line type="monotone" dataKey="settled" name="Settled" className={styles.chartBlue} strokeWidth={2} dot={{ r: 3, className: styles.chartBlue }} /><Line type="monotone" dataKey="commission" name="Commission" className={styles.chartPositive} strokeWidth={2} dot={{ r: 3, className: styles.chartPositive }} /></LineChart></ResponsiveContainer></div></Card>}
+    {/* The two charts sit side by side when both have data; one alone takes the full width. */}
+    {pieCard && trendCard ? <div className={styles.split}>{pieCard}{trendCard}</div> : pieCard ?? trendCard}
   </div>;
 }

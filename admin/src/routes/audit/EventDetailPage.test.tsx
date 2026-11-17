@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   allowed: true, loading: false, error: undefined as Error | undefined, missing: false,
   query: vi.fn(), mutation: vi.fn(), refetch: vi.fn(), copy: vi.fn(), toast: vi.fn(), failNote: false,
   event: { id: 'event-1', actorId: 'actor-1', tenant: 'tenant-1', domain: 'players', action: 'update',
-    resourceType: 'player', resourceId: 'player-1', timestamp: '2026-10-01T10:00:00Z',
+    resourceType: 'player', resourceId: '501', timestamp: '2026-10-01T10:00:00Z',
     before: { status: 'INACTIVE' }, after: { status: 'ACTIVE' },
     actor: { id: 'actor-1', name: 'Agent', type: 'agent', email: 'agent@example.test', role: 'AGENT' } },
   notes: [{ id: 'note-1', auditEventId: 'event-1', note: 'Investigated this change', createdAt: '2026-10-01T10:00:00Z', updatedAt: '' }],
@@ -76,9 +76,30 @@ describe('audit detail and annotations contracts', () => {
   })
   test('resource and actor actions keep their navigation destinations', () => {
     const first = page(); fireEvent.click(screen.getByRole('button', { name: 'View Resource' }))
-    assert.equal(screen.getByLabelText('Current route').textContent, '/players/profile/player-1')
+    assert.equal(screen.getByLabelText('Current route').textContent, '/players/profile/501')
     first.unmount(); page(); fireEvent.click(screen.getByRole('button', { name: 'View Profile' }))
     assert.equal(screen.getByLabelText('Current route').textContent, '/agents/actor-1')
+  })
+  test('an admin sign-in names an admin account: View Resource opens Support Admins (SYS-14)', () => {
+    const original = mocks.event
+    mocks.event = { ...original, domain: 'users.security', action: 'login', resourceType: 'user', resourceId: '2' }
+    try {
+      page(); fireEvent.click(screen.getByRole('button', { name: 'View Resource' }))
+      assert.equal(screen.getByLabelText('Current route').textContent, '/security/support-admins')
+    } finally { mocks.event = original }
+  })
+  test('a revoked bonus names its award, not a campaign: View Resource opens the player (B008)', () => {
+    const original = mocks.event
+    mocks.event = { ...original, domain: 'players', action: 'revoke_bonus', resourceType: 'bonus', resourceId: '31',
+      before: null as never, after: { awardId: 31, userId: 746, amount: '50.00' } as never }
+    try {
+      const first = page(); fireEvent.click(screen.getByRole('button', { name: 'View Resource' }))
+      assert.equal(screen.getByLabelText('Current route').textContent, '/players/profile/746')
+      first.unmount()
+      mocks.event = { ...mocks.event, after: { awardId: 31 } as never }
+      page()
+      assert.equal(screen.queryByRole('button', { name: 'View Resource' }), null, 'no player recorded, no link')
+    } finally { mocks.event = original }
   })
   test('note create/update/delete trim inputs and refetch with original mutation shapes', async () => {
     page()

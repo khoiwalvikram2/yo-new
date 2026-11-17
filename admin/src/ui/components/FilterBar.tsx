@@ -192,7 +192,9 @@ export function FilterBar({
       >
         {search ? <div className={styles.search}>{search}</div> : null}
         {controls}
-        {summary !== undefined && summary !== null ? <div className={styles.summary}>{summary}</div> : null}
+        {/* One inline run inside the cell: the strip's summary cell is a flex box, which made `<b>7</b> accounts`
+            two flex items and dropped the space between them ("7accounts"). */}
+        {summary !== undefined && summary !== null ? <div className={styles.summary}><span>{summary}</span></div> : null}
         <span className={styles.status} role="status" aria-live="polite">
           {count === 1 ? '1 filter applied' : `${count} filters applied`}
         </span>

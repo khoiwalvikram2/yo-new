@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import { useMutation, gql } from '@apollo/client'
+import { useNavigate } from 'react-router-dom'
 import { IconCircle, IconCircleCheck, IconLock } from '@tabler/icons-react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/shared/core/authStore'
@@ -13,6 +14,7 @@ import { strokeFor } from '@/ui/components/icons'
 import { toast } from '@/ui/components/toast'
 import { useForm, type FormApi } from '@/ui/form/useForm'
 import {
+  ADMIN_PASSWORD_CHANGED_MESSAGE,
   CHANGE_PASSWORD_INITIAL_VALUES,
   PASSWORD_CHANGED_TITLE,
   PASSWORD_CHANGE_FAILED_TITLE,
@@ -57,6 +59,11 @@ const NOTIFICATION_DURATION_MS = 4500
 interface ChangePasswordModalProps {
   open: boolean
   onClose: () => void
+  /** Sign-in with Reset Password pending (routes/LoginPage.tsx): the admin is not signed in, since that session may
+   *  do nothing but change the password, so the change is sent with the token sign-in returned. */
+  sessionToken?: string
+  /** Called once the password has changed, before onClose. */
+  onChanged?: () => void
 }
 
 /* The legacy LockOutlined prefix in each field; decorative, the label names the field. */
@@ -64,15 +71,22 @@ const LOCK_ICON = <IconLock size={16} stroke={strokeFor(16)} aria-hidden="true" 
 
 /**
  * The signed-in admin's or agent's own password change, opened from the topbar profile menu
- * (shell/topbar/ProfileMenu.tsx). Kit Dialog + useForm + PasswordField; the mutation, its variables
- * and context, every rule and message, the toasts and the reset-on-close are the legacy antd modal's.
+ * (shell/topbar/ProfileMenu.tsx), and the sign-in page's required change after Reset Password. Kit Dialog +
+ * useForm + PasswordField; the mutation, its variables and context, every rule and message, the toasts and the
+ * reset-on-close are the legacy antd modal's.
  */
-export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps) {
-  const isAgent = useAuthStore(s => s.isAgent())
+export function ChangePasswordModal({ open, onClose, sessionToken, onChanged }: ChangePasswordModalProps) {
+  // A sign-in token is always an admin's (agents sign in with agentLogin, which has no Reset Password step).
+  const isAgent = useAuthStore(s => s.isAgent()) && !sessionToken
+  const signedIn = useAuthStore(s => Boolean(s.token))
+  const signOut = useAuthStore(s => s.logout)
+  const navigate = useNavigate()
   const [changePassword, { loading }] = useMutation(
     isAgent ? CHANGE_AGENT_PASSWORD : CHANGE_ADMIN_PASSWORD,
     {
-      context: { uiToast: 'notification' },
+      context: sessionToken
+        ? { uiToast: 'notification', headers: { authorization: `Bearer ${sessionToken}` } }
+        : { uiToast: 'notification' },
     }
   )
 
@@ -104,10 +118,29 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
       if (success) {
         setSummaryFloor(form.errorAnnouncementRevision)
         form.reset()
+        onChanged?.()
         onClose()
+        if (isAgent) {
+          // An agent's change leaves its session standing.
+          toast({
+            title: PASSWORD_CHANGED_TITLE,
+            message: passwordChangedMessage(message),
+            tone: 'ok',
+            duration: NOTIFICATION_DURATION_MS,
+          })
+          return
+        }
+        /* changeAdminPassword moves users.token_version on, which ends every session of this admin, this one
+           included: its next request met a generic "Session ended". So the panel signs out here, locally only
+           (the server has already ended the session, and a logout call on it would only toast its own reply),
+           and says what comes next. The sign-in page's required change has no kept session to end. */
+        if (signedIn && !sessionToken) {
+          signOut()
+          navigate('/login', { replace: true })
+        }
         toast({
           title: PASSWORD_CHANGED_TITLE,
-          message: passwordChangedMessage(message),
+          message: ADMIN_PASSWORD_CHANGED_MESSAGE,
           tone: 'ok',
           duration: NOTIFICATION_DURATION_MS,
         })
@@ -156,7 +189,9 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
         if (!next) handleCancel()
       }}
       title="Change Password"
-      description="Update your account password for better security"
+      description={sessionToken
+        ? 'Your administrator asked you to choose a new password before you continue.'
+        : 'Update your account password for better security'}
       size="md"
       initialFocus={currentPasswordRef}
       footer={(

@@ -27,10 +27,8 @@ import { processBetPostPlacement } from './betPostProcessingService.js'
 import {
   recalculateAndUpdateExposure,
   calculateProjectedExposure,
-  projectedCreditHeadroom,
   type AdditionalLegForExposure,
 } from './exposureCalculationService.js'
-import { getOpenCasinoStake } from '@shared/services/credit/casinoCredit.js'
 import { assertPlayerAgentAllowsBetting } from './agentBettingGate.js'
 import {
   assertCashWalletCoversProjectedBookExposureInTx,
@@ -189,20 +187,9 @@ export async function placeSportsBetForUser(
   // can quietly undo the other.
   await assertPlayerCanStake(tenant, user.id)
 
-  // Check if user is a credit player and validate credit
-  const playerType = user.playerType || 'REGULAR'
-  const isCreditPlayer = playerType === 'AGENT_CREDIT' || playerType === 'WHITELABEL_CREDIT'
-  
-  // Early check for credit players: block if credit is already zero or negative
-  if (isCreditPlayer) {
-    const creditAvailable = Number(user.creditAvailable || 0)
-    if (creditAvailable <= 0) {
-      throw new Error('Credit limit reached. Please contact your agent to add more credit.')
-    }
-  }
-  
-  // Note: Full credit validation will happen after legs are validated and liability is calculated
-  // We'll validate and lock credit inside the transaction after validatedLegs are ready
+  // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) hold their chips in wallets.cash, so
+  // they stake against cash − exposure like every other player (checked below, once the
+  // liability is known). Their credit limit is only a reference and gates nothing here.
 
   const vipTierId = user.vipTierId || 'default'
   const whitelabelCurrency = await getWhitelabelCurrency(tenant)
@@ -536,61 +523,28 @@ export async function placeSportsBetForUser(
   }
 
   const totalHold = validatedLegs.reduce((sum, leg) => sum + leg.requiredHold, 0)
-  const totalExposure = validatedLegs.reduce((sum, leg) => sum + leg.liability, 0)
   const totalStake = validatedLegs.reduce((sum, leg) => sum + leg.stake, 0)
 
-  // Credit players: validate projected book-based exposure (same model as tx and as regulars)
-  if (isCreditPlayer) {
-    const additionalLegs: AdditionalLegForExposure[] = validatedLegs.map((leg) => ({
-      marketId: leg.marketId,
-      selectionId: leg.leg.selectionId,
-      side: leg.side,
-      price: leg.odds,
-      stake: leg.stake,
-      oddsSize: leg.leg.oddsSize ?? null,
-    }))
-    const projectedExposure = await calculateProjectedExposure(ctx.auth.userId!, tenant, additionalLegs)
-    // Open casino bets hold credit too (credit_used += stake until they settle).
-    const openCasinoStake = await getOpenCasinoStake(db, ctx.auth.userId!, tenant, true)
-    const limit = Number(user.creditLimit ?? 0)
-    const settlement = Number(user.settlementBalance ?? 0)
-    const projectedAvailable = projectedCreditHeadroom({
-      creditLimit: limit,
-      settlementBalance: settlement,
-      projectedSportsExposure: projectedExposure,
-      openCasinoStake,
-    })
-    if (projectedAvailable < 0) {
-      const available = Math.max(0, limit - Number(user.creditUsed ?? 0) + settlement)
-      const projectedTotal = projectedExposure + openCasinoStake
-      throw new Error(
-        `Insufficient credit. Projected exposure would be ${currencySymbol}${projectedTotal.toFixed(2)} ` +
-          `(limit − exposure + settlement < 0). Current available: ${currencySymbol}${available.toFixed(2)}. Please contact your agent.`
-      )
-    }
-  }
-
-  // Regular players: validate that cash can cover projected book-based exposure (same model as credit players)
-  // Book-based exposure can be lower than sum of liabilities when hedging (e.g. back + lay on same market)
-  let projectedBookExposureForRegular: number | null = null
-  if (!isCreditPlayer) {
-    const additionalLegs: AdditionalLegForExposure[] = validatedLegs.map((leg) => ({
-      marketId: leg.marketId,
-      selectionId: leg.leg.selectionId,
-      side: leg.side,
-      price: leg.odds,
-      stake: leg.stake,
-      oddsSize: leg.leg.oddsSize ?? null,
-    }))
-    projectedBookExposureForRegular = await calculateProjectedExposure(ctx.auth.userId!, tenant, additionalLegs)
-    const currentCash = Number(wallet.cash ?? 0)
-    if (currentCash < projectedBookExposureForRegular) {
-      const currentExposure = Number(wallet.exposure ?? 0)
-      const availableBalance = Math.max(0, currentCash - currentExposure)
-      throw new Error(
-        `Insufficient available balance. Available: ${currencySymbol}${availableBalance.toFixed(2)} (Cash: ${currencySymbol}${currentCash.toFixed(2)}, Exposure: ${currencySymbol}${currentExposure.toFixed(2)}), Required (book-based): ${currencySymbol}${projectedBookExposureForRegular.toFixed(2)}`
-      )
-    }
+  // Cash must cover the projected book-based exposure. This is every player type, credit
+  // players included: their chips are wallets.cash, so available = cash − exposure for them
+  // too. Book-based exposure can be lower than sum of liabilities when hedging (e.g. back +
+  // lay on same market).
+  const additionalLegs: AdditionalLegForExposure[] = validatedLegs.map((leg) => ({
+    marketId: leg.marketId,
+    selectionId: leg.leg.selectionId,
+    side: leg.side,
+    price: leg.odds,
+    stake: leg.stake,
+    oddsSize: leg.leg.oddsSize ?? null,
+  }))
+  const projectedBookExposure = await calculateProjectedExposure(ctx.auth.userId!, tenant, additionalLegs)
+  const currentCash = Number(wallet.cash ?? 0)
+  if (currentCash < projectedBookExposure) {
+    const currentExposure = Number(wallet.exposure ?? 0)
+    const availableBalance = Math.max(0, currentCash - currentExposure)
+    throw new Error(
+      `Insufficient available balance. Available: ${currencySymbol}${availableBalance.toFixed(2)} (Cash: ${currencySymbol}${currentCash.toFixed(2)}, Exposure: ${currencySymbol}${currentExposure.toFixed(2)}), Required (book-based): ${currencySymbol}${projectedBookExposure.toFixed(2)}`
+    )
   }
 
   // Player-specific limit checks
@@ -605,13 +559,10 @@ export async function placeSportsBetForUser(
       }
     }
 
-    // Check if player has a custom exposure cap override (use book-based for regular players)
+    // Check if player has a custom exposure cap override (book-based, every player type)
     if (playerLimit.exposureCapOverride != null) {
       const exposureOverride = Number(playerLimit.exposureCapOverride)
-      const projectedExposure =
-        !isCreditPlayer && projectedBookExposureForRegular != null
-          ? projectedBookExposureForRegular
-          : Number(wallet.exposure ?? 0) + totalExposure
+      const projectedExposure = projectedBookExposure
       if (projectedExposure > exposureOverride) {
         throw new Error(`Total exposure exceeds your configured limit of ${exposureOverride}`)
       }
@@ -696,60 +647,14 @@ export async function placeSportsBetForUser(
   }
 
   const bets = await db.transaction(async (tx) => {
-    // Credit players: lock user to serialize placements; credit_used set by recalc after insert (book-based)
-    if (isCreditPlayer) {
-      await tx.execute<Record<string, unknown>>(sql`
-        SELECT id FROM users
-        WHERE id = ${ctx.auth.userId} AND tenant = ${tenant}
-        FOR UPDATE
-        LIMIT 1
-      `)
-      const additionalLegs: AdditionalLegForExposure[] = validatedLegs.map((leg) => ({
-        marketId: leg.marketId,
-        selectionId: leg.leg.selectionId,
-        side: leg.side,
-        price: leg.odds,
-        stake: leg.stake,
-        oddsSize: leg.leg.oddsSize ?? null,
-      }))
-      const projectedExposure = await calculateProjectedExposure(ctx.auth.userId!, tenant, additionalLegs)
-      const [u] = await tx
-        .select({
-          creditLimit: users.creditLimit,
-          settlementBalance: users.settlementBalance,
-        })
-        .from(users)
-        .where(and(eq(users.id, ctx.auth.userId!), eq(users.tenant, tenant)))
-        .limit(1)
-      if (!u) throw new Error('User not found')
-      // Read under the users lock held above: casino credit locks take the same lock,
-      // so this sum cannot change before the bet is inserted.
-      const openCasinoStake = await getOpenCasinoStake(tx, ctx.auth.userId!, tenant, true)
-      const limit = Number(u.creditLimit ?? 0)
-      const settlement = Number(u.settlementBalance ?? 0)
-      const projectedAvailable = projectedCreditHeadroom({
-        creditLimit: limit,
-        settlementBalance: settlement,
-        projectedSportsExposure: projectedExposure,
-        openCasinoStake,
-      })
-      if (projectedAvailable < 0) {
-        const sym = getCurrencySymbol(await getWhitelabelCurrency(tenant))
-        const projectedTotal = projectedExposure + openCasinoStake
-        throw new Error(
-          `Insufficient credit. Projected exposure would be ${sym}${projectedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Please contact your agent.`
-        )
-      }
-    }
-
-    if (!isCreditPlayer) {
-      await assertCashWalletCoversProjectedBookExposureInTx(tx, {
-        walletId: wallet.id,
-        tenant,
-        userId: ctx.auth.userId!,
-        validatedLegs,
-      })
-    }
+    // Locks the wallet row and re-checks cash against the projected book exposure, so two
+    // placements cannot both spend the same chips (every player type, credit included).
+    await assertCashWalletCoversProjectedBookExposureInTx(tx, {
+      walletId: wallet.id,
+      tenant,
+      userId: ctx.auth.userId!,
+      validatedLegs,
+    })
 
     const ipAddress = getIpFromRequest(ctx.request)
     const userAgent = getUserAgentFromRequest(ctx.request)

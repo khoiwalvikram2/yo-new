@@ -8,7 +8,6 @@ import assert from 'node:assert/strict'
 import {
   DEFAULT_EVENT_PAGE_SIZE,
   EMPTY_STAGED_FILTERS,
-  EVENT_COMPETITION_OPTIONS,
   EVENT_FILTER_PRESETS,
   EVENT_PAGE_SIZES,
   EVENT_SPORT_OPTIONS,
@@ -22,6 +21,7 @@ import {
   computeEventsStats,
   countActiveEventFilters,
   eventBetsLabel,
+  eventCompetitionOptions,
   eventCountLabel,
   eventDetailPath,
   eventFilterPreset,
@@ -142,18 +142,33 @@ describe('filters', () => {
     assert.equal(isQuickFilter('favorite'), true)
     assert.equal(isQuickFilter('none'), false)
     assert.deepEqual(EVENT_SPORT_OPTIONS.map((o) => o.value), ['Cricket', 'Football', 'Tennis', 'Basketball', 'Horse Racing'])
+    // Only the statuses runningEvents reports: Suspended and Closed matched no event.
     assert.deepEqual(EVENT_STATUS_OPTIONS.map((o) => [o.value, o.label]), [
       ['inplay', 'In-Play'],
       ['upcoming', 'Upcoming'],
-      ['suspended', 'Suspended'],
-      ['closed', 'Closed'],
+      ['finished', 'Finished'],
     ])
-    assert.deepEqual(EVENT_COMPETITION_OPTIONS.map((o) => [o.value, o.label]), [
-      ['IPL', 'IPL - Indian Premier League'],
-      ['EPL', 'EPL - English Premier League'],
-      ['Wimbledon', 'Wimbledon Championships'],
-      ['NBA', 'NBA - National Basketball'],
+    const finished = sportsEvent({ status: 'finished' })
+    assert.equal(matchesEventStatus(finished, 'finished'), true)
+    assert.equal(matchesEventStatus(sportsEvent(), 'finished'), false)
+  })
+
+  test('the competitions offered are those of the loaded events, each once, by name', () => {
+    const options = eventCompetitionOptions([
+      sportsEvent({ competition: 'Nepal Premier League' }),
+      sportsEvent({ competition: 'ICC Cricket World Cup League 2' }),
+      sportsEvent({ competition: 'Nepal Premier League' }),
+      sportsEvent({ competition: '' }),
     ])
+    assert.deepEqual(options, [
+      { label: 'ICC Cricket World Cup League 2', value: 'ICC Cricket World Cup League 2' },
+      { label: 'Nepal Premier League', value: 'Nepal Premier League' },
+    ])
+    // The filter compares the competition by name, so a choice keeps its events.
+    const kept = filterEvents([sportsEvent({ competition: 'Nepal Premier League' }), sportsEvent({ competition: 'Other' })], {
+      searchQuery: '', filters: { competition: options[1].value }, quickFilter: null, isFavorite: never, now: NOW,
+    })
+    assert.equal(kept.length, 1)
   })
 })
 

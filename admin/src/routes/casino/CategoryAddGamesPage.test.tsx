@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import CategoryAddGamesPage from './CategoryAddGamesPage'
 
 const imageCompression = vi.hoisted(() => ({ compress: vi.fn() }))
@@ -35,6 +36,8 @@ vi.mock('@/shared/core/RBACGuard', () => ({
 let calls: Call[]
 let assigned: string[]
 let categoryType: 'FEATURED' | 'LOUNGE'
+/** The server cannot read the category for this whitelabel: casinoCategory is null, gamesInCategory refuses. */
+let categoryMissing: boolean
 let loungeImages: Record<string, string | null>
 let imagesUnavailable: boolean
 let saveFailure: string | null
@@ -94,6 +97,7 @@ function response(operation: Operation): FetchResult {
   const variables = operation.variables as Record<string, unknown>
   switch (operation.operationName) {
     case 'CasinoCategory':
+      if (categoryMissing) return { data: { casinoCategory: null } }
       return {
         data: {
           casinoCategory: {
@@ -115,6 +119,7 @@ function response(operation: Operation): FetchResult {
     case 'CasinoApiProviders':
       return { data: { casinoApiProviders: [{ __typename: 'CasinoApiProvider', id: 'p1', key: 'p1', name: 'Provider One', status: 'ACTIVE', lastSyncAt: null }] } }
     case 'GamesInCategory':
+      if (categoryMissing) return { data: null, errors: [{ message: 'Category not found' }] } as unknown as FetchResult
       return { data: { gamesInCategory: [...assigned] } }
     case 'CasinoLoungeGameImages':
       if (imagesUnavailable) throw new Error('Images offline')
@@ -182,9 +187,14 @@ function renderPage() {
   )
 }
 
+/* The image buttons appear only after the category, its games and their Lounge images have all been read. Under
+   a loaded full run that took longer than testing-library's 1 s default, and "Replace image for Roulette Gold" was
+   not found once (B010); alone the test passes. The wait is longer; what is checked is the same. */
+const UNDER_LOAD = { timeout: 5000 }
+
 async function openLoungeImage(name: string) {
-  const button = await screen.findByRole('button', { name })
-  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false))
+  const button = await screen.findByRole('button', { name }, UNDER_LOAD)
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false), UNDER_LOAD)
   fireEvent.click(button)
 }
 
@@ -197,6 +207,7 @@ beforeEach(() => {
   calls = []
   assigned = ['g1']
   categoryType = 'FEATURED'
+  categoryMissing = false
   loungeImages = {}
   imagesUnavailable = false
   saveFailure = null
@@ -224,6 +235,27 @@ describe('/casino/categories/:categoryId/add-games', () => {
     expect(screen.getByRole('button', { name: 'Remove Roulette Gold' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Select Blackjack VIP' })).toBeTruthy()
     expect(guard.calls[0]).toEqual([{ domain: 'casino.categories', actions: ['view', 'update'] }])
+  })
+
+  test('a category the whitelabel cannot read says so and leads back, instead of loading for ever', async () => {
+    // Deleted, mistyped or another whitelabel's: casinoCategory is null and the spinner used to stay up.
+    categoryMissing = true
+    useAuthStore.setState({ roles: ['Whitelabel Admin'], permissions: [] })
+    renderPage()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Category not found' })).toBeTruthy()
+    expect(screen.getByText('This category does not exist for the selected whitelabel')).toBeTruthy()
+    expect(screen.getByText('It may have been deleted. Choose a category from the list.')).toBeTruthy()
+    expect(screen.queryByText('Loading category')).toBeNull()
+    fireEvent.click(screen.getByRole('link', { name: 'Back to Categories' }))
+    expect(await screen.findByText('Categories route')).toBeTruthy()
+  })
+
+  test('in core mode the missing category points the Super Admin at the whitelabel picker', async () => {
+    categoryMissing = true
+    useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    renderPage()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Category not found' })).toBeTruthy()
+    expect(screen.getByText(/Select the category's whitelabel in the top bar/)).toBeTruthy()
   })
 
   test('denies before starting any GraphQL operation', () => {
@@ -386,9 +418,9 @@ describe('/casino/categories/:categoryId/add-games', () => {
     imageCompression.compress.mockRejectedValue(new Error('Unreadable image'))
     renderPage()
     await openLoungeImage('Replace image for Roulette Gold')
-    const input = await screen.findByLabelText('Lounge image for Roulette Gold')
+    const input = await screen.findByLabelText('Lounge image for Roulette Gold', {}, UNDER_LOAD)
     fireEvent.change(input, { target: { files: [new File(['bad'], 'bad.png', { type: 'image/png' })] } })
-    expect(await screen.findByText('Unreadable image')).toBeTruthy()
+    expect(await screen.findByText('Unreadable image', {}, UNDER_LOAD)).toBeTruthy()
     expect((await customImagePreview()).src).toBe(customImage)
     imageCompression.compress.mockClear()
     fireEvent.change(input, { target: { files: [new File(['<svg/>'], 'bad.svg', { type: 'image/svg+xml' })] } })

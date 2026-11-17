@@ -139,8 +139,9 @@
 @keyframes nova-promo-torch-right { from { transform: rotate(30deg); } to { transform: rotate(-8deg); } }
 @container exmain (max-width: 639px) {
   .nova-ex-hero { --promo-feather: 8px; }
-  .nova-promo-previous { left: 8px; }
-  .nova-promo-next { right: 8px; }
+  /* Phones: no arrows over the artwork (owner 2026-11-02); the banner autoplays and moves by swipe. */
+  .nova-promo-previous,
+  .nova-promo-next { display: none; }
   .nova-promo-count { right: 8px; bottom: calc(var(--promo-bleed) + 7px); }
 }
 /* Reopen the shared shape layer so the canvas can join flush despite its global 5px policy.

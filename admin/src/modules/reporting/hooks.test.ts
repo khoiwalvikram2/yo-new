@@ -51,6 +51,15 @@ const STORE_FILTERS: ReportingFilters = {
   schemeType: 'CREDIT',
 }
 
+/** What an agent query takes from the store: Agent Performance's type and domain picks stay out. */
+const STORE_WITHOUT_PICKS: ReportingFilters = {
+  tenant: 't1',
+  whitelabelId: 'wl-1',
+  dateFrom: '2000-01-01',
+  dateTo: '2026-10-07',
+  currency: undefined,
+}
+
 function lastCall(mock: typeof apollo.useQuery): [DocumentNode, CapturedOptions] {
   const call = mock.mock.calls.at(-1)
   assert.ok(call, 'the hook called Apollo')
@@ -257,11 +266,16 @@ describe('store-merged report hooks', () => {
       fetchPolicy: 'network-only',
     })
 
-    renderHook(() => hooks.useCasinoTrends({ agentId: 'a-1', vendorId: 'v-1' }))
+    // F-REP-14: the drill-down's vendor reaches the casino figures (it was stripped); campaignId still is not.
+    renderHook(() => hooks.useCasinoTrends({ agentId: 'a-1', vendorId: 'v-1', campaignId: 'c-1' }))
     ;[document, options] = lastCall(apollo.useQuery)
     assert.equal(document, documents.CASINO_TRENDS_QUERY)
     assert.deepEqual(options.variables, {
-      filter: { tenant: 't1', whitelabelId: 'wl-1', agentId: 'a-1', dateFrom: '2000-01-01', dateTo: '2026-10-07' },
+      filter: { tenant: 't1', whitelabelId: 'wl-1', agentId: 'a-1', vendorId: 'v-1', dateFrom: '2000-01-01', dateTo: '2026-10-07' },
+    })
+    renderHook(() => hooks.useCasinoKPIs({ providerId: 'p-1', gameId: 'g-1' }))
+    assert.deepEqual(lastCall(apollo.useQuery)[1].variables, {
+      filter: { tenant: 't1', whitelabelId: 'wl-1', providerId: 'p-1', gameId: 'g-1', dateFrom: '2000-01-01', dateTo: '2026-10-07' },
     })
 
     renderHook(() => hooks.useMatkaKPIs({ matkaType: 'starline' }))
@@ -272,7 +286,7 @@ describe('store-merged report hooks', () => {
     })
   })
 
-  test('breakdown and top-events hooks add their own arguments; agent hooks send the merged filter whole', () => {
+  test('breakdown and top-events hooks add their own arguments; agent hooks send the merged filter, less the store picks', () => {
     renderHook(() => hooks.useSportsBreakdown('league'))
     assert.deepEqual(lastCall(apollo.useQuery)[1].variables, {
       filter: { tenant: 't1', whitelabelId: 'wl-1', dateFrom: '2000-01-01', dateTo: '2026-10-07' },
@@ -286,16 +300,36 @@ describe('store-merged report hooks', () => {
     const [document, options] = lastCall(apollo.useQuery)
     assert.equal(document, documents.AGENT_PERFORMANCE_QUERY)
     assert.deepEqual(options, {
-      variables: { filter: { ...STORE_FILTERS, agentId: 'a-2' }, limit: 50 },
+      variables: { filter: { ...STORE_WITHOUT_PICKS, agentId: 'a-2' }, limit: 50 },
       errorPolicy: 'all',
       fetchPolicy: 'network-only',
       skip: false,
     })
 
     renderHook(() => hooks.useAgentKPIs())
-    assert.deepEqual(lastCall(apollo.useQuery)[1].variables, { filter: { ...STORE_FILTERS } })
+    assert.deepEqual(lastCall(apollo.useQuery)[1].variables, { filter: { ...STORE_WITHOUT_PICKS } })
     renderHook(() => hooks.useAgentTrends({ dateFrom: '2026-10-01' }))
-    assert.deepEqual(lastCall(apollo.useQuery)[1].variables, { filter: { ...STORE_FILTERS, dateFrom: '2026-10-01' } })
+    assert.deepEqual(lastCall(apollo.useQuery)[1].variables, { filter: { ...STORE_WITHOUT_PICKS, dateFrom: '2026-10-01' } })
+  })
+
+  test('Agent Performance’s type and domain left in the store never reach another agent query (F-REP-04)', () => {
+    // Agent Overview on All Domains sends no domain and no type: the store's CREDIT + sports stay out.
+    for (const run of [
+      () => hooks.useAgentKPIs({ dateFrom: '2026-02-01', dateTo: '2026-10-31' }),
+      () => hooks.useAgentTrends({ dateFrom: '2026-02-01', dateTo: '2026-10-31' }),
+      () => hooks.useAgentPerformance(50, { dateFrom: '2026-02-01', dateTo: '2026-10-31' }),
+    ]) {
+      renderHook(run)
+      const sent = lastCall(apollo.useQuery)[1].variables?.filter as Record<string, unknown>
+      assert.equal('schemeType' in sent, false, 'no agent type from the store')
+      assert.equal('domain' in sent, false, 'no domain from the store')
+      assert.equal(sent.dateFrom, '2026-02-01')
+    }
+    // A page that picks them (Agent Performance) still sends its own.
+    renderHook(() => hooks.useAgentKPIs({ schemeType: 'SHARING', domain: 'casino' }))
+    const sent = lastCall(apollo.useQuery)[1].variables?.filter as Record<string, unknown>
+    assert.equal(sent.schemeType, 'SHARING')
+    assert.equal(sent.domain, 'casino')
   })
 
   test('saved reports read with the shared policies and raise no toast', () => {

@@ -5,7 +5,7 @@ import { Button } from '@/ui/components/Button'
 import { Dialog } from '@/ui/components/Dialog'
 import { useGlobalSearch, type SearchResult } from '@/hooks/useGlobalSearch'
 import { SearchInput } from './SearchInput'
-import { SearchResults } from './SearchResults'
+import { SearchResults, seeAllPath } from './SearchResults'
 import { SearchResultIcon } from './SearchResultItem'
 import { usePageMatcher } from '@/shell/usePageMatcher'
 import { useAuthStore } from '@/shared/core/authStore'
@@ -135,28 +135,16 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose }) =
     reset()
   }, [navigate, onClose, reset])
 
-  // "See all" link: navigate to domain page with search param
+  // "See all" link: navigate to domain page with search param (the table SearchResults shows the link from); the
+  // agents list also gets the scheme of the matched agents, since it lists one scheme at a time (B005)
   const handleSeeAll = useCallback((categoryKey: string, q: string) => {
-    const routeMap: Record<string, { path: string; param: string }> = {
-      players: { path: '/players', param: 'search' },
-      agents: { path: '/agents', param: 'search' },
-      whitelabels: { path: '/config/whitelabels', param: 'search' },
-      casinoGames: { path: '/casino/management', param: 'search' },
-      sports: { path: '/sports/events', param: 'search' },
-      vipMembers: { path: '/vip', param: 'search' },
-      matkas: { path: '/matka/management', param: 'search' },
-      referralCodes: { path: '/referrals', param: 'search' },
-      bets: { path: '/bets', param: 'search' },
-      bonuses: { path: '/bonuses', param: 'search' },
-    }
-    const r = routeMap[categoryKey]
-    if (r) {
-      const url = q.trim() ? `${r.path}?${r.param}=${encodeURIComponent(q.trim())}` : r.path
+    const url = seeAllPath(categoryKey, q, results)
+    if (url) {
       navigate(url)
       onClose()
       reset()
     }
-  }, [navigate, onClose, reset])
+  }, [navigate, onClose, reset, results])
 
   const trimmed = query.trim()
   const enoughCharacters = trimmed.length >= (IP_REGEX.test(trimmed) ? 1 : 2)

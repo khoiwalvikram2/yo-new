@@ -1,6 +1,7 @@
 import { AlertTriangle, Calendar, Eye, Filter, RefreshCw, Search } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { formatAmount } from '@/lib/currency'
+import { cryptoDepositInfo, formatUsdt } from '@/lib/cryptoDeposit'
 import DateCell from '@/components/statements/DateCell'
 import type { WalletTxn } from '@/components/statements/types'
 import { DepositDetailsModal } from './DepositDetailsModal'
@@ -266,7 +267,10 @@ export function DepositHistory({ deposits, loading, error, onRefresh }: DepositH
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {filteredRows.map((row) => {
+                // Crypto requests also show the USDT the server quoted, its network and the bonus
+                const crypto = cryptoDepositInfo(depositMap.get(row.id))
+                return (
                 <tr key={row.id}>
                   <td className="dep-cell-date">
                     <DateCell iso={row.dateISO} />
@@ -276,6 +280,12 @@ export function DepositHistory({ deposits, loading, error, onRefresh }: DepositH
                   </td>
                   <td className="is-num dep-cell-amount">
                     {formatAmount(row.amount)}
+                    {crypto && crypto.usdt !== null && (
+                      <span className="dep-cell-sub">{formatUsdt(crypto.usdt)}{crypto.network ? ` · ${crypto.network}` : ''}</span>
+                    )}
+                    {crypto && crypto.bonus > 0 && (
+                      <span className="dep-cell-sub is-bonus">+{formatAmount(crypto.bonus)} bonus</span>
+                    )}
                   </td>
                   <td>
                     <span className={`nova-acct-chip ${statusTone[row.status] || 'is-neutral'}`}>{row.status}</span>
@@ -302,7 +312,8 @@ export function DepositHistory({ deposits, loading, error, onRefresh }: DepositH
                     </button>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

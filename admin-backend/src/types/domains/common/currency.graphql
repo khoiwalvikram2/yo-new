@@ -61,7 +61,7 @@ type ExchangeRateUpdateResult {
 }
 
 extend type Query {
-  currencies: [Currency!]!
+  currencies(includeInactive: Boolean = false): [Currency!]! # true: inactive ones too (Currency Management)
   currency(code: String!): Currency
   convertCurrency(input: CurrencyConversionInput!): CurrencyConversion!
   exchangeRates: [Currency!]!

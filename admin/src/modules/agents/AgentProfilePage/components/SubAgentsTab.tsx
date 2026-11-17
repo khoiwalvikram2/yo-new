@@ -3,9 +3,9 @@ import clsx from 'clsx'
 import { useQuery, useApolloClient, gql } from '@apollo/client'
 import { Link } from 'react-router-dom'
 import { IconChevronDown, IconChevronRight, IconHierarchy2, IconScale, IconUserCheck, IconUserOff } from '@tabler/icons-react'
-import { useCurrency } from '@/shared/core/CurrencyContext'
 import { useBreakpoint } from '@/shared/hooks/useBreakpoint'
 import { AccountListMetric } from '@/modules/account-lists/AccountList'
+import { chipTone, signedChips, useChipFormat, type ChipAccount } from '@/modules/chips'
 import dayjs from 'dayjs'
 import { Card } from '@/ui/components/Card'
 import { Button } from '@/ui/components/Button'
@@ -13,6 +13,7 @@ import { StatusPill } from '@/ui/components/StatusPill'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { DataTable, type DataTableColumn } from '@/ui/components/DataTable'
 import { profileSchemeLabels } from './agentProfileModel'
+import { tallyIsOn } from '@/routes/agents/agentEditorModel'
 import styles from './AgentProfileComponents.module.css'
 
 const AGENT_TREE_QUERY = gql`
@@ -33,9 +34,27 @@ const AGENT_TREE_QUERY = gql`
           domain
           rate
         }
-        creditLimit
-        creditUsed
-        creditAvailable
+        sharingRates {
+          domain
+          rate
+        }
+        chips {
+          accountType
+          id
+          username
+          name
+          status
+          parentAgentId
+          playerType
+          currency
+          creditReference
+          balance
+          exposure
+          available
+          downlineBalance
+          refPnl
+          downlineCount
+        }
         createdAt
       }
     }
@@ -54,22 +73,32 @@ interface SubAgent {
   tallyEnabled?: boolean
   tallyDomains?: string[]
   commissionRates?: Array<{ domain: string; rate?: number }>
-  creditLimit?: number
-  creditUsed?: number
-  creditAvailable?: number
+  sharingRates?: Array<{ domain: string; rate?: number }>
+  /** A CREDIT sub-agent's chips account; null for other schemes. */
+  chips?: ChipAccount | null
   createdAt?: string
 }
 
 interface SubAgentsTabProps {
   agentId: string
+  /** The agent's scheme, which its sub-agents share: only a COMMISSION tree has a tally to count. */
+  schemeType: string
 }
 
 const domainName = (domain: string) => domain ? domain[0].toUpperCase() + domain.slice(1) : domain
 
-export function SubAgentsTab({ agentId }: SubAgentsTabProps) {
+/** A CREDIT sub-agent's chips: its balance, with its Ref P/L under it (green: the upline owes it; rose: it owes). */
+function ChipCell({ chips }: { chips: ChipAccount }) {
+  const format = useChipFormat(chips.currency)
+  const tone = chipTone(chips.refPnl)
+  return <div className={clsx(styles.rowDetails, styles.cellEnd)}>
+    <span>{format(chips.balance)}</span>
+    <span className={styles.muted}>Ref P/L <span className={tone ? styles[tone] : undefined}>{signedChips(chips.refPnl, format)}</span></span>
+  </div>
+}
+
+export function SubAgentsTab({ agentId, schemeType }: SubAgentsTabProps) {
   const client = useApolloClient()
-  const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
-  const fmt = (amount: number) => formatAmount(convertFromWhitelabelCurrency(Number(amount || 0)))
   // On a phone the table keeps the sub-agent and its status; the setup goes under the name.
   const { isMobile } = useBreakpoint()
 
@@ -135,13 +164,18 @@ export function SubAgentsTab({ agentId }: SubAgentsTabProps) {
   // The figures count the direct sub-agents (the first level of the tree).
   const pending = rootLoading && !rootData
   const activeCount = directChildren.filter(child => child.status?.toUpperCase() === 'ACTIVE').length
-  const tallyCount = directChildren.filter(child => child.tallyEnabled).length
+  const tallyCount = directChildren.filter(child => tallyIsOn(child.tallyEnabled, child.tallyDomains)).length
   const share = (count: number) => directChildren.length > 0 ? `${((count / directChildren.length) * 100).toFixed(0)}% of them` : 'None yet'
-  // A rate column only when a commission sub-agent is listed, a credit column only for a credit one.
+  // The tally is a COMMISSION setting: a SHARING tree has no Tally On figure and no tally line.
+  const commissionTree = schemeType === 'COMMISSION'
+  // A rate column only when a commission sub-agent is listed, a share column for a sharing one, a chips column
+  // only for a credit one.
   const showRates = flatData.some(row => row.schemeType === 'COMMISSION' && row.commissionRates?.length)
+  const showShares = flatData.some(row => row.schemeType === 'SHARING' && row.sharingRates?.length)
   const showCredit = flatData.some(row => row.schemeType === 'CREDIT')
   const domainsText = (row: SubAgent) => row.allowedDomains?.length ? row.allowedDomains.map(domainName).join(' · ') : '—'
-  const tallyText = (row: SubAgent) => row.tallyEnabled ? `Tally on${row.tallyDomains?.length ? `: ${row.tallyDomains.map(domainName).join(', ')}` : ''}` : 'Tally off'
+  const tallyText = (row: SubAgent) => tallyIsOn(row.tallyEnabled, row.tallyDomains) ? `Tally on: ${(row.tallyDomains ?? []).map(domainName).join(', ')}` : 'Tally off'
+  const rateList = (rates: Array<{ domain: string; rate?: number }>) => <div className={styles.rowDetails}>{rates.map(rate => <span key={rate.domain}>{domainName(rate.domain)} {rate.rate != null ? `${rate.rate.toFixed(2)}%` : '—'}</span>)}</div>
 
   const columns: DataTableColumn<SubAgent & { _depth?: number }>[] = [
     { key: 'agent', header: 'Sub-Agent', cell: row => {
@@ -159,17 +193,18 @@ export function SubAgentsTab({ agentId }: SubAgentsTabProps) {
     } },
     { key: 'scheme', header: 'Scheme', hidden: isMobile, cell: row => <StatusPill tone="info">{row.schemeType}</StatusPill> },
     { key: 'status', header: 'Status', cell: row => <StatusPill status={row.status}>{row.status?.toUpperCase() || '—'}</StatusPill> },
-    { key: 'domains', header: 'Domains', hidden: isMobile, cell: row => <div className={styles.rowDetails}><span>{domainsText(row)}</span><span className={styles.muted}>{tallyText(row)}</span></div> },
-    { key: 'rates', header: 'Commission Rates', hidden: isMobile || !showRates, cell: row => row.schemeType === 'COMMISSION' && row.commissionRates?.length ? <div className={styles.rowDetails}>{row.commissionRates.map(rate => <span key={rate.domain}>{domainName(rate.domain)} {rate.rate != null ? `${rate.rate.toFixed(2)}%` : '—'}</span>)}</div> : '—' },
-    { key: 'credit', header: 'Credit', align: 'right', hidden: isMobile || !showCredit, cell: row => row.schemeType === 'CREDIT' ? <div className={clsx(styles.rowDetails, styles.cellEnd)}><span>{fmt(row.creditAvailable || 0)} available</span><span className={styles.muted}>Used {fmt(row.creditUsed || 0)} of {fmt(row.creditLimit || 0)}</span></div> : '—' },
+    { key: 'domains', header: 'Domains', hidden: isMobile, cell: row => <div className={styles.rowDetails}><span>{domainsText(row)}</span>{row.schemeType === 'COMMISSION' && <span className={styles.muted}>{tallyText(row)}</span>}</div> },
+    { key: 'rates', header: 'Commission Rates', hidden: isMobile || !showRates, cell: row => row.schemeType === 'COMMISSION' && row.commissionRates?.length ? rateList(row.commissionRates) : '—' },
+    { key: 'shares', header: 'Share Rates', hidden: isMobile || !showShares, cell: row => row.schemeType === 'SHARING' && row.sharingRates?.length ? rateList(row.sharingRates) : '—' },
+    { key: 'chips', header: 'Chips', align: 'right', hidden: isMobile || !showCredit, cell: row => row.schemeType === 'CREDIT' && row.chips ? <ChipCell chips={row.chips} /> : '—' },
     { key: 'created', header: 'Joined', hidden: isMobile, cell: row => row.createdAt ? dayjs(row.createdAt).format('DD MMM YYYY') : '—' },
   ]
   return <div className={clsx(styles.stack, styles.tabPanel)}>
-    <div className={styles.tabKpis} role="group" aria-label="Sub-agent figures">
+    <div className={clsx(styles.tabKpis, !commissionTree && styles.tabKpis3)} role="group" aria-label="Sub-agent figures">
       <AccountListMetric label="Direct Sub-Agents" value={directChildren.length} note="Expand a row for the agents under it" icon={<IconHierarchy2 size={18} />} hue="blu" loading={pending} />
       <AccountListMetric label="Active" value={activeCount} note={share(activeCount)} icon={<IconUserCheck size={18} />} hue="grn" loading={pending} />
       <AccountListMetric label="Not Active" value={directChildren.length - activeCount} note="Inactive or suspended" icon={<IconUserOff size={18} />} hue="amb" loading={pending} />
-      <AccountListMetric label="Tally On" value={tallyCount} note={share(tallyCount)} icon={<IconScale size={18} />} hue="vio" loading={pending} />
+      {commissionTree && <AccountListMetric label="Tally On" value={tallyCount} note={share(tallyCount)} icon={<IconScale size={18} />} hue="vio" loading={pending} />}
     </div>
     <Card title="Sub-Agent Hierarchy" sub={`${directChildren.length} direct sub-agent${directChildren.length === 1 ? '' : 's'} · use the arrow to open a branch`} body="table" tools={<div className={styles.actions}><Button size="sm" onClick={() => { setExpandedIds(new Set()); setChildrenMap(new Map()) }}>Collapse All</Button><Button size="sm" onClick={() => { void refetchRoot(); setChildrenMap(new Map()); setExpandedIds(new Set()) }}>Refresh</Button></div>}>
       <DataTable label="Sub-agent hierarchy" rows={flatData} rowKey={row => row.id} columns={columns} state={rootLoading ? 'loading' : rootError ? 'error' : 'ready'} error={rootError?.message} onRetry={() => void refetchRoot()} empty={<EmptyState title="No sub-agents found" />} pagination={false}

@@ -41,22 +41,68 @@
 .gw-matka-refresh .gw-matka-filter-list > li[data-active] { background: var(--m99-soft); box-shadow: inset 2px 0 0 var(--m99-brand); }
 .gw-matka-refresh .gw-matka-filter-list > li[aria-selected='true'] { font-weight: 600; }
 .gw-matka-refresh .gw-matka-filter-list > li > svg { flex: 0 0 15px; color: var(--md-accent-ink); }
-/* Narrower pages put the search on a row of its own above the three dropdowns, and then the market type on a
-   row of its own above the other two; each row's cells share its width. */
+/* The market page's strip (MarketDetails): section and game category dropdowns, the game count filling the middle,
+   and the two charts as flat action cells. The wrapper is the positioned frame the open lists are placed against. */
+.gw-matka-refresh .gw-matka-detail-filters { position: relative; margin: 0 0 16px; }
+.gw-matka-refresh .gw-matka-detail-filters .gw-matka-filterbar { margin: 0; }
+.gw-matka-refresh .gw-matka-filter-info { flex: 999 1 auto; justify-content: flex-end; padding: 0 16px; color: var(--m99-muted); font-size: 13px; white-space: nowrap; }
+.gw-matka-refresh .gw-matka-filterbar > .gw-matka-filter-info:hover { background: var(--m99-surface); }
+.gw-matka-refresh .gw-matka-filter-action { flex: 0 0 auto; justify-content: center; gap: 8px; padding: 0 18px; color: var(--m99-ink); font: 600 15px/1.2 var(--m99-font); white-space: nowrap; cursor: pointer; }
+.gw-matka-refresh .gw-matka-filter-action svg { flex: none; color: var(--m99-link); }
+.gw-matka-refresh .gw-matka-filter-action:focus-visible { outline: 2px solid var(--m99-link); outline-offset: -3px; }
+@media (max-width: 640px) {
+  /* two rows on a phone: the dropdowns above, the charts below, each pair sharing its row */
+  .gw-matka-refresh .gw-matka-detail-filters .gw-matka-filter-select { flex: 1 1 40%; }
+  .gw-matka-refresh .gw-matka-detail-filters .gw-matka-filter-select > button { min-width: 0; padding: 0 12px 0 14px; font-size: 14px; }
+  .gw-matka-refresh .gw-matka-filter-info { display: none; }
+  .gw-matka-refresh .gw-matka-filter-action { flex: 1 1 40%; padding: 0 10px; font-size: 14px; }
+  /* the chart page (MarketCharts): the market on its own row (names run long), chart type and period sharing the
+     next, then Find Jodi with Latest week beside it */
+  .gw-matka-refresh .gw-matka-chart-filters .gw-matka-filter-select:first-child { flex-basis: 100%; }
+  .gw-matka-refresh .gw-matka-chart-filters .gw-matka-filter-search { flex: 1 1 auto; }
+  .gw-matka-refresh .gw-matka-chart-filters .gw-matka-filter-action { flex: 0 0 auto; padding: 0 14px; }
+}
+/* Narrower pages put the search on a row of its own above the three dropdowns; the dropdowns share their row. */
 @container matka-directory (width < 760px) {
   .gw-matka-refresh .gw-matka-filter-search { flex-basis: 100%; }
   .gw-matka-refresh .gw-matka-filter-select { flex-grow: 1; }
 }
+/* Phones: compact and minimal (owner 2026-11-02). Still two rows (the search, then all three dropdowns in equal
+   cells), with shorter cells and smaller type, so the strip is about 85px instead of three 48px rows. The open list
+   is as wide as its text, not its cell (FilterSelect). */
 @container matka-directory (width < 520px) {
-  .gw-matka-refresh .gw-matka-filter-type { flex-basis: 100%; }
+  .gw-matka-refresh .gw-matka-directory > .gw-matka-filterbar { margin-bottom: 12px; }
+  .gw-matka-refresh .gw-matka-directory > .gw-matka-filterbar > * { min-height: 42px; }
+  .gw-matka-refresh .gw-matka-directory .gw-matka-filter-search { gap: 8px; padding: 0 12px; }
+  .gw-matka-refresh .gw-matka-directory .gw-matka-filter-select { flex: 1 1 0; }
+  .gw-matka-refresh .gw-matka-directory .gw-matka-filter-select > button { gap: 4px; min-width: 0; padding: 0 8px 0 12px; font-size: 14px; }
+  .gw-matka-refresh .gw-matka-directory .gw-matka-filter-select > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .gw-matka-refresh .gw-matka-directory .gw-matka-filter-select > button > svg { flex-basis: 14px; width: 14px; height: 14px; }
 }
 .gw-matka-refresh .gw-matka-toolbar { justify-content: space-between; gap: 12px; margin-bottom: 15px; padding: 0; }
 .gw-matka-refresh .gw-matka-directory-more { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 24px; padding: 16px; border: 1px solid var(--m99-border); border-radius: 5px; background: var(--m99-surface); }
 .gw-matka-refresh .gw-matka-directory-more > span { color: var(--m99-muted); font-size: 12px; }
 .gw-matka-refresh .gw-matka-directory-more .m99-button { display: inline-flex; gap: 8px; }
-/* The header's help popup: the rules a player needs before placing an entry. */
-.m99-kit.gw-matka-modal .gw-matka-help { display: grid; gap: 10px; margin: 0; padding: 0 0 4px 18px; color: var(--m99-text); font-size: 13px; line-height: 1.55; list-style: disc; }
-.m99-kit.gw-matka-modal .gw-matka-help li::marker { color: var(--m99-brand); }
+/* Matka dialogs (kit Modal) take the player modal header of nova-modals.css: a red accent line, the head in the
+   surface's colours with a hairline under it, and the soft square close button. The negative top margin closes the
+   gap the dialog's padding used to leave above the old charcoal bar. The surface sits outside .m99-kit, so its accent
+   line uses the panel token. */
+.nova-modal-layer .nova-modal-surface.gw-matka-native-dialog::before { content: ''; flex: none; height: 3px; background: var(--mb-red); }
+.m99-kit.gw-matka-modal .m99-modal-heading { align-items: center; margin: -20px -20px 18px; padding: 13px 12px 13px 20px; border-bottom: 1px solid var(--m99-border); color: var(--m99-ink); background: var(--m99-surface); }
+.m99-kit.gw-matka-modal .m99-modal-heading h2 { color: var(--m99-ink); font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
+.m99-kit.gw-matka-modal .m99-modal-heading p { margin-top: 3px; color: var(--m99-muted); font-size: 13px; }
+.m99-kit.gw-matka-modal .m99-modal-heading .m99-icon-button { width: 38px; height: 38px; border: 1px solid var(--m99-border); color: var(--m99-text); background: var(--m99-soft); transition: color .15s ease, border-color .15s ease, background-color .15s ease; }
+.m99-kit.gw-matka-modal .m99-modal-heading .m99-icon-button:hover { border-color: color-mix(in oklab, var(--m99-brand) 45%, var(--m99-border)); color: var(--m99-brand); background: color-mix(in oklab, var(--m99-brand) 8%, var(--m99-surface)); }
+@media (max-width: 640px) {
+  .m99-kit.gw-matka-modal .m99-modal-heading { padding: 11px 10px 11px 16px; }
+}
+/* The header's help popup: the rules a player needs before placing an entry, as numbered steps. */
+.m99-kit.gw-matka-modal .gw-matka-help { display: grid; margin: 0; padding: 0; color: var(--m99-text); font-size: 13.5px; line-height: 1.55; list-style: none; counter-reset: help; }
+.m99-kit.gw-matka-modal .gw-matka-help li { position: relative; min-height: 30px; padding: 11px 0 11px 44px; border-bottom: 1px dashed var(--m99-border); counter-increment: help; }
+.m99-kit.gw-matka-modal .gw-matka-help li:first-child { padding-top: 4px; }
+.m99-kit.gw-matka-modal .gw-matka-help li:last-child { border-bottom: 0; padding-bottom: 2px; }
+.m99-kit.gw-matka-modal .gw-matka-help li::before { content: counter(help); position: absolute; left: 0; top: 8px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--m99-brand); background: color-mix(in oklab, var(--m99-brand) 10%, var(--m99-surface)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--m99-brand) 25%, transparent); font-size: 13px; font-weight: 800; }
+.m99-kit.gw-matka-modal .gw-matka-help li:first-child::before { top: 1px; }
 .gw-matka-refresh .gw-matka-footnote { display: flex; gap: 8px; margin-top: 20px; padding: 12px 14px; border: 1px solid var(--m99-border); border-radius: 5px; color: var(--m99-muted); background: var(--m99-sidebar); font-size: 11px; line-height: 1.5; }
 .gw-matka-refresh :is(.gw-matka-filterbar button, .gw-matka-nav a):focus-visible { outline: 2px solid var(--md-accent-ink); outline-offset: -2px; }
 @media (max-width: 760px) {
@@ -73,4 +119,53 @@
   .gw-matka-refresh .gw-matka-nav > a { gap: 5px; padding-inline: 5px; }
   .gw-matka-refresh .gw-matka-nav > a > svg { display: none; }
   .gw-matka-refresh .gw-matka-toolbar { flex-direction: column; align-items: stretch; }
+}
+
+/* Chart page ribbon (MarketCharts, owner 2026-11-01: compact and minimal): one row with the chart's icon tile, name
+   and a one-line note on the left, and the latest result on the right as flap tiles: ink tiles for the pana digits,
+   brand tiles for the Jodi, a hinge across each, and a hollow tile for a digit not yet published. A phone stacks the
+   result under the name. */
+.gw-matka-refresh .gw-chart-ribbon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--m99-border); background: var(--m99-surface); }
+.gw-matka-refresh .gw-chart-ribbon-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gw-matka-refresh .gw-chart-ribbon-name > span { --ui-radius: 10px; display: grid; flex: none; width: 42px; height: 42px; place-items: center; color: var(--md-accent-ink); background: var(--md-accent-soft); }
+.gw-matka-refresh .gw-chart-ribbon-name h2 { margin: 0; color: var(--m99-ink); font-size: 19px; font-weight: 800; line-height: 1.15; }
+.gw-matka-refresh .gw-chart-ribbon-name p { margin: 2px 0 0; color: var(--m99-muted); font-size: 12.5px; }
+.gw-matka-refresh .gw-chart-ribbon-result { display: flex; align-items: center; gap: 16px; }
+.gw-matka-refresh .gw-chart-ribbon-result > span { display: grid; grid-template-columns: auto auto; align-items: center; justify-items: end; gap: 5px 8px; }
+.gw-matka-refresh .gw-chart-ribbon-result > span > b { color: var(--m99-muted); font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.gw-matka-refresh .gw-chart-ribbon-result > span > small { grid-column: 1 / -1; color: var(--m99-muted); font-size: 11.5px; }
+.gw-matka-refresh .gw-chart-ribbon-result > strong { display: flex; align-items: center; gap: 6px; }
+.gw-matka-refresh .gw-chart-ribbon-result > strong > span { display: flex; align-items: center; gap: 3px; }
+.gw-matka-refresh .gw-chart-ribbon-result > strong i { margin-right: 3px; color: var(--m99-muted); font-style: normal; font-weight: 700; }
+.gw-matka-refresh .gw-chart-ribbon-result em { position: relative; display: grid; width: 26px; height: 34px; place-items: center; color: var(--m99-surface); background: var(--m99-ink); box-shadow: inset 0 -17px 0 rgb(255 255 255 / 7%); font-size: 19px; font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; animation: gw-ribbon-flip .45s cubic-bezier(.2, .8, .2, 1) both; }
+.gw-matka-refresh .gw-chart-ribbon-result em::after { content: ""; position: absolute; top: 50%; right: 0; left: 0; height: 1px; background: rgb(0 0 0 / 30%); }
+.gw-matka-refresh .gw-chart-ribbon-result .is-jodi em { color: var(--mb-on-red); background: var(--m99-brand); }
+.gw-matka-refresh .gw-chart-ribbon-result em.is-empty { color: var(--m99-muted); background: var(--m99-soft); box-shadow: inset 0 0 0 1px var(--m99-border); font-size: 16px; }
+.gw-matka-refresh .gw-chart-ribbon-result .is-jodi em.is-empty { color: var(--md-accent-ink); background: var(--md-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--m99-brand) 28%, transparent); }
+.gw-matka-refresh .gw-chart-ribbon-result em.is-empty::after { background: color-mix(in srgb, var(--m99-border) 70%, transparent); }
+@keyframes gw-ribbon-flip { from { opacity: .2; transform: perspective(120px) rotateX(-80deg); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) {
+  .gw-matka-refresh .gw-chart-ribbon { gap: 10px; padding: 11px 12px; }
+  .gw-matka-refresh .gw-chart-ribbon-name > span { width: 38px; height: 38px; }
+  .gw-matka-refresh .gw-chart-ribbon-name h2 { font-size: 17px; }
+  .gw-matka-refresh .gw-chart-ribbon-result { flex: 1 1 100%; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px dashed var(--m99-border); }
+  .gw-matka-refresh .gw-chart-ribbon-result > span { justify-items: start; }
+  .gw-matka-refresh .gw-chart-ribbon-result em { width: 22px; height: 30px; font-size: 16px; }
+  .gw-matka-refresh .gw-chart-ribbon-result > strong { gap: 4px; }
+}
+/* Phones: the page top (title row with back and help, then the game breadcrumb) took about 110px before the first
+   control; a smaller title, 34px buttons and tighter gaps bring it to about 80px (owner 2026-11-02). The gap under
+   the site header stays the shared 6px, the same as on Deposit (owner asked for them to match). */
+@media (max-width: 640px) {
+  html .nova-shell-matchbook .m99-kit.gw-matka-refresh > [data-page-header='title-only'] { margin-bottom: 6px; }
+  html .nova-shell-matchbook .m99-kit.gw-matka-refresh > [data-page-header='title-only'] .user-account-header-row { min-height: 34px; gap: 10px; }
+  html .nova-shell-matchbook .m99-kit.gw-matka-refresh > [data-page-header='title-only'] h1 { font-size: 21px; }
+  html .nova-shell-matchbook .m99-kit.gw-matka-refresh > [data-page-header='title-only'] :is(.user-account-back, .user-account-help) { flex: 0 0 34px; width: 34px; height: 34px; min-height: 34px; padding: 0; }
+  html .nova-shell-matchbook .m99-kit.gw-matka-refresh > [data-page-header='title-only'] :is(.user-account-back, .user-account-help) svg { width: 18px; height: 18px; }
+  .m99-kit.gw-matka-refresh .m99-market-details { margin-top: 0; }
+  .m99-kit.gw-matka-refresh .m99-market-details .m99-game-breadcrumb { margin: 0 0 6px; padding: 0; }
+  .m99-kit.gw-matka-refresh .m99-market-details .m99-game-breadcrumb .m99-button { min-height: 28px; padding-block: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gw-matka-refresh .gw-chart-ribbon-result em { animation: none; }
 }

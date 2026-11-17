@@ -476,7 +476,7 @@ function MatchOddsLayout({
                     <button
                       type="button"
                       disabled
-                      className="relative z-10 inline-flex items-center gap-2 px-6 py-3 rounded-[5px] text-sm font-bold uppercase tracking-wide text-white bg-[color:var(--brand-primary)]/80 border-2 border-[color:var(--brand-primary)]/60 shadow-lg cursor-not-allowed"
+                      className="relative z-10 inline-flex items-center gap-2 px-6 py-3 rounded-[5px] text-sm font-bold uppercase tracking-wide text-[color:var(--mb-on-red)] bg-[color:var(--brand-primary)]/80 border-2 border-[color:var(--brand-primary)]/60 shadow-lg cursor-not-allowed"
                     >
                       <Lock className="h-5 w-5" />
                       <span>Suspended</span>

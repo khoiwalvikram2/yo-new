@@ -4,7 +4,7 @@
 .nova-shell { --panel-shadow: none; --panel-radius: var(--user-card-radius); background: var(--background); }
 .nova-content { max-width: 1440px; padding: 32px 32px 48px; }
 .nova-content:focus { outline: none; }
-.nova-skip-link { position: fixed; top: 10px; left: 16px; z-index: 20000; transform: translateY(-180%); padding: 12px 20px; border-radius: var(--ui-radius); background: var(--nova-accent); color: #fff; font-weight: 700; }
+.nova-skip-link { position: fixed; top: 10px; left: 16px; z-index: 20000; transform: translateY(-180%); padding: 12px 20px; border-radius: var(--ui-radius); background: var(--nova-accent); color: var(--mb-on-red); font-weight: 700; }
 .nova-skip-link:focus { transform: translateY(0); }
 
 /* Preserve the primary navigation and original right-side workspace rail. */
@@ -644,28 +644,28 @@ html .nova-shell-matchbook {
   --text: #333;
   --subtle: #53555B;
   --subtle-2: #53555B;
-  --nova-accent: #C51A1B;
-  --brand-primary: #C51A1B;
+  --nova-accent: var(--mb-red);
+  --brand-primary: var(--mb-red);
   --brand-secondary: #00B2FF;
   --brand-accent: #00B2FF;
-  --mobile-nav-active: #C51A1B;
+  --mobile-nav-active: var(--mb-red);
 }
 html .nova-shell-matchbook > .nova-topbar,
 html .nova-shell-matchbook > .nova-sidebar,
 html .nova-shell-matchbook > .nova-utility-rail {
-  --background: #2B2F35;
-  --surface: #2B2F35;
-  --surface-2: #43444A;
-  --surface-3: #53555B;
-  --muted: #43444A;
-  --border: #3A3D43;
-  --border-2: #4F5057;
+  --background: var(--mb-chrome);
+  --surface: var(--mb-chrome);
+  --surface-2: var(--mb-chrome-2);
+  --surface-3: var(--mb-chrome-3);
+  --muted: var(--mb-chrome-2);
+  --border: var(--mb-chrome-line);
+  --border-2: var(--mb-chrome-line-2);
   --border-3: #8D8C92;
   --text: #FFFFFF;
   --subtle: #B9BCC3;
   --subtle-2: #B9BCC3;
-  --nova-accent: #C51A1B;
-  --brand-primary: #C51A1B;
+  --nova-accent: var(--mb-red);
+  --brand-primary: var(--mb-red);
   --brand-secondary: #00B2FF;
   --brand-accent: #00B2FF;
   --ds-color-slate-50: #FFFFFF;
@@ -680,27 +680,87 @@ html .nova-shell-matchbook > .nova-utility-rail {
   --ds-color-slate-500: #ABADB3;
   --ds-color-slate-550: #53555B;
   --ds-color-slate-600: #4F5057;
-  --ds-color-slate-650: #43444A;
-  --ds-color-slate-700: #43444A;
-  --ds-color-slate-750: #3A3D43;
-  --ds-color-slate-800: #43444A;
-  --ds-color-slate-850: #2B2F35;
-  --ds-color-slate-900: #2B2F35;
-  --ds-color-slate-950: #2B2F35;
-  --ds-color-slate-975: #2B2F35;
+  --ds-color-slate-650: var(--mb-chrome-2);
+  --ds-color-slate-700: var(--mb-chrome-2);
+  --ds-color-slate-750: var(--mb-chrome-line);
+  --ds-color-slate-800: var(--mb-chrome-2);
+  --ds-color-slate-850: var(--mb-chrome);
+  --ds-color-slate-900: var(--mb-chrome);
+  --ds-color-slate-950: var(--mb-chrome);
+  --ds-color-slate-975: var(--mb-chrome);
   color: var(--text);
-  background: #2B2F35;
+  background: var(--mb-chrome);
 }
 html .nova-shell-matchbook .nova-sidebar .nova-side-link.active,
 html .nova-shell-matchbook .nova-utility-rail a[aria-current='page'],
 html .nova-shell-matchbook .nova-utility-rail button[aria-pressed='true'] {
-  color: #FFFFFF;
-  background: #C51A1B;
+  color: var(--mb-on-red);
+  background: var(--mb-red);
 }
 html .nova-shell-matchbook .nova-utility-rail a:hover,
 html .nova-shell-matchbook .nova-utility-rail button:hover {
-  color: #FFFFFF;
+  color: var(--mb-link-hover-on-chrome);
   background: #53555B;
+}
+/* Live chat at the rail's foot (NovaWorkspace, owner 2026-11-02): unread count on its corner. From 801px, where the
+   rail shows, the chat opens from here and the floating launcher (ui-shared SupportChat) stays for phones only. */
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-badge { position: absolute; top: 6px; right: 8px; min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 5px; --ui-radius: 9px; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--mb-red); box-shadow: 0 0 0 2px var(--mb-chrome); font-size: 10px; font-style: normal; font-weight: 800; line-height: 18px; text-align: center; }
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat[aria-pressed='true'] .nova-rail-badge { color: var(--mb-red); background: var(--mb-on-red); }
+/* Desktop live chat (owner 2026-11-02): the icon sits in a brand speech bubble, the same shape as the phone launcher,
+   with the same smooth ripple running behind it. While the chat is open the bubble inverts on the red row and the
+   ripple rests; reduced motion keeps it still. */
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat { gap: 6px; color: #FFFFFF; }
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat > span { font-weight: 700; }
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat-bubble {
+  --ui-radius: 6px 50% 50% 50%;
+  position: relative; z-index: 0; display: grid; width: 38px; height: 38px; place-items: center;
+  border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--mb-red);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--mb-red) 40%, transparent);
+  transition: transform .2s ease, background-color .2s ease;
+}
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat-bubble svg { width: 19px; height: 19px; }
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat-bubble::before,
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat-bubble::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+  background: var(--mb-red); opacity: 0; pointer-events: none; will-change: transform, opacity;
+  animation: gw-rail-chat-ripple 2.4s cubic-bezier(.25, .55, .4, 1) infinite both;
+}
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat-bubble::after { animation-delay: -1.2s; }
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat:hover .nova-rail-chat-bubble { background: var(--mb-red-hover); transform: translateY(-2px); }
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat[aria-pressed='true'] .nova-rail-chat-bubble { color: var(--mb-red); background: var(--mb-on-red); box-shadow: none; transform: none; }
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat[aria-pressed='true'] .nova-rail-chat-bubble::before,
+html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat[aria-pressed='true'] .nova-rail-chat-bubble::after { animation: none; }
+@keyframes gw-rail-chat-ripple {
+  from { opacity: .45; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.6); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat-bubble { transition: none; }
+  html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat-bubble::before,
+  html .nova-shell-matchbook .nova-utility-rail .nova-rail-chat-bubble::after { animation: none; }
+}
+@media (min-width: 801px) {
+  html .nova-shell-matchbook .gw-support-widget > .gw-chat-launcher { display: none; }
+}
+/* Phones: the floating chat button sends out a soft ripple so it is easy to find (owner 2026-11-02). Two rings in the
+   button's own shape and colour grow and fade behind its glyph, half a cycle apart and without a pause, so the wave
+   runs on smoothly from the first frame. The button hides while the chat is open; reduced motion keeps them still. */
+@media (max-width: 800px) {
+  html .nova-shell-matchbook .gw-support-widget > .gw-chat-launcher::before,
+  html .nova-shell-matchbook .gw-support-widget > .gw-chat-launcher::after {
+    content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+    background: var(--chat-red); opacity: 0; pointer-events: none; will-change: transform, opacity;
+    animation: gw-chat-ripple 2.4s cubic-bezier(.25, .55, .4, 1) infinite both;
+  }
+  html .nova-shell-matchbook .gw-support-widget > .gw-chat-launcher::after { animation-delay: -1.2s; }
+}
+@keyframes gw-chat-ripple {
+  from { opacity: .45; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .nova-shell-matchbook .gw-support-widget > .gw-chat-launcher::before,
+  html .nova-shell-matchbook .gw-support-widget > .gw-chat-launcher::after { animation: none; }
 }
 html .nova-shell-matchbook .nova-live-dot { background: #22BB92; box-shadow: 0 0 0 3px rgb(34 187 146 / 18%); }
 html .nova-shell-matchbook .nova-wallet-summary .nova-wallet-available strong { color: #00B2FF; }
@@ -737,13 +797,14 @@ html .nova-shell-matchbook > .nova-workspace {
 .nova-center-home .nova-home-side .nova-match-desk { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; margin: 0; }
 .nova-center-home .nova-home-featured-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(178px, 218px); gap: 0; min-width: 0; }
 .nova-center-home .nova-home-featured-grid .nova-center-feature { min-width: 0; }
-.nova-center-home .nova-featured-event-list { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); min-width: 0; overflow: hidden; background: #2B2F35; }
+.nova-center-home .nova-featured-event-list { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); min-width: 0; overflow: hidden; background: var(--mb-chrome); }
 .nova-center-home .nova-featured-event-list.is-empty { display: flex; }
-.nova-center-home .nova-featured-event-list > button { display: grid; align-content: center; gap: 3px; min-width: 0; padding: 9px 11px; border: 0; border-bottom: 1px solid #53555B; color: #FFFFFF; background: #2B2F35; text-align: left; cursor: pointer; }
-.nova-center-home .nova-featured-event-list > button:hover { background: #43444A; }
-.nova-center-home .nova-featured-event-list > button.active { background: #A91317; }
+.nova-center-home .nova-featured-event-list > button { display: grid; align-content: center; gap: 3px; min-width: 0; padding: 9px 11px; border: 0; border-bottom: 1px solid #53555B; color: #FFFFFF; background: var(--mb-chrome); text-align: left; cursor: pointer; }
+.nova-center-home .nova-featured-event-list > button:hover { background: var(--mb-chrome-2); }
+.nova-center-home .nova-featured-event-list > button.active { color: var(--mb-on-red); background: var(--mb-brand-active); }
 .nova-center-home .nova-featured-event-list > button > span { overflow: hidden; color: #C8C8CC; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .nova-center-home .nova-featured-event-list > button > strong { display: -webkit-box; overflow: hidden; color: #FFFFFF; font-size: 11px; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.nova-center-home .nova-featured-event-list > button.active > strong { color: var(--mb-on-red); }
 .nova-center-home .nova-featured-event-list > button > small { color: #D6D6D8; font-size: 9px; }
 .nova-center-home .nova-featured-event-empty { display: grid; flex: 1; place-items: center; min-width: 0; padding: 18px; color: #E2E3E3; font-size: 12px; line-height: 1.5; text-align: center; }
 @media (min-width: 801px) {
@@ -754,15 +815,15 @@ html .nova-shell-matchbook > .nova-workspace {
   min-height: 300px;
   border: 0;
   border-radius: var(--ui-radius);
-  background: #C51A1B;
-  color: #FFFFFF;
+  background: var(--mb-red);
+  color: var(--mb-on-red);
 }
 .nova-shell .nova-center-home .nova-center-feature::after { display: none; }
 .nova-shell .nova-center-home .nova-center-feature.nova-hero::before {
   inset: 0;
   width: auto;
   height: auto;
-  background: linear-gradient(100deg, #C51A1B 0%, #C51A1B 54%, rgb(197 26 27 / 72%) 71%, rgb(43 47 53 / 20%) 100%);
+  background: linear-gradient(100deg in srgb, var(--mb-red) 0%, var(--mb-red) 54%, color-mix(in srgb, var(--mb-red) 72%, transparent) 71%, color-mix(in srgb, var(--mb-chrome) 20%, transparent) 100%);
 }
 .nova-shell .nova-center-home .nova-center-feature .nova-hero-art {
   right: 0;
@@ -777,14 +838,14 @@ html .nova-shell-matchbook > .nova-workspace {
   padding: 26px 28px;
   justify-content: center;
 }
-.nova-center-home .nova-center-feature .nova-hero-meta { color: #FFFFFF; }
-.nova-center-home .nova-center-feature .nova-hero-meta > span:first-child { border-color: rgb(255 255 255 / 35%); background: rgb(43 47 53 / 22%); color: #FFFFFF; }
-.nova-center-home .nova-center-feature .nova-hero-meta > span:first-child.live { color: #FFFFFF; }
+.nova-center-home .nova-center-feature .nova-hero-meta { color: var(--mb-on-red); }
+.nova-center-home .nova-center-feature .nova-hero-meta > span:first-child { border-color: color-mix(in srgb, var(--mb-on-red) 35%, transparent); background: color-mix(in srgb, var(--mb-chrome) 22%, transparent); color: var(--mb-on-red); }
+.nova-center-home .nova-center-feature .nova-hero-meta > span:first-child.live { color: var(--mb-on-red); }
 .nova-shell .nova-center-home .nova-center-feature h2 { max-width: 760px; margin: 13px 0 8px; font-size: clamp(29px, 3vw, 48px); font-weight: 800; letter-spacing: -.6px; line-height: 1.06; text-transform: uppercase; }
-.nova-shell .nova-center-home .nova-center-feature .nova-feature-event { color: #FFFFFF; }
-.nova-shell .nova-center-home .nova-center-feature p { color: #FFFFFF; font-size: 13px; }
-.nova-center-home .nova-center-feature .nova-button { min-width: 132px; background: #FFFFFF; color: #C51A1B; }
-.nova-center-home .nova-center-feature .nova-hero-secondary { color: #FFFFFF; }
+.nova-shell .nova-center-home .nova-center-feature .nova-feature-event { color: var(--mb-on-red); }
+.nova-shell .nova-center-home .nova-center-feature p { color: var(--mb-on-red); font-size: 13px; }
+.nova-center-home .nova-center-feature .nova-button { min-width: 132px; background: var(--mb-on-red); color: var(--mb-red); }
+.nova-center-home .nova-center-feature .nova-hero-secondary { color: var(--mb-on-red); }
 .nova-center-home .nova-home-schedule { overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
 .nova-center-home .nova-home-schedule > header {
   display: flex;
@@ -793,7 +854,7 @@ html .nova-shell-matchbook > .nova-workspace {
   min-height: 40px;
   padding: 7px 12px;
   color: #FFFFFF;
-  background: #43444A;
+  background: var(--mb-chrome-2);
 }
 .nova-center-home .nova-home-schedule > header h2 { display: flex; align-items: center; gap: 7px; margin: 0; color: #FFFFFF; font-size: 12px; font-weight: 700; }
 .nova-center-home .nova-home-schedule > header > span { margin-left: auto; color: #E2E3E3; font-size: 10px; }
@@ -819,41 +880,41 @@ html .nova-shell-matchbook > .nova-workspace {
 .nova-center-home .nova-schedule-state { display: grid; place-items: center; min-width: 100%; min-height: 70px; margin: 0; color: #53555B; font-size: 12px; }
 .nova-center-home .nova-overview { border-radius: var(--ui-radius); }
 .nova-center-home .nova-market-centre { overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
-.nova-center-home .nova-market-centre > .nova-section-heading { min-height: 48px; margin: 0; padding: 10px 14px; color: #FFFFFF; background: #43444A; }
+.nova-center-home .nova-market-centre > .nova-section-heading { min-height: 48px; margin: 0; padding: 10px 14px; color: #FFFFFF; background: var(--mb-chrome-2); }
 .nova-center-home .nova-market-centre > .nova-section-heading h2 { color: #FFFFFF; font-size: 14px; }
 .nova-center-home .nova-market-centre > .nova-section-heading .nova-text-link { color: #00B2FF; }
 .nova-center-home .nova-market-tabs { min-height: 42px; border: 0; border-bottom: 1px solid #DDDDDD; border-radius: var(--ui-radius); background: #F5F5F5; }
 .nova-center-home .nova-market-tabs button { min-height: 34px; color: #53555B; }
-.nova-center-home .nova-market-tabs button.active { border-radius: var(--ui-radius); background: #C51A1B; color: #FFFFFF; }
+.nova-center-home .nova-market-tabs button.active { border-radius: var(--ui-radius); background: var(--mb-red); color: var(--mb-on-red); }
 .nova-center-home .nova-market-tabs button > span { background: rgb(255 255 255 / 20%); }
 .nova-center-home .nova-market-centre .nova-live-markets { border: 0; border-radius: var(--ui-radius); background: #FFFFFF; }
 .nova-center-home .nova-market-centre .nova-live-markets-content { background: #FFFFFF; }
-.nova-center-home .nova-market-centre .nova-live-markets-content > div > button { min-height: 38px; background: #43444A; border-color: #53555B; }
+.nova-center-home .nova-market-centre .nova-live-markets-content > div > button { min-height: 38px; background: var(--mb-chrome-2); border-color: #53555B; }
 .nova-center-home .nova-market-centre .nova-live-markets-content > div > button:hover { background: #53555B; }
 .nova-center-home .nova-market-centre .nova-live-markets-content > div > button span { color: #FFFFFF; }
-html.dark .nova-center-home .nova-odds-back { border-color: #8DD2F0; background: #8DD2F0; color: #2B2F35; }
-html.dark .nova-center-home .nova-odds-lay { border-color: #E3A3A3; background: #E3A3A3; color: #2B2F35; }
+html.dark .nova-center-home .nova-odds-back { border-color: #8DD2F0; background: #8DD2F0; color: #2B2F35; /* theme: fixed — dark ink on the light odds colours */ }
+html.dark .nova-center-home .nova-odds-lay { border-color: #E3A3A3; background: #E3A3A3; color: #2B2F35; /* theme: fixed — dark ink on the light odds colours */ }
 .nova-center-home .nova-home-side .nova-banner-rail { display: none; gap: 8px; min-width: 0; }
-.nova-center-home .nova-home-side .nova-banner-rail-card { overflow: hidden; border-radius: var(--ui-radius); background: #2B2F35; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
+.nova-center-home .nova-home-side .nova-banner-rail-card { overflow: hidden; border-radius: var(--ui-radius); background: var(--mb-chrome); box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
 .nova-center-home .nova-home-side .nova-banner-rail-card.primary { height: 200px; }
 .nova-center-home .nova-home-side .nova-banner-rail-card.secondary { height: 160px; }
 .nova-center-home .nova-home-side .nova-banner-rail-card img { width: 100%; height: 100% !important; object-fit: cover; }
 html.dark .nova-center-home .nova-home-side .nova-desk-card {
-  --surface: #2B2F35;
-  --surface-2: #43444A;
-  --border: #3A3D43;
+  --surface: var(--mb-chrome);
+  --surface-2: var(--mb-chrome-2);
+  --border: var(--mb-chrome-line);
   --text: #FFFFFF;
   --subtle: #A3A1A7;
   color: #FFFFFF;
-  border-color: #2B2F35;
+  border-color: var(--mb-chrome);
   border-radius: var(--ui-radius);
-  background: #2B2F35;
+  background: var(--mb-chrome);
 }
-html.dark .nova-center-home .nova-home-side .nova-desk-heading { background: #43444A; border-color: #53555B; }
+html.dark .nova-center-home .nova-home-side .nova-desk-heading { background: var(--mb-chrome-2); border-color: #53555B; }
 html.dark .nova-center-home .nova-home-side .nova-desk-heading h3 { color: #FFFFFF; }
-html.dark .nova-center-home .nova-home-side .nova-quick-card > div > a { color: #E2E3E3; border-color: #43444A; }
+html.dark .nova-center-home .nova-home-side .nova-quick-card > div > a { color: #E2E3E3; border-color: var(--mb-chrome-2); }
 html.dark .nova-center-home .nova-home-side .nova-quick-card > div > a:hover { color: #00B2FF; }
-html.dark .nova-center-home .nova-home-side .nova-slip-empty > svg { color: #00B2FF; border-color: #53555B; background: #43444A; }
+html.dark .nova-center-home .nova-home-side .nova-slip-empty > svg { color: #00B2FF; border-color: #53555B; background: var(--mb-chrome-2); }
 html.dark .nova-center-home .nova-home-side .nova-slip-empty strong { color: #FFFFFF; }
 html.dark .nova-center-home .nova-home-side .nova-desk-session { color: #E2E3E3; }
 
@@ -946,7 +1007,7 @@ html.dark .nova-center-home .nova-home-side .nova-desk-session { color: #E2E3E3;
     height: 68px;
     gap: 0;
     padding-inline: 0 20px;
-    background: #2B2F35;
+    background: var(--mb-chrome);
   }
   .nova-shell-matchbook .nova-header-left { display: flex; flex: 0 0 var(--nova-sidebar-w); gap: 4px; padding-left: 18px; }
   .nova-shell-matchbook .nova-menu-button,
@@ -968,19 +1029,19 @@ html.dark .nova-center-home .nova-home-side .nova-desk-session { color: #E2E3E3;
     min-height: 44px;
     padding: 0;
     place-items: center;
-    border: 1px solid #3A3D43;
+    border: 1px solid var(--mb-chrome-line);
     border-radius: var(--ui-radius);
     color: #FFFFFF;
     background: transparent;
   }
   .nova-shell-matchbook .nova-desktop-search > svg { width: 19px; height: 19px; }
   .nova-shell-matchbook .nova-desktop-search:hover,
-  .nova-shell-matchbook .nova-mobile-search:hover { border-color: #4F5057; color: #FFFFFF; background: #43444A; }
+  .nova-shell-matchbook .nova-mobile-search:hover { border-color: #4F5057; color: #FFFFFF; background: var(--mb-chrome-2); }
   .nova-shell-matchbook .nova-header-right { flex: 0 0 auto; gap: 9px; margin-left: 12px; }
   .nova-shell-matchbook .nova-header-theme .nova-theme-toggle,
   .nova-shell-matchbook .nova-auth-login { min-width: 44px; min-height: 44px; border-radius: var(--ui-radius); }
-  .nova-shell-matchbook .nova-auth-login { color: #FFFFFF; border-color: #3A3D43; background: #43444A; }
-  .nova-shell-matchbook .nova-auth-register { min-height: 44px; padding-inline: 18px; border-radius: var(--ui-radius); color: #FFFFFF; background: #C51A1B; border-color: #C51A1B; }
+  .nova-shell-matchbook .nova-auth-login { color: #FFFFFF; border-color: var(--mb-chrome-line); background: var(--mb-chrome-2); }
+  .nova-shell-matchbook .nova-auth-register { min-height: 44px; padding-inline: 18px; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--mb-red); border-color: var(--mb-red); }
   /* Product links sit inline, directly right of the logo; they shrink before the account controls do. */
   .nova-shell-matchbook .nova-matchbook-product-nav {
     display: flex;
@@ -1004,10 +1065,10 @@ html.dark .nova-center-home .nova-home-side .nova-desk-session { color: #E2E3E3;
     transition: background-color .15s, color .15s;
   }
   .nova-shell-matchbook .nova-matchbook-product-nav > a > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .nova-shell-matchbook .nova-matchbook-product-nav > a:hover { color: #FFFFFF; background: #43444A; }
+  .nova-shell-matchbook .nova-matchbook-product-nav > a:hover { color: #FFFFFF; background: var(--mb-chrome-2); }
   .nova-shell-matchbook .nova-matchbook-product-nav svg { width: 18px; height: 18px; flex: 0 0 auto; }
   .nova-shell-matchbook .nova-matchbook-product-nav .casino svg { color: #00B2FF; }
-  .nova-shell-matchbook .nova-matchbook-product-nav > a.active { color: #FFFFFF; background: #C51A1B; }
+  .nova-shell-matchbook .nova-matchbook-product-nav > a.active { color: var(--mb-on-red); background: var(--mb-red); }
   .nova-shell-matchbook .nova-matchbook-product-nav > a.active svg { color: inherit; }
   .nova-shell-matchbook > .nova-utility-rail {
     grid-row: 2 / -1;
@@ -1026,7 +1087,7 @@ html.dark .nova-center-home .nova-home-side .nova-desk-session { color: #E2E3E3;
   .nova-center-home .nova-matchday-meta > span { color: #53555B; font-size: 10px; }
   .nova-center-home > .nova-sport-pills { gap: 4px; min-height: 52px; margin: 0 0 14px; padding: 4px; border: 1px solid #DDD; border-radius: var(--ui-radius); background: #FAFAFA; }
   .nova-center-home > .nova-sport-pills button { min-height: 42px; padding: 8px 12px; border: 0; border-radius: var(--ui-radius); color: #333333; background: transparent; font-size: 12px; }
-  .nova-center-home > .nova-sport-pills button.active { color: #C51A1B; background: #F6E7E7; }
+  .nova-center-home > .nova-sport-pills button.active { color: var(--mb-red); background: var(--mb-brand-wash); }
   .nova-center-home.nova-home-no-events .nova-home-featured-grid { grid-template-columns: 104px minmax(0, 1fr); min-height: max(520px, calc(100dvh - 270px)); background: #FAFAFA; }
   .nova-center-home.nova-home-no-events .nova-center-feature { display: none; }
   .nova-center-home.nova-home-no-events .nova-featured-event-list.is-empty { grid-column: 1; grid-row: 1; min-height: max(520px, calc(100dvh - 270px)); }

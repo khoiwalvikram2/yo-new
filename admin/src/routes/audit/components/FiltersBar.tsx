@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { IconFolder } from '@tabler/icons-react'
 import { useAuditStore, type AuditFilters } from '@/state/auditStore'
-import { DOMAIN_OPTIONS, ACTION_OPTIONS, RESOURCE_TYPE_OPTIONS, TIME_RANGE_PRESETS } from '@/modules/audit/constants'
+import { TIME_RANGE_PRESETS } from '@/modules/audit/constants'
+import { FALLBACK_AUDIT_FILTER_OPTIONS, type AuditFilterOptionLists } from '@/modules/audit/graphql/hooks'
 import { Combobox } from '@/ui/components/Combobox'
 import { FilterBar } from '@/ui/components/FilterBar'
 import { MultiSelect } from '@/ui/components/MultiSelect'
@@ -14,8 +15,13 @@ import { Menu, MenuItem, MenuSeparator } from '@/ui/components/Menu'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { auditActiveFilters, auditTimePreset, auditCalendarDay, auditCalendarRange } from '../auditPageModel'
 import styles from '../AuditEvents.module.css'
-interface FiltersBarProps { filters: AuditFilters; onFiltersChange: (filters: Partial<AuditFilters>) => void; onReset: () => void }
-export function FiltersBar({ filters, onFiltersChange, onReset }: FiltersBarProps) {
+interface FiltersBarProps { filters: AuditFilters; onFiltersChange: (filters: Partial<AuditFilters>) => void; onReset: () => void; options?: AuditFilterOptionLists }
+/** A list's choices: what the trail holds, plus anything already chosen (a saved preset or link may name a
+ *  value this tenant's trail no longer has, and it must stay visible to be removed). */
+function choices(values: readonly string[], chosen: readonly string[] = []) {
+  return [...values, ...chosen.filter((value) => !values.includes(value))].map((value) => ({ value, label: value }))
+}
+export function FiltersBar({ filters, onFiltersChange, onReset, options = FALLBACK_AUDIT_FILTER_OPTIONS }: FiltersBarProps) {
   const { recentSearches, addRecentSearch, savedPresets, addSavedPreset, removeSavedPreset, updateSavedPreset } = useAuditStore()
   const [search, setSearch] = useState(filters.search || '')
   const [period, setPeriod] = useState('')
@@ -40,9 +46,9 @@ export function FiltersBar({ filters, onFiltersChange, onReset }: FiltersBarProp
   }, [search, filters.search, onFiltersChange])
   const suggestions = useMemo(() => [
     ...recentSearches.map((value) => ({ value, label: value, group: 'Recent Searches' })),
-    ...DOMAIN_OPTIONS.filter((value) => search && value.toLowerCase().includes(search.toLowerCase())).map((value) => ({ value, label: value, group: 'Domains' })),
-    ...ACTION_OPTIONS.filter((value) => search && value.toLowerCase().includes(search.toLowerCase())).map((value) => ({ value, label: value, group: 'Actions' })),
-  ], [search, recentSearches])
+    ...options.domains.filter((value) => search && value.toLowerCase().includes(search.toLowerCase())).map((value) => ({ value, label: value, group: 'Domains' })),
+    ...options.actions.filter((value) => search && value.toLowerCase().includes(search.toLowerCase())).map((value) => ({ value, label: value, group: 'Actions' })),
+  ], [search, recentSearches, options])
   function savePreset() {
     if (!name.trim()) return
     addSavedPreset({ id: crypto.randomUUID(), name: name.trim(), filters: { ...filters }, createdAt: new Date().toISOString() })
@@ -58,10 +64,10 @@ export function FiltersBar({ filters, onFiltersChange, onReset }: FiltersBarProp
     <FilterBar label="Audit filters" activeCount={auditActiveFilters(filters)} onClearAll={onReset}
       search={<Combobox label="Search audit events" hideLabel size="sm" data-audit-search-input placeholder="Search ID, actor, domain, action... (Ctrl+K)" options={suggestions} filter={false} value={null} inputValue={search} onInputChange={setSearch}
         onSelect={(value) => { setSearch(value); addRecentSearch(value); onFiltersChange({ search: value, page: 1 }) }} />}>
-      <MultiSelect label="Domain" size="sm" options={DOMAIN_OPTIONS.map((value) => ({ value, label: value }))} value={filters.domain ?? []} onChange={(value) => onFiltersChange({ domain: value, page: 1 })} />
-      <MultiSelect label="Action" size="sm" options={ACTION_OPTIONS.map((value) => ({ value, label: value }))} value={filters.action ?? []} onChange={(value) => onFiltersChange({ action: value, page: 1 })} />
+      <MultiSelect label="Domain" size="sm" options={choices(options.domains, filters.domain)} value={filters.domain ?? []} onChange={(value) => onFiltersChange({ domain: value, page: 1 })} />
+      <MultiSelect label="Action" size="sm" options={choices(options.actions, filters.action)} value={filters.action ?? []} onChange={(value) => onFiltersChange({ action: value, page: 1 })} />
       <TextField label="Actor ID" size="sm" value={filters.actorId ?? ''} maxLength={100} clearable onChange={(value) => onFiltersChange({ actorId: value.trim() || undefined, page: 1 })} />
-      <MultiSelect label="Resource Type" size="sm" options={RESOURCE_TYPE_OPTIONS.map((value) => ({ value, label: value }))} value={filters.resourceType ?? []} onChange={(value) => onFiltersChange({ resourceType: value, page: 1 })} />
+      <MultiSelect label="Resource Type" size="sm" options={choices(options.resourceTypes, filters.resourceType)} value={filters.resourceType ?? []} onChange={(value) => onFiltersChange({ resourceType: value, page: 1 })} />
       <Select label="Time Range" size="sm" value={period} options={[{ value: '', label: 'All time' }, ...TIME_RANGE_PRESETS]} onChange={(value) => {
         setPeriod(value); setShowRange(value === 'custom'); const next = auditTimePreset(value); if (next) onFiltersChange(next)
       }} />

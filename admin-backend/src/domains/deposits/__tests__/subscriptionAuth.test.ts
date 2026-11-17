@@ -14,7 +14,7 @@
  *   - `depositRequestUpdated` then preferred `args.tenant`, a plain caller
  *     argument, over the context. Naming another whitelabel returned its live
  *     deposit feed, which the resolver enriches with the player's name, email
- *     and phone and a presigned URL for their payment-proof image.
+ *     and phone and their payment-proof image.
  *
  * Both halves are asserted: the resolver's own behaviour, and the wiring in
  * `index.ts` that authenticates the socket — the latter read from source in the

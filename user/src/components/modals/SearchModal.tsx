@@ -13,7 +13,8 @@ import { getCasinoGames, getSportsList, getCasinoUrl } from '@/lib/api/user'
 import { getSelectedWallet } from '@/lib/walletUtils'
 import { useSportsEvents, generateEventId } from '@/lib/sportsHelpers'
 import { useAuth } from '@/lib/auth'
-import { useFeatureFlags } from '@/hooks/useAppSettings'
+import { useFeatureFlags, useSportsIconStyle } from '@/hooks/useAppSettings'
+import { sportIcon, sportIconClass } from '@/components/nova/exchange-home/exchangeShared'
 
 function getSportImage(sport: SportType) {
   switch (sport) {
@@ -56,6 +57,7 @@ function useDebouncedValue(value: string, delayMs: number) {
 }
 
 function SearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const iconStyle = useSportsIconStyle()
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebouncedValue(query, 300)
   const [isMounted, setIsMounted] = useState(false)
@@ -273,7 +275,7 @@ function SearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
           <div className="relative px-4 sm:px-6 py-4 sm:py-5 border-b border-[color:var(--ds-color-slate-600)] bg-[color:var(--ds-color-slate-750)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-3">
-                <div className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-2xl grid place-items-center text-white bg-[color:var(--brand-primary)]">
+                <div className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-2xl grid place-items-center text-[color:var(--mb-on-red)] bg-[color:var(--brand-primary)]">
                   <Search className="h-5 w-5" />
                 </div>
                 <div>
@@ -373,7 +375,7 @@ function SearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
                       <div key={e.eventName + idx} className="group rounded-xl relative border border-[color:var(--border)]/40 bg-[color:var(--surface-2)]/20 hover:bg-[color:var(--surface-2)]/40 transition-colors duration-200">
                         <div className="p-3.5 flex items-start gap-3">
                           <div className="h-10 w-10 rounded-lg overflow-hidden ring-1 ring-[color:var(--border)]/50 bg-[color:var(--surface)]/70 shrink-0 grid place-items-center">
-                            <img src={getSportImage(e.sport)} alt={`${e.sport} icon`} className="h-6 w-6 object-contain sport-img" loading="lazy" />
+                            <img src={sportIconClass(e.sport, iconStyle) ? sportIcon(e.sport, iconStyle) : getSportImage(e.sport)} alt={`${e.sport} icon`} className={sportIconClass(e.sport, iconStyle, 'h-6 w-6 object-contain sport-img')} loading="lazy" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-semibold text-[color:var(--text)] truncate">{highlightMatch(e.eventName, query)}</div>

@@ -247,6 +247,8 @@ type MatkaLiveKpis {
   payouts: Float!
   ggr: Float!
   rtp: Float!
+  "What the open bets pay if they all win (payouts stays 0 until bets settle). Null on an older cached snapshot."
+  potentialPayouts: Float
   activePlayers: Int!
 }
 
@@ -280,6 +282,8 @@ type MatkaEntityStat {
   wagered: Float!
   payouts: Float!
   ggr: Float!
+  "What this matka's open bets pay if they all win (same bets and formula as MatkaLiveKpis.potentialPayouts). Null on an older cached snapshot."
+  potentialPayouts: Float
   bets: Int!
 }
 
@@ -288,6 +292,8 @@ type MatkaSessionStat {
   wagered: Float!
   payouts: Float!
   ggr: Float!
+  "What this session's open bets pay if they all win (same bets and formula as MatkaLiveKpis.potentialPayouts). Null on an older cached snapshot."
+  potentialPayouts: Float
   bets: Int!
 }
 
@@ -312,6 +318,15 @@ type MatkaSelectionStat {
   bets: Int!
 }
 
+"Every open selection's figures summed; bySelection keeps only the 200 riskiest."
+type MatkaSelectionTotals {
+  selections: Int!
+  wagered: Float!
+  payouts: Float!
+  exposure: Float!
+  bets: Int!
+}
+
 type MatkaLiveBreakdown {
   byType: [MatkaTypeStat!]!
   byMarket: [MatkaMarketStat!]!
@@ -320,6 +335,8 @@ type MatkaLiveBreakdown {
   bySession: [MatkaSessionStat!]!
   byDigit: [MatkaDigitStat!]!
   bySelection: [MatkaSelectionStat!]!
+  "Totals over every selection bySelection is cut from (the Selection Risk card's totals). Null on an older cached snapshot."
+  selectionTotals: MatkaSelectionTotals
 }
 
 type MatkaPlayerEvent {

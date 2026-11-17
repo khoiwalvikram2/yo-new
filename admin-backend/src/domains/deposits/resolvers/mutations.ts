@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { hasPermission } from '@/domains/common/auth.js'
 import { attachQrUrls } from './qrUrl.js'
+import { assertStorableImage, storedImageProblem } from '@/services/storage/storedImage.js'
+import { isDataUri } from '@shared/utils/dataUri.js'
 import { createDepositRequest, approveDepositRequest, rejectDepositRequest, getDepositRequestById } from '@/repos/deposits/depositRequestsRepo.js'
 import { getWhitelabelPaymentMethods, upsertWhitelabelPaymentMethods } from '@/repos/payments/whitelabelPaymentsRepo.js'
 import { recordAuditDb } from '@/repos/audit/auditRepo.js'
@@ -10,6 +12,10 @@ import { NotificationService } from '@/domains/notifications/services/Notificati
 import { getUserDb } from '@/repos/users/usersRepo.js'
 import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
 import { requirePermission } from '@src/domains/common/auth.js'
+import { CRYPTO_BONUS_MAX_PERCENT, cryptoWalletAddressError } from '@shared/utils/cryptoDeposit.js'
+
+/** proof_key of a request whose screenshot is the data URI in proof_data, as user-backend writes it. */
+const DEPOSIT_PROOF_INLINE = 'inline'
 
 const CreateDepositRequestInput = z.object({
   accountId: z.string().min(1).optional(),
@@ -20,6 +26,19 @@ const CreateDepositRequestInput = z.object({
   referenceId: z.string().optional().nullable(),
   proofKey: z.string().min(1),
 })
+
+/**
+ * The reviewing admin's numeric users.id (the session's `sub`), or null for a caller that has none.
+ *
+ * Approve and reject derived this before anything else, and an agent's `sub` is its uuid, so Number() was NaN and
+ * a signed-in agent was told "User not authenticated" before the commission-agent and permission checks below it
+ * ever ran. It is read now only once those checks have passed.
+ */
+function reviewerIdOf(ctx: any): number | null {
+  const raw = ctx?.user?.sub
+  const n = raw != null ? Number(raw) : NaN
+  return Number.isSafeInteger(n) && n > 0 ? n : null
+}
 
 const ApproveDepositRequestInput = z.object({
   id: z.string().min(1),
@@ -58,6 +77,29 @@ const UpsertWhitelabelPaymentMethodsInput = z.object({
     enabled: z.boolean().optional(), // Add enabled field
     vipTierIds: z.array(z.string().uuid()).nullable().optional(),
   })).optional(),
+  // USDT wallets. A wallet address is checked against its network: funds sent across networks are lost.
+  cryptos: z.array(z.object({
+    id: z.string().optional(),
+    network: z.string().trim().min(1).max(32),
+    walletAddress: z.string().trim().min(1).max(128),
+    displayName: z.string().trim().max(128).optional().nullable(),
+    qrKey: z.string().optional().nullable(),
+    minAmount: z.number().nonnegative().optional().nullable(),
+    maxAmount: z.number().nonnegative().optional().nullable(),
+    weight: z.number().int().optional(),
+    enabled: z.boolean().optional(),
+    vipTierIds: z.array(z.string().uuid()).nullable().optional(),
+  }).superRefine((wallet, ctx) => {
+    const addressError = cryptoWalletAddressError(wallet.network, wallet.walletAddress)
+    if (addressError) ctx.addIssue({ code: 'custom', path: ['walletAddress'], message: addressError })
+    if (wallet.minAmount != null && wallet.maxAmount != null && wallet.minAmount > wallet.maxAmount) {
+      ctx.addIssue({ code: 'custom', path: ['maxAmount'], message: 'Wallet maximum must be at least its minimum' })
+    }
+  })).optional(),
+  // Deposit currency per 1 USDT. Omitted or null = keep the stored rate.
+  cryptoRate: z.number().positive('The USDT rate must be above 0').max(1_000_000).optional().nullable(),
+  // Extra % on approved crypto deposits. Omitted = keep; 0 or null = off.
+  cryptoBonusPercent: z.number().min(0, 'Crypto bonus cannot be negative').max(CRYPTO_BONUS_MAX_PERCENT, `Crypto bonus can be at most ${CRYPTO_BONUS_MAX_PERCENT}%`).optional().nullable(),
   limits: z.object({
     min: z.number().positive(),
     max: z.number().positive(),
@@ -84,6 +126,16 @@ export const depositsMutationResolvers = {
     // Mirror sibling deposit mutations: require a deposits permission gate.
     if (!hasPermission(ctx?.permissions ?? [], 'payments.deposits', 'view')) {
       throw new Error('Forbidden: insufficient permissions to create deposit requests')
+    }
+
+    // Files are base64 now (S3 is gone): proofKey is a screenshot data URI, kept in proof_data with proof_key
+    // 'inline' as the player app's requests are (user-backend depositProof.ts), or the sentinel 'manual' or
+    // 'proof-missing'. An S3 key, a link or anything else is refused before anything is read or written.
+    const proofSentinel = parsed.data.proofKey === 'manual' || parsed.data.proofKey === 'proof-missing'
+    const proofData = proofSentinel ? null : parsed.data.proofKey
+    if (proofData !== null) {
+      const problem = isDataUri(proofData) ? storedImageProblem(proofData, 'Payment proof') : "Payment proof must be a screenshot image, 'manual' or 'proof-missing'"
+      if (problem) throw new Error(problem)
     }
 
     // CR-8: Block credit players from receiving raw cash via self-deposit.
@@ -123,7 +175,9 @@ export const depositsMutationResolvers = {
       throw new Error(`Maximum deposit amount is ${limits.max}`)
     }
     
-    // Create deposit request
+    // Create deposit request. The screenshot is written by the same insert as the request: a second UPDATE after the
+    // insert had committed could fail and leave a PENDING request marked 'inline' with no screenshot, which a retry
+    // then duplicated.
     const request = await createDepositRequest({
       accountId: parsed.data.accountId,
       tenant,
@@ -133,7 +187,8 @@ export const depositsMutationResolvers = {
       method,
       utr: utr ?? null,
       referenceId: referenceId ?? null,
-      proofKey,
+      proofKey: proofData === null ? proofKey : DEPOSIT_PROOF_INLINE,
+      proofData,
     })
 
     // Create notification for Tasks (filtered by whitelabel/agent)
@@ -176,7 +231,9 @@ export const depositsMutationResolvers = {
         utr: request.utr,
         referenceId: request.referenceId,
         proofKey: request.proofKey,
-        proofUrl: null, // Will be generated on query
+        // Like every DepositRequest: whether there is a proof, never the screenshot (depositRequestProof reads it).
+        proofUrl: null,
+        hasProof: request.hasProof === true,
         status: request.status,
         reviewerId: null,
         reviewedAt: null,
@@ -197,12 +254,11 @@ export const depositsMutationResolvers = {
     // CRITICAL: For Director Admin, use effective tenant based on mode
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
-    const reviewerId = ctx?.user?.sub ? Number(ctx.user.sub) : null
-    
-    if (!reviewerId) {
+
+    if (!ctx?.user) {
       throw new Error('User not authenticated')
     }
-    
+
     // Block commission agents from accessing payment requests
     if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) {
       const { AgentsRepo } = await import('@/repos/agents/AgentsRepo.js')
@@ -212,11 +268,16 @@ export const depositsMutationResolvers = {
         throw new Error('Commission agents cannot access payment requests')
       }
     }
-    
+
     if (!hasPermission(ctx?.permissions ?? [], 'payments.deposits', 'approve')) {
       throw new Error('Forbidden: insufficient permissions to approve deposit requests')
     }
-    
+
+    const reviewerId = reviewerIdOf(ctx)
+    if (!reviewerId) {
+      throw new Error('Forbidden: only an admin can approve deposit requests')
+    }
+
     const id = Number(parsed.data.id)
     if (!Number.isFinite(id)) {
       throw new Error('Invalid deposit request ID')
@@ -274,6 +335,9 @@ export const depositsMutationResolvers = {
         amount: Number(request.amount),
         currency: request.currency,
         walletTxnId: request.walletTxnId,
+        ...(Number(request.cryptoBonusAmount) > 0
+          ? { cryptoBonusAmount: Number(request.cryptoBonusAmount), bonusWalletTxnId: request.bonusWalletTxnId }
+          : {}),
       },
     }).catch(() => {})
 
@@ -313,11 +377,14 @@ export const depositsMutationResolvers = {
         referenceId: request.referenceId,
         proofKey: request.proofKey,
         proofUrl: null,
+        hasProof: request.hasProof === true,
         status: request.status,
         reviewerId: request.reviewerId ? String(request.reviewerId) : null,
         reviewedAt: request.reviewedAt ? request.reviewedAt.toISOString() : null,
         note: request.note,
         walletTxnId: request.walletTxnId ? String(request.walletTxnId) : null,
+        cryptoBonusAmount: request.cryptoBonusAmount != null ? Number(request.cryptoBonusAmount) : null,
+        bonusWalletTxnId: request.bonusWalletTxnId ? String(request.bonusWalletTxnId) : null,
         createdAt: request.createdAt.toISOString(),
         updatedAt: request.updatedAt.toISOString(),
       },
@@ -333,12 +400,11 @@ export const depositsMutationResolvers = {
     // CRITICAL: For Director Admin, use effective tenant based on mode
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
-    const reviewerId = ctx?.user?.sub ? Number(ctx.user.sub) : null
-    
-    if (!reviewerId) {
+
+    if (!ctx?.user) {
       throw new Error('User not authenticated')
     }
-    
+
     // Block commission agents from accessing payment requests
     if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) {
       const { AgentsRepo } = await import('@/repos/agents/AgentsRepo.js')
@@ -348,11 +414,16 @@ export const depositsMutationResolvers = {
         throw new Error('Commission agents cannot access payment requests')
       }
     }
-    
+
     if (!hasPermission(ctx?.permissions ?? [], 'payments.deposits', 'reject')) {
       throw new Error('Forbidden: insufficient permissions to reject deposit requests')
     }
-    
+
+    const reviewerId = reviewerIdOf(ctx)
+    if (!reviewerId) {
+      throw new Error('Forbidden: only an admin can reject deposit requests')
+    }
+
     const id = Number(parsed.data.id)
     if (!Number.isFinite(id)) {
       throw new Error('Invalid deposit request ID')
@@ -397,6 +468,7 @@ export const depositsMutationResolvers = {
         referenceId: request.referenceId,
         proofKey: request.proofKey,
         proofUrl: null,
+        hasProof: request.hasProof === true,
         status: request.status,
         reviewerId: request.reviewerId ? String(request.reviewerId) : null,
         reviewedAt: request.reviewedAt ? request.reviewedAt.toISOString() : null,
@@ -411,7 +483,9 @@ export const depositsMutationResolvers = {
   upsertWhitelabelPaymentMethods: async (_: any, args: any, ctx: any) => {
     const parsed = UpsertWhitelabelPaymentMethodsInput.safeParse(args.input)
     if (!parsed.success) {
-      throw new Error('Invalid input')
+      // Crypto issues carry a message the admin can act on (which network, which limit).
+      const cryptoIssue = parsed.error.issues.find(issue => issue.path[0] === 'cryptos' || issue.path[0] === 'cryptoRate' || issue.path[0] === 'cryptoBonusPercent')
+      throw new Error(cryptoIssue ? `Invalid input: ${cryptoIssue.message}` : 'Invalid input')
     }
     
     // CRITICAL: For Director Admin, use effective tenant based on mode
@@ -438,7 +512,12 @@ export const depositsMutationResolvers = {
         throw new Error('Minimum limit must be less than maximum limit')
       }
     }
-    
+
+    // QR codes are stored in the row as data URIs (S3 is gone): each is an image of at most 2 MB, or a link.
+    // A replaced or removed QR is simply overwritten in the row; there is no stored file to clean up.
+    for (const upi of parsed.data.upis ?? []) assertStorableImage(upi.qrKey, 'UPI QR code')
+    for (const wallet of parsed.data.cryptos ?? []) assertStorableImage(wallet.qrKey, 'Wallet QR code')
+
     // Generate IDs for new banks/UPIs if not provided
     // If banks/upis is provided (even if empty array), process it; if undefined, keep existing
     const banks = parsed.data.banks !== undefined 
@@ -457,17 +536,31 @@ export const depositsMutationResolvers = {
         }))
       : undefined
     
+    const cryptos = parsed.data.cryptos !== undefined
+      ? parsed.data.cryptos.map((crypto, index) => ({
+          ...crypto,
+          id: crypto.id || `crypto-${Date.now()}-${index}`,
+          weight: crypto.weight ?? 0,
+        }))
+      : undefined
+
     const methods = await upsertWhitelabelPaymentMethods({
       tenant,
       enabledMethods: parsed.data.enabledMethods,
       banks,
       upis,
+      cryptos,
+      // A GraphQL null and an omitted field both mean "not sent": the rate is only ever replaced, never cleared.
+      cryptoRate: parsed.data.cryptoRate ?? undefined,
+      // Unlike the rate, the bonus can be switched off: 0 or null clears it, omitted keeps it.
+      cryptoBonusPercent: parsed.data.cryptoBonusPercent,
       limits: parsed.data.limits,
     })
-    
-    // Resolve QR codes for display (base64 passes through, legacy S3 keys are signed)
+
+    // QR codes for display (data URIs pass through; a legacy S3 key reads as null)
     const upisWithUrls = await attachQrUrls(methods.upis as any[])
-    
+    const cryptosWithUrls = await attachQrUrls(methods.cryptos)
+
     return {
       success: true,
       message: 'Payment methods updated successfully',
@@ -477,6 +570,9 @@ export const depositsMutationResolvers = {
         enabledMethods: methods.enabledMethods,
         banks: methods.banks || [],
         upis: upisWithUrls,
+        cryptos: cryptosWithUrls,
+        cryptoRate: methods.cryptoRate,
+        cryptoBonusPercent: methods.cryptoBonusPercent,
         limits: methods.limits,
         createdAt: methods.createdAt.toISOString(),
         updatedAt: methods.updatedAt.toISOString(),

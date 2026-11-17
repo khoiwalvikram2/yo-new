@@ -4,10 +4,10 @@
  * - below 1024px the trigger is compact (decision 2): icon only, but its accessible name still carries the
  *   amount, because nothing else announces it;
  * - the trigger works as a kit Popover trigger (forwardRef + ...rest), or the wallet cannot open;
- * - the tabs are real tabs (decision 4 fixes the Settlement tab): arrow keys move selection and focus, and
- *   the body is the tabpanel named by the selected tab;
- * - the bodies show the figures with today's currency arguments: none for credit and settlement, the
- *   payload currency for sharing.
+ * - the tabs are real tabs (decision 4): arrow keys move selection and focus, and the body is the tabpanel
+ *   named by the selected tab;
+ * - the bodies show the figures with their currency arguments: none for the whitelabel credit pool, the
+ *   payload currency for sharing, the account currency for a CREDIT agent's chips.
  */
 import { test, describe, vi } from 'vitest'
 import assert from 'node:assert/strict'
@@ -15,8 +15,8 @@ import { createRef, useState } from 'react'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { Popover } from '@/ui/components/Popover'
 import {
+  ChipBody,
   CreditBody,
-  SettlementBody,
   SharingBody,
   WalletPanel,
   WalletTabs,
@@ -24,7 +24,7 @@ import {
   WalletTriggerLoading,
 } from './WalletParts'
 import type { WalletTab } from './WalletParts'
-import type { CreditFigures, SettlementSummary, SharingSummary } from './walletData'
+import type { ChipWalletFigures, CreditFigures, SharingSummary } from './walletData'
 import type { FormatAmount } from './formatAmount'
 import s from './WalletIndicator.module.css'
 
@@ -141,16 +141,16 @@ describe('WalletTrigger', () => {
 
 describe('WalletTabs', () => {
   test('renders a tablist with ids, aria-controls and a roving tabIndex', () => {
-    render(<TabsHarness tabs={['credit', 'sharing', 'settlement']} initial="credit" onChange={() => {}} />)
+    render(<TabsHarness tabs={['credit', 'chips', 'sharing']} initial="credit" onChange={() => {}} />)
     assert.ok(screen.getByRole('tablist'))
     const tabs = screen.getAllByRole('tab')
     assert.deepEqual(
       tabs.map((tab) => tab.textContent),
-      ['Credit', 'Sharing', 'Settlement'],
+      ['Credit', 'Chips', 'Sharing'],
     )
     assert.deepEqual(
       tabs.map((tab) => tab.id),
-      ['w-tab-credit', 'w-tab-sharing', 'w-tab-settlement'],
+      ['w-tab-credit', 'w-tab-chips', 'w-tab-sharing'],
     )
     for (const tab of tabs) {
       assert.equal(tab.getAttribute('aria-controls'), 'w-panel')
@@ -182,34 +182,34 @@ describe('WalletTabs', () => {
 
   test('ArrowRight and ArrowLeft move selection and focus, wrapping at both ends', () => {
     const onChange = vi.fn()
-    render(<TabsHarness tabs={['credit', 'sharing', 'settlement']} initial="credit" onChange={onChange} />)
+    render(<TabsHarness tabs={['credit', 'chips', 'sharing']} initial="credit" onChange={onChange} />)
     const tab = (name: string) => screen.getByRole('tab', { name })
 
     act(() => {
       tab('Credit').focus()
     })
     fireEvent.keyDown(tab('Credit'), { key: 'ArrowRight' })
+    assert.equal(tab('Chips').getAttribute('aria-selected'), 'true')
+    assert.equal(document.activeElement, tab('Chips'))
+
+    fireEvent.keyDown(tab('Chips'), { key: 'ArrowRight' })
     assert.equal(tab('Sharing').getAttribute('aria-selected'), 'true')
     assert.equal(document.activeElement, tab('Sharing'))
 
     fireEvent.keyDown(tab('Sharing'), { key: 'ArrowRight' })
-    assert.equal(tab('Settlement').getAttribute('aria-selected'), 'true')
-    assert.equal(document.activeElement, tab('Settlement'))
-
-    fireEvent.keyDown(tab('Settlement'), { key: 'ArrowRight' })
     assert.equal(tab('Credit').getAttribute('aria-selected'), 'true')
     assert.equal(document.activeElement, tab('Credit'))
 
     fireEvent.keyDown(tab('Credit'), { key: 'ArrowLeft' })
-    assert.equal(tab('Settlement').getAttribute('aria-selected'), 'true')
-    assert.equal(document.activeElement, tab('Settlement'))
+    assert.equal(tab('Sharing').getAttribute('aria-selected'), 'true')
+    assert.equal(document.activeElement, tab('Sharing'))
 
-    assert.deepEqual(onChange.mock.calls, [['sharing'], ['settlement'], ['credit'], ['settlement']])
+    assert.deepEqual(onChange.mock.calls, [['chips'], ['sharing'], ['credit'], ['sharing']])
   })
 
   test('other keys do not change the selection', () => {
     const onChange = vi.fn()
-    render(<TabsHarness tabs={['credit', 'sharing', 'settlement']} initial="sharing" onChange={onChange} />)
+    render(<TabsHarness tabs={['credit', 'chips', 'sharing']} initial="sharing" onChange={onChange} />)
     const sharing = screen.getByRole('tab', { name: 'Sharing' })
 
     fireEvent.keyDown(sharing, { key: 'Home' })
@@ -267,7 +267,7 @@ describe('WalletPanel', () => {
         subtitle="Credit & Sharing"
         tone="healthy"
         statusLabel="Healthy"
-        tabs={<WalletTabs tabs={['credit', 'sharing', 'settlement']} value="credit" idPrefix="w" onChange={() => {}} />}
+        tabs={<WalletTabs tabs={['credit', 'chips', 'sharing']} value="credit" idPrefix="w" onChange={() => {}} />}
         tabPanelId="w-panel"
         tabLabelledBy="w-tab-credit"
         footer={null}
@@ -418,24 +418,35 @@ describe('SharingBody', () => {
   })
 })
 
-describe('SettlementBody', () => {
-  test('shows the balance and Sports, Casino, Matka in order with no currency argument', () => {
-    const settlement: SettlementSummary = {
-      balance: 150,
-      rows: [
-        { domain: 'Sports', amount: 200 },
-        { domain: 'Casino', amount: -50 },
-        { domain: 'Matka', amount: 0 },
-      ],
-    }
-    const { container } = render(<SettlementBody settlement={settlement} formatAmount={formatAmount} />)
-    assert.ok(screen.getByText('Settlement Balance'))
-    assert.ok(screen.getByText('X150.00'))
-    assert.ok(screen.getByText('X200.00'))
-    assert.ok(screen.getByText('X-50.00'))
-    assert.ok(screen.getByText('X0.00'))
-    const text = container.textContent ?? ''
-    assert.ok(text.indexOf('Sports') < text.indexOf('Casino'))
-    assert.ok(text.indexOf('Casino') < text.indexOf('Matka'))
+describe('ChipBody', () => {
+  const chips: ChipWalletFigures = { currency: 'INR', balance: 95000, downlineBalance: 9700.004, creditReference: 100000, refPnl: 4700 }
+
+  test('balance, downline balance and credit reference in the account currency, kept to 2 decimals', () => {
+    render(<ChipBody chips={chips} formatAmount={formatAmount} />)
+    assert.ok(screen.getByText('Balance'))
+    assert.ok(screen.getByText('INR95000.00'))
+    assert.ok(screen.getByText('Downline balance'))
+    assert.ok(screen.getByText('INR9700.00'))
+    assert.ok(screen.getByText('Credit reference'))
+    assert.ok(screen.getByText('INR100000.00'))
+    assert.equal(screen.queryByRole('progressbar'), null, 'no usage meter on chips')
+    assert.equal(screen.queryByText(/^X/), null, 'every figure carries the account currency')
+  })
+
+  test('Ref P/L is signed and coloured as text, in words to the agent: green when the upline owes, rose when the agent owes', () => {
+    const { rerender } = render(<ChipBody chips={chips} formatAmount={formatAmount} />)
+    const owed = screen.getByText('+INR4700.00')
+    assert.ok(owed.classList.contains(s.gain))
+    assert.ok(screen.getByText('Upline owes you'))
+
+    rerender(<ChipBody chips={{ ...chips, refPnl: -300.5 }} formatAmount={formatAmount} />)
+    const owes = screen.getByText('−INR300.50')
+    assert.ok(owes.classList.contains(s.loss))
+    assert.ok(screen.getByText('You owe upline'))
+
+    rerender(<ChipBody chips={{ ...chips, refPnl: 0 }} formatAmount={formatAmount} />)
+    const even = screen.getByText('INR0.00')
+    assert.equal(even.classList.contains(s.gain) || even.classList.contains(s.loss), false)
+    assert.ok(screen.getByText('Nothing owed'))
   })
 })

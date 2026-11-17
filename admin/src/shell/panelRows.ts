@@ -79,18 +79,20 @@ function itemEntry(sectionKey: string, sectionTitle: string, item: NavItem): She
   }
 
   // Exactly one child: only that child's row. The heading disappears, so the row inherits the item's
-  // label and keywords for search, and the item's badge.
+  // label and keywords for search, and the item's badge, and shows the child's standalone label when the
+  // child has one (a "Management" row with no Matka heading read as part of the Casino group above it).
   if (children.length === 1) {
     const child = children[0]
+    const label = child.standaloneLabel ?? child.label
     return rowEntry(
       buildRow(
         sectionKey,
         sectionTitle,
         sourceKey,
         child.to,
-        child.label,
+        label,
         navIcon(child.icon),
-        keywordList(child.label, child.keywords, item.label, item.keywords),
+        keywordList(label, child.keywords, item.label, item.keywords),
         badgeKey,
       ),
     )

@@ -30,12 +30,7 @@ export const EnvSchema = z.object({
   CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.string().optional().default('5'), // Default 5 failures
   CIRCUIT_BREAKER_COOLDOWN_SEC: z.string().optional().default('60'), // Default 60 seconds
   CIRCUIT_BREAKER_HALF_OPEN_PROBES: z.string().optional().default('3'), // Default 3 probes
-  // S3 Configuration
-  S3_BUCKET: z.string().optional(),
-  S3_REGION: z.string().optional().default('us-east-1'),
-  S3_ACCESS_KEY_ID: z.string().optional(),
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
-  S3_UPLOAD_EXPIRY_SEC: z.string().optional().default('3600'), // Default 1 hour
+  // No S3 settings: files are stored in the database as base64 data URIs (owner decision 2026-11-04).
   // Snapshot Generation Configuration
   SNAPSHOT_DEBOUNCE_MS: z.string().optional().default('5000'), // Default 5 seconds
   SNAPSHOT_LOCK_TTL_SECONDS: z.string().optional().default('300'), // Default 5 minutes

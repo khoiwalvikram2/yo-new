@@ -39,7 +39,7 @@
 }
 .nova-acct .nova-stmt-filters select.nova-stmt-select.has-icon { padding-left: 42px; }
 .nova-acct .nova-stmt-filters :is(input.nova-stmt-input, select.nova-stmt-select):hover { background-color: var(--mb-panel-2); }
-.nova-acct .nova-stmt-filters :is(input.nova-stmt-input, select.nova-stmt-select):focus { outline: none; background-color: var(--mb-panel); box-shadow: inset 0 -2px 0 #C51A1B; }
+.nova-acct .nova-stmt-filters :is(input.nova-stmt-input, select.nova-stmt-select):focus { outline: none; background-color: var(--mb-panel); box-shadow: inset 0 -2px 0 var(--mb-red); }
 .nova-acct .nova-stmt-filters :is(.nova-stmt-search-icon, .nova-stmt-select-icon) {
   position: absolute;
   top: 50%;

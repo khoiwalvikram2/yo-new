@@ -8,7 +8,7 @@ afterEach(cleanup)
 
 test('server pagination corrects the owner offset only after the new total finishes loading', () => {
   const onChange = vi.fn()
-  const pager = (loading: boolean, total: number) => <Pagination current={8} pageSize={20} total={total} loading={loading} onChange={onChange} />
+  const pager = (loading: boolean, total: number) => <Pagination current={8} pageSize={20} total={total} loading={loading} onChange={onChange} onPageSizeChange={vi.fn()} />
   const view = render(pager(true, 0))
   assert.equal(onChange.mock.calls.length, 0)
   view.rerender(pager(false, 25))
@@ -19,7 +19,7 @@ test('server pagination corrects the owner offset only after the new total finis
 
 test('a controlled table refetches a valid page after filtered totals shrink', () => {
   const onChange = vi.fn()
-  const table = (state: 'loading' | 'ready', total: number) => <DataTable columns={[{key:'id',header:'ID',cell:(r:{id:string})=>r.id}]} rows={[]} rowKey={r=>r.id} label="Server results" state={state} pagination={{current:5,pageSize:20,total,onChange}} />
+  const table = (state: 'loading' | 'ready', total: number) => <DataTable columns={[{key:'id',header:'ID',cell:(r:{id:string})=>r.id}]} rows={[]} rowKey={r=>r.id} label="Server results" state={state} pagination={{current:5,pageSize:20,total,onChange,onPageSizeChange:vi.fn()}} />
   const view = render(table('loading', 0))
   assert.equal(onChange.mock.calls.length, 0)
   view.rerender(table('ready', 0))

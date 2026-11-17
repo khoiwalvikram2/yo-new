@@ -25,6 +25,8 @@ import {
   regenerateAllTitle,
   reportingDayHint,
   resolveBackfillRange,
+  backfillRefusalMessage,
+  backfillTargetText,
   runEventsLabel,
   runStatusTone,
   snapshotRowKey,
@@ -178,6 +180,16 @@ describe('snapshotHealthModel', () => {
     assert.equal(clampPage(5, 45, 20), 3)
     assert.equal(clampPage(2, 0, 20), 1)
     assert.equal(clampPage(Number.NaN, 45, 20), 1)
+  })
+
+  test('a refused backfill says why, and the form names the book it backfills (F-REP-11)', () => {
+    assert.equal(backfillRefusalMessage(new Error('Range too large (max 31 days)')), 'Range too large (max 31 days)')
+    assert.equal(backfillRefusalMessage({}), 'The backfill could not be queued. Please try again.')
+    assert.equal(backfillRefusalMessage(null), 'The backfill could not be queued. Please try again.')
+    assert.equal(
+      backfillTargetText({ tenant: 'grandwinn-com', whitelabelId: 'grandwinn-com', currency: 'INR' }),
+      'Backfills grandwinn-com (INR), the first tenant listed below; at most 31 days at a time.',
+    )
   })
 
   test('backfill range needs both days and orders a reversed pair', () => {

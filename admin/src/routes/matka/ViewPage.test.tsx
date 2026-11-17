@@ -10,6 +10,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import {
   CLONE_MATKA_MUTATION,
@@ -325,5 +327,34 @@ describe('MatkaViewPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     })
     await screen.findByRole('heading', { level: 1, name: 'Kalyan Morning' })
+  })
+
+  test('a Super Admin in core mode is asked to select a whitelabel: no lookup, and no Edit, Clone or status action', async () => {
+    // Core mode read the platform's own tenant ('default'): a real matka showed "Not found", and Clone or a status
+    // change would have acted in that tenant, where no whitelabel sees it.
+    const auth = useAuthStore.getState(), ui = useUIStore.getState()
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      const core = renderPage([matkaMock(), listMock])
+      assert.ok(await screen.findByText('Select a whitelabel'))
+      assert.ok(screen.getByRole('heading', { level: 1, name: 'Matka Details' }))
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+      assert.equal(server.lookups, 0, 'no Matka lookup')
+      assert.equal(apollo.queries.length, 0)
+      assert.equal(apollo.mutations.length, 0, 'no clone or status mutation is prepared')
+      assertAbsent(screen.queryByRole('link', { name: 'Edit' }), 'Edit')
+      assertAbsent(screen.queryByRole('button', { name: 'Clone' }), 'Clone')
+      assertAbsent(screen.queryByRole('button', { name: 'Activate' }), 'Activate')
+      assertAbsent(screen.queryByText('Not found'), 'Not found')
+      core.unmount()
+      // With a site selected the same admin gets the page, as a whitelabel admin always does.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      renderPage([matkaMock(), listMock])
+      await screen.findByRole('heading', { level: 1, name: 'Kalyan Morning' })
+      assert.ok(screen.queryByText('Select a whitelabel') === null, 'no select state with a site selected')
+      assert.ok(screen.getByRole('button', { name: 'Clone' }))
+    } finally {
+      useAuthStore.setState({ roles: auth.roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
   })
 })

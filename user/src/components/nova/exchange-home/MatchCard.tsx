@@ -7,6 +7,7 @@ import {
   BADGE_TITLES,
   eventUrl,
   formatPrice,
+  hasPrice,
   formatVolume,
   istClock,
   splitTeams,
@@ -43,23 +44,19 @@ type MatchView = {
   matched?: number
 }
 
-/** One runner's back/lay pair. A runner without prices (suspended) shows locked; a runner the market does not
- *  have at all (no draw in a two-runner market) is a blank cell on the list's fixed 1 X 2 columns. */
-function OddsPair({ pair, loaded }: { pair?: PricePair; loaded: boolean }) {
+/** One runner's back/lay pair. Every box without a usable price is a locked box (lock icon, not clickable):
+ *  not yet loaded, suspended, or a runner the market does not have (the X of a two-runner market). */
+function OddsPair({ pair }: { pair?: PricePair; loaded?: boolean }) {
   const { t } = useTranslation()
-  if (loaded && !pair) {
-    return <span className="nova-ex-pair is-none" aria-hidden="true"><span className="nova-ex-price is-back" /><span className="nova-ex-price is-lay" /></span>
+  const label = t('exchangeHome.suspended', { defaultValue: 'Suspended' })
+  const cell = (side: 'back' | 'lay') => {
+    const leg = pair?.[side]
+    if (!hasPrice(leg?.price)) {
+      return <span className={`nova-ex-price is-${side} is-locked`} role="img" aria-label={label} title={label} data-locked="true"><Lock aria-hidden="true" /></span>
+    }
+    return <span className={`nova-ex-price is-${side}`}><strong>{formatPrice(leg?.price)}</strong><small>{formatVolume(leg?.size)}</small></span>
   }
-  if (loaded && !pair?.back.price && !pair?.lay.price) {
-    return <span className="nova-ex-pair is-locked" title={t('exchangeHome.suspended', { defaultValue: 'Suspended' })}>
-      <span className="nova-ex-price is-back"><Lock aria-hidden="true" /></span>
-      <span className="nova-ex-price is-lay"><Lock aria-hidden="true" /></span>
-    </span>
-  }
-  return <span className="nova-ex-pair">
-    <span className="nova-ex-price is-back"><strong>{formatPrice(pair?.back.price)}</strong><small>{formatVolume(pair?.back.size)}</small></span>
-    <span className="nova-ex-price is-lay"><strong>{formatPrice(pair?.lay.price)}</strong><small>{formatVolume(pair?.lay.size)}</small></span>
-  </span>
+  return <span className="nova-ex-pair">{cell('back')}{cell('lay')}</span>
 }
 
 /**

@@ -74,6 +74,8 @@ function parseBonusAwardsPageRepoFilters(filters: Record<string, unknown> | null
 }
 
 export const marketingQueryResolvers = {
+  // Promotions > Campaigns and > Content (promotions, content) were retired on 2026-11-04 (MAR-14).
+
   bonusCampaigns: async (_: any, args: any, ctx: any) => {
     if (!hasPermission(ctx?.permissions ?? [], 'bonuses.list', 'view')) {
       throw new Error('Forbidden: insufficient permissions for bonus campaigns')

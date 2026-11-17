@@ -9,9 +9,15 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { EventsFiltersValues } from '../eventsPageModel'
 import { EventsFilters } from './EventsFilters'
 
+// The competitions of the loaded events, as the page passes them (eventCompetitionOptions).
+const COMPETITIONS = [
+  { label: 'Nepal Premier League', value: 'Nepal Premier League' },
+  { label: 'Wimbledon', value: 'Wimbledon' },
+]
+
 function setup(props: { initialValues?: EventsFiltersValues; loading?: boolean } = {}) {
   const onFilter = vi.fn<(values: EventsFiltersValues) => void>()
-  render(<EventsFilters onFilter={onFilter} {...props} />)
+  render(<EventsFilters onFilter={onFilter} competitionOptions={COMPETITIONS} {...props} />)
   return onFilter
 }
 
@@ -50,9 +56,15 @@ describe('EventsFilters', () => {
     fireEvent.keyDown(field('Event Status'), { key: 'ArrowDown' })
     assert.deepEqual(
       within(screen.getByRole('listbox', { name: 'Event Status' })).getAllByRole('option').map((o) => o.textContent),
-      ['In-Play', 'Upcoming', 'Suspended', 'Closed'],
+      ['In-Play', 'Upcoming', 'Finished'],
     )
     fireEvent.keyDown(field('Event Status'), { key: 'Escape' })
+    fireEvent.keyDown(field('Competition'), { key: 'ArrowDown' })
+    assert.deepEqual(
+      within(screen.getByRole('listbox', { name: 'Competition' })).getAllByRole('option').map((o) => o.textContent),
+      ['Nepal Premier League', 'Wimbledon'],
+    )
+    fireEvent.keyDown(field('Competition'), { key: 'Escape' })
 
     choose('Sport Type', 'Tennis')
     assert.equal(onFilter.mock.calls.length, 0, 'a staged choice is not applied')
@@ -71,14 +83,14 @@ describe('EventsFilters', () => {
 
     choose('Sport Type', 'Football')
     choose('Event Status', 'Upcoming')
-    choose('Competition', 'EPL - English Premier League')
+    choose('Competition', 'Nepal Premier League')
     fireEvent.change(dateField('Start date'), { target: { value: '2026-10-07T17:30' } })
     fireEvent.change(dateField('End date'), { target: { value: '2026-10-08T09:00' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     const applied = lastCall(onFilter)
     assert.equal(applied?.sport, 'Football')
     assert.equal(applied?.status, 'upcoming')
-    assert.equal(applied?.competition, 'EPL')
+    assert.equal(applied?.competition, 'Nepal Premier League')
     assert.deepEqual(applied?.timeRange?.map((d) => d.toISOString()), ['2026-10-07T12:00:00.000Z', '2026-10-08T03:30:00.000Z'])
 
     // clearing a field sends it as undefined again
@@ -101,7 +113,7 @@ describe('EventsFilters', () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-07T12:00:45.000Z'))
     const onFilter = setup()
     choose('Sport Type', 'Tennis')
-    choose('Competition', 'Wimbledon Championships')
+    choose('Competition', 'Wimbledon')
 
     fireEvent.click(screen.getByRole('button', { name: 'Live Now' }))
     assert.deepEqual(lastCall(onFilter), { status: 'inplay' })
@@ -127,14 +139,15 @@ describe('EventsFilters', () => {
     setup({
       initialValues: {
         sport: 'Basketball',
-        status: 'closed',
+        status: 'finished',
         competition: 'NBA',
         timeRange: [new Date('2026-10-07T18:45:00.000Z'), new Date('2026-10-08T18:45:00.000Z')],
       },
     })
     assert.equal(field('Sport Type').value, 'Basketball')
-    assert.equal(field('Event Status').value, 'Closed')
-    assert.equal(field('Competition').value, 'NBA - National Basketball')
+    assert.equal(field('Event Status').value, 'Finished')
+    // A competition no loaded event belongs to any longer is still named, not dropped.
+    assert.equal(field('Competition').value, 'NBA')
     assert.equal(dateField('Start date').value, '2026-10-08T00:15')
     assert.equal(dateField('End date').value, '2026-10-09T00:15')
   })

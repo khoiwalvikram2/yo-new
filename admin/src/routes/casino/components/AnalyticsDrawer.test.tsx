@@ -1,8 +1,8 @@
 /**
  * The analytics drawer against a mocked GraphQL server: the provider and vendor queries with the IST range
  * they send, the Today / 7D / 30D presets and a custom range through the kit range field (and Reset), the
- * provider and vendor figures with the legacy badges, the vendor breakdown, the empty and loading states, the
- * titles, and the range surviving a close and reopen.
+ * provider and vendor figures (computed from the data, with none of the legacy fixed badges), the vendor
+ * breakdown, the empty and loading states, the titles, and the range surviving a close and reopen.
  */
 import { beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
@@ -13,10 +13,12 @@ import { istDayEnd, istDayStart, istToday } from '@/ui/components/istDate'
 import { addDays, formatRangeDay, type AnalyticsMode } from '../providersPageModel'
 import { AnalyticsDrawer } from './AnalyticsDrawer'
 
-// A Stat delta reads "Up 12.5%" across the arrow's hidden direction word and the visible figure, so the
-// innermost element with that whole text is the delta chip.
-const deltaText = (text: string) => (_: string, element: Element | null) =>
-  !!element && element.textContent === text && ![...element.children].some((child) => child.textContent === text)
+/** The legacy badges were fixed numbers shown whatever the data: none of them may be on screen. */
+function assertNoFixedBadges(dialog: HTMLElement) {
+  for (const figure of ['12.5%', '8.3%', '15.2%', '10.8%']) {
+    assert.equal(within(dialog).queryByText((_, element) => !!element?.textContent?.includes(figure) && element.children.length === 0), null, figure)
+  }
+}
 
 interface ServerCall {
   operationName: string
@@ -32,8 +34,9 @@ vi.mock('@/shared/core/CurrencyContext', () => ({
 
 let server: {
   calls: ServerCall[]
+  totalGGR: number
   breakdown: Array<Record<string, unknown>>
-  vendor: { ggr: number; shareAmount: number; transactionCount: number }
+  vendor: { ggr: number; shareAmount: number; transactionCount: number; totalStake: number }
 }
 
 function handle(operation: Operation): FetchResult {
@@ -45,7 +48,7 @@ function handle(operation: Operation): FetchResult {
           providerAnalytics: {
             __typename: 'ProviderAnalytics',
             providerId: variables.providerId,
-            totalGGR: 1500,
+            totalGGR: server.totalGGR,
             vendorBreakdown: server.breakdown.map((v) => ({ __typename: 'VendorBreakdown', ...v })),
           },
         },
@@ -118,11 +121,12 @@ function figureRows(): string[] {
 beforeEach(() => {
   server = {
     calls: [],
+    totalGGR: 1500,
     breakdown: [
       { vendorId: 'v1', vendorName: 'Evolution', ggr: 1000, shareAmount: 100, transactionCount: 8 },
       { vendorId: 'v2', vendorName: 'Ezugi', ggr: 500, shareAmount: 50, transactionCount: 4 },
     ],
-    vendor: { ggr: 1000, shareAmount: 100, transactionCount: 8 },
+    vendor: { ggr: 1000, shareAmount: 100, transactionCount: 8, totalStake: 4000 },
   }
 })
 
@@ -142,7 +146,7 @@ describe('AnalyticsDrawer', () => {
     assert.equal(onClose.mock.calls.length, 1)
   })
 
-  test('a provider: today in IST, the headline figures with the legacy badges, and the vendor breakdown', async () => {
+  test('a provider: today in IST, the headline figures with no fixed badge, and the vendor breakdown', async () => {
     renderDrawer(PROVIDER_MODE)
 
     assert.ok(screen.getByRole('dialog', { name: 'Analytics • QTech' }))
@@ -155,12 +159,13 @@ describe('AnalyticsDrawer', () => {
     })
 
     const dialog = screen.getByRole('dialog')
-    for (const text of ['INR 1500.00', 'Up 12.5%', 'Gross Gaming Revenue', 'Total Share Amount', 'INR 150.00', 'Up 8.3%', 'Your commission']) {
-      assert.ok(within(dialog).getByText(/^(Up|Down|No change) /.test(text) ? deltaText(text) : text), text)
+    for (const text of ['INR 1500.00', 'Gross Gaming Revenue', 'Total Share Amount', 'INR 150.00', 'Your commission']) {
+      assert.ok(within(dialog).getByText(text), text)
     }
+    assertNoFixedBadges(dialog)
     assert.deepEqual(figureRows(), [
-      'Active Vendorsof 2 total2',
-      'Transactionstoday12',
+      'Active Vendorswith bets in range2',
+      'Transactionsin range12',
       'Avg/Vendorper vendorINR 750.00',
     ])
 
@@ -171,6 +176,24 @@ describe('AnalyticsDrawer', () => {
     assert.ok(within(evolution).getByText('Contribution'))
     assert.ok(within(evolution).getByText('66.7%'))
     assert.deepEqual([...evolution.querySelectorAll('dd')].map((dd) => dd.textContent), ['INR 1000.00', 'INR 100.00'])
+  })
+
+  test('a provider with a negative total: every vendor that took bets is active, each with its signed share', async () => {
+    // September's shape: the house lost overall, and the share of that negative total read 0.0% for every vendor
+    // while "Active Vendors" counted only the vendors with a positive GGR.
+    server.totalGGR = -400
+    server.breakdown = [
+      { vendorId: 'v1', vendorName: 'Evolution', ggr: 300, shareAmount: 30, transactionCount: 8 },
+      { vendorId: 'v2', vendorName: 'Ezugi', ggr: -700, shareAmount: 0, transactionCount: 4 },
+    ]
+    renderDrawer(PROVIDER_MODE)
+    await screen.findByText('Total GGR')
+
+    assert.equal(figureRows()[0], 'Active Vendorswith bets in range2')
+    const evolution = screen.getByText('Evolution').closest('li') as HTMLElement
+    const ezugi = screen.getByText('Ezugi').closest('li') as HTMLElement
+    assert.ok(within(evolution).getByText('30.0%'), 'out of the 1,000 moved, Evolution won the house 300')
+    assert.ok(within(ezugi).getByText('-70.0%'), 'and Ezugi lost it 700')
   })
 
   test('the presets and a custom range change the instants sent; Reset returns to today', async () => {
@@ -236,13 +259,13 @@ describe('AnalyticsDrawer', () => {
     renderDrawer(PROVIDER_MODE)
     assert.ok(await screen.findByText('No vendor data available'))
     assert.deepEqual(figureRows(), [
-      'Active Vendorsof 0 total0',
-      'Transactionstoday0',
+      'Active Vendorswith bets in range0',
+      'Transactionsin range0',
       'Avg/Vendorper vendorINR 0.00',
     ])
   })
 
-  test('a vendor: its query, the figures with the legacy badges, and the tracking note', async () => {
+  test('a vendor: its query, the figures with no fixed badge, the average stake, and the tracking note', async () => {
     renderDrawer(VENDOR_MODE)
     assert.ok(screen.getByRole('dialog', { name: 'Analytics • Evolution' }))
     await screen.findByText('Your Share')
@@ -253,29 +276,29 @@ describe('AnalyticsDrawer', () => {
       end: istDayEnd(today()),
     })
     const dialog = screen.getByRole('dialog')
-    for (const text of ['GGR', 'INR 1000.00', 'Up 15.2%', 'INR 100.00', 'Up 10.8%', 'Commission amount']) {
-      assert.ok(within(dialog).getByText(/^(Up|Down|No change) /.test(text) ? deltaText(text) : text), text)
+    for (const text of ['GGR', 'INR 1000.00', 'INR 100.00', 'Commission amount']) {
+      assert.ok(within(dialog).getByText(text), text)
     }
+    assertNoFixedBadges(dialog)
+    // 4,000 staked over 8 bets; the legacy figure was |GGR| / bets (125.00), which is no average bet.
     assert.deepEqual(figureRows(), [
-      'Transactionstoday8',
-      'Avg Betper transactionINR 125.00',
+      'Transactionsin range8',
+      'Avg Betstake per betINR 500.00',
       'Playersdistinct players not tracked—',
     ])
     assert.ok(screen.getByRole('heading', { level: 3, name: 'Performance Details' }))
     assert.ok(screen.getByText('Win rate, retention and uptime require additional tracking; show when available.'))
   })
 
-  test('a vendor with nothing today keeps the legacy fixed badges and shows 0 players', async () => {
-    server.vendor = { ggr: 0, shareAmount: 0, transactionCount: 0 }
+  test('a vendor with nothing today shows no badge, no average and 0 players', async () => {
+    server.vendor = { ggr: 0, shareAmount: 0, transactionCount: 0, totalStake: 0 }
     renderDrawer({ type: 'vendor', providerId: 'p1', vendorId: 'v1' })
     assert.ok(screen.getByRole('dialog', { name: 'Vendor Analytics' }))
     await screen.findByText('Your Share')
-    const dialog = screen.getByRole('dialog')
-    assert.ok(within(dialog).getByText(deltaText('Down 15.2%')))
-    assert.ok(within(dialog).getByText(deltaText('No change 10.8%')))
+    assertNoFixedBadges(screen.getByRole('dialog'))
     assert.deepEqual(figureRows(), [
-      'Transactionstoday0',
-      'Avg Betper transactionINR 0.00',
+      'Transactionsin range0',
+      'Avg Betstake per bet—',
       'Playersdistinct players not tracked0',
     ])
   })

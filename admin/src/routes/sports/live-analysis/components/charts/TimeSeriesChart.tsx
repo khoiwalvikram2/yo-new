@@ -15,7 +15,8 @@ export function TimeSeriesChart({ data, dataKeys, height = 300, type = 'line', f
     <XAxis dataKey={xAxisKey} tick={{ fontSize: 12 }} tickFormatter={value => { if (typeof value === 'string' && value.includes('T')) { try { return formatTime(value, 'HH:mm'); } catch { return value; } } return value; }} />
     <YAxis tick={{ fontSize: 12 }} tickFormatter={fmt} />
     <Tooltip content={({ active, payload, label }) => active && payload?.length ? <div className={styles.chartTip}><strong>{String(label ?? '')}</strong>{payload.map((item, index) => <span key={index}>{String(item.name)}: {fmt(item.value)}</span>)}</div> : null} />
-    {showLegend && <Legend content={legend} />}
+    {/* A function, not the element: recharts clones an element with its own props (iconSize, inactiveColor…), which React reported as unknown DOM props on the <ul>. */}
+    {showLegend && <Legend content={() => legend} />}
     {dataKeys.map((series, index) => <Series key={series.key} type="monotone" dataKey={series.key} name={series.name} className={styles[liveChartTone(series.color, index)]} fillOpacity={type === 'area' ? 0.3 : undefined} strokeWidth={2} dot={{ r: 3, className: styles[liveChartTone(series.color, index)] }} activeDot={{ r: 5, className: styles[liveChartTone(series.color, index)] }} />)}
   </Chart></ResponsiveContainer></div>;
 }

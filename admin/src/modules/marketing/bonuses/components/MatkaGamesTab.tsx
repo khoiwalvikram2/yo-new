@@ -90,6 +90,8 @@ export function MatkaGamesTab({
   })
 
   const [executesaveMatkas, { loading: saving }] = useMutation(SAVE_BONUS_CAMPAIGN_MATKAS, {
+    // The tab reports the outcome itself; the global mutation toast said it twice (MAR-06).
+    context: { skipNotification: true },
     onCompleted: (data) => {
       if (data.saveBonusCampaignMatkas.success) {
         notification.success({

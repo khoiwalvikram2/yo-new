@@ -262,23 +262,12 @@ export const NESTED_PERMISSIONS: PermissionPair[] = [
   { domain: 'audit.annotations', action: 'create' },
   { domain: 'audit.annotations', action: 'update' },
   { domain: 'audit.annotations', action: 'delete' },
-  // Notifications
-  { domain: 'notifications.list', action: 'view' },
-  { domain: 'notifications.list', action: 'update' },
   // Credit
   { domain: 'credit.management', action: 'view' },
   { domain: 'credit.history', action: 'view' },
   { domain: 'credit.settlements', action: 'view' },
   { domain: 'credit.settlements', action: 'create' },
-  // Promotions
-  { domain: 'promotions.campaigns', action: 'view' },
-  { domain: 'promotions.campaigns', action: 'create' },
-  { domain: 'promotions.campaigns', action: 'update' },
-  { domain: 'promotions.campaigns', action: 'delete' },
-  { domain: 'promotions.content', action: 'view' },
-  { domain: 'promotions.content', action: 'create' },
-  { domain: 'promotions.content', action: 'update' },
-  { domain: 'promotions.content', action: 'delete' },
+  // notifications.list and promotions.campaigns / promotions.content were retired on 2026-11-04: nothing checked them.
 ]
 
 /**
@@ -537,23 +526,11 @@ const NESTED_TO_FLAT: Record<string, PermissionPair[]> = {
   'audit.annotations:create': [{ domain: 'audit', action: 'read' }],
   'audit.annotations:update': [{ domain: 'audit', action: 'read' }],
   'audit.annotations:delete': [{ domain: 'audit', action: 'read' }],
-  // Notifications (notifications.manage in plan)
-  'notifications.list:view': [{ domain: 'notifications', action: 'manage' }],
-  'notifications.list:update': [{ domain: 'notifications', action: 'manage' }],
   // Credit (credit.read / credit.write - plan has credit domain)
   'credit.management:view': [{ domain: 'credit', action: 'read' }],
   'credit.history:view': [{ domain: 'credit', action: 'read' }],
   'credit.settlements:view': [{ domain: 'credit', action: 'read' }],
   'credit.settlements:create': [{ domain: 'credit', action: 'write' }],
-  // Promotions
-  'promotions.campaigns:view': [{ domain: 'promotions', action: 'read' }],
-  'promotions.campaigns:create': [{ domain: 'promotions', action: 'write' }],
-  'promotions.campaigns:update': [{ domain: 'promotions', action: 'write' }],
-  'promotions.campaigns:delete': [{ domain: 'promotions', action: 'write' }],
-  'promotions.content:view': [{ domain: 'promotions', action: 'read' }],
-  'promotions.content:create': [{ domain: 'promotions', action: 'write' }],
-  'promotions.content:update': [{ domain: 'promotions', action: 'write' }],
-  'promotions.content:delete': [{ domain: 'promotions', action: 'write' }],
 }
 
 /** Flat permissions that grant a nested (domain, action). Empty = only exact nested or all.* grants. */

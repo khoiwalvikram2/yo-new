@@ -2,8 +2,10 @@ import { db } from '@src/db/client.js'
 import {
   referralEarnings,
   referralSettlements,
+  referralClicks,
+  referralAttributions,
 } from '@src/db/schema.js'
-import { and, eq, desc, gte, lte, sql, between, count } from 'drizzle-orm'
+import { and, eq, desc, gte, lte, sql, between, count, type SQL } from 'drizzle-orm'
 
 // ===== Referral Earnings =====
 
@@ -409,6 +411,98 @@ export async function getPendingReferralSettlementsDb(
     .orderBy(referralSettlements.createdAt)
 }
 
+/** The range conditions on one event-date column; an open end adds nothing. */
+function inRange(column: any, fromDate?: Date, toDate?: Date): SQL[] {
+  const conditions: SQL[] = []
+  if (fromDate) conditions.push(gte(column, fromDate))
+  if (toDate) conditions.push(lte(column, toDate))
+  return conditions
+}
+
+/**
+ * The players a referrer brought in. referral_attributions holds one row per referee (a unique
+ * index), so this counts referred players; an attribution that was rejected or moved to another
+ * referrer is not one. `active` stays what it was: the confirmed ones.
+ */
+const referredPlayersSql = () =>
+  sql<number>`COUNT(DISTINCT CASE WHEN ${referralAttributions.status} IN ('pending', 'confirmed') THEN ${referralAttributions.refereeId} END)`
+const activeReferralsSql = () =>
+  sql<number>`COUNT(DISTINCT CASE WHEN ${referralAttributions.status} = 'confirmed' THEN ${referralAttributions.refereeId} END)`
+
+// ===== Overview Stats =====
+
+/**
+ * The tenant's referral totals for /referrals (MAR-09: the resolver returned hard-coded zeros).
+ * Each figure is taken over its own event date in the range:
+ *  - clicks: referral_clicks by clicked_at;
+ *  - signups: confirmed attributions (one per referred player), attributions: all of them, both by
+ *    attributed_at;
+ *  - earnings: the net amount of referral_earnings by calculated_at;
+ *  - settled and pending: what became of those same earnings, so Earnings = Settled + Pending (+ any
+ *    failed or cancelled settlement). Settled is what completed settlements paid (cash + bonus);
+ *    pending is an earning with no settlement yet (what the player's claim would settle) or with
+ *    one still pending or processing.
+ */
+export async function getReferralOverviewStatsDb(
+  tenant: string,
+  options?: { fromDate?: Date; toDate?: Date }
+) {
+  const fromDate = options?.fromDate
+  const toDate = options?.toDate
+  const earningsInRange = and(eq(referralEarnings.tenant, tenant), ...inRange(referralEarnings.calculatedAt, fromDate, toDate))
+
+  const [clicks] = await db
+    .select({ total: count() })
+    .from(referralClicks)
+    .where(and(eq(referralClicks.tenant, tenant), ...inRange(referralClicks.clickedAt, fromDate, toDate)))
+
+  const [attributions] = await db
+    .select({
+      total: count(),
+      confirmed: sql<number>`COUNT(*) FILTER (WHERE ${referralAttributions.status} = 'confirmed')`,
+    })
+    .from(referralAttributions)
+    .where(and(eq(referralAttributions.tenant, tenant), ...inRange(referralAttributions.attributedAt, fromDate, toDate)))
+
+  const [earned] = await db
+    .select({ total: sql<string>`COALESCE(SUM(${referralEarnings.netAmount}), 0)` })
+    .from(referralEarnings)
+    .where(earningsInRange)
+
+  const [unsettled] = await db
+    .select({ total: sql<string>`COALESCE(SUM(${referralEarnings.netAmount}), 0)` })
+    .from(referralEarnings)
+    .where(and(
+      earningsInRange,
+      sql`NOT EXISTS (SELECT 1 FROM referral_settlements s WHERE s.earning_id = ${referralEarnings.id} AND s.tenant = ${referralEarnings.tenant})`,
+    ))
+
+  const settlementsByStatus = await db
+    .select({
+      status: referralSettlements.status,
+      total: sql<string>`COALESCE(SUM(${referralSettlements.cashAmount} + ${referralSettlements.bonusAmount}), 0)`,
+    })
+    .from(referralSettlements)
+    .innerJoin(referralEarnings, and(
+      eq(referralEarnings.id, referralSettlements.earningId),
+      eq(referralEarnings.tenant, referralSettlements.tenant),
+    ))
+    .where(and(eq(referralSettlements.tenant, tenant), earningsInRange))
+    .groupBy(referralSettlements.status)
+
+  const settled = (status: string) => Number(settlementsByStatus.find(row => row.status === status)?.total ?? 0)
+  const cents = (value: number) => Math.round(value * 100) / 100
+
+  return {
+    totalClicks: Number(clicks?.total ?? 0),
+    totalSignups: Number(attributions?.confirmed ?? 0),
+    totalAttributions: Number(attributions?.total ?? 0),
+    totalEarnings: cents(Number(earned?.total ?? 0)),
+    totalSettled: cents(settled('completed')),
+    totalPending: cents(Number(unsettled?.total ?? 0) + settled('pending') + settled('processing')),
+  }
+}
+
 // ===== Top Referrers Stats =====
 
 export async function getTopReferrersDb(
@@ -438,7 +532,6 @@ export async function getTopReferrersDb(
     .select({
       referrerId: referralEarnings.referrerId,
       totalEarnings: sql<number>`SUM(CAST(${referralEarnings.netAmount} AS DECIMAL))`.as('totalEarnings'),
-      totalReferrals: sql<number>`COUNT(DISTINCT ${referralEarnings.refereeId})`.as('totalReferrals'),
       totalTransactions: sql<number>`COUNT(*)`.as('totalTransactions'),
     })
     .from(referralEarnings)
@@ -446,8 +539,6 @@ export async function getTopReferrersDb(
     .groupBy(referralEarnings.referrerId)
 
   // Get clicks and attributions for conversion rate
-  const { referralClicks, referralAttributions } = await import('@src/db/schema.js')
-
   const clicksConditions = [eq(referralClicks.tenant, tenant)]
   if (fromDate) {
     clicksConditions.push(gte(referralClicks.clickedAt, fromDate))
@@ -477,43 +568,50 @@ export async function getTopReferrersDb(
     .select({
       referrerId: referralAttributions.referrerId,
       totalAttributions: count(),
-      activeReferrals: sql<number>`COUNT(DISTINCT CASE WHEN ${referralAttributions.status} = 'confirmed' THEN ${referralAttributions.refereeId} END)`.as('activeReferrals'),
+      referredPlayers: referredPlayersSql().as('referredPlayers'),
+      activeReferrals: activeReferralsSql().as('activeReferrals'),
     })
     .from(referralAttributions)
     .where(and(...attributionsConditions))
     .groupBy(referralAttributions.referrerId)
 
   // Combine data
+  const earningsMap = new Map(earnings.map(e => [e.referrerId, {
+    total: Number(e.totalEarnings) || 0,
+    transactions: Number(e.totalTransactions) || 0,
+  }]))
   const clicksMap = new Map(clicksByReferrer.map(c => [c.referrerId, Number(c.totalClicks)]))
   const attributionsMap = new Map(attributionsByReferrer.map(a => [a.referrerId, {
     total: Number(a.totalAttributions),
+    referred: Number(a.referredPlayers),
     active: Number(a.activeReferrals),
   }]))
 
-  const topReferrers = earnings.map(e => {
-    const clicks = clicksMap.get(e.referrerId) || 0
-    const attributions = attributionsMap.get(e.referrerId) || { total: 0, active: 0 }
+  // Every referrer with activity in the range: referred players, clicks or earnings. This used to
+  // start from earnings alone, so it listed nobody until a referee produced an earning, dropped every
+  // referrer whose referees had not, and counted "referrals" as referees with earnings (MAR-10).
+  const referrerIds = new Set([...attributionsMap.keys(), ...clicksMap.keys(), ...earningsMap.keys()])
+
+  const topReferrers = [...referrerIds].map(referrerId => {
+    const clicks = clicksMap.get(referrerId) || 0
+    const attributions = attributionsMap.get(referrerId) || { total: 0, referred: 0, active: 0 }
+    const earned = earningsMap.get(referrerId) || { total: 0, transactions: 0 }
     const conversionRate = clicks > 0 ? (attributions.total / clicks) * 100 : 0
 
     return {
-      referrerId: e.referrerId,
-      totalEarnings: Number(e.totalEarnings) || 0,
-      totalReferrals: Number(e.totalReferrals) || 0,
+      referrerId,
+      totalEarnings: earned.total,
+      totalReferrals: attributions.referred,
       activeReferrals: attributions.active,
-      totalTransactions: Number(e.totalTransactions) || 0,
+      totalTransactions: earned.transactions,
       totalClicks: clicks,
       conversionRate: Number(conversionRate.toFixed(2)),
     }
   })
 
-  // Sort by selected criteria
-  if (sortBy === 'referrals') {
-    topReferrers.sort((a, b) => b.totalReferrals - a.totalReferrals)
-  } else if (sortBy === 'conversion') {
-    topReferrers.sort((a, b) => b.conversionRate - a.conversionRate)
-  } else {
-    topReferrers.sort((a, b) => b.totalEarnings - a.totalEarnings)
-  }
+  // Sort by selected criteria; ties go to more referrals, then the lower id, so the order is stable.
+  const key = sortBy === 'referrals' ? 'totalReferrals' : sortBy === 'conversion' ? 'conversionRate' : 'totalEarnings'
+  topReferrers.sort((a, b) => b[key] - a[key] || b.totalReferrals - a.totalReferrals || a.referrerId - b.referrerId)
 
   return topReferrers.slice(0, limit)
 }
@@ -545,15 +643,12 @@ export async function getReferrerStatsDb(
     .select({
       totalEarnings: sql<number>`SUM(CAST(${referralEarnings.netAmount} AS DECIMAL))`.as('totalEarnings'),
       grossEarnings: sql<number>`SUM(CAST(${referralEarnings.grossAmount} AS DECIMAL))`.as('grossEarnings'),
-      totalReferrals: sql<number>`COUNT(DISTINCT ${referralEarnings.refereeId})`.as('totalReferrals'),
       totalTransactions: sql<number>`COUNT(*)`.as('totalTransactions'),
     })
     .from(referralEarnings)
     .where(and(...earningsConditions))
 
   // Get clicks and attributions
-  const { referralClicks, referralAttributions } = await import('@src/db/schema.js')
-
   const clicksConditions = [
     eq(referralClicks.referrerId, referrerId),
     eq(referralClicks.tenant, tenant),
@@ -586,7 +681,8 @@ export async function getReferrerStatsDb(
   const attributionsStats = await db
     .select({
       totalAttributions: count(),
-      activeReferrals: sql<number>`COUNT(DISTINCT CASE WHEN ${referralAttributions.status} = 'confirmed' THEN ${referralAttributions.refereeId} END)`.as('activeReferrals'),
+      referredPlayers: referredPlayersSql().as('referredPlayers'),
+      activeReferrals: activeReferralsSql().as('activeReferrals'),
     })
     .from(referralAttributions)
     .where(and(...attributionsConditions))
@@ -605,18 +701,19 @@ export async function getReferrerStatsDb(
   const stats = earningsStats[0] || {
     totalEarnings: 0,
     grossEarnings: 0,
-    totalReferrals: 0,
     totalTransactions: 0,
   }
   const clicks = clicksStats[0]?.totalClicks || 0
-  const attributions = attributionsStats[0] || { totalAttributions: 0, activeReferrals: 0 }
+  const attributions = attributionsStats[0] || { totalAttributions: 0, referredPlayers: 0, activeReferrals: 0 }
   const conversionRate = clicks > 0 ? (Number(attributions.totalAttributions) / clicks) * 100 : 0
 
   return {
     referrerId,
     totalEarnings: Number(stats.totalEarnings) || 0,
     grossEarnings: Number(stats.grossEarnings) || 0,
-    totalReferrals: Number(stats.totalReferrals) || 0,
+    // The players this referrer brought in, not the ones who have produced an earning yet: that
+    // read 0 next to "2 active" for a referrer of two confirmed players (MAR-10).
+    totalReferrals: Number(attributions.referredPlayers) || 0,
     activeReferrals: Number(attributions.activeReferrals) || 0,
     totalTransactions: Number(stats.totalTransactions) || 0,
     totalClicks: clicks,

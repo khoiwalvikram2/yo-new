@@ -8,6 +8,7 @@ import { generateSnapshotsForRange } from '@/services/reportingSnapshotService.j
 import { normalizeCreatedByForReporting } from './reportingResolverUtils.js';
 import { requireExportReportPermission } from '@src/domains/reporting/services/exportReportPermissions.js'
 import { loadExportAgentContext, type ExportAgentContext } from '@src/domains/reporting/services/agentExportScope.js'
+import { normalizeExportFormat } from '@src/domains/reporting/services/exportFormat.js'
 
 export const reportingMutationResolvers = {
   createSavedReport: async (_: any, args: any, context: any) => {
@@ -160,6 +161,9 @@ export const reportingMutationResolvers = {
     // consulting no further permission.
     requireExportReportPermission(context, input.reportType);
 
+    // Refused here, before any job row: a format the processor cannot write only queued a job that failed.
+    const exportFormat = normalizeExportFormat(input.exportFormat);
+
     // An agent's export is scoped to its own subtree, so the processor must know the agent. When it
     // cannot be loaded the export is refused: without agentContext the processor reads as an admin,
     // i.e. the whole whitelabel. (The lookup that stood further down swallowed that error.)
@@ -174,14 +178,14 @@ export const reportingMutationResolvers = {
         createdBy,
         reportType: input.reportType,
         filtersJson: input.filtersJson,
-        exportFormat: input.exportFormat,
+        exportFormat,
         status: 'pending',
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
       })
       .returning();
 
     // Process export job asynchronously (non-blocking)
-    // This will fetch data, generate file, upload to S3, and update job status
+    // This will fetch data, generate the file, store it in the job row as a data URI, and update job status
     const { ExportJobProcessor } = await import('@/domains/reporting/services/ExportJobProcessor.js');
     const processor = new ExportJobProcessor();
     

@@ -50,7 +50,8 @@ export async function changePlayerVipTier(database: VipDatabase, tenant: string,
 export async function awardVipApprovedDeposit(database: VipDatabase, tenant: string, userId: number, depositId: number) {
   return database.transaction(async tx => {
     await lockVipPlayer(tx, tenant, userId)
-    const [deposit] = await tx.select().from(depositRequests).where(and(eq(depositRequests.id, depositId),
+    // Only the row's existence matters; a full select would also read the player's screenshot (proof_data).
+    const [deposit] = await tx.select({ id: depositRequests.id }).from(depositRequests).where(and(eq(depositRequests.id, depositId),
       eq(depositRequests.userId, userId), eq(depositRequests.tenant, tenant), eq(depositRequests.status, 'APPROVED'))).limit(1)
     if (!deposit) return false
     const context = await getVipDepositContext(tx, tenant, userId)

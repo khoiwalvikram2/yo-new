@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useMutation, useQuery } from '@apollo/client'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import {
   IconArrowsExchange,
@@ -25,9 +25,17 @@ import {
   IconNote,
   IconReceipt,
   IconRefresh,
+  IconSend,
   IconUser,
 } from '@tabler/icons-react'
-import { ADMIN_WITHDRAWAL_REQUESTS, SET_WITHDRAWAL_STATUS } from '@/lib/graphql/withdrawals'
+import {
+  ADMIN_WITHDRAWAL_REQUESTS,
+  REFRESH_WELIVEPAY_PAYOUT,
+  REJECT_WELIVEPAY_PAYOUT,
+  SEND_WELIVEPAY_PAYOUT,
+  SET_WITHDRAWAL_STATUS,
+  WITHDRAWAL_GATEWAY_CONFIG,
+} from '@/lib/graphql/withdrawals'
 import { ADMIN_WITHDRAWAL_HISTORY } from '@/lib/graphql/withdrawalHistory'
 import { RBACGuard } from '@/shared/core/RBACGuard'
 import { useCurrency } from '@/shared/core/CurrencyContext'
@@ -42,6 +50,7 @@ import { DescriptionList, type DescriptionListItem } from '@/ui/components/Descr
 import { Dialog } from '@/ui/components/Dialog'
 import { Drawer } from '@/ui/components/Drawer'
 import { EmptyState } from '@/ui/components/EmptyState'
+import { Notice } from '@/ui/components/Notice'
 import { Page } from '@/ui/components/Page'
 import { PageHeader } from '@/ui/components/PageHeader'
 import { Pagination } from '@/ui/components/Pagination'
@@ -53,24 +62,43 @@ import { WithdrawalRequestsFiltersBar } from './components/WithdrawalRequestsFil
 import { WithdrawalRequestsStatsCards } from './components/WithdrawalRequestsStatsCards'
 import { WithdrawalRequestsTable } from './components/WithdrawalRequestsTable'
 import {
+  buildRejectPayoutVariables,
   buildSetWithdrawalStatusInput,
   buildWithdrawalRequestFilter,
-  canUpdateWithdrawalStatus,
+  canSetWithdrawalStatusByHand,
+  DELETED_ACCOUNT_HINT,
+  DELETED_ACCOUNT_LABEL,
+  errorMessageOr,
+  gatewayPayoutActions,
   getWithdrawalRangeForPreset,
+  payoutResultToast,
+  payoutStatusLabel,
+  payoutStatusTone,
+  rejectReasonError,
+  REJECT_REASON_MAX,
+  withdrawalAfterPayout,
+  withdrawalFooterHint,
   WITHDRAWAL_UPDATE_STATUSES,
   withdrawalAccountNumberLabel,
   withdrawalStatusLabel,
+  type GatewayPayout,
   type WithdrawalDateRange,
+  type WithdrawalGatewayConfig,
   type WithdrawalHistoryEntry,
   type WithdrawalRequest,
   type WithdrawalUpdateStatus,
 } from './withdrawalRequestsModel'
+import { scopeAcceptsTenant } from './paymentWhitelabelScope'
+import { usePaymentWhitelabelScope } from './usePaymentWhitelabelScope'
 import styles from './WithdrawalRequests.module.css'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const
 const WITHDRAWAL_ACCESS_REQUIREMENT = [
   { domain: 'payments.withdrawals', actions: ['view', 'approve', 'reject'] },
 ]
+/** Sending a payout is an approval; rejecting one is a rejection (the server checks the same actions). */
+const PAYOUT_APPROVE_REQUIREMENT = [{ domain: 'payments.withdrawals', actions: ['approve'] }]
+const PAYOUT_REJECT_REQUIREMENT = [{ domain: 'payments.withdrawals', actions: ['reject'] }]
 const DATE_TIME_FORMAT = 'dd MMM yyyy, HH:mm:ss'
 /** Each status the request can move to: its glyph, what it means for the payout, and its status tone. */
 const STATUS_CHOICES: Readonly<Record<WithdrawalUpdateStatus, { icon: ReactNode; meaning: string; tone: 'info' | 'ok' | 'neg' | 'muted' }>> = {
@@ -252,9 +280,8 @@ function WithdrawalRequestsContent() {
       void refetch()
       closeDrawer()
     },
-    onError: (error) => {
-      toast({ message: error.message || 'Failed to update withdrawal status', tone: 'error' })
-    },
+    // No onError here: with one, Apollo resolves a refused call with no data, and the confirmation could only say
+    // "Failed to update withdrawal status". handleStatusUpdate catches the refusal and shows its reason (FIN-05).
   })
 
   const handleView = (request: WithdrawalRequest) => {
@@ -265,6 +292,133 @@ function WithdrawalRequestsContent() {
     setDrawerOpen(true)
     setNote('')
     setSelectedStatus('')
+  }
+
+  /* ---- WeLivePay IMPS payouts ---- */
+  const scope = usePaymentWhitelabelScope()
+  const { data: gatewayData } = useQuery(WITHDRAWAL_GATEWAY_CONFIG, {
+    skip: scope.selectionRequired,
+    fetchPolicy: 'cache-and-network',
+  })
+  const gatewayConfig = (gatewayData?.withdrawalGatewayConfig ?? null) as WithdrawalGatewayConfig | null
+  // An answer cached from another whitelabel never offers payouts on this one.
+  const gatewayReady = Boolean(gatewayConfig) && scopeAcceptsTenant(scope, gatewayConfig?.tenant)
+  const [sendPayout, { loading: sendingPayout }] = useMutation(SEND_WELIVEPAY_PAYOUT, { context: { skipNotification: true } })
+  const [refreshPayout, { loading: refreshingPayout }] = useMutation(REFRESH_WELIVEPAY_PAYOUT, { context: { skipNotification: true } })
+  const [rejectPayout, { loading: rejectingPayout }] = useMutation(REJECT_WELIVEPAY_PAYOUT, { context: { skipNotification: true } })
+  const gatewayBusy = sendingPayout || refreshingPayout || rejectingPayout
+  const [rejectOpen, setRejectOpen] = useState(false)
+  const [rejectNote, setRejectNote] = useState('')
+  const [rejectError, setRejectError] = useState<string | null>(null)
+
+  // A switch of payment whitelabel closes the open request: its payout belongs to the previous site.
+  useEffect(() => {
+    closeDrawer()
+    setRejectOpen(false)
+  }, [scope.key, closeDrawer])
+
+  /* ---- Task links ---- */
+  // A withdrawal task links to ?withdrawalId=…: that request opens whatever its status or age (the list
+  // keeps its own filters). Closing it drops the link, so a refresh does not open it again.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linkedId = searchParams.get('withdrawalId')?.trim() || null
+  const { data: linkedData, loading: linkedLoading } = useQuery(ADMIN_WITHDRAWAL_REQUESTS, {
+    variables: { input: { id: linkedId, offset: 0, limit: 1 } },
+    skip: !linkedId,
+    fetchPolicy: 'network-only',
+  })
+  const [linkedOpen, setLinkedOpen] = useState(false)
+  const handledLinkRef = useRef<string | null>(null)
+  const dropLink = useCallback(() => {
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params)
+      next.delete('withdrawalId')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  useEffect(() => {
+    if (!linkedId) {
+      handledLinkRef.current = null
+      return
+    }
+    if (linkedLoading || !linkedData || handledLinkRef.current === linkedId) return
+    handledLinkRef.current = linkedId
+    const linked = (linkedData.adminWithdrawalRequests?.items ?? [])[0] as WithdrawalRequest | undefined
+    if (!linked) {
+      toast({ message: `Withdrawal request #${linkedId} was not found`, tone: 'error' })
+      dropLink()
+      return
+    }
+    drawerTriggerRef.current = null
+    setSelectedRequest(linked)
+    setDrawerOpen(true)
+    setLinkedOpen(true)
+    setNote('')
+    setSelectedStatus('')
+  }, [dropLink, linkedData, linkedId, linkedLoading])
+
+  useEffect(() => {
+    if (drawerOpen || !linkedOpen) return
+    setLinkedOpen(false)
+    dropLink()
+  }, [drawerOpen, dropLink, linkedOpen])
+
+  /** Shows the payout's new state: the refreshed list row when it is still listed, else the settled copy. */
+  const applyPayoutResult = async (request: WithdrawalRequest, payout: GatewayPayout, options: { rejectedByAdmin?: boolean } = {}) => {
+    const refreshed = await refetch().catch(() => null)
+    const items: WithdrawalRequest[] = refreshed?.data?.adminWithdrawalRequests?.items ?? []
+    setSelectedRequest(items.find((item) => item.id === request.id) ?? withdrawalAfterPayout(request, payout, options))
+    setSelectedStatus('')
+  }
+
+  const handlePayout = async (kind: 'send' | 'refresh') => {
+    const request = selectedRequest
+    if (!request || gatewayBusy || !scope.isCurrent()) return
+    const run = async () => {
+      try {
+        const result = kind === 'send'
+          ? await sendPayout({ variables: { id: request.id } })
+          : await refreshPayout({ variables: { id: request.id } })
+        const payout = (kind === 'send' ? result.data?.sendWelivepayPayout : result.data?.refreshWelivepayPayout) as GatewayPayout | undefined
+        if (!payout) throw new Error('WeLivePay did not return the payout')
+        toast(payoutResultToast(payout))
+        await applyPayoutResult(request, payout)
+      } catch (error) {
+        toast({ message: errorMessageOr(error, kind === 'send' ? 'Failed to send the payout' : 'Failed to refresh the payout'), tone: 'error' })
+      }
+    }
+    if (kind === 'refresh') { await run(); return }
+    await confirm({
+      title: request.gatewayPayout ? 'Retry the same payout?' : 'Pay via WeLivePay?',
+      description: 'Sends the withdrawal amount to the approved bank account by IMPS. Retrying keeps the same reference, so the player is never paid twice.',
+      confirmLabel: request.gatewayPayout ? 'Retry payout' : 'Send payout',
+      cancelLabel: 'Cancel',
+      onConfirm: run,
+    })
+  }
+
+  const openReject = () => {
+    setRejectNote('')
+    setRejectError(null)
+    setRejectOpen(true)
+  }
+
+  const handleRejectPayout = async () => {
+    const request = selectedRequest
+    if (!request || gatewayBusy || !scope.isCurrent()) return
+    const problem = rejectReasonError(rejectNote)
+    if (problem) { setRejectError(problem); return }
+    try {
+      const result = await rejectPayout({ variables: buildRejectPayoutVariables(request.id, rejectNote) })
+      const payout = result.data?.rejectWelivepayPayout as GatewayPayout | undefined
+      if (!payout) throw new Error('WeLivePay did not return the payout')
+      setRejectOpen(false)
+      toast({ message: 'Payout rejected. The amount was refunded to the player wallet.', tone: 'ok' })
+      await applyPayoutResult(request, payout, { rejectedByAdmin: true })
+    } catch (error) {
+      setRejectError(errorMessageOr(error, 'Failed to reject the payout'))
+    }
   }
 
   const handleStatusUpdate = async () => {
@@ -280,11 +434,23 @@ function WithdrawalRequestsContent() {
       confirmLabel: 'Yes, Update',
       cancelLabel: 'Cancel',
       onConfirm: async () => {
-        const result = await setStatusMutation({ variables: { input } })
-        if (!result.data?.setWithdrawalStatus?.success) {
-          throw new Error(
-            result.data?.setWithdrawalStatus?.message || 'Failed to update withdrawal status',
-          )
+        // A refusal the server throws (a payout account that is not approved, a request WeLivePay manages) is
+        // toasted and stays in this confirmation with its reason, so the reviewer sees why and can cancel or retry.
+        const result = await setStatusMutation({ variables: { input } }).catch((error: unknown) => {
+          const reason = errorMessageOr(error, 'Failed to update withdrawal status')
+          toast({ message: reason, tone: 'error' })
+          throw new Error(reason)
+        })
+        const reply = result.data?.setWithdrawalStatus
+        if (!reply?.success) {
+          // Another reviewer settled it while this drawer was open: the server changed nothing and
+          // answers the request as it stands, so the drawer shows that instead of the stale choice.
+          if (reply?.request && reply.request.status !== selectedRequest.status) {
+            setSelectedRequest({ ...selectedRequest, ...reply.request })
+            setSelectedStatus('')
+            void refetch()
+          }
+          throw new Error(reply?.message || 'Failed to update withdrawal status')
         }
       },
     })
@@ -292,7 +458,26 @@ function WithdrawalRequestsContent() {
 
   const requests: WithdrawalRequest[] = data?.adminWithdrawalRequests?.items ?? []
   const total = data?.adminWithdrawalRequests?.total ?? 0
-  const canUpdateStatus = canUpdateWithdrawalStatus(selectedRequest?.status)
+  // A request sent to WeLivePay settles only through the gateway; the server refuses manual changes.
+  const canUpdateStatus = canSetWithdrawalStatusByHand(selectedRequest)
+  const payoutActions = selectedRequest
+    ? gatewayPayoutActions(selectedRequest, { payoutEnabled: Boolean(gatewayConfig?.payoutEnabled), ready: gatewayReady, readOnly: scope.readOnly })
+    : null
+  const gatewayPayout = selectedRequest?.gatewayPayout ?? null
+  const payoutItems: DescriptionListItem[] = gatewayPayout
+    ? [
+        ...copyableItem('payout-ref', 'Payout Reference', gatewayPayout.orderId, true),
+        {
+          key: 'payout-status',
+          term: 'Gateway Status',
+          value: <StatusPill tone={payoutStatusTone(gatewayPayout.status)}>{payoutStatusLabel(gatewayPayout.status)}</StatusPill>,
+        },
+        ...copyableItem('payout-utr', 'UTR', gatewayPayout.utr, true),
+        ...(gatewayPayout.failureReason
+          ? [{ key: 'payout-reason', term: 'Gateway Note', value: <span className={styles.wrapCell}>{gatewayPayout.failureReason}</span> }]
+          : []),
+      ]
+    : []
 
   const historyRows = useMemo<HistoryRow[]>(
     () => ((historyData?.adminWithdrawalHistory ?? []) as WithdrawalHistoryEntry[]).map(
@@ -337,15 +522,33 @@ function WithdrawalRequestsContent() {
           key: 'method',
           term: 'Method',
           value: (
-            <StatusPill tone={account.method === 'BANK' ? 'neutral' : 'info'}>
-              {account.method || '—'}
-            </StatusPill>
+            <>
+              <StatusPill tone={account.method === 'BANK' ? 'neutral' : 'info'}>
+                {account.method || '—'}
+              </StatusPill>
+              {account.deletedAt ? (
+                <StatusPill tone="neg" title={DELETED_ACCOUNT_HINT} className={styles.deletedPill}>
+                  {DELETED_ACCOUNT_LABEL}
+                </StatusPill>
+              ) : null}
+            </>
           ),
         },
         ...copyableItem('holder', 'Account Holder Name', account.accountHolderName),
         ...copyableItem('number', withdrawalAccountNumberLabel(account.method), account.accountNumber, true),
         ...copyableItem('ifsc', 'IFSC', account.ifscCode, true),
         ...copyableItem('bank', 'Bank Name', account.bankName),
+        ...(account.deletedAt
+          ? [{
+              key: 'deleted-at',
+              term: 'Deleted At',
+              value: (
+                <time dateTime={account.deletedAt}>
+                  {formatDateTime(account.deletedAt, DATE_TIME_FORMAT)}
+                </time>
+              ),
+            }]
+          : []),
       ]
     : []
 
@@ -451,9 +654,7 @@ function WithdrawalRequestsContent() {
           <div className={styles.drawerFooter}>
             <p className={styles.footerHint}>
               <IconInfoCircle size={15} stroke={strokeFor(15)} aria-hidden="true" />
-              {canUpdateStatus
-                ? (!selectedStatus ? 'Select status to update' : `Update to ${withdrawalStatusLabel(selectedStatus)}`)
-                : `This request has been ${selectedRequest.status.toLowerCase()}`}
+              {withdrawalFooterHint(selectedRequest, selectedStatus)}
             </p>
             <div className={styles.footerActions}>
               {canUpdateStatus ? (
@@ -528,6 +729,60 @@ function WithdrawalRequestsContent() {
               <DescriptionList items={transactionItems} />
             </DrawerSection>
 
+            {payoutActions?.show ? (
+              <DrawerSection
+                icon={<IconSend size={17} stroke={strokeFor(17)} />}
+                title="WeLivePay Payout"
+                sub={gatewayPayout ? 'IMPS payout to the approved bank account' : 'Send this withdrawal to the bank account by IMPS'}
+              >
+                <div className={styles.payoutPanel}>
+                  {gatewayPayout ? <DescriptionList items={payoutItems} /> : null}
+                  {payoutActions.managed ? (
+                    <Notice tone="info" title="Managed by WeLivePay">
+                      This withdrawal settles when the gateway confirms the payout. Refresh to read its status; manual status changes are off.
+                    </Notice>
+                  ) : null}
+                  {!gatewayReady && gatewayPayout ? (
+                    <p className={styles.sectionSub}>Select this request's whitelabel to send, refresh or reject its payout.</p>
+                  ) : null}
+                  <div className={styles.payoutActions}>
+                    {payoutActions.pay ? (
+                      <RBACGuard required={PAYOUT_APPROVE_REQUIREMENT} fallback={null}>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          icon={<IconSend size={15} stroke={strokeFor(15)} />}
+                          loading={sendingPayout}
+                          disabled={gatewayBusy}
+                          onClick={() => void handlePayout('send')}
+                        >
+                          {payoutActions.payLabel}
+                        </Button>
+                      </RBACGuard>
+                    ) : null}
+                    {payoutActions.refresh ? (
+                      <Button
+                        size="sm"
+                        icon={<IconRefresh size={15} stroke={strokeFor(15)} />}
+                        loading={refreshingPayout}
+                        disabled={gatewayBusy}
+                        onClick={() => void handlePayout('refresh')}
+                      >
+                        Refresh gateway status
+                      </Button>
+                    ) : null}
+                    {payoutActions.reject ? (
+                      <RBACGuard required={PAYOUT_REJECT_REQUIREMENT} fallback={null}>
+                        <Button size="sm" variant="danger" disabled={gatewayBusy} onClick={openReject}>
+                          Reject payout
+                        </Button>
+                      </RBACGuard>
+                    ) : null}
+                  </div>
+                </div>
+              </DrawerSection>
+            ) : null}
+
             {selectedRequest.note ? (
               <aside className={styles.note} aria-label="Request note">
                 <IconNote size={17} stroke={strokeFor(17)} aria-hidden="true" />
@@ -589,6 +844,37 @@ function WithdrawalRequestsContent() {
                 icon={<IconInbox size={20} stroke={strokeFor(20)} />}
               />
             )}
+          />
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={rejectOpen}
+        onOpenChange={(open) => {
+          if (!open && !rejectingPayout) setRejectOpen(false)
+        }}
+        title={`Reject payout${selectedRequest ? ` - #${selectedRequest.id}` : ''}`}
+        size="sm"
+        footer={(
+          <div className={styles.footerActions}>
+            <Button size="sm" disabled={rejectingPayout} onClick={() => setRejectOpen(false)}>Cancel</Button>
+            <Button size="sm" variant="danger" loading={rejectingPayout} onClick={() => void handleRejectPayout()}>
+              Reject and refund
+            </Button>
+          </div>
+        )}
+      >
+        <div className={styles.payoutPanel}>
+          <p className={styles.sectionSub}>
+            WeLivePay has not taken this payout. Rejecting closes its reference and refunds the amount to the player wallet once.
+          </p>
+          <Textarea
+            label="Reason"
+            rows={3}
+            placeholder={`Why is this payout rejected? (max ${REJECT_REASON_MAX} characters)`}
+            value={rejectNote}
+            onChange={(value) => { setRejectNote(value); setRejectError(null) }}
+            error={rejectError ?? undefined}
           />
         </div>
       </Dialog>

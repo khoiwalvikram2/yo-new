@@ -14,9 +14,8 @@ export interface User {
   referralBalance?: number;
   referralBonusBalance?: number;
   playerType?: string; // For credit player detection (AGENT_CREDIT, WHITELABEL_CREDIT, etc.)
-  creditAvailable?: number;
+  /** A credit player's credit reference (users.credit_limit): set by the upline, gates nothing. Ref P/L = balance - this. */
   creditLimit?: number;
-  creditUsed?: number;
   requirePasswordReset?: boolean;
 }
 
@@ -24,6 +23,8 @@ export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isHydrating: boolean;
+  /** When a sign-in made on this page succeeded (ms since epoch); null for a restored session and after logout. */
+  signedInAt: number | null;
   isAuthModalOpen: boolean;
   authModalMode: 'login' | 'register';
   login: (identifier: string, password: string) => Promise<void>;

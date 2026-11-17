@@ -23,7 +23,7 @@ function app({ features = { sportsEnabled: true, casinoEnabled: true, matkaEnabl
   }) });
   const stubs = {
     'react-i18next': { useTranslation: () => ({ t: translate }) },
-    [path.join(root, 'src/hooks/useAppSettings.ts')]: { useFeatureFlags: () => features, useParsedSettings: () => settings, useAppIdentity: () => ({}), useLogo: () => ({}) },
+    [path.join(root, 'src/hooks/useAppSettings.ts')]: { useFeatureFlags: () => features, useSportsIconStyle: () => 'default', useParsedSettings: () => settings, useAppIdentity: () => ({}), useLogo: () => ({}) },
     [path.join(root, 'src/lib/auth.tsx')]: { useAuth: () => auth },
     [path.join(root, 'src/lib/app-settings.tsx')]: { useAppSettings: () => ({ advertisements: ads }) },
     [path.join(root, 'src/components/sports/useSportsEventsData.ts')]: { useSportsEventsData: useFeed || (() => feed) },
@@ -417,9 +417,11 @@ test('home mounts Matka independently of sports and casino flags, in the main co
 
 // Read the real home strip while isolating its query lifecycle. Any attempt to read a wallet or
 // place a bet fails immediately; these cards are public catalogue navigation only.
-function matkaStrip({ state = {}, auth = { user: null, isAuthenticated: false, isHydrating: false }, tenant = 'matka-tenant-one', response, interactive = false, enabled = true } = {}) {
+function matkaStrip({ state = {}, auth = { user: null, isAuthenticated: false, isHydrating: false }, tenant = 'matka-tenant-one', response, interactive = false, enabled = true, favorites = null } = {}) {
   const { JSDOM } = require('jsdom');
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
+  // Favourites as the Matka page saves them on this device (matkaFavoritesKey).
+  if (favorites) dom.window.localStorage.setItem(`gw:matka:favorites:${tenant}:${auth.isAuthenticated ? auth.user?.id || 'pending' : 'anonymous'}`, JSON.stringify(favorites));
   dom.window.matchMedia = query => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} });
   const query = {};
   const apiCalls = [];
@@ -438,7 +440,7 @@ function matkaStrip({ state = {}, auth = { user: null, isAuthenticated: false, i
     [path.join(root, 'src/lib/api/matka.ts')]: api,
     [path.join(root, 'src/lib/auth.tsx')]: { useAuth: () => auth },
     [path.join(root, 'src/lib/whitelabel.ts')]: { getWhitelabelId: () => tenant },
-  }, { window: dom.window, document: dom.window.document });
+  }, { window: dom.window, document: dom.window.document, localStorage: dom.window.localStorage, MutationObserver: dom.window.MutationObserver });
   const Strip = load('src/components/nova/exchange-home/MatkaStrip.tsx').default;
   if (!interactive) {
     dom.window.document.body.innerHTML = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/' }, React.createElement(Strip)));
@@ -488,10 +490,29 @@ test('home Matka queries the real public catalogue, refreshes it and separates t
     const keys = [guest, member, otherMember, otherTenant].map(view => JSON.stringify(view.query.options.queryKey));
     assert.equal(new Set(keys).size, 4, 'neither tenant nor player changes reuse another owner’s cache');
     const page = await options.queryFn();
-    assert.deepEqual(guest.apiCalls, [{ page: 1, limit: 12 }], 'the home requests a small page of real markets, without invented catalogue data');
+    assert.deepEqual(guest.apiCalls, [{ kind: 'WORLI', page: 1, limit: 100 }], 'the home reads the real Worli catalogue (players get Worli only) to order it like the Matka page, without invented catalogue data');
     assert.deepEqual(page, { meta: { code: 200 }, data: [] });
-    assert.equal(hydrating.container.querySelector('a.nova-ex-matka-card'), null);
+    assert.equal(hydrating.container.querySelector('.m99-market-board-card'), null);
   } finally { for (const view of [guest, member, otherMember, otherTenant, hydrating, pendingPlayer]) view.close(); }
+});
+
+// Owner 2026-11-02: the home strip lists markets like the Matka page, favourites first, then by game time, and shows 12.
+test('home Matka orders favourites first, then by game time, and shows the first twelve', () => {
+  const at = (id, hourUtc) => homeMatkaMarket({ id, code: id, name: `Market ${id}`, sessions: [
+    { side: 'OPEN', enabled: true, accepting: true, startsAt: '2026-10-30T00:00:00Z', lockAt: `2026-10-30T${hourUtc}:00:00Z`, resultAt: `2026-10-30T${hourUtc}:00:00Z`, status: 'Open' },
+    { side: 'CLOSE', enabled: true, accepting: true, startsAt: '2026-10-30T00:00:00Z', lockAt: '2026-10-30T20:00:00Z', resultAt: '2026-10-30T20:00:00Z', status: 'Open' },
+  ] });
+  const markets = Array.from({ length: 14 }, (_, index) => at(`m${String(index).padStart(2, '0')}`, String(17 - index).padStart(2, '0')));
+  const order = view => [...view.container.querySelectorAll('.m99-market-board-name')].map(name => name.textContent.replace('Market ', ''));
+  const plain = matkaStrip({ state: { data: homeMatkaPage(markets) } });
+  const starred = matkaStrip({ state: { data: homeMatkaPage(markets) }, favorites: ['m01', 'm03'] });
+  const member = matkaStrip({ state: { data: homeMatkaPage(markets) }, auth: { user: { id: 'player-one' }, isAuthenticated: true, isHydrating: false }, favorites: ['m00'] });
+  try {
+    assert.deepEqual(order(plain), ['m13', 'm12', 'm11', 'm10', 'm09', 'm08', 'm07', 'm06', 'm05', 'm04', 'm03', 'm02'], 'earliest game time first, twelve cards');
+    assert.deepEqual(order(starred).slice(0, 3), ['m03', 'm01', 'm13'], 'favourites lead (by time among themselves), then the rest');
+    assert.equal(order(starred).length, 12);
+    assert.equal(order(member)[0], 'm00', 'a signed-in player\'s own favourites');
+  } finally { for (const view of [plain, starred, member]) view.close(); }
 });
 
 test('disabled home Matka never mounts its query, and malformed or unsuccessful catalogue responses are rejected', async () => {
@@ -508,7 +529,9 @@ test('disabled home Matka never mounts its query, and malformed or unsuccessful 
   }
 });
 
-test('home Matka cards preserve market identity, API results and market-local cutoff times', () => {
+// Owner 2026-11-02: the home strip draws the Matka page's own card (MarketBoard's DirectoryMarketCard).
+const homeMatkaCards = view => [...view.container.querySelectorAll('.nova-ex-matka-board article.m99-market-board-card')];
+test('home Matka shows the Matka page cards with market identity, API results and market-local result times', () => {
   const first = homeMatkaMarket();
   const second = homeMatkaMarket({ id: 'fallback / id', code: '', name: 'Tenant UTC Market', timezone: 'UTC', status: 'Closed' });
   const view = matkaStrip({ state: { data: homeMatkaPage([first, second]) } });
@@ -516,37 +539,46 @@ test('home Matka cards preserve market identity, API results and market-local cu
     const header = view.container.querySelector('.nova-ex-nameplate');
     assert.equal(header.querySelector('h2').textContent, 'Matka');
     assert.equal(header.querySelector('a.nova-ex-section-all').getAttribute('href'), '/matka');
-    const cards = [...view.container.querySelectorAll('a.nova-ex-matka-card')];
+    assert.ok(view.container.querySelector('.nova-ex-matka-board.m99-kit.gw-matka[data-theme]'), 'the cards sit in the Matka kit scope with the app theme');
+    const cards = homeMatkaCards(view);
     assert.equal(cards.length, 2, 'each API market appears once');
-    assert.deepEqual(cards.map(card => card.getAttribute('href')), [`/matka/markets/${encodeURIComponent(first.code)}`, `/matka/markets/${encodeURIComponent(second.id)}`]);
-    assert.match(cards[0].textContent, /Tenant Night Market/);
-    assert.match(cards[0].textContent, /Open/);
-    assert.match(cards[1].textContent, /Closed/);
+    // Ordered by game time, as on the Matka page: the UTC market's Open (10:30 UTC) comes before the night market's (16:00 IST).
+    assert.deepEqual(cards.map(card => card.querySelector('.m99-market-board-name').textContent), ['Tenant UTC Market', 'Tenant Night Market']);
+    const [utcCard, nightCard] = cards;
+    assert.equal(nightCard.dataset.status, 'Open');
+    assert.equal(utcCard.dataset.status, 'Closed');
     for (const card of cards) {
       assert.match(card.textContent, /123/);
       assert.match(card.textContent, /65/);
       assert.match(card.textContent, /456/);
+      assert.ok(card.querySelector('.dep-board .dep-gate'), 'the result board with its Jodi gate, as on the page');
+      assert.ok(card.querySelector('button[aria-pressed]'), 'the favourite star, as on the page');
     }
-    assert.match(cards[0].textContent, /03:45\s*pm/i, 'open cutoff comes from lockAt in the market timezone');
-    assert.match(cards[0].textContent, /10:15\s*pm/i, 'close cutoff comes from lockAt in the market timezone');
-    assert.match(cards[1].textContent, /10:15\s*am/i, 'another market uses its own timezone');
-    assert.match(cards[1].textContent, /04:45\s*pm/i);
-    assert.doesNotMatch(cards[0].textContent, /04:00\s*pm|10:30\s*pm/i, 'resultAt is not mislabeled as the cutoff');
+    assert.match(nightCard.textContent, /04:00\s*pm/i, 'the Open result time in the market timezone');
+    assert.match(nightCard.textContent, /10:30\s*pm/i, 'the Close result time in the market timezone');
+    assert.match(utcCard.textContent, /10:30\s*am/i, 'another market uses its own timezone');
+    assert.match(utcCard.textContent, /05:00\s*pm/i);
     assert.doesNotMatch(view.container.textContent, /98765|5000|winning|guaranteed|1:/i, 'home does not invent wins or advertise payout numbers');
     assert.equal(view.container.querySelector('input, form, a[href*="wallet"]'), null, 'the home cards remain catalogue navigation');
   } finally { view.close(); }
 });
 
-test('home Matka uses native detail navigation for guests and an honest awaiting message when no result exists', () => {
+test('home Matka cards open the market and its charts, keep favourites like the page, and say a result is pending', () => {
   const market = homeMatkaMarket({ result: { date: '2026-10-30', openResult: null, closeResult: null, openDigit: null, closeDigit: null, jodi: null, complete: false } });
-  const view = matkaStrip({ state: { data: homeMatkaPage([market]) }, interactive: true });
+  const later = homeMatkaMarket({ id: 'later-market', code: 'LATER', name: 'Later Market', sessions: homeMatkaMarket().sessions.map(session => ({ ...session, resultAt: session.resultAt.replace('T10:30', 'T15:30') })) });
+  const view = matkaStrip({ state: { data: homeMatkaPage([market, later]) }, interactive: true });
   try {
-    const card = view.container.querySelector('a.nova-ex-matka-card');
-    assert.ok(card);
-    assert.match(card.textContent, /awaiting|pending|not published/i);
-    assert.doesNotMatch(card.textContent, /123|456|\*\*\*/);
-    view.fireEvent.click(card);
+    const [card] = homeMatkaCards(view);
+    assert.match(card.textContent, /pending/i, 'an unpublished result is read out as pending');
+    assert.doesNotMatch(card.textContent, /123|456/);
+    view.fireEvent.click(card.querySelector('.m99-market-board-name > button'));
     assert.equal(view.route.pathname, `/matka/markets/${encodeURIComponent(market.code)}`, 'a guest opens the real details route without login or betting calls');
+    view.fireEvent.click(card.querySelector(`button[aria-label="${market.name} Jodi Chart"]`));
+    assert.equal(view.route.pathname, `/matka/markets/${encodeURIComponent(market.code)}/charts/jodi`);
+    // A star set here is the Matka page's favourite: saved under its key, and the market moves to the front.
+    view.fireEvent.click(homeMatkaCards(view)[1].querySelector('button[aria-label="Add Later Market to favorites"]'));
+    assert.deepEqual(homeMatkaCards(view).map(item => item.querySelector('.m99-market-board-name').textContent), ['Later Market', market.name]);
+    assert.equal(window.localStorage.getItem('gw:matka:favorites:matka-tenant-one:anonymous'), '["later-market"]');
   } finally { view.close(); }
 });
 
@@ -557,13 +589,13 @@ test('home Matka loading, empty and failed requests have honest states and a wor
   try {
     assert.ok(loading.container.querySelector('[role="status"]'), 'loading is announced');
     assert.ok(loading.container.querySelector('.nova-ex-matka-loading i'), 'loading shows a skeleton rather than invented markets');
-    assert.equal(loading.container.querySelector('a.nova-ex-matka-card'), null, 'skeletons are not fake markets');
+    assert.equal(loading.container.querySelector('.m99-market-board-card'), null, 'skeletons are not fake markets');
     assert.ok(empty.container.querySelector('[role="status"]'), 'successful empty data has a status message');
-    assert.equal(empty.container.querySelector('[role="alert"], a.nova-ex-matka-card'), null);
+    assert.equal(empty.container.querySelector('[role="alert"], .m99-market-board-card'), null);
     const alert = failed.container.querySelector('[role="alert"]');
     assert.ok(alert);
     assert.doesNotMatch(alert.textContent, /secret backend catalogue error/);
-    assert.equal(failed.container.querySelector('a.nova-ex-matka-card'), null);
+    assert.equal(failed.container.querySelector('.m99-market-board-card'), null);
     const retry = alert.querySelector('button');
     assert.ok(retry);
     failed.fireEvent.click(retry);
@@ -1569,12 +1601,13 @@ test('In-play stays selected when no matches are live and falls back to real upc
   } finally { view.unmount(); }
 });
 
-test('upcoming fallback excludes past and invalid matches, sorts each rail by start time and leads with the soonest sport', () => {
-  const recentPast = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+test('upcoming fallback excludes day-old and invalid matches, sorts each rail by start time and leads with the soonest sport', () => {
+  // over a day old and not in play: past the open window (a match that started today is open, see the next test)
+  const dayOld = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
   const fixture = (eventId, sport, startISO, isLive = false) => ({ eventId, sport, startISO, isLive, league: `Fallback ${sport}`, eventName: `${eventId} One v Two` });
   const view = homeInteractions({ events: [
     fixture('cricket-late', 'cricket', '2099-01-04T00:00:00Z'),
-    fixture('recent-finished', 'cricket', recentPast),
+    fixture('day-old', 'cricket', dayOld),
     fixture('football-late', 'football', '2099-01-02T00:00:00Z'),
     fixture('bad-start', 'cricket', 'invalid-date'),
     fixture('cricket-first', 'cricket', '2099-01-03T00:00:00Z'),
@@ -1626,18 +1659,32 @@ test('live-only selection orders real starts within each rail and ignores invali
   } finally { view.unmount(); }
 });
 
-test('a feed containing only finished or invalid matches has an honest empty main list', () => {
+// Owner 2026-11-02: with nothing in play the home still shows the open markets. The feed list never marks a match in
+// play, so a match that started today and is not settled may be live; its card says LIVE only when the odds feed does.
+test('with nothing live, open matches show: started in the last day (latest first), then upcoming; day-old and invalid ones stay out', () => {
+  const minutesAgo = minutes => new Date(Date.now() - minutes * 60 * 1000).toISOString();
+  const ids = view => view.cards().map(card => new URL(card.querySelector('a.nova-ex-card-link').getAttribute('href'), 'http://localhost').searchParams.get('id'));
+  const dayOld = { ...professionalHomeEvents[2], eventId: 'day-old', eventName: 'Day Old One v Two', startISO: minutesAgo(25 * 60) };
+  const invalid = { ...professionalHomeEvents[2], eventId: 'invalid', startISO: 'invalid-date' };
   const view = homeInteractions({ events: [
-    { ...professionalHomeEvents[2], eventId: 'finished', startISO: new Date(Date.now() - 30 * 60 * 1000).toISOString() },
-    { ...professionalHomeEvents[2], eventId: 'invalid', startISO: 'invalid-date' },
+    { ...professionalHomeEvents[2], eventId: 'started-earlier', eventName: 'Earlier One v Two', startISO: minutesAgo(300) },
+    dayOld,
+    { ...professionalHomeEvents[2], eventId: 'started-recently', eventName: 'Recent One v Two', startISO: minutesAgo(30) },
+    invalid,
+    professionalHomeEvents[2],
   ], loading: false, error: null });
   try {
-    assert.equal(view.cards().length, 0);
-    const region = view.container.querySelector('#nova-ex-games');
-    assert.equal(view.within(region).getByRole('status').textContent, translate('nova.noUpcoming'));
-    assert.equal(view.within(region).queryByRole('alert'), null);
+    assert.deepEqual(ids(view), ['started-recently', 'started-earlier', 'cricket-next']);
+    assert.ok(view.cards().every(card => !card.classList.contains('is-live')), 'no LIVE claim the odds feed has not made');
     assert.equal(view.inPlay().getAttribute('aria-pressed'), 'true');
   } finally { view.unmount(); }
+  const empty = homeInteractions({ events: [dayOld, invalid], loading: false, error: null });
+  try {
+    assert.equal(empty.cards().length, 0);
+    const region = empty.container.querySelector('#nova-ex-games');
+    assert.equal(empty.within(region).getByRole('status').textContent, translate('nova.noUpcoming'), 'only day-old or invalid matches: an honest empty list');
+    assert.equal(empty.within(region).queryByRole('alert'), null);
+  } finally { empty.unmount(); }
 });
 
 // Real data only: a failed request is an error with a retry, never a board of placeholder matches.
@@ -1784,6 +1831,8 @@ function chromeHarness(component, options = {}) {
   dom.window.HTMLDialogElement.prototype.showModal = function() { this.open = true; };
   dom.window.HTMLDialogElement.prototype.show = function() { this.open = true; };
   dom.window.HTMLDialogElement.prototype.close = function() { this.open = false; };
+  // `storage` seeds localStorage before the first render, like a choice saved on this device earlier.
+  for (const [key, value] of Object.entries(options.storage || {})) dom.window.localStorage.setItem(key, value);
   // JSDOM has no matchMedia; `phone` opts a test into a viewport for the header's 800px breakpoint.
   if (options.matchMedia) dom.window.matchMedia = options.matchMedia;
   else if (options.phone !== undefined) dom.window.matchMedia = query => ({ matches: options.phone && query === '(max-width: 800px)', media: query, addEventListener() {}, removeEventListener() {} });
@@ -1800,7 +1849,7 @@ function chromeHarness(component, options = {}) {
   const api = { getSportsList: (...args) => { calls.sports.push(args); return (options.getSportsList || (async () => ({ meta: { code: 200 }, data: options.sportsData || [] })))(...args); } };
   const stubs = {
     'react-i18next': { useTranslation: () => ({ t, i18n }) },
-    [path.join(root, 'src/hooks/useAppSettings.ts')]: { useFeatureFlags: () => features, useParsedSettings: () => settings, useAppIdentity: () => options.identity || {}, useLogo: () => ({ siteTitle: options.siteTitle || 'NOVA' }) },
+    [path.join(root, 'src/hooks/useAppSettings.ts')]: { useFeatureFlags: () => features, useSportsIconStyle: () => 'default', useParsedSettings: () => settings, useAppIdentity: () => options.identity || {}, useLogo: () => ({ siteTitle: options.siteTitle || 'NOVA' }) },
     [path.join(root, 'src/lib/auth.tsx')]: { useAuth: () => auth },
     [path.join(root, 'src/lib/locale.ts')]: { getLanguageFromStorage: () => initialLanguage, applyLanguage: language => { calls.language.push(language); i18n.resolvedLanguage = language; i18n.language = language; } },
     [path.join(root, 'src/lib/api/user.ts')]: api,
@@ -2121,16 +2170,24 @@ test('credit players and hideDW keep funding, bonus and referral routes out of t
   }
 });
 
-test('topbar cash and credit wallet values agree across trigger and popup while funding remains guarded', () => {
-  for (const [playerType, exposure, expected] of [['REGULAR', -100, '900.00'], ['REGULAR', 100, '900.00'], ['AGENT_CREDIT', 100, '700.00'], ['WHITELABEL_CREDIT', -100, '700.00']]) {
-    const view = chromeHarness('Topbar', { auth: { isAuthenticated: true, user: { username: 'tenant-player', playerType, balance: 1000, creditAvailable: 700, exposure, bonusBalance: 50, referralBonusBalance: 30 } } });
+// Credit players (AGENT_CREDIT, WHITELABEL_CREDIT) play on D/W chips held in the wallet cash, so the header gives them
+// the cash player's figures. creditAvailable (the retired credit-limit figure, 700 here) must never show.
+const inr = value => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(value));
+
+test('topbar shows cash and credit players the same wallet figures across trigger and popup while funding remains guarded', () => {
+  for (const [playerType, exposure, expected] of [['REGULAR', -100, '900.00'], ['REGULAR', 100, '900.00'], ['AGENT_CREDIT', 100, '900.00'], ['WHITELABEL_CREDIT', -100, '900.00']]) {
+    const view = chromeHarness('Topbar', { auth: { isAuthenticated: true, user: { username: 'tenant-player', playerType, balance: 1000, creditAvailable: 700, creditLimit: 5000, exposure, bonusBalance: 50, referralBonusBalance: 30 } } });
     try {
       const credit = playerType !== 'REGULAR';
-      const expectedAmount = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(expected));
+      const expectedAmount = inr(expected);
       const trigger = view.getByRole('button', { name: translate('wallet.choose') });
       const selected = trigger.querySelector('.nova-wallet-selected');
-      assert.equal(selected.querySelector('small').textContent, translate(credit ? 'nova.availableCredit' : 'wallet.main'));
+      assert.equal(selected.querySelector('small').textContent, translate('wallet.main'));
       assert.equal(selected.querySelector('strong').textContent, expectedAmount);
+      assert.equal(trigger.querySelector('.nova-wallet-exposure small').textContent, translate('wallet.exposure'), `${playerType}: exposure shows for every player`);
+      assert.equal(trigger.querySelector('.nova-wallet-exposure strong').textContent, inr(100));
+      assert.equal(trigger.querySelector('.nova-wallet-available strong').textContent, expectedAmount, `${playerType}: available = balance - exposure`);
+      assert.doesNotMatch(view.container.textContent, /Available credit|700\.00/, `${playerType}: the retired available-credit figure never shows`);
       const profile = view.getByRole('button', { name: 'tenant-player' });
       assert.equal(profile.getAttribute('aria-haspopup'), 'dialog');
       assert.equal(profile.querySelector('.nova-profile-copy strong').textContent, 'tenant-player');
@@ -2139,10 +2196,14 @@ test('topbar cash and credit wallet values agree across trigger and popup while 
       assert.equal(Boolean(view.container.querySelector('a[href="/bonus"]')), !credit);
       view.fireEvent.click(trigger);
       const panel = view.getByRole('dialog', { name: translate('wallet.choose') });
-      const main = view.within(panel).getByRole('button', { name: new RegExp(translate(credit ? 'nova.availableCredit' : 'wallet.main')) });
+      assert.equal(panel.querySelector('.nova-wallet-head p').textContent, translate(credit ? 'wallet.chipsManagedByAgent' : 'wallet.switchHint'), `${playerType}: a credit player learns who moves their chips`);
+      const main = view.within(panel).getByRole('button', { name: new RegExp(translate('wallet.main')) });
+      assert.equal(main.getAttribute('aria-pressed'), 'true');
       const popupAmount = main.querySelector('.nova-wallet-option-amount').textContent.trim();
       assert.equal(popupAmount, expectedAmount, `${playerType}: popup and trigger must show the same actual amount`);
       assert.equal(Boolean(view.within(panel).queryByRole('button', { name: /Bonus Wallet/ })), !credit);
+      assert.equal(Boolean(view.within(panel).queryByRole('button', { name: /Referral Bonus/ })), !credit);
+      assert.equal(panel.querySelector('.nova-wallet-exposure-row strong').textContent, `${exposure < 0 ? '−' : ''}${inr(100)}`);
       view.fireEvent.keyDown(view.dom.window.document, { key: 'Escape' });
       assert.equal(view.queryByRole('dialog'), null);
       assert.equal(view.dom.window.document.activeElement, trigger);
@@ -2153,6 +2214,87 @@ test('topbar cash and credit wallet values agree across trigger and popup while 
     assert.equal(hidden.container.querySelector('a[href="/deposit"]'), null);
     assert.equal(hidden.container.querySelector('a[href="/withdrawal"]'), null);
   } finally { hidden.close(); }
+});
+
+test('a credit player never lands on a bonus wallet saved on the device: the header shows the main wallet and resets the choice', () => {
+  for (const stored of ['bonus', 'referralBonus']) {
+    const view = chromeHarness('Topbar', { storage: { stakex_selected_wallet: stored }, auth: { isAuthenticated: true, user: { username: 'credit', playerType: 'AGENT_CREDIT', balance: 640, exposure: 40, bonusBalance: 75, referralBonusBalance: 25 } } });
+    try {
+      const selected = view.getByRole('button', { name: translate('wallet.choose') }).querySelector('.nova-wallet-selected');
+      assert.equal(selected.querySelector('small').textContent, translate('wallet.main'), stored);
+      assert.equal(selected.querySelector('strong').textContent, inr(600));
+      assert.equal(view.dom.window.localStorage.getItem('stakex_selected_wallet'), 'balance', 'casino launches read this choice');
+    } finally { view.close(); }
+  }
+  const cash = chromeHarness('Topbar', { storage: { stakex_selected_wallet: 'bonus' }, auth: { isAuthenticated: true, user: { username: 'cash', balance: 640, exposure: 40, bonusBalance: 75 } } });
+  try {
+    const selected = cash.getByRole('button', { name: translate('wallet.choose') }).querySelector('.nova-wallet-selected');
+    assert.equal(selected.querySelector('small').textContent, translate('wallet.bonus'), 'a cash player keeps the saved choice');
+    assert.equal(selected.querySelector('strong').textContent, inr(75));
+  } finally { cash.close(); }
+});
+
+test('sports-disabled wallet card shows credit players their chips and exposure, with the agent note instead of funding', () => {
+  const { JSDOM } = require('jsdom');
+  for (const [user, hideDW, credit] of [
+    [{ playerType: 'AGENT_CREDIT', balance: 999, exposure: -25, creditLimit: 5000, creditAvailable: 750 }, false, true],
+    [{ playerType: 'WHITELABEL_CREDIT', balance: 999, exposure: 25, creditLimit: 5000, creditAvailable: 750 }, true, true],
+    [{ playerType: 'REGULAR', balance: 999, exposure: 25 }, false, false],
+  ]) {
+    const { load, render } = app({ features: { sportsEnabled: false, casinoEnabled: true }, auth: { isAuthenticated: true, user, openAuthModal() {} }, settings: { hideDW } });
+    const card = new JSDOM(render(load('src/components/nova/NovaWorkspace.tsx').NovaMatchDesk)).window.document.querySelector('.nova-wallet-card');
+    assert.deepEqual([...card.querySelectorAll('dl > div')].map(row => [row.querySelector('dt').textContent, row.querySelector('dd').textContent]),
+      [[translate('nova.mainBalance'), inr(999)], [translate('nova.openExposure'), inr(25)]], user.playerType);
+    assert.equal(card.querySelector('.nova-wallet-note')?.textContent ?? null, credit ? translate('wallet.chipsManagedByAgent') : null);
+    assert.equal(Boolean(card.querySelector('a[href="/deposit"]')), !credit && !hideDW, 'funding only for cash players on tenants that show it');
+    assert.ok(card.querySelector('a[href="/statements"]'));
+    assert.doesNotMatch(card.textContent, /Available credit|750\.00|5,000\.00/, 'no retired credit figure on the card');
+  }
+});
+
+test('the account drawer shows a credit player the credit reference and a signed, coloured Ref P/L with the agent note', () => {
+  for (const [balance, creditLimit, expected, tone] of [
+    [12500.5, 10000, `+${inr(2500.5)}`, 'is-up'],
+    [7250, 10000, `−${inr(2750)}`, 'is-down'],
+    [10000, 10000, inr(0), null],
+    [0.3, 0.1 + 0.2, inr(0), null], // a float -0 must not print as "-₹0.00"
+  ]) {
+    const view = chromeHarness('NovaUtilityRail', { auth: { isAuthenticated: true, user: { username: 'credit', playerType: 'WHITELABEL_CREDIT', balance, creditLimit, exposure: 300, creditAvailable: 99999 } } });
+    try {
+      const { window } = view.dom;
+      view.act(() => { window.dispatchEvent(new window.CustomEvent('nova:toggle-panel', { detail: { panel: 'account' } })); });
+      const dialog = window.document.querySelector('dialog.nova-rail-panel');
+      const rows = [...dialog.querySelectorAll('dl.nova-panel-chips > div')].map(row => [row.querySelector('dt').textContent, row.querySelector('dd')]);
+      assert.deepEqual(rows.map(([label]) => label), [translate('wallet.creditReference'), translate('wallet.refPnl')]);
+      assert.equal(rows[0][1].textContent, inr(creditLimit));
+      assert.equal(rows[1][1].textContent, expected, `Ref P/L = ${balance} - ${creditLimit}`);
+      assert.equal(rows[1][1].getAttribute('class'), tone, 'green when the upline owes the player, red when the player owes the upline');
+      assert.equal(dialog.querySelector('.nova-panel-note').textContent, translate('wallet.chipsManagedByAgent'));
+      assert.deepEqual([...dialog.querySelectorAll('a')].map(link => link.getAttribute('href')), ['/my-bets', '/statements', '/settings'], 'still no funding, bonus or referral routes');
+      assert.doesNotMatch(dialog.textContent, /99,999|Available credit/);
+    } finally { view.close(); }
+  }
+  const cash = chromeHarness('NovaUtilityRail', { auth: { isAuthenticated: true, user: { username: 'cash', balance: 500, creditLimit: 0 } } });
+  try {
+    const { window } = cash.dom;
+    cash.act(() => { window.dispatchEvent(new window.CustomEvent('nova:toggle-panel', { detail: { panel: 'account' } })); });
+    assert.equal(window.document.querySelector('dialog.nova-rail-panel').querySelector('.nova-panel-chips, .nova-panel-note'), null, 'cash players get funding links, not chip figures');
+  } finally { cash.close(); }
+});
+
+test('no player-panel source reads the retired credit-limit figures (credit players play on chips)', () => {
+  const hits = [];
+  const walk = dir => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(tsx?|jsx?)$/.test(entry.name)) fs.readFileSync(full, 'utf8').split(/\r?\n/).forEach((line, index) => {
+        if (/creditAvailable|creditUsed|availableCredit/.test(line)) hits.push(`${path.relative(root, full)}:${index + 1}`);
+      });
+    }
+  };
+  walk(path.join(root, 'src'));
+  assert.deepEqual(hits, []);
 });
 
 test('header news ticker shows the admin News Ticker text one item per line, and nothing when it is empty', () => {

@@ -21,17 +21,21 @@ export interface MatkaUser { id: string | number; createdAt: string; vipTierName
 export interface MatkaBetsData { matkaBets: MatkaBet[] }
 export interface MatkaUsersData { users: MatkaUser[] }
 export interface MatkaMetrics { wagered: number; payouts: number; ggr: number; bets: number }
-export interface MatkaMarketMetrics extends MatkaMetrics { matkaId: string; matkaName?: string | null }
-export interface MatkaKpis { at: string; betsPerMin: number; wagered: number; payouts: number; ggr: number; rtp: number; activePlayers: number; timestamp?: number }
+export interface MatkaMarketMetrics extends MatkaMetrics { matkaId: string; matkaName?: string | null; potentialPayouts?: number | null }
+/** `payouts` counts settled wins, so it is 0 on open bets; `potentialPayouts` is what they pay if they all win. */
+export interface MatkaKpis { at: string; betsPerMin: number; wagered: number; payouts: number; ggr: number; rtp: number; activePlayers: number; potentialPayouts?: number | null; timestamp?: number }
 export interface MatkaBreakdown {
   byMatka: MatkaMarketMetrics[]
   byType: Array<MatkaMetrics & { matkaType: string }>
   byMarket: Array<MatkaMetrics & { marketName: string }>
   byBidType: Array<MatkaMetrics & { bidType: string }>
   byDigit: Array<{ digit: string; wagered: number; payouts: number; exposure: number; bets: number }>
-  bySession: Array<MatkaMetrics & { marketSession: string | null }>
+  bySession: Array<MatkaMetrics & { marketSession: string | null; potentialPayouts?: number | null }>
   bySelection: Array<{ selection: string; matkaId: string; matkaName?: string | null; marketName: string; marketSession: string | null; bidType: string; wagered: number; payouts: number; exposure: number; bets: number }>
+  /** Every selection summed (bySelection holds the riskiest 200); null on a frame cached before it existed. */
+  selectionTotals?: MatkaSelectionTotals | null
 }
+export interface MatkaSelectionTotals { selections: number; wagered: number; payouts: number; exposure: number; bets: number }
 export interface MatkaDashboard { kpis?: MatkaKpis; breakdown?: MatkaBreakdown }
 export function isGoodMatkaSnapshot(snapshot: MatkaDashboard | null | undefined): snapshot is MatkaDashboard & { kpis: MatkaKpis } {
   if (!snapshot?.kpis) return false

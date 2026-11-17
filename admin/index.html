@@ -13,11 +13,6 @@
           else if (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) mode = 'dark';
         } catch (e) { /* fall back to light */ }
         document.documentElement.setAttribute('data-theme', mode);
-        // Skin: the player-panel look is the default. localStorage 'admin-skin' = 'classic' brings back
-        // the indigo look (tokens.css, "Player skin").
-        try {
-          if (window.localStorage.getItem('admin-skin') === 'classic') document.documentElement.setAttribute('data-skin', 'classic');
-        } catch (e) { /* default skin */ }
       })();
     </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

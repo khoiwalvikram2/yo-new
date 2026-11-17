@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { gql, useMutation, useQuery } from '@apollo/client'
 import { notify } from '@/shared/services/notification'
@@ -96,6 +97,10 @@ function EditAgentContent({ agentCallerId }: { agentCallerId?: string }) {
     variables: { id }, skip: !id || isSelf, errorPolicy: 'all',
   })
   const record = data?.agents.agentProfile
+  // A save can keep some rates and refuse others, and the agent is not read again, so after a refusal `record` no
+  // longer says which rates the server holds. The retry then sends every rate (the server inserts nothing for a rate
+  // already in force): compared with `record`, a saved rate changed back to its old value would be skipped as unchanged.
+  const ratesBehindServer = useRef(false)
   const header = <PageHeader title="Edit Agent" eyebrow="Agents" back={{ to: '/agents', label: 'Back to Agents' }} />
   if (isSelf) return <Page>{header}<Notice tone="warn" title="You cannot edit your own account">Your rates, domains and limits are set by your parent agent or an administrator.</Notice></Page>
   if (loading) return <Page><LoadingState label="Loading agent" /></Page>
@@ -104,11 +109,13 @@ function EditAgentContent({ agentCallerId }: { agentCallerId?: string }) {
     try {
       if (!id) throw new Error('Agent ID is missing')
       await updateAgent({ variables: { input: updateAgentInput(id, values, { agentCaller: Boolean(agentCallerId) }) } })
-      const inputs = agentRateInputs(id, values, new Date().toISOString())
+      // Only the rates that changed: an unchanged one would add another identical row to the rate history.
+      const inputs = agentRateInputs(id, values, new Date().toISOString(), ratesBehindServer.current ? undefined : record)
       const results = await Promise.allSettled(inputs.map((input) => values.schemeType === 'COMMISSION' ?
         setCommissionConfig({ variables: { input } }) : setSharingConfig({ variables: { input } })))
       const failed = inputs.filter((_, index) => results[index].status === 'rejected')
       if (failed.length) {
+        ratesBehindServer.current = true
         const reason = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')?.reason
         // The settings were saved; say which rates were not, so a retry (Update again) is understood.
         throw new Error(`Agent settings were saved, but the ${failed.map((input) => input.domain).join(', ')} ${failed.length === 1 ? 'rate was' : 'rates were'} not: ${reason instanceof Error ? reason.message : 'unknown error'}`)

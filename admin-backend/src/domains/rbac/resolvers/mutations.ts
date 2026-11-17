@@ -1,4 +1,4 @@
-import { createRole, renameRole, deleteRole, setRolePermissionsById, assignRoleToAdmin, revokeRoleFromAdmin, getRoleById, aggregatePermissionPairs, listAdminUsers, getAdminRoles, deleteSupportAdmin } from '@/repos/rbac/rbacRepo.js'
+import { createRole, updateRoleDb, deleteRole, setRolePermissionsById, assignRoleToAdmin, revokeRoleFromAdmin, getRoleById, aggregatePermissionPairs, listAdminUsers, getAdminRoles, deleteSupportAdmin, isPlayerAccount, type RoleWithPermissions } from '@/repos/rbac/rbacRepo.js'
 import { createAdminUser } from '@/repos/users/usersRepo.js'
 import { addIpToAllowlist, removeIpFromAllowlist } from '@/repos/adminSecurityRepo.js'
 import { recordAuditDb } from '@/repos/audit/auditRepo.js'
@@ -45,6 +45,11 @@ async function getEffectiveTenant(ctx: any): Promise<string> {
   }
   
   return tenant
+}
+
+/** A role as the audit trail records it: who could do what, before and after a change. */
+function roleAuditSnapshot(role: RoleWithPermissions) {
+  return { name: role.name, permissions: aggregatePermissionPairs(role.permissions) }
 }
 
 const CreateRoleInput = z.object({
@@ -127,6 +132,17 @@ export const rbacMutationResolvers = {
         return { success: false, message: 'Failed to create role', role: null }
       }
       
+      // Role definitions are permission changes, and were the only ones the trail did not record.
+      recordAuditDb({
+        tenant,
+        actorId: String(userId),
+        domain: 'rbac',
+        action: 'create_role',
+        resourceType: 'role',
+        resourceId: String(role.id),
+        after: roleAuditSnapshot(role),
+      }).catch(() => {})
+
       return {
         success: true,
         message: `Role "${name}" created successfully`,
@@ -160,16 +176,20 @@ export const rbacMutationResolvers = {
       const { id, name, permissions } = parsed.data.input
       const roleId = Number(id)
       
-      // Update name if provided
-      if (name) {
-        // A rename reaches the same privileged name as a create would.
-        ensureMayUseRoleName(ctx?.permissions, name)
-        await renameRole(roleId, name, tenant)
+      // Every check runs before anything is written. The rename used to be committed first, so a refused
+      // permission change left the role renamed under a save that reported failure; and the existence
+      // check came last, after setRolePermissionsById had inserted rows under another tenant's role id.
+      const before = Number.isSafeInteger(roleId) && roleId > 0 ? await getRoleById(roleId, tenant) : null
+      if (!before) {
+        return { success: false, message: 'Role not found', role: null }
       }
       
-      // Update permissions if provided
+      // A rename reaches the same privileged name as a create would.
+      if (name) ensureMayUseRoleName(ctx?.permissions, name)
+
+      let permPairs: { domain: string; action: string }[] | undefined
       if (permissions) {
-        const permPairs = permissions.flatMap(p => 
+        permPairs = permissions.flatMap(p => 
           p.actions.map(action => ({ domain: p.domain, action }))
         )
 
@@ -180,15 +200,27 @@ export const rbacMutationResolvers = {
           return { success: false, message: 'Unauthorized: authentication required', role: null }
         }
         await ensureActorMayGrantPermissions(userId, tenant, permPairs)
-
-        await setRolePermissionsById(roleId, permPairs, tenant)
       }
       
+      // The name and the permissions land together or not at all.
+      await updateRoleDb(roleId, tenant, { name, permissions: permPairs })
+
       const role = await getRoleById(roleId, tenant)
       if (!role) {
         return { success: false, message: 'Role not found', role: null }
       }
       
+      recordAuditDb({
+        tenant,
+        actorId: userId ? String(userId) : 'system',
+        domain: 'rbac',
+        action: 'update_role',
+        resourceType: 'role',
+        resourceId: String(role.id),
+        before: roleAuditSnapshot(before),
+        after: roleAuditSnapshot(role),
+      }).catch(() => {})
+
       return {
         success: true,
         message: 'Role updated successfully',
@@ -222,6 +254,16 @@ export const rbacMutationResolvers = {
       
       await deleteRole(roleId, tenant)
       
+      recordAuditDb({
+        tenant,
+        actorId: ctx?.user?.sub ? String(ctx.user.sub) : 'system',
+        domain: 'rbac',
+        action: 'delete_role',
+        resourceType: 'role',
+        resourceId: String(role.id),
+        before: roleAuditSnapshot(role),
+      }).catch(() => {})
+
       return {
         success: true,
         message: `Role "${role.name}" deleted successfully`,
@@ -263,6 +305,11 @@ export const rbacMutationResolvers = {
       if (!userId) {
         return { success: false, message: 'Unauthorized: authentication required', role: null }
       }
+      // As in updateRBACRole: a role that is not in this tenant is not found before anything is written.
+      const before = Number.isSafeInteger(id) && id > 0 ? await getRoleById(id, tenant) : null
+      if (!before) {
+        return { success: false, message: 'Role not found', role: null }
+      }
       await ensureActorMayGrantPermissions(userId, tenant, permPairs)
 
       await setRolePermissionsById(id, permPairs, tenant)
@@ -272,6 +319,17 @@ export const rbacMutationResolvers = {
         return { success: false, message: 'Role not found', role: null }
       }
       
+      recordAuditDb({
+        tenant,
+        actorId: String(userId),
+        domain: 'rbac',
+        action: 'set_role_permissions',
+        resourceType: 'role',
+        resourceId: String(role.id),
+        before: roleAuditSnapshot(before),
+        after: roleAuditSnapshot(role),
+      }).catch(() => {})
+
       return {
         success: true,
         message: 'Role permissions updated successfully',
@@ -301,12 +359,24 @@ export const rbacMutationResolvers = {
     if (!hasPermission(ctx?.permissions ?? [], 'security.roles', 'assign')) {
       return { success: false, message: 'Insufficient permissions: roles.assign required' }
     }
-    
+    // The row is written under the caller's tenant whatever user id it names: kondareddi's admin attached its
+    // role to a grandwinn admin and was told "Role assigned successfully". The target must be in this tenant.
+    const { getUserDb } = await import('@/repos/users/usersRepo.js')
+    const targetUserIdNum = Number(parsed.data.input.userId)
+    if (!Number.isSafeInteger(targetUserIdNum) || targetUserIdNum <= 0 || !(await getUserDb(targetUserIdNum, tenant))) {
+      return { success: false, message: 'User not found' }
+    }
+    // A role does not make a player staff: it would let the player's own credentials into this panel and drop the
+    // account from the player list (SYS-07). Support admins are created as accounts of their own.
+    if (await isPlayerAccount(targetUserIdNum, tenant)) {
+      return { success: false, message: 'That account is a player, not a support admin. Create a support admin instead.' }
+    }
+
     try {
       const { userId: targetUserId, roleId } = parsed.data.input
       const targetId = Number(targetUserId)
       const rId = Number(roleId)
-      
+
       // Privilege escalation: normal assign uses subset check. WL support-admin managers may delegate
       // template roles (e.g. Finance Manager) without holding every nested permission themselves.
       const allowSupportAdminDelegation =
@@ -354,12 +424,19 @@ export const rbacMutationResolvers = {
     if (!hasPermission(ctx?.permissions ?? [], 'security.roles', 'assign')) {
       return { success: false, message: 'Insufficient permissions: roles.assign required' }
     }
-    
+    // As in assignRoleToAdmin: a user of another tenant was answered "Role revoked successfully" while nothing
+    // changed. The target must be in this tenant.
+    const { getUserDb } = await import('@/repos/users/usersRepo.js')
+    const targetUserIdNum = Number(parsed.data.input.userId)
+    if (!Number.isSafeInteger(targetUserIdNum) || targetUserIdNum <= 0 || !(await getUserDb(targetUserIdNum, tenant))) {
+      return { success: false, message: 'User not found' }
+    }
+
     try {
       const { userId: targetUserId, roleId } = parsed.data.input
       const targetId = Number(targetUserId)
       const rId = Number(roleId)
-      
+
       // SECURITY: Block revoking privileged roles. Super Admin, Whitelabel Admin, and agents
       // are unaffected (agents use agent auth; SA/WA keep their roles).
       const role = await getRoleById(rId, tenant)
@@ -376,8 +453,12 @@ export const rbacMutationResolvers = {
         }
       }
       
-      await revokeRoleFromAdmin(targetId, rId, tenant)
-      
+      // Nothing removed is not a revoke: it was answered "Role revoked successfully" and audited as one.
+      const removed = await revokeRoleFromAdmin(targetId, rId, tenant)
+      if (removed === 0) {
+        return { success: false, message: 'That user does not hold this role' }
+      }
+
       // Audit event
       const actorId = userId ? String(userId) : 'system'
       recordAuditDb({

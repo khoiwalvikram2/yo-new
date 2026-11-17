@@ -61,6 +61,7 @@ export function NotificationBell({ category }: NotificationBellProps) {
         onNotificationClick={state.onNotificationClick}
         onMarkAllAsRead={state.onMarkAllAsRead}
         onViewAll={state.onViewAll}
+        unreadCount={state.unreadCount}
       />
     </Popover>
   )

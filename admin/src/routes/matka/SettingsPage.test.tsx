@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
 import { beforeEach, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ApolloLink, Observable, type FetchResult } from '@apollo/client'
 import { MockedProvider } from '@apollo/client/testing'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import MatkaSettingsPage from './SettingsPage'
 
@@ -136,4 +138,29 @@ test('denied access starts no market or settings query', async () => {
   access.allowed = false; renderPage()
   await waitFor(() => assert.ok(screen.getByRole('alert')))
   assert.equal(calls.length, 0)
+})
+
+test('a Super Admin in core mode is asked to select a whitelabel: no market or bid-rule read, no editor, no save', async () => {
+  // Core mode read the platform's own tenant ('default'), which called a real market "Matka not found"; a market there
+  // would have been saved in that tenant, where no whitelabel sees it.
+  const auth = useAuthStore.getState(), ui = useUIStore.getState()
+  useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+  try {
+    const core = renderPage()
+    assert.ok(await screen.findByText('Select a whitelabel'))
+    assert.ok(screen.getByRole('heading', { level: 1, name: 'Edit Matka Settings' }))
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+    assert.equal(calls.length, 0, 'no Matka, MatkaBidRules or save operation')
+    assert.ok(screen.queryByRole('button', { name: 'Apply Changes' }) === null, 'no editor')
+    assert.ok(screen.queryByText('Matka not found') === null, 'no misleading not-found')
+    core.unmount()
+    // With a site selected the same admin gets the editor, as a whitelabel admin always does.
+    useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+    renderPage()
+    await screen.findByRole('textbox', { name: 'Min Stake' })
+    assert.ok(screen.queryByText('Select a whitelabel') === null, 'no select state with a site selected')
+    assert.deepEqual(calls.find(call => call.operationName === 'Matka')?.variables, { id: 'm1' })
+  } finally {
+    useAuthStore.setState({ roles: auth.roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+  }
 })

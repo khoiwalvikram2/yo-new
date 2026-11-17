@@ -3,10 +3,11 @@ import type { ReactNode } from 'react'
 import { ApolloLink, Observable, type FetchResult, type Operation } from '@apollo/client'
 import { MockedProvider } from '@apollo/client/testing'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, test, vi } from 'vitest'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { useCasinoStore } from '@/state/casinoStore'
 import ManagementPage from './ManagementPage'
 
@@ -47,6 +48,8 @@ vi.mock('@/shared/core/useFormatDate', () => ({
 vi.mock('@/shared/services/notification', () => ({ notify: feedback }))
 
 let serverCalls: ServerCall[]
+/** Games switched on or off through the grid's Enable switch, which the server's later reads reflect. */
+let switched: Record<string, boolean>
 
 function sent(value: Record<string, unknown>) {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>
@@ -97,16 +100,24 @@ function handle(operation: Operation): FetchResult {
         { __typename: 'CasinoVendor', id: 'v1', name: 'Evolution', slug: 'evolution' },
       ] } }
     case 'CasinoGames': {
-      const input = variables.input as { category: string; search?: string }
-      const row = input.category === 'LIVE_CASINO'
-        ? game('roulette', 'Roulette Gold', input.category)
-        : input.category === 'CASINO'
-          ? game('poker', 'Poker Elite', input.category, false)
-          : game('aviator', 'Aviator', input.category)
-      const matches = !input.search || row.name.toLowerCase().includes(input.search.toLowerCase())
+      const input = variables.input as { category?: string; search?: string; enabled?: boolean; page?: number; pageSize?: number }
+      const byCategory: Record<string, ReturnType<typeof game>> = {
+        LIVE_CASINO: game('roulette', 'Roulette Gold', 'LIVE_CASINO'),
+        CASINO: game('poker', 'Poker Elite', 'CASINO', false),
+        SLOTS: game('aviator', 'Aviator', 'SLOTS'),
+      }
+      // No category is the All view: every category, paged on the server.
+      const rows = (input.category ? [byCategory[input.category]] : Object.values(byCategory))
+        .map((row) => (row.id in switched ? { ...row, tenantEnabled: switched[row.id] } : row))
+      // The Status filter, as the server reads it: the whitelabel's switch, or the platform flag in core mode.
+      const core = useUIStore.getState().directorMode === 'core'
+      const matches = rows.filter((row) => !input.search || row.name.toLowerCase().includes(input.search.toLowerCase()))
+        .filter((row) => typeof input.enabled !== 'boolean' || (core ? row.isActive : row.tenantEnabled) === input.enabled)
+      const page = input.page ?? 1
+      const pageSize = input.pageSize ?? 20
       return { data: { casinoGames: {
-        __typename: 'CasinoGamesPage', total: matches ? 1 : 0, page: 1, pageSize: 10000,
-        items: matches ? [row] : [],
+        __typename: 'CasinoGamesPage', total: matches.length, page, pageSize,
+        items: matches.slice((page - 1) * pageSize, page * pageSize),
       } } }
     }
     case 'VIPTiers':
@@ -135,6 +146,7 @@ function handle(operation: Operation): FetchResult {
     case 'BulkUpdateVipTierGames':
       return mutationResponse('bulkUpdateVipTierGames')
     case 'ToggleCasinoGameEnabled':
+      switched[String(variables.gameId)] = Boolean(variables.enabled)
       return mutationResponse('toggleCasinoGameEnabled')
     case 'ToggleCasinoGameMasterActive':
       return mutationResponse('toggleCasinoGameMasterActive')
@@ -174,12 +186,13 @@ function calls(operationName: string) {
   return serverCalls.filter((call) => call.operationName === operationName)
 }
 
-function renderPage() {
+function renderPage(path = '/casino/management', extra?: ReactNode) {
   return render(
     <MockedProvider link={serverLink()} cache={undefined}>
-      <MemoryRouter initialEntries={['/casino/management']}>
+      <MemoryRouter initialEntries={[path]}>
         <PageEyebrowProvider value="Trading">
           <ManagementPage />
+          {extra}
         </PageEyebrowProvider>
       </MemoryRouter>
     </MockedProvider>,
@@ -195,6 +208,7 @@ async function renderLoaded() {
 
 beforeEach(() => {
   serverCalls = []
+  switched = {}
   guard.allowed = true
   guard.calls = []
   feedback.success.mockReset()
@@ -202,6 +216,8 @@ beforeEach(() => {
   feedback.warning.mockReset()
   feedback.info.mockReset()
   useAuthStore.setState({ roles: ['SUPER_ADMIN'] })
+  // A Super Admin working on one whitelabel; core mode has its own tests below.
+  useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'wl1' })
   useCasinoStore.setState({
     selectedProviderId: null,
     selectedCategory: null,
@@ -224,17 +240,56 @@ describe('/casino/management', () => {
     assert.ok(screen.getByRole('heading', { level: 2, name: 'Casino Games' }))
     assert.ok(screen.getByText('Poker Elite'))
     assert.ok(screen.getByText('Aviator'))
+    // One paged query for All, with no category: the server pages the three together. (The statistics count the
+    // same scope with one-row reads, B002; they are not the table's.)
     const gameCalls = calls('CasinoGames').filter((call) => {
       const input = call.variables.input as Record<string, unknown> | undefined
-      return input?.pageSize === 10000
+      return input && !('category' in input) && input.pageSize !== 1
     })
-    assert.deepEqual(gameCalls.map((call) => (call.variables.input as Record<string, unknown>).category).sort(), [
-      'CASINO', 'LIVE_CASINO', 'SLOTS',
-    ])
-    assert.ok(gameCalls.every((call) => {
-      const input = call.variables.input as Record<string, unknown>
-      return input.providerId === 'p1' && input.page === 1 && input.pageSize === 10000
-    }))
+    assert.ok(gameCalls.length >= 1)
+    assert.deepEqual(gameCalls[0].variables, { input: { providerId: 'p1', page: 1, pageSize: 20 } })
+    assert.equal(calls('CasinoGames').some((call) => (call.variables.input as Record<string, unknown>).pageSize === 10000), false)
+  })
+
+  test('keeps the pagination on a page past the last game and moves back to the last page', async () => {
+    // Scope already chosen, so loading the page does not reset the page number.
+    useCasinoStore.setState({ selectedProviderId: 'p1', selectedCategory: 'ALL', page: 4 })
+    renderPage()
+    await screen.findByText('Roulette Gold')
+    assert.equal(useCasinoStore.getState().page, 1)
+    assert.ok(calls('CasinoGames').some((call) => (call.variables.input as Record<string, unknown>).page === 4))
+    assert.ok(screen.getByRole('navigation', { name: 'Pagination' }))
+  })
+
+  test('core mode lists every game with Master Control and offers no per-whitelabel setting', async () => {
+    useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    await renderLoaded()
+    assert.ok(screen.getByText(/Core mode lists every game on the platform/))
+    assert.ok(screen.getByRole('columnheader', { name: 'Master Control' }))
+    for (const header of ['Priority', 'VIP Tiers', 'Bet Settings', 'Actions']) {
+      assert.equal(screen.queryByRole('columnheader', { name: header }), null, header)
+    }
+    assert.equal(screen.queryByRole('button', { name: 'Edit settings for Roulette Gold' }), null)
+    assert.equal(screen.queryByRole('checkbox', { name: 'Select Roulette Gold' }), null)
+    assert.equal(screen.queryByRole('button', { name: 'Reorder Roulette Gold' }), null)
+    assert.equal(screen.getAllByText('ACTIVE').length, 3, 'the platform flag is the status')
+    assert.equal(calls('GameVipTiers').length, 0, 'no per-game VIP lookups')
+  })
+
+  test('refuses a minimum above the maximum on the bet form and sends nothing', async () => {
+    await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit settings for Roulette Gold' }))
+    const drawer = await screen.findByRole('dialog', { name: /Edit Game Settings - Roulette Gold/ })
+    fireEvent.click(within(drawer).getByRole('tab', { name: 'Bet Settings' }))
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Expand' }))
+    await within(drawer).findByText('Configured Settings')
+    const minimum = within(drawer).getByRole('textbox', { name: 'Minimum' })
+    fireEvent.focus(minimum)
+    fireEvent.change(minimum, { target: { value: '500' } })
+    fireEvent.blur(minimum)
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Add Setting' }))
+    await within(drawer).findByText('Minimum cannot be above the maximum')
+    assert.equal(calls('UpsertCasinoGameBetSettings').length, 0)
   })
 
   test('denies before starting casino queries', async () => {
@@ -291,6 +346,30 @@ describe('/casino/management', () => {
       const input = call.variables.input as Record<string, unknown>
       return input.search === 'rou'
     })), { timeout: 1500 })
+  })
+
+  test('a link naming a game (?search=) starts the box and the games query from it; a later link re-seeds it (DAS-SEARCH-SEEALL)', async () => {
+    // The global search routes every casino game result, and its "See all", to /casino/management?search=<name>.
+    function GameResult() {
+      const navigate = useNavigate()
+      return <button type="button" onClick={() => navigate('/casino/management?search=Aviator')}>Open the Aviator result</button>
+    }
+    renderPage('/casino/management?search=Roulette', <GameResult />)
+    await screen.findByText('Roulette Gold')
+    const box = screen.getByRole('searchbox', { name: 'Search games' }) as HTMLInputElement
+    assert.equal(box.value, 'Roulette')
+    assert.equal(useCasinoStore.getState().search, 'Roulette')
+    // The first games query already carries the term: no unfiltered list first. (The statistics' one-row counts
+    // are not the list, B002.)
+    const listCalls = calls('CasinoGames').filter((call) => (call.variables.input as Record<string, unknown>).pageSize !== 1)
+    assert.equal((listCalls[0]?.variables.input as Record<string, unknown>).search, 'Roulette')
+    assert.equal(screen.queryByText('Poker Elite'), null)
+    // A result opened while the page is open: the page stays mounted and takes the new term.
+    fireEvent.click(screen.getByRole('button', { name: 'Open the Aviator result' }))
+    await waitFor(() => assert.equal(box.value, 'Aviator'))
+    await waitFor(() => assert.ok(calls('CasinoGames').some((call) => (call.variables.input as Record<string, unknown>).search === 'Aviator')), { timeout: 1500 })
+    // A boolean, not the element: a failed assert.equal(element) formats the whole jsdom tree on every retry.
+    await waitFor(() => assert.ok(!screen.queryByText('Roulette Gold'), 'the Roulette results are gone'))
   })
 
   test('selects a row and preserves both exact bulk access mutations and contexts', async () => {
@@ -356,16 +435,71 @@ describe('/casino/management', () => {
     })
   })
 
+  /* B002: the cards read only with a provider, one category and a vendor all chosen, so the default All view said
+     "Vendors 0 - None selected" and "Games 0 - 0 enabled, 0 disabled" over a full table of games. */
+  function stat(label: string) {
+    const name = within(screen.getByRole('group', { name: 'Casino statistics' })).getByText(label)
+    return { value: name.nextElementSibling?.textContent ?? '', text: name.parentElement?.textContent ?? '' }
+  }
+  const countReads = () => calls('CasinoGames').filter((call) => (call.variables.input as Record<string, unknown>).pageSize === 1)
+
+  test('the All view counts every vendor and game of the scope, with the enabled split', async () => {
+    await renderLoaded()
+    await waitFor(() => assert.equal(stat('Games').value, '3'))
+    assert.ok(stat('Games').text.includes('2 enabled, 1 disabled'), stat('Games').text)
+    assert.equal(stat('Vendors').value, '1')
+    assert.ok(stat('Vendors').text.includes('None selected'), stat('Vendors').text)
+    // Counted with one-row reads of the table's scope (the second through the Status filter), not loaded.
+    assert.deepEqual(countReads().map((call) => call.variables), [
+      { input: { providerId: 'p1', page: 1, pageSize: 1 } },
+      { input: { providerId: 'p1', page: 1, pageSize: 1, enabled: true } },
+    ])
+  })
+
+  test('a chosen category and vendor narrow the figures', async () => {
+    useCasinoStore.setState({ selectedProviderId: 'p1', selectedCategory: 'CASINO', selectedVendorId: 'v1' })
+    renderPage()
+    await waitFor(() => assert.equal(stat('Games').value, '1'))
+    assert.ok(stat('Games').text.includes('0 enabled, 1 disabled'), stat('Games').text)
+    assert.ok(stat('Vendors').text.includes('1 selected'), stat('Vendors').text)
+    assert.deepEqual(countReads().at(-1)?.variables, { input: { providerId: 'p1', category: 'CASINO', vendorId: 'v1', page: 1, pageSize: 1, enabled: true } })
+    assert.ok(calls('CasinoVendors').some((call) => call.variables.providerId === 'p1' && call.variables.category === 'CASINO'))
+  })
+
+  test('core mode counts the platform flag', async () => {
+    useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    await renderLoaded()
+    await waitFor(() => assert.equal(stat('Games').value, '3'))
+    assert.ok(stat('Games').text.includes('3 active, 0 blocked'), stat('Games').text)
+  })
+
+  /* B002 review: the counts are reads of their own, so a game switched on in the table re-read the table alone and
+     the card kept "2 enabled, 1 disabled". The card's old row-based figures followed the table's re-read. */
+  test('switching a game re-reads the counts with the table', async () => {
+    await renderLoaded()
+    await waitFor(() => assert.ok(stat('Games').text.includes('2 enabled, 1 disabled'), stat('Games').text))
+    const before = countReads().length
+    fireEvent.click(screen.getByRole('button', { name: 'Grid' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable Poker Elite' }))
+    await waitFor(() => assert.ok(stat('Games').text.includes('3 enabled, 0 disabled'), stat('Games').text))
+    assert.equal(countReads().length, before + 2, 'the total and the enabled count are each read once more')
+  })
+
+  test('a whitelabel admin, who picks no provider, gets its tenant\'s figures', async () => {
+    useAuthStore.setState({ roles: ['Whitelabel Admin'] })
+    await renderLoaded()
+    await waitFor(() => assert.equal(stat('Games').value, '3'))
+    assert.equal(stat('Vendors').value, '1')
+    assert.ok(countReads().length >= 2 && countReads().every((call) => !('providerId' in (call.variables.input as Record<string, unknown>))))
+  })
+
   test('tenant admins omit provider scope and never render master control', async () => {
     useAuthStore.setState({ roles: ['TENANT_ADMIN'] })
     await renderLoaded()
     assert.equal(screen.queryByRole('combobox', { name: 'API provider' }), null)
     assert.equal(screen.queryByRole('columnheader', { name: 'Master Control' }), null)
-    const allCalls = calls('CasinoGames').filter((call) => {
-      const input = call.variables.input as Record<string, unknown>
-      return input.pageSize === 10000
-    })
-    assert.ok(allCalls.length >= 3)
+    const allCalls = calls('CasinoGames').filter((call) => !('category' in (call.variables.input as Record<string, unknown>)))
+    assert.ok(allCalls.length >= 1)
     assert.ok(allCalls.every((call) => !('providerId' in (call.variables.input as Record<string, unknown>))))
   })
 })

@@ -22,19 +22,33 @@ import {
   pageSlice,
   paymentMethodStats,
   priorityStarCount,
-  qrUrlExcerpt,
   statusSwitchLabel,
   tabEmptyTitle,
   tabItemName,
   tabMethodType,
   tabTitle,
   upiTitle,
+  buildCryptoBonusInput,
+  buildCryptoRateInput,
+  buildDeleteCryptoInput,
+  buildToggleCryptoInput,
+  canSaveCryptoBonus,
+  canSaveCryptoRate,
+  cleanCryptoForInput,
+  cryptoBonusDraftError,
+  cryptoBonusExample,
+  cryptoBonusPreview,
+  cryptoRateDraftError,
+  cryptoRateExample,
+  cryptoRatePreview,
+  tabCountLabel,
   type BankDetail,
+  type CryptoDetail,
   type UpiDetail,
   type WhitelabelPaymentMethodsData,
 } from './paymentMethodsListModel'
 
-/** Rows as Apollo returns them: with `__typename`, and for a UPI the presigned `qrUrl`. */
+/** Rows as Apollo returns them: with `__typename`, and for a UPI the displayable `qrUrl`. */
 function bank(id: string, overrides: Partial<BankDetail> = {}): BankDetail {
   return {
     __typename: 'BankDetails',
@@ -67,6 +81,24 @@ function upi(id: string, overrides: Partial<UpiDetail> = {}): UpiDetail {
     enabled: true,
     ...overrides,
   } as UpiDetail
+}
+
+function crypto(id: string, overrides: Partial<CryptoDetail> = {}): CryptoDetail {
+  return {
+    __typename: 'CryptoDetails',
+    id,
+    network: 'TRC20',
+    walletAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+    displayName: null,
+    qrKey: `data:image/png;base64,${id}`,
+    qrUrl: `data:image/png;base64,${id}`,
+    minAmount: null,
+    maxAmount: null,
+    weight: 1,
+    enabled: true,
+    vipTierIds: null,
+    ...overrides,
+  } as CryptoDetail
 }
 
 function methods(overrides: Partial<WhitelabelPaymentMethodsData> = {}): WhitelabelPaymentMethodsData {
@@ -166,10 +198,19 @@ describe('stats', () => {
     assert.deepStrictEqual(stats, {
       banks: { total: 3, active: 1, inactive: 2 },
       upis: { total: 1, active: 1, inactive: 0 },
+      cryptos: { total: 0, active: 0, inactive: 0 },
       total: 4,
       active: 2,
       activeRate: 50,
     })
+  })
+
+  test('counts crypto wallets in their own card and in the totals', () => {
+    const stats = paymentMethodStats([bank('b1')], [upi('u1', { enabled: false })], [crypto('c1'), crypto('c2', { enabled: false })])
+    assert.deepStrictEqual(stats.cryptos, { total: 2, active: 1, inactive: 1 })
+    assert.equal(stats.total, 4)
+    assert.equal(stats.active, 2)
+    assert.equal(stats.activeRate, 50)
   })
 
   test('rounds the active rate to a whole percent and is 0 with no methods', () => {
@@ -244,10 +285,6 @@ describe('copy and paths', () => {
     assert.equal(hasQrCode({ qrUrl: null, qrKey: 'qr/a.png' }), true)
     assert.equal(hasQrCode({ qrUrl: 'https://x.test/a.png', qrKey: null }), true)
     assert.equal(hasQrCode({ qrUrl: null, qrKey: null }), false)
-    assert.equal(
-      qrUrlExcerpt('https://bucket.example.test/qr/a-very-long-object-key-that-keeps-going.png?sig=1'),
-      'https://bucket.example.test/qr/a-very-long-object-...',
-    )
   })
 
   test('names a row control by its title, or by its kind when the title is empty', () => {
@@ -256,5 +293,113 @@ describe('copy and paths', () => {
     assert.equal(methodName(null, 'upi'), 'UPI account')
     assert.equal(statusSwitchLabel('Vijay Kumar', 'bank'), 'Vijay Kumar active')
     assert.equal(statusSwitchLabel('', 'upi'), 'UPI account active')
+  })
+})
+
+describe('crypto wallets', () => {
+  test('the third tab has its own copy, links and a wallet count', () => {
+    assert.deepStrictEqual(
+      [tabTitle('cryptos'), tabEmptyTitle('cryptos'), tabItemName('cryptos'), tabMethodType('cryptos'), addMethodLabel('cryptos'), addMethodPath('cryptos')],
+      ['Crypto Wallets', 'No crypto wallets found', 'crypto wallets', 'crypto', 'Add Crypto', '/payments/methods/create?type=crypto'],
+    )
+    assert.equal(editMethodPath('crypto', 'crypto-17'), '/payments/methods/edit/crypto/crypto-17')
+    assert.equal(deleteConfirmTitle('crypto'), 'Delete Crypto Wallet')
+    assert.equal(methodName('', 'crypto'), 'Crypto wallet')
+    assert.equal(tabCountLabel('cryptos', 1), '1 wallet')
+    assert.equal(tabCountLabel('cryptos', 3), '3 wallets')
+    assert.equal(tabCountLabel('banks', 3), '3 accounts')
+  })
+
+  test('a wallet loses __typename and the output-only qrUrl; its VIP tiers and QR key go back as stored', () => {
+    assert.deepStrictEqual(cleanCryptoForInput(crypto('c1', { vipTierIds: ['tier-1'] })), {
+      id: 'c1',
+      network: 'TRC20',
+      walletAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+      displayName: null,
+      qrKey: 'data:image/png;base64,c1',
+      minAmount: null,
+      maxAmount: null,
+      weight: 1,
+      enabled: true,
+      vipTierIds: ['tier-1'],
+    })
+    const missing = crypto('c2')
+    delete missing.enabled
+    assert.equal(cleanCryptoForInput(missing).enabled, true)
+  })
+
+  test('a wallet toggle or delete sends only the wallet list; banks, UPIs and limits are left to the server', () => {
+    const stored = methods({ cryptos: [crypto('c1'), crypto('c2', { enabled: false })], cryptoRate: 92.5 })
+    const toggled = buildToggleCryptoInput(stored, 'c2', true)
+    assert.deepStrictEqual(Object.keys(toggled), ['cryptos'])
+    assert.deepStrictEqual(toggled.cryptos.map((row) => [row.id, row.enabled]), [['c1', true], ['c2', true]])
+    assert.ok(toggled.cryptos.every((row) => !('qrUrl' in row) && !('__typename' in row)))
+
+    assert.deepStrictEqual(buildDeleteCryptoInput(stored, 'c1'), { cryptos: [cleanCryptoForInput(crypto('c2', { enabled: false }))] })
+    assert.deepStrictEqual(buildDeleteCryptoInput(methods({ cryptos: [crypto('c1')] }), 'c1'), { cryptos: [] }, 'the last wallet goes as []')
+    assert.deepStrictEqual(buildToggleCryptoInput(undefined, 'x', true), { cryptos: [] })
+  })
+
+  test('the rate and the bonus each save alone; an empty bonus switches it off', () => {
+    assert.deepStrictEqual(buildCryptoRateInput(92.5), { cryptoRate: 92.5 })
+    assert.deepStrictEqual(buildCryptoBonusInput(5), { cryptoBonusPercent: 5 })
+    assert.deepStrictEqual(buildCryptoBonusInput(null), { cryptoBonusPercent: 0 })
+  })
+
+  test('a rate saves when it is above 0, at most 1,000,000 and new; the field cannot clear it', () => {
+    assert.equal(cryptoRateDraftError(null), null)
+    assert.equal(cryptoRateDraftError(92.5), null)
+    assert.equal(cryptoRateDraftError(0), 'The USDT rate must be above 0')
+    assert.equal(cryptoRateDraftError(-4), 'The USDT rate must be above 0')
+    assert.equal(cryptoRateDraftError(1_000_001), 'The USDT rate can be at most 10,00,000')
+    assert.equal(canSaveCryptoRate(92.5, null), true)
+    assert.equal(canSaveCryptoRate(92.5, 88), true)
+    assert.equal(canSaveCryptoRate(88, 88), false, 'unchanged')
+    assert.equal(canSaveCryptoRate(null, 88), false, 'a rate can only be replaced')
+    assert.equal(canSaveCryptoRate(0, null), false)
+  })
+
+  test('a bonus saves when it is 0-50% and new; empty and 0 both mean none', () => {
+    assert.equal(cryptoBonusDraftError(null), null)
+    assert.equal(cryptoBonusDraftError(0), null)
+    assert.equal(cryptoBonusDraftError(50), null)
+    assert.equal(cryptoBonusDraftError(50.5), 'Crypto bonus can be at most 50%')
+    assert.equal(cryptoBonusDraftError(-1), 'Crypto bonus cannot be negative')
+    assert.equal(canSaveCryptoBonus(5, null), true)
+    assert.equal(canSaveCryptoBonus(0, 5), true, 'switching it off')
+    assert.equal(canSaveCryptoBonus(null, 5), true)
+    assert.equal(canSaveCryptoBonus(0, null), false, 'already none')
+    assert.equal(canSaveCryptoBonus(5, 5), false)
+    assert.equal(canSaveCryptoBonus(60, null), false)
+  })
+
+  test('the examples follow the typed value while it is valid, else the stored one', () => {
+    assert.equal(cryptoRatePreview(92.5, 88), 92.5)
+    assert.equal(cryptoRatePreview(-1, 88), 88)
+    assert.equal(cryptoRatePreview(null, 88), 88)
+    assert.equal(cryptoRatePreview(null, null), null)
+    assert.equal(cryptoBonusPreview(5, 2), 5)
+    assert.equal(cryptoBonusPreview(null, 2), null, 'an emptied field previews no bonus')
+    assert.equal(cryptoBonusPreview(70, 2), 2)
+  })
+
+  test('works the examples on a ₹10,000 deposit: USDT rounded up, the bonus rounded down', () => {
+    const format = (amount: number, wholeUnits?: boolean) => `₹${amount.toLocaleString('en-IN', {
+      minimumFractionDigits: wholeUnits ? 0 : 2,
+      maximumFractionDigits: wholeUnits ? 0 : 2,
+    })}`
+    assert.equal(cryptoRateExample(92.5, format), 'A ₹10,000 deposit asks the player for 108.11 USDT')
+    assert.equal(cryptoRateExample(100, format), 'A ₹10,000 deposit asks the player for 100.00 USDT')
+    assert.equal(cryptoRateExample(null, format), 'No rate saved yet')
+    assert.equal(
+      cryptoBonusExample(5, format),
+      'On approval a ₹10,000 crypto deposit also gets ₹500.00 bonus in the cash wallet (₹10,500.00 in all)',
+    )
+    assert.equal(
+      cryptoBonusExample(0.333, format),
+      'On approval a ₹10,000 crypto deposit also gets ₹33.30 bonus in the cash wallet (₹10,033.30 in all)',
+    )
+    assert.equal(cryptoBonusExample(null, format), 'No bonus. Set up to 50% to add an extra % to every approved crypto deposit.')
+    assert.equal(cryptoBonusExample(0, format), 'No bonus. Set up to 50% to add an extra % to every approved crypto deposit.')
   })
 })

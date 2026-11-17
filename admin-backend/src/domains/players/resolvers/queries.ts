@@ -34,6 +34,7 @@ import { getFirstLedgerEntryByTypeDb, listLedgerEntriesByWalletDb } from '@/repo
 import { listWalletLedgerEntriesDb } from '@/repos/players/walletLedgerRepo.js'
 import { listBonusAwardsByUserId } from '@/repos/marketing/bonusesRepo.js'
 import { isActiveEntityStatus } from '../statusNormalization.js'
+import { playerAccess } from '../services/playerAccess.js'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { hasPermission, requirePermission } from '@src/domains/common/auth.js'
 import { PlayerAuthService } from '../services/PlayerAuthService.js'
@@ -42,7 +43,6 @@ import { bonusAwards, bonusCampaigns, sportsResultsTable, sportsRunnersTable } f
 import { eq, inArray, desc, isNull, and } from 'drizzle-orm'
 import { requireReadPermission } from '@src/domains/common/auth.js'
 import { maySeePlayer } from '@src/domains/players/services/playerVisibility.js'
-import { resolvePlayerCreditStatement } from '@src/domains/players/services/playerCreditStatementQuery.js'
 
 const playerAuthService = new PlayerAuthService()
 
@@ -413,24 +413,9 @@ export const playersQueryResolvers = {
         updatedAt: new Date().toISOString(),
       } : null,
       limits: limits || null,
-      access: {
-        canLogin: user.status === 'active' || user.status === 'inactive',
-        canDeposit: user.status === 'active',
-        canWithdraw: user.status === 'active' && !(user as any).withdrawalLock,
-        bonusEligible: user.status === 'active' && user.bonusAllowed,
-        sports: {
-          visible: user.sportsVisible,
-          canBet: user.sportsBetAllowed && user.status === 'active',
-        },
-        casino: {
-          visible: user.casinoVisible,
-          canBet: user.casinoBetAllowed && user.status === 'active',
-        },
-        matka: {
-          visible: user.matkaVisible,
-          canBet: user.matkaBetAllowed && user.status === 'active',
-        },
-      },
+      // The player API logs in only an active player ("Account is not active"); an inactive one cannot log in.
+      // User.access answers from the same rule.
+      access: playerAccess(user),
       playerType: user.playerType || null,
       agentId: user.agentId ? String(user.agentId) : null,
       creditLimit: user.creditLimit ? Number(user.creditLimit) : null,
@@ -1110,15 +1095,16 @@ export const playersQueryResolvers = {
     }
   },
 
+  // Devices and sessions are not tracked: a player's login is a JWT and nothing records devices or sessions,
+  // so these two always answer an empty list. An empty list here means "not tracked", not "none": the profile's
+  // Devices & Sessions tab says so instead of showing zeros (logins with IP and device are in the Activity Log).
   playerDevices: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'players.devices', 'view')
-    // TODO: implement device tracking
     return []
   },
 
   playerSessions: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'players.sessions', 'view')
-    // TODO: implement session tracking
     return []
   },
 
@@ -1365,90 +1351,6 @@ export const playersQueryResolvers = {
     }
   },
 
-  playerCreditTransactions: async (_: any, args: any, ctx: any) => {
-    requireReadPermission(ctx, 'players.credit', 'view')
-    const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default'
-    
-    // Validate playerId
-    if (!args.playerId) {
-      throw new Error('playerId is required')
-    }
-    
-    const playerId = String(args.playerId)
-    const userId = Number(args.playerId)
-    if (!Number.isFinite(userId)) {
-      throw new Error('Invalid player ID')
-    }
-    
-    // Validate and normalize pagination parameters
-    let validatedLimit: number = 50; // Default limit
-    let validatedOffset: number = 0; // Default offset
-    
-    if (args.limit !== undefined && args.limit !== null) {
-      const limitNum = Number(args.limit);
-      if (!Number.isFinite(limitNum) || !Number.isInteger(limitNum) || limitNum < 1) {
-        throw new Error('limit must be a positive integer');
-      }
-      // Clamp to maximum limit to prevent excessive queries (consistent with other queries)
-      validatedLimit = Math.min(Math.max(limitNum, 1), 1000); // Between 1 and 1000
-    }
-    
-    if (args.offset !== undefined && args.offset !== null) {
-      const offsetNum = Number(args.offset);
-      if (!Number.isFinite(offsetNum) || !Number.isInteger(offsetNum) || offsetNum < 0) {
-        throw new Error('offset must be a non-negative integer');
-      }
-      validatedOffset = offsetNum;
-    }
-    
-    // Authorization check (same as playerTransactions)
-    // If agent is logged in, check if they can access this player
-    if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) {
-      const canAccess = await canAgentAccessPlayer(ctx.user.agentId, userId, tenant)
-      if (!canAccess) {
-        throw new Error('Unauthorized: You can only access your own players')
-      }
-    }
-    
-    const { AgentCreditLedgerRepo } = await import('@src/repos/agents/AgentCreditLedgerRepo.js')
-    const ledgerRepo = new AgentCreditLedgerRepo()
-    
-    const transactions = await ledgerRepo.getTransactionsByEntity({
-      entityType: 'player',
-      entityId: playerId,
-      limit: validatedLimit,
-      offset: validatedOffset,
-      tenantId: tenant,
-    })
-    
-    // Filter to only credit adjustment related transactions
-    const creditAdjustmentTypes = ['CREDIT_LIMIT_ADJUSTMENT', 'CREDIT_USED_INCREASE', 'CREDIT_USED_DECREASE']
-    const filtered = transactions.filter(t => 
-      creditAdjustmentTypes.includes(t.transactionType)
-    )
-    
-    return filtered.map(t => ({
-      id: t.id,
-      fromEntityType: t.fromEntityType,
-      fromEntityId: t.fromEntityId,
-      toEntityType: t.toEntityType,
-      toEntityId: t.toEntityId,
-      transactionType: t.transactionType,
-      amount: Number(t.amount),
-      currency: t.currency,
-      balanceBefore: Number(t.balanceBefore),
-      balanceAfter: Number(t.balanceAfter),
-      reason: t.reason,
-      createdBy: t.createdBy,
-      betId: t.betId,
-      settlementId: t.settlementId,
-      cashoutId: t.cashoutId,
-      createdByType: t.createdByType,
-      metadata: t.metadata ? (typeof t.metadata === 'string' ? t.metadata : JSON.stringify(t.metadata)) : null,
-      createdAt: typeof t.createdAt === 'string' ? t.createdAt : t.createdAt.toISOString()
-    }))
-  },
-
   movePlayerToAgentPreCheck: async (_: any, args: any, ctx: any) => {
     if (!hasPermission(ctx?.permissions ?? [], 'players.move-agent', 'view')) {
       throw new Error('Forbidden: insufficient permissions')
@@ -1692,14 +1594,6 @@ export const playersQueryResolvers = {
       }
     })
   },
-
-  /**
-   * A credit player's statement: settled bets, settlements and credit changes
-   * for a date range, with the settlement balance after each money row.
-   * Access and assembly: services/playerCreditStatementQuery.ts; maths:
-   * services/creditStatement.ts.
-   */
-  playerCreditStatement: (_: any, args: any, ctx: any) => resolvePlayerCreditStatement(args, ctx),
 }
 
 

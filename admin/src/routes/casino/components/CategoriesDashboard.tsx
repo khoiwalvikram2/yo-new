@@ -41,6 +41,7 @@ import { EmptyState } from '@/ui/components/EmptyState'
 import { IconButton } from '@/ui/components/IconButton'
 import { LoadingState } from '@/ui/components/LoadingState'
 import { StatusPill } from '@/ui/components/StatusPill'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { Switch } from '@/ui/components/Switch'
 import { Table, TBody, TD, TH, THead, TR } from '@/ui/components/Table'
 import { Tooltip } from '@/ui/components/Tooltip'
@@ -49,6 +50,7 @@ import { strokeFor } from '@/ui/components/icons'
 import {
   DELETE_CONFIRM,
   categoryCountLabel,
+  categoryOrderAfterMove,
   categoryReorderInputs,
   categoryStatusLabel,
   filterCategories,
@@ -108,13 +110,17 @@ function SortableGameRow({ game }: { game: CategoryGame }) {
         />
       </TD>
       <TD className={styles.thumbCell}>
-        {game.thumbnailUrl ? (
-          <img src={game.thumbnailUrl} alt="" className={styles.gameThumb} />
-        ) : (
-          <span className={styles.placeholderTile} aria-hidden="true">
-            <IconDeviceGamepad2 size={17} stroke={strokeFor(17)} />
-          </span>
-        )}
+        {/* No thumbnail, or one that will not load: the gamepad tile, never a broken image (SYS-18). */}
+        <StoredImage
+          src={game.thumbnailUrl}
+          alt=""
+          className={styles.gameThumb}
+          fallback={(
+            <span className={styles.placeholderTile} aria-hidden="true">
+              <IconDeviceGamepad2 size={17} stroke={strokeFor(17)} />
+            </span>
+          )}
+        />
       </TD>
       <TD>
         <span className={styles.primaryText}>{game.name}</span>
@@ -288,13 +294,18 @@ function SortableCategoryRow({
           />
         </TD>
         <TD className={styles.thumbCell}>
-          {row.iconData ? (
-            <img src={row.iconData} alt="" className={styles.categoryIcon} />
-          ) : (
-            <span className={styles.placeholderTile} aria-hidden="true">
-              <IconFolder size={18} stroke={strokeFor(18)} />
-            </span>
-          )}
+          {/* No icon (the server answers null for a legacy stored file), or one that will not load: the folder
+              tile, never a broken image (SYS-18). */}
+          <StoredImage
+            src={row.iconData}
+            alt=""
+            className={styles.categoryIcon}
+            fallback={(
+              <span className={styles.placeholderTile} aria-hidden="true">
+                <IconFolder size={18} stroke={strokeFor(18)} />
+              </span>
+            )}
+          />
         </TD>
         <TD>
           <button
@@ -404,11 +415,16 @@ export function CategoriesDashboard({
   )
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const next = moveId(sortedIds, String(event.active.id), event.over ? String(event.over.id) : null)
+    const activeId = String(event.active.id)
+    const overId = event.over ? String(event.over.id) : null
+    const next = moveId(sortedIds, activeId, overId)
     if (!next) return
+    // The move is saved in the main category's whole order, so categories a Type filter hides keep their numbers.
+    const allIds = filterCategories(data?.casinoCustomCategories ?? [], 'ALL').map((category) => category.id)
+    const whole = categoryOrderAfterMove(allIds, sortedIds, activeId, overId) ?? next
     setSortedIds(next)
     void reorderCategories({
-      variables: { inputs: categoryReorderInputs(next) },
+      variables: { inputs: categoryReorderInputs(whole) },
       context: { uiToast: 'message' },
     }).catch(() => undefined)
   }

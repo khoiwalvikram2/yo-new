@@ -4,7 +4,9 @@
  *
  *   Overview   - Top risk events: the open book by event (sports) and by draw (matka), largest first.
  *              - Big bets: the largest single bets placed in the period, and the players who won most.
- *              - Agents near their credit limit (credit whitelabels).
+ *              - Agents low on chips (credit whitelabels): ACTIVE CREDIT agents whose own chips sit at least
+ *                NEAR_LIMIT_SHARE of their credit reference below it, so they need chips from their upline.
+ *                It replaced "near their credit limit" when CREDIT moved to Deposit/Withdraw chips (2026-11-02).
  *   Players    - Retention & conversion: daily / weekly / monthly bettors, first-deposit conversion,
  *                returning and repeat players, and players drifting away.
  *   Financial  - Casino providers: turnover, payouts and GGR per vendor.
@@ -27,6 +29,7 @@ import { db } from '@/db/client.js'
 import { sportsPlayerProfitSql } from '@/shared/reportingSql.js'
 import { OPEN_SPORTS_STATUSES, OPEN_MATKA_STATUSES } from '@/services/exposureByMarketService.js'
 import { inTenant, isPlayer, istMidnight } from '@/services/dashboardOperationsService.js'
+import { creditAgentsByChipUse, creditShapeOf, type CreditShape } from '@/services/dashboardChipFigures.js'
 
 export interface DashboardInsightsScope {
   /** undefined: director core mode, every whitelabel. */
@@ -75,16 +78,12 @@ export interface TopWinner {
   bets: number
 }
 
-export interface AgentNearLimit {
-  agentId: string
-  username: string | null
-  creditLimit: number
-  creditUsed: number
-  creditAvailable: number
-  /** creditUsed / creditLimit, 0..1+. */
-  usedShare: number
-  settlementBalance: number
-}
+/**
+ * An agent low on chips, in the credit shape the GraphQL type DashboardAgentNearLimit still carries:
+ * creditLimit = credit reference, creditAvailable = its chips, creditUsed = how far they sit below the
+ * reference, usedShare = creditUsed / reference, settlementBalance = Ref P/L (see dashboardChipFigures).
+ */
+export type AgentNearLimit = CreditShape
 
 export interface DashboardInsights {
   riskEvents: RiskEvent[]
@@ -92,8 +91,9 @@ export interface DashboardInsights {
   openExposure: number
   bigBets: BigBet[]
   topWinners: TopWinner[]
-  /** Active credit agents, so the client can leave the near-limit card out where there are none. */
+  /** Active credit agents, so the client can leave the low-on-chips card out where there are none. */
   creditAgents: number
+  /** Agents low on chips (the field keeps its old name for the GraphQL type). */
   agentsNearLimit: AgentNearLimit[]
   nearLimitShare: number
 }
@@ -149,7 +149,7 @@ export interface FinancialInsights {
   bonusStakes: number
 }
 
-/** A credit agent this far into its limit is "near" it. */
+/** A credit agent whose chips sit this share of its credit reference below it (or more) is low on chips. */
 export const NEAR_LIMIT_SHARE = 0.8
 
 const num = (value: unknown) => Number(value ?? 0) || 0
@@ -312,31 +312,14 @@ async function topWinners(scope: DashboardInsightsScope, from: Date, to: Date, l
   }))
 }
 
-async function agentsNearLimit(scope: DashboardInsightsScope, limit: number) {
-  const credit = sql`${inTenant(sql`a.tenant_id`, scope.tenant)} AND a.scheme_type::text = 'CREDIT' AND a.status = 'ACTIVE'`
-  const [count, found] = await Promise.all([
-    one(sql`SELECT COUNT(*)::int AS n FROM agents a WHERE ${credit}`),
-    rows(sql`
-      SELECT a.id::text AS agent_id, ac.username, a.credit_limit, a.credit_used, a.credit_available, a.settlement_balance,
-        a.credit_used::numeric / NULLIF(a.credit_limit::numeric, 0) AS used_share
-      FROM agents a
-      LEFT JOIN LATERAL (SELECT c.username FROM agent_credentials c WHERE c.agent_id = a.id LIMIT 1) ac ON TRUE
-      WHERE ${credit} AND a.credit_limit > 0 AND a.credit_used >= a.credit_limit * ${NEAR_LIMIT_SHARE}
-      ORDER BY used_share DESC, a.credit_used DESC
-      LIMIT ${limit}`),
+/** ACTIVE CREDIT agents low on chips, the lowest first (chips from ChipService; see dashboardChipFigures). */
+async function agentsLowOnChips(scope: DashboardInsightsScope, limit: number) {
+  const [count, low] = await Promise.all([
+    one(sql`SELECT COUNT(*)::int AS n FROM agents a
+      WHERE ${inTenant(sql`a.tenant_id`, scope.tenant)} AND a.scheme_type::text = 'CREDIT' AND a.status = 'ACTIVE'`),
+    creditAgentsByChipUse(scope, { limit, lowShare: NEAR_LIMIT_SHARE }),
   ])
-  return {
-    creditAgents: num(count.n),
-    agents: found.map((r) => ({
-      agentId: String(r.agent_id),
-      username: text(r.username),
-      creditLimit: num(r.credit_limit),
-      creditUsed: num(r.credit_used),
-      creditAvailable: num(r.credit_available),
-      usedShare: num(r.used_share),
-      settlementBalance: num(r.settlement_balance),
-    })),
-  }
+  return { creditAgents: num(count.n), agents: low.map(creditShapeOf) }
 }
 
 export async function getDashboardInsights(
@@ -351,7 +334,7 @@ export async function getDashboardInsights(
     options.includeRisk ? riskEvents(scope, 5) : Promise.resolve({ events: [], total: 0 }),
     bigBets(scope, from, to, 5),
     topWinners(scope, from, to, 5),
-    agentsNearLimit(scope, 6),
+    agentsLowOnChips(scope, 6),
   ])
   return {
     riskEvents: risk.events,

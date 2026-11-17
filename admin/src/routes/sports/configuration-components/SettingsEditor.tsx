@@ -6,18 +6,30 @@ import { Select } from '@/ui/components/Select'
 import { Switch } from '@/ui/components/Switch'
 import { Notice } from '@/ui/components/Notice'
 import { Card } from '@/ui/components/Card'
+import { StatusPill } from '@/ui/components/StatusPill'
 import { tabId, tabPanelId } from '@/ui/components/tabIds'
 import type { FormApi } from '@/ui/form/useForm'
+import { CATALOGUE_READ_ONLY_NOTE } from './catalogueAccess'
 import { DOMAINS, tabsFor, type ConfigValues, type SettingsTab, type SettingsVariant } from './settingsModel'
 import styles from './SportsConfiguration.module.css'
 const tabLabels: Record<SettingsTab, string> = { stake: 'Stake Limits', delays: 'Bet Delays', odds: 'Odds Limits', cashout: 'Cashout', commission: 'Commission', exposure: 'Exposure Limits', risk: 'Risk & Alerts' }
-interface Props { form: FormApi<ConfigValues>; variant: SettingsVariant; tab: SettingsTab; onTab: (tab: SettingsTab) => void; tier: string; onTier: (value: string) => void; tiers: { label: string; value: string }[]; currencySymbol: string; active: boolean; onActive: (value: boolean) => void; bulk: boolean; busy?: boolean }
-export function SettingsEditor({ form, variant, tab, onTab, tier, onTier, tiers, currencySymbol, active, onActive, bulk, busy }: Props) {
+/* `active` is the record's status, or for a bulk edit the status to set: null keeps each record's own
+ * status. A bulk edit used to always write one, preselected from whatever the last single edit held, so
+ * changing only stake limits suspended or reactivated every selected record. Without `canEditStatus` (the
+ * status is the platform's, see catalogueAccess) the status is shown, never offered. */
+interface Props { form: FormApi<ConfigValues>; variant: SettingsVariant; tab: SettingsTab; onTab: (tab: SettingsTab) => void; tier: string; onTier: (value: string) => void; tiers: { label: string; value: string }[]; currencySymbol: string; active: boolean | null; onActive: (value: boolean | null) => void; canEditStatus: boolean; bulk: boolean; busy?: boolean }
+export function SettingsEditor({ form, variant, tab, onTab, tier, onTier, tiers, currencySymbol, active, onActive, canEditStatus, bulk, busy }: Props) {
   const prefix = useId()
   const name = (domain: string) => domain.charAt(0).toUpperCase() + domain.slice(1)
   const numeric = (key: string, label: string, min = 0, max?: number, step = 1, unit?: string, placeholder?: string) => <NumberField key={key} label={label} value={typeof form.values[key] === 'number' ? form.values[key] as number : null} onChange={value => form.setValue(key, value)} min={min} max={max} step={step} prefix={unit === 'money' ? currencySymbol : undefined} suffix={unit === '%' || unit === 'sec' ? unit : undefined} placeholder={placeholder} error={form.errors[key]} />
+  const statusControl = !canEditStatus
+    ? (bulk ? null : <StatusPill tone={active ? 'ok' : 'neutral'}>{active ? 'ACTIVE' : 'INACTIVE'}</StatusPill>)
+    : bulk
+      ? <div className={styles.actions}><Button size="sm" variant={active === null ? 'primary' : 'secondary'} aria-pressed={active === null} onClick={() => onActive(null)}>Keep current</Button><Button size="sm" variant={active === true ? 'primary' : 'secondary'} aria-pressed={active === true} onClick={() => onActive(true)}>Activate all</Button><Button size="sm" variant={active === false ? 'dangerSolid' : 'danger'} aria-pressed={active === false} onClick={() => onActive(false)}>Suspend all</Button></div>
+      : <Switch label="Active state" hideLabel checked={active === true} onChange={onActive} />
+  const statusHelp = !canEditStatus ? CATALOGUE_READ_ONLY_NOTE : bulk ? 'Keep each record\'s status, or set one status for all selected records' : 'Enable or disable this record'
   return <fieldset disabled={busy} className={styles.fieldset}><div className={styles.stack}>
-    <div className={styles.row}><div><div className={styles.name}>{bulk ? 'Bulk status' : 'Active state'}</div><p className={styles.secondary}>{bulk ? 'Set status for all selected records' : 'Enable or disable this record'}</p></div>{bulk ? <div className={styles.actions}><Button size="sm" variant={active ? 'primary' : 'secondary'} onClick={() => onActive(true)}>Activate all</Button><Button size="sm" variant={!active ? 'dangerSolid' : 'danger'} onClick={() => onActive(false)}>Suspend all</Button></div> : <Switch label="Active state" hideLabel checked={active} onChange={onActive} />}</div>
+    <div className={styles.row}><div><div className={styles.name}>{bulk ? 'Bulk status' : 'Active state'}</div><p className={styles.secondary}>{statusHelp}</p></div>{statusControl}</div>
     <Card title="Apply Settings" headingLevel={3}>
       <div className={styles.two}><Select label="Apply Mode" layout="stacked" value={typeof form.values.mode === 'string' ? form.values.mode : variant === 'league' ? 'replace' : 'overwrite'} onChange={value => form.setValue('mode', value)} options={variant === 'league' ? [{ label: 'Overwrite unchanged', value: 'replace' }, { label: 'Fill Empty', value: 'fill-empty' }] : [{ label: 'Overwrite unchanged', value: 'overwrite' }, { label: 'Only set where empty', value: 'fill-empty' }, ...(variant === 'sport' ? [{ label: 'Replace all', value: 'replace-all' }] : [])]} help={variant === 'sport' ? 'Overwrite unchanged updates differing values; Only set where empty fills empty/null fields; Replace all forces values on all selected records. All changes are audited.' : 'Overwrite unchanged updates differing values; Fill Empty updates only empty/null fields. All changes are audited.'} />
       <Select label="VIP Tier" layout="stacked" value={tier} onChange={onTier} options={tiers} help="Default applies global/base settings. Tier values override Default where provided; unspecified fields inherit. Bulk changes use the selected tier." /></div>

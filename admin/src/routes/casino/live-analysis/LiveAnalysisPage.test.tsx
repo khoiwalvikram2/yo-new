@@ -9,6 +9,7 @@ import timezone from 'dayjs/plugin/timezone'
 import { beforeEach, describe, test } from 'vitest'
 import { CurrencyProvider } from '@/shared/core/CurrencyContext'
 import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { casinoFixtureResponse, casinoDashboardFixture } from '../../../../test/casinoLivePreviewData'
 import type { CasinoDashboard } from './casinoLiveModel'
 import LiveAnalysisPage from './LiveAnalysisPage'
@@ -54,6 +55,8 @@ describe('complete casino live workspace', () => {
     assert.equal(localStorage.getItem('liveCasinoAnalysis_windowMins'), '30')
   })
   test('shows each original view rather than header-only migration', async () => {
+    // The platform administrator: the only caller the server lets place test bets.
+    useAuthStore.setState({ permissions: [{ domain: 'all', actions: ['*'] }] })
     mount()
     await screen.findByRole('region', { name: 'Exposure & Payouts' })
     for (const [tab, heading] of [['Analytics', 'Player Journey Mapping'], ['Performance', 'Risk Analytics'], ['Heatmap', 'Games Activity Heatmap'], ['Bet List', 'Bet List'], ['Compare', 'Comparison Controls'], ['Players', 'Player Overview'], ['Testing', 'Test Bets Panel']]) {
@@ -88,6 +91,27 @@ describe('complete casino live workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     await screen.findByText('Showing 20 of 24 bets')
   })
+  test('a Super Admin with no whitelabel selected is asked to pick one on the Bet List, which queries and polls nothing', async () => {
+    // Core mode read the platform's own tenant, which holds no bets: the tab showed "0 bets" every 5 seconds.
+    const ui = useUIStore.getState()
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      const core = mount(); fireEvent.click(await screen.findByRole('tab', { name: 'Bet List' }))
+      const region = await screen.findByRole('region', { name: 'Bet List' })
+      assert.ok(within(region).getByText('Select a whitelabel'))
+      assert.equal(within(region).queryByRole('searchbox', { name: 'Search casino bets' }), null)
+      assert.equal(screen.queryByRole('table', { name: 'Live casino bets' }), null)
+      assert.equal(calls.some(call => call.name === 'CasinoLiveBetsPage'), false)
+      core.unmount()
+      // With a site selected the same admin gets the list.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      mount(); fireEvent.click(await screen.findByRole('tab', { name: 'Bet List' }))
+      await screen.findByText('Showing 20 of 24 bets')
+      assert.ok(calls.some(call => call.name === 'CasinoLiveBetsPage'))
+    } finally {
+      useAuthStore.setState({ roles: [] }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
+  })
   test('retains player rankings and original ten table fields after selected sort', async () => {
     mount(); fireEvent.click(await screen.findByRole('tab', { name: 'Players' }))
     const top = await screen.findByRole('region', { name: 'Top Players' })
@@ -98,7 +122,16 @@ describe('complete casino live workspace', () => {
     assert.equal(within(top).getByRole('button', { name: 'GGR' }).getAttribute('aria-pressed'), 'true')
     assert.ok(within(table).getAllByRole('row')[1].textContent?.includes('Mina'))
   })
+  test('the Testing tab is offered only to the platform administrator, whom the server lets place test bets', async () => {
+    // A Whitelabel Admin or an agent saw the whole form and was refused on every submit.
+    mount()
+    await screen.findByRole('region', { name: 'Exposure & Payouts' })
+    assert.ok(screen.getByRole('tab', { name: 'Players' }))
+    assert.equal(screen.queryByRole('tab', { name: 'Testing' }), null)
+    assert.equal(screen.queryByRole('region', { name: 'Test Bets Panel' }), null)
+  })
   test('Players, Bet List and Testing open before the dashboard snapshot arrives', async () => {
+    useAuthStore.setState({ permissions: [{ domain: 'all', actions: ['*'] }] })
     mount({ holdDashboard: true })
     await screen.findByText('Loading live intelligence data...')
     for (const [tab, heading] of [['Players', 'Player Overview'], ['Bet List', 'Bet List'], ['Testing', 'Test Bets Panel']]) {

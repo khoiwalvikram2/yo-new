@@ -7,7 +7,7 @@ import type { EventItem, SportType } from "@/types";
 import { useSportsEvents, storedToEvent, generateEventId } from "@/lib/sportsHelpers";
 import { getSportsList, getUserBets } from '@/lib/api/user'
 import { useAuth } from '@/lib/auth'
-import { useFeatureFlags } from '@/hooks/useAppSettings'
+import { useFeatureFlags, useSportsIconStyle } from '@/hooks/useAppSettings'
 import { formatAmount } from '@/lib/currency'
 import { useOddsSocket } from '@/lib/hooks/useOddsSocket'
 import { usePageSEO } from '../hooks/usePageSEO'
@@ -15,15 +15,17 @@ import ModalSurface from '../components/modals/ModalSurface'
 import SportTabBar from '../components/nova/exchange-home/SportTabBar'
 import SectionHeader from '../components/nova/exchange-home/SectionHeader'
 import { LiveMatchRow } from '../components/nova/exchange-home/MatchCard'
-import { ALL_TAB, IN_PLAY_TAB, eventUrl, isStale, rankSport, sportIcon, sportTitle, waysFor, type SportTab } from '../components/nova/exchange-home/exchangeShared'
+import { ALL_TAB, IN_PLAY_TAB, eventUrl, isStale, rankSport, sportIcon, sportIconClass, sportTitle, waysFor, type SportTab } from '../components/nova/exchange-home/exchangeShared'
+import { ALL_SPORTS_SIDEBAR } from '../components/sports/allSportsList'
 import '../components/nova/exchange-home/nova-exchange-home.css'
 
 type TimeFilter = 'all' | 'in-play' | 'today' | 'tomorrow'
 type EventGroup = { key: string; title: string; sport: string; events: EventItem[] }
-/** Sports shown as tabs when nothing is loaded, so the page still offers its main sports. */
-const FALLBACK_SPORTS = ['cricket', 'football', 'tennis', 'basketball', 'horseracing'];
+/** Every sport is a tab (owner 2026-11-01); one the backend does not list as active opens "Coming soon". */
+const SPORT_CATALOGUE = ALL_SPORTS_SIDEBAR.map(sport => sport.key);
 
 export default function SportsPage() {
+  const iconStyle = useSportsIconStyle()
   usePageSEO({
     title: 'Sports',
     description: 'Bet on live sports events and get the best odds'
@@ -41,6 +43,8 @@ export default function SportsPage() {
   const { bookmarkedEvents, cleanupBookmarks, toggleBookmark } = useSportsEvents();
 
   const [allEvents, setAllEvents] = useState<EventItem[]>([]);
+  // Sports the backend lists (admin status active), with or without events.
+  const [activeSports, setActiveSports] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   // Bumped by "Try again" after a failed load; the events request below runs again.
@@ -408,6 +412,7 @@ export default function SportsPage() {
           }
         }
         setAllEvents(events);
+        setActiveSports(new Set(sports.map(sport => normalizeSportKey((sport?.slugName || sport?.name || '').toString())).filter(Boolean)));
 
         // Clean up stale bookmarks for events no longer in the current data
         cleanupBookmarks(events);
@@ -497,18 +502,22 @@ export default function SportsPage() {
   }, [allEvents, liveEventIds]);
 
   const sportTabs = useMemo<SportTab[]>(() => {
-    const keys = new Set(Object.keys(countsByKey).filter(key => key !== 'live' && key !== 'all' && countsByKey[key] > 0));
+    const keys = new Set([...SPORT_CATALOGUE, ...activeSports]);
     if (selectedSport && selectedSport !== 'live') keys.add(selectedSport);
-    if (keys.size === 0) FALLBACK_SPORTS.forEach(key => keys.add(key));
-    const ordered = [...keys].sort((a, b) => rankSport(a) - rankSport(b) || (countsByKey[b] || 0) - (countsByKey[a] || 0));
+    const catalogueIndex = (key: string) => { const index = SPORT_CATALOGUE.indexOf(key); return index < 0 ? SPORT_CATALOGUE.length : index };
+    // Active sports first, then the coming-soon ones in catalogue order.
+    const ordered = [...keys].sort((a, b) => Number(!activeSports.has(a)) - Number(!activeSports.has(b))
+      || rankSport(a) - rankSport(b) || (countsByKey[b] || 0) - (countsByKey[a] || 0) || catalogueIndex(a) - catalogueIndex(b));
     return [
       { key: ALL_TAB, label: t('nova.allSports'), count: countsByKey.all || 0 },
       { key: IN_PLAY_TAB, label: t('nova.inPlay'), count: countsByKey.live || 0 },
       ...ordered.map(key => ({ key, label: sportTitle(key), count: countsByKey[key] || 0, sport: key as SportType })),
     ];
-  }, [countsByKey, selectedSport, t]);
+  }, [countsByKey, activeSports, selectedSport, t]);
   // A failed load has no counts to show: dashes, as while loading, never a made-up zero.
   const failed = !loading && Boolean(error) && allEvents.length === 0;
+  const singleSport = Boolean(selectedSport) && selectedSport !== 'live';
+  const comingSoon = !loading && !failed && singleSport && !activeSports.has(selectedSport);
   const activeSportTab = !selectedSport ? ALL_TAB : selectedSport === 'live' ? IN_PLAY_TAB : selectedSport;
   const selectSportTab = (key: string) => {
     navigate({ pathname: '/sports', search: key === ALL_TAB ? '' : `?sport=${key === IN_PLAY_TAB ? 'live' : key}` });
@@ -522,7 +531,7 @@ export default function SportsPage() {
   const pageTitle = selectedSport === 'live'
     ? t('nova.inPlay')
     : selectedSport ? sportTitle(selectedSport) : t('nova.sportsExchange');
-  const titleIcon = selectedSport && selectedSport !== 'live' ? sportIcon(selectedSport) : undefined;
+  const titleIcon = selectedSport && selectedSport !== 'live' ? sportIcon(selectedSport, iconStyle) : undefined;
   const timeFilters: { key: TimeFilter; label: string }[] = [
     { key: 'all', label: t('sportsPage.all', { defaultValue: 'All' }) },
     { key: 'in-play', label: t('nova.inPlay') },
@@ -535,14 +544,14 @@ export default function SportsPage() {
     <div className="nova-ex-grid nova-sx">
       <div className="nova-ex-main">
         <header className="nova-ex-section-head nova-sx-head" data-page-header="title-only">
-          {titleIcon ? <img src={titleIcon} alt="" /> : selectedSport === 'live' ? <Radio className="nova-ex-strip-icon" aria-hidden="true" /> : <Trophy className="nova-ex-strip-icon" aria-hidden="true" />}
+          {titleIcon ? <img src={titleIcon} alt="" className={sportIconClass(selectedSport ?? '', iconStyle)} /> : selectedSport === 'live' ? <Radio className="nova-ex-strip-icon" aria-hidden="true" /> : <Trophy className="nova-ex-strip-icon" aria-hidden="true" />}
           <h1>{pageTitle}{selectedLeague && <small> · {selectedLeague}</small>}</h1>
           <span className="nova-ex-section-count">{loading || failed ? '–' : visibleEvents.length}</span>
         </header>
 
         <SportTabBar tabs={sportTabs} active={activeSportTab} onSelect={selectSportTab} loading={loading || failed} controls="nova-sx-events" />
 
-        <div className="nova-sx-filters">
+        {!comingSoon && <div className="nova-sx-filters">
           <div className="nova-sx-time" role="group" aria-label={t('sportsPage.filterByTime', { defaultValue: 'Filter by time' })}>
             {timeFilters.map(filter => <button
               key={filter.key}
@@ -563,9 +572,9 @@ export default function SportsPage() {
               placeholder={t('sportsPage.searchPlaceholder', { defaultValue: 'Search teams or leagues…' })}
             />
           </label>
-        </div>
+        </div>}
 
-        {leagues.length > 1 || selectedLeague ? (
+        {!comingSoon && (leagues.length > 1 || selectedLeague) ? (
           <div className="nova-sx-leagues" role="group" aria-label={t('sportsPage.leagues', { defaultValue: 'Leagues' })}>
             <button type="button" className={!selectedLeague ? 'active' : ''} aria-pressed={!selectedLeague} onClick={() => selectLeague('')}>
               {t('sportsPage.allLeagues', { defaultValue: 'All leagues' })}
@@ -588,7 +597,13 @@ export default function SportsPage() {
               <strong>{t('nova.eventLoadError')}</strong>
               <button type="button" onClick={() => setReloadKey(key => key + 1)}>{t('nova.tryAgain')}</button>
             </div>
-          ) : !countsByKey.all ? (
+          ) : comingSoon ? (
+            <div className="nova-ex-empty" role="status">
+              <strong>{t('sportsPage.comingSoon', { defaultValue: 'Coming soon' })}</strong>
+              <p>{t('sportsPage.comingSoonBody', { sport: sportTitle(selectedSport), defaultValue: '{{sport}} betting opens here soon. Check back later.' })}</p>
+              <button type="button" onClick={() => selectSportTab(ALL_TAB)}>{t('nova.allSports')}</button>
+            </div>
+          ) : !countsByKey.all || (singleSport && !countsByKey[selectedSport]) ? (
             <div className="nova-ex-empty" role="status"><strong>{t('nova.noUpcoming')}</strong></div>
           ) : groups.length === 0 ? (
             <div className="nova-ex-empty" role="status">
@@ -596,11 +611,11 @@ export default function SportsPage() {
               <button type="button" onClick={() => { setSearchQuery(''); setActiveTab('all'); if (selectedLeague) selectLeague(''); }}>{t('nova.resetFilters')}</button>
             </div>
           ) : groups.map(group => {
-            const icon = sportIcon(group.sport);
+            const icon = sportIcon(group.sport, iconStyle);
             // Every row in a group is the same sport, so one set of column labels fits all of them.
             const ways = waysFor(group.sport);
             return <section key={group.key} className="nova-sx-group" aria-labelledby={`nova-sx-group-${group.key}`}>
-              <SectionHeader className="nova-sx-group-head" icon={icon && <img src={icon} alt="" />} titleId={`nova-sx-group-${group.key}`} title={group.title} count={group.events.length}>
+              <SectionHeader className="nova-sx-group-head" icon={icon && <img src={icon} alt="" className={sportIconClass(group.sport, iconStyle)} />} titleId={`nova-sx-group-${group.key}`} title={group.title} count={group.events.length}>
                 {ways > 0 && <span className={`nova-sx-cols ways-${ways}`} aria-hidden="true">
                   {(ways === 3 ? ['1', 'X', '2'] : ['1', '2']).map(label => <span key={label}>{label}</span>)}
                 </span>}
@@ -639,11 +654,11 @@ export default function SportsPage() {
             ) : groupedActiveBets.length === 0 ? (
               <p className="nova-sx-state">{t('userPanel.betsEmpty', { defaultValue: 'No open bets' })}</p>
             ) : groupedActiveBets.map((group, index) => {
-              const icon = sportIcon(group.sportKey || 'football');
+              const icon = sportIcon(group.sportKey || 'football', iconStyle);
               const to = group.eventId ? `/sports/event/${generateEventId(group.name)}?id=${encodeURIComponent(group.eventId)}` : `/sports/event/${generateEventId(group.name)}`;
               return <details key={group.eventKey} className="nova-sx-bet-group" open={index === 0}>
                 <summary>
-                  {icon && <img className="sport-img" src={icon} alt="" />}
+                  {icon && <img className={sportIconClass(group.sportKey || 'football', iconStyle, 'sport-img')} src={icon} alt="" />}
                   <span>{group.name}</span>
                   <small>{group.items.length}</small>
                 </summary>
@@ -685,10 +700,10 @@ export default function SportsPage() {
               </li>
             ) : sideEvents.slice(0, 8).map((e: EventItem, index: number) => {
               const { dayMon, time } = formatStart(e.startISO);
-              const icon = sportIcon(e.sport);
+              const icon = sportIcon(e.sport, iconStyle);
               return <li key={`${e.eventName}-${e.startISO}-${index}`} className="nova-sx-event">
                 <Link to={eventUrl(e)} className="nova-ex-league">
-                  {icon && <img className="sport-img" src={icon} alt="" />}
+                  {icon && <img className={sportIconClass(e.sport, iconStyle, 'sport-img')} src={icon} alt="" />}
                   <span className="nova-sx-event-copy">
                     <strong>{e.eventName}</strong>
                     <small>{e.league}</small>

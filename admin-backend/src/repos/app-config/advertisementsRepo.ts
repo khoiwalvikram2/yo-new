@@ -107,23 +107,40 @@ export async function updateAdvertisementDb(id: number, tenant: string, input: U
 	if (input.status !== undefined) updateData.status = input.status
 	if (input.deviceType !== undefined) updateData.deviceType = input.deviceType
 
-	await db.update(advertisements)
+	// success says whether a row of this tenant matched: an id of another tenant (or none) changes nothing, and
+	// used to be answered "Advertisement updated" all the same.
+	const rows = await db.update(advertisements)
 		.set(updateData)
 		.where(and(eq(advertisements.whitelabelId, tenant), eq(advertisements.id, id)))
-	return { success: true, id }
+		.returning({ id: advertisements.id })
+	return { success: rows.length > 0, id }
 }
 
 export async function deleteAdvertisementDb(id: number, tenant: string) {
-	await db.delete(advertisements).where(and(eq(advertisements.whitelabelId, tenant), eq(advertisements.id, id)))
-	return { success: true }
+	const rows = await db.delete(advertisements)
+		.where(and(eq(advertisements.whitelabelId, tenant), eq(advertisements.id, id)))
+		.returning({ id: advertisements.id })
+	return { success: rows.length > 0 }
 }
 
+class AdvertisementNotFound extends Error {}
+
 export async function reorderAdvertisementsDb(tenant: string, orders: { id: number; order: number }[]) {
-	// Update each advertisement's order
-	for (const { id, order } of orders) {
-		await db.update(advertisements)
-			.set({ order, updatedAt: new Date() as any })
-			.where(and(eq(advertisements.whitelabelId, tenant), eq(advertisements.id, id)))
+	// All or nothing, in one transaction: an id that is not one of this tenant's advertisements refuses the
+	// whole reorder (it used to be skipped while the answer said "reordered").
+	try {
+		await db.transaction(async (tx) => {
+			for (const { id, order } of orders) {
+				const rows = await tx.update(advertisements)
+					.set({ order, updatedAt: new Date() as any })
+					.where(and(eq(advertisements.whitelabelId, tenant), eq(advertisements.id, id)))
+					.returning({ id: advertisements.id })
+				if (rows.length === 0) throw new AdvertisementNotFound()
+			}
+		})
+	} catch (error) {
+		if (error instanceof AdvertisementNotFound) return { success: false }
+		throw error
 	}
 	return { success: true }
 }

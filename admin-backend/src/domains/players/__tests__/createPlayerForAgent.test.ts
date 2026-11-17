@@ -15,6 +15,7 @@ import { describe, it, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { pool, db } from '@src/db/client.js'
 import { AgentsRepo } from '@/repos/agents/AgentsRepo.js'
+import { ChipRepo } from '@/repos/agents/ChipRepo.js'
 import { WhitelabelCreditService } from '@src/domains/common/services/WhitelabelCreditService.js'
 import { deriveAgentPermissions } from '@src/domains/agents/services/AgentPermissionsService.js'
 import { playersMutationResolvers } from '../resolvers/mutations.js'
@@ -161,28 +162,54 @@ describe('createPlayerForAgent', () => {
     assert.equal(row.casinoBetAllowed, false)
   })
 
-  it("a credit agent's own new player is funded by a locked delta on the creation transaction", async () => {
+  it("a credit agent's own new player: the credit reference is only a figure, and opening chips lock the agent first on the creation transaction", async () => {
     useAgent('CREDIT', ['sports'])
-    mock.method(AgentsRepo.prototype, 'getCreditFields', async () => ({
-      creditLimit: 1000, creditUsed: 0, creditAvailable: 1000, creditAlertThreshold: 80,
-      settlementBalance: 0, settlementBalanceSports: 0, settlementBalanceCasino: 0, settlementBalanceMatka: 0,
-    }))
-    const lock = mock.method(AgentsRepo.prototype, 'lockAndUpdateCredit', async (_id: string, _u: any, tx: unknown) => {
+    // The credit-limit model is gone (spec 2026-11-02 §4.4): no limit is drawn from the agent's credit line, and
+    // AgentsRepo no longer has the credit-line writer (lockAndUpdateCredit) that did it.
+    assert.equal((AgentsRepo.prototype as any).lockAndUpdateCredit, undefined)
+    const lock = mock.method(ChipRepo.prototype, 'lockAgent', async (tx: unknown, agentId: string) => {
       order.push('lock')
-      assert.equal(tx, txSeen, 'the credit lock must run on the creation transaction')
-      return {} as any
+      assert.equal(tx, txSeen, 'the parent lock must run on the creation transaction')
+      return { id: agentId, tenantId: TENANT, schemeType: 'CREDIT', status: 'ACTIVE', parentAgentId: null, chipBalance: 1000, creditLimit: 0, username: 'agent' } as any
     })
     await assert.rejects(
-      () => create(input({ playerType: 'WHITELABEL_CREDIT', creditLimit: 300 }), agentCtx('CREDIT', ['sports'])),
+      () => create(input({ playerType: 'WHITELABEL_CREDIT', creditLimit: 300, openingChips: 200 }), agentCtx('CREDIT', ['sports'])),
       /CAPTURED_INSERT/,
     )
     assert.equal(lock.mock.callCount(), 1)
-    const [agentId, update] = lock.mock.calls[0].arguments as [string, any]
-    assert.equal(agentId, AGENT_ID)
-    assert.deepEqual(update, { creditUsedDelta: 300, requireAvailableForDelta: true })
-    assert.deepEqual(order, ['lock', 'insert'])
+    assert.equal(lock.mock.calls[0].arguments[1], AGENT_ID)
+    assert.deepEqual(order, ['lock', 'insert'], 'the parent is locked before the player row is written')
     assert.equal(inserts[0].playerType, 'AGENT_CREDIT')
+    assert.equal(inserts[0].creditLimit, '300', 'credit_limit holds the credit reference')
+    assert.equal(inserts[0].creditAvailable, '0', 'credit_available is retired with the credit-limit model')
     assert.equal(inserts[0].sportsBetAllowed, true)
     assert.equal(inserts[0].casinoBetAllowed, false)
+  })
+
+  it('no opening chips: nothing is locked, and the player starts with its credit reference only', async () => {
+    useAgent('CREDIT', ['sports'])
+    const lock = mock.method(ChipRepo.prototype, 'lockAgent', async () => {
+      throw new Error('LOCKED')
+    })
+    await assert.rejects(() => create(input({ creditLimit: 500 }), agentCtx('CREDIT', ['sports'])), /CAPTURED_INSERT/)
+    assert.equal(lock.mock.callCount(), 0)
+    assert.deepEqual(order, ['insert'])
+    assert.equal(inserts[0].creditLimit, '500')
+  })
+
+  it("a sub-agent's player starts at 0: only that sub-agent sets its reference and deposits its chips", async () => {
+    useAgent('CREDIT', ['sports'])
+    const SUB = '44444444-4444-4444-8444-444444444444'
+    mock.method(AgentsRepo.prototype, 'getDescendantIds', async () => [AGENT_ID, SUB])
+    const ctx = agentCtx('CREDIT', ['sports'])
+    await assert.rejects(() => create(input({ agentId: SUB, openingChips: 50 }), ctx), /Opening chips must be 0 when creating a player for a sub-agent/)
+    await assert.rejects(() => create(input({ agentId: SUB, creditLimit: 50 }), ctx), /Credit reference must be 0 when creating a player for a sub-agent/)
+    assert.equal(inserts.length, 0)
+  })
+
+  it('refuses opening chips for a player that is not a credit player, before anything is written', async () => {
+    useAgent('SHARING', ['sports'])
+    await assert.rejects(() => create(input({ openingChips: 10 }), agentCtx('SHARING', ['sports'])), /Opening chips can only be given to credit players/)
+    assert.equal(inserts.length, 0)
   })
 })

@@ -7,6 +7,7 @@ import { initializeTheme, initializeThemeMode, getThemeMode } from './lib/theme'
 import LoginModal from './components/modals/LoginModal'
 import RegisterModal from './components/modals/RegisterModal'
 import ChangePasswordModal from './components/modals/ChangePasswordModal'
+import LoginBannerModal from './components/modals/LoginBannerModal'
 import MaintenanceMode from './components/MaintenanceMode'
 import AppLoadingSkeleton from './components/AppLoadingSkeleton'
 import SettingsDebugger from './components/dev/SettingsDebugger'
@@ -139,6 +140,7 @@ function AppContent() {
       {isAuthenticated && user?.requirePasswordReset && (
         <ChangePasswordModal isOpen={true} forced onClose={() => {}} />
       )}
+      <LoginBannerModal />
       <SettingsDebugger />
       <Toaster 
         position="top-right" 

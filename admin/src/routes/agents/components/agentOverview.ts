@@ -1,6 +1,7 @@
 import { useQuery, gql } from '@apollo/client'
 
-/** Every agent's scheme, status, level, credit and settlement balance: the stats cards and the scheme tab counts. */
+/** Every agent's scheme, status and level: the stats cards' counts and the scheme tab counts. CREDIT money
+ *  comes from the agents' chips (agentChips.ts), no longer from the retired credit-limit columns. */
 export const AGENT_OVERVIEW_QUERY = gql`
   query AgentOverviewStats {
     agents {
@@ -12,10 +13,6 @@ export const AGENT_OVERVIEW_QUERY = gql`
           status
           levelIndex
           parentAgentId
-          creditLimit
-          creditUsed
-          creditAvailable
-          settlementBalance
         }
       }
     }
@@ -28,9 +25,6 @@ export type AgentOverviewItem = {
   status?: string | null;
   levelIndex?: number | null;
   parentAgentId?: string | null;
-  creditLimit?: number | string | null;
-  creditUsed?: number | string | null;
-  settlementBalance?: number | string | null;
 };
 
 /** Agents per scheme for the scheme tabs. Same query and policy as the cards, so it shares their one request. */

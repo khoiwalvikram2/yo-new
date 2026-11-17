@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react'
 import type { SupportClient, ChatEvent } from './client'
 import type { ChatBootstrap,ChatConversation,ChatMessage,ChatAttachment,ChatSettings,ChatStaff } from '../../shared/src/support/contracts'
 import { CHAT_TOPICS } from '../../shared/src/support/contracts'
+import { setSupportLauncherState } from './launcherState'
 import './support-chat.css'
 
 const labelStatus=(status:string)=>status==='waiting'?'Waiting':status==='assigned'?'Assigned':'Resolved'
@@ -202,6 +203,8 @@ export function PlayerChatWidget({client,authenticated,onLogin}:{client:SupportC
   const state=useLiveChat(client,authenticated)
   const dialog=useRef<HTMLDialogElement>(null)
   const launcher=useRef<HTMLButtonElement>(null)
+  // A launcher outside the widget (the user panel's desktop rail) that opened the chat; focus goes back to it.
+  const opener=useRef<HTMLElement|null>(null)
   const modalMode=useRef<boolean|null>(null)
   const returnFocus=useRef(true)
   const boot=state.bootstrap
@@ -228,9 +231,10 @@ export function PlayerChatWidget({client,authenticated,onLogin}:{client:SupportC
   },[authenticated,onLogin,selected,items,refresh])
   useEffect(()=>{
     const close=()=>dismiss(false)
-    window.addEventListener('support-chat:open',show)
+    const openFrom=(event:Event)=>{opener.current=(event as CustomEvent<{opener?:HTMLElement}|null>).detail?.opener??null;show()}
+    window.addEventListener('support-chat:open',openFrom)
     window.addEventListener('support-chat:close',close)
-    return()=>{window.removeEventListener('support-chat:open',show);window.removeEventListener('support-chat:close',close)}
+    return()=>{window.removeEventListener('support-chat:open',openFrom);window.removeEventListener('support-chat:close',close)}
   },[show,dismiss])
   useEffect(()=>{if(!authenticated){dismiss(false);setSelected(null)}},[authenticated,dismiss])
   useEffect(()=>{
@@ -252,7 +256,8 @@ export function PlayerChatWidget({client,authenticated,onLogin}:{client:SupportC
     const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();dismiss()}}
     const outside=(event:PointerEvent)=>{
       const target=event.target as Node|null
-      if(!target||dialog.current?.contains(target)||launcher.current?.contains(target))return
+      const element=target instanceof Element?target:target?.parentElement
+      if(!target||dialog.current?.contains(target)||launcher.current?.contains(target)||element?.closest('[data-support-chat-launcher]'))return
       dismiss(false)
     }
     document.addEventListener('keydown',key)
@@ -262,15 +267,22 @@ export function PlayerChatWidget({client,authenticated,onLogin}:{client:SupportC
   const settings=boot?.settings||publicSettings
   const featureEnabled=settings?.enabled
   useEffect(()=>{if(featureEnabled===false)dismiss(false)},[featureEnabled,dismiss])
-  if((settings&&!settings.enabled)||(!settings&&!state.error))return null
+  const hidden=Boolean((settings&&!settings.enabled)||(!settings&&!state.error))
+  const unread=boot?.unreadTotal||0
+  // Outside launchers (launcherState.ts) follow whether chat is offered, its unread count and whether it is open.
+  useEffect(()=>{setSupportLauncherState({available:!hidden,unread,open})},[hidden,unread,open])
+  useEffect(()=>()=>setSupportLauncherState({available:false,unread:0,open:false}),[])
+  if(hidden)return null
 
   return <div className="gw-support gw-support-widget">
-    <button ref={launcher} className="gw-chat-launcher" aria-label="Open live chat" aria-haspopup="dialog" aria-expanded={open} onClick={show}>
-      <Glyph/><span>Live Chat</span>{Boolean(boot?.unreadTotal)&&<b>{boot!.unreadTotal>99?'99+':boot!.unreadTotal}</b>}
+    <button ref={launcher} className="gw-chat-launcher" aria-label="Open live chat" aria-haspopup="dialog" aria-expanded={open} onClick={()=>{opener.current=null;show()}}>
+      {/* A filled bubble with two dots on a round brand button (owner 2026-11-02); the name stays for screen readers. */}
+      <svg className="gw-chat-launcher-glyph" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h11a3 3 0 0 1 3 3v7.5a3 3 0 0 1-3 3h-5.2L8 21.2v-3.2H6.5a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3Z"/><circle cx="9.5" cy="11.3" r="1.35"/><circle cx="14.5" cy="11.3" r="1.35"/></svg>
+      <span className="gw-chat-sr">Live Chat</span>{Boolean(boot?.unreadTotal)&&<b>{boot!.unreadTotal>99?'99+':boot!.unreadTotal}</b>}
     </button>
-    <dialog ref={dialog} className="nova-panel nova-rail-panel gw-chat-dialog gw-support" aria-label="Live support chat" aria-modal={!desktop}
+    <dialog ref={dialog} className="nova-panel nova-rail-panel gw-chat-dialog gw-support" data-ui-radius="square" aria-label="Live support chat" aria-modal={!desktop}
       onCancel={event=>{event.preventDefault();dismiss()}}
-      onClose={event=>{if(!event.currentTarget.open){setOpen(false);if(returnFocus.current)launcher.current?.focus({preventScroll:true})}}}
+      onClose={event=>{if(!event.currentTarget.open){setOpen(false);if(returnFocus.current)(opener.current?.isConnected?opener.current:launcher.current)?.focus({preventScroll:true})}}}
       onClick={event=>{
         if(event.target!==event.currentTarget)return
         const box=event.currentTarget.getBoundingClientRect()

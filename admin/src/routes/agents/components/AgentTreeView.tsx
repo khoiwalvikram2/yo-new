@@ -3,13 +3,15 @@ import { useApolloClient } from '@apollo/client'
 import { Link } from 'react-router-dom'
 import { IconChevronDown, IconChevronRight, IconHierarchy2 } from '@tabler/icons-react'
 import { AGENTS_PAGE_QUERY, AGENTS_STATS_QUERY } from '@/lib/graphql/agents'
+import { ChipActions, chipTone, roundChips, signedChips } from '@/modules/chips'
 import { Avatar } from '@/ui/components/Avatar'
 import { Button } from '@/ui/components/Button'
 import { buttonClassName } from '@/ui/components/buttonClassName'
 import { CopyButton } from '@/ui/components/CopyButton'
-import { Meter } from '@/ui/components/Meter'
 import { StatusPill } from '@/ui/components/StatusPill'
-import { agentLevelNames, creditUsage, type AgentListRow, type AgentsPageData } from './agentsSearchModel'
+import { AGENTS_CHIPS_QUERY, chipsById, type AgentsChipsData } from './agentChips'
+import { agentLevelNames, type AgentListRow, type AgentsPageData } from './agentsSearchModel'
+import { tallyIsOn } from '../agentEditorModel'
 import styles from './AgentTreeView.module.css'
 
 const BRANCH_PAGE_SIZE = 20
@@ -22,8 +24,11 @@ interface Branch {
   error?: boolean
   statsErrors: number[]
   statsLoading: number[]
+  /** CREDIT only: the pages (by offset) whose chips failed to load or are loading. */
+  chipsErrors: number[]
+  chipsLoading: number[]
 }
-const emptyBranch = (): Branch => ({ rows: [], total: 0, nextOffset: 0, loading: false, loaded: false, statsErrors: [], statsLoading: [] })
+const emptyBranch = (): Branch => ({ rows: [], total: 0, nextOffset: 0, loading: false, loaded: false, statsErrors: [], statsLoading: [], chipsErrors: [], chipsLoading: [] })
 
 interface AgentTreeViewProps {
   roots: AgentListRow[]
@@ -32,11 +37,13 @@ interface AgentTreeViewProps {
   formatAmount: (amount: number | null | undefined) => string
   pending: (row: AgentListRow) => ReactNode
   lastLogin: (value: string | null | undefined) => string
+  /** After chips moved on a root row; the page reads the roots' chips again (a branch reads its own). */
+  onChipsChanged?: () => void
 }
 interface TreeColumn { key: string; header: string; cell: (row: AgentListRow) => ReactNode }
 
 /** Each mounted view owns its branch cache. The parent keys it by filters, scope and root page. */
-export function AgentTreeView({ roots, schemeType, status, formatAmount, pending, lastLogin }: AgentTreeViewProps) {
+export function AgentTreeView({ roots, schemeType, status, formatAmount, pending, lastLogin, onChipsChanged }: AgentTreeViewProps) {
   const client = useApolloClient()
   const regionId = useId()
   const [expanded, setExpanded] = useState<string[]>([])
@@ -72,6 +79,29 @@ export function AgentTreeView({ roots, schemeType, status, formatAmount, pending
     }
   }
 
+  // A CREDIT branch's chips (AgentAccount.chips), read beside its page like the activity totals.
+  const loadChips = async (parentId: string, offset: number) => {
+    if (branchCache.current[parentId]?.chipsLoading.includes(offset)) return
+    updateBranch(parentId, branch => ({ ...branch, chipsLoading: [...branch.chipsLoading, offset], chipsErrors: branch.chipsErrors.filter(value => value !== offset) }))
+    try {
+      const { data, errors } = await client.query<AgentsChipsData>({ query: AGENTS_CHIPS_QUERY, variables: variablesFor(parentId, offset), fetchPolicy: 'no-cache', errorPolicy: 'all' })
+      const chips = chipsById(data?.agents?.agentsPage?.items)
+      if (!data && errors?.length) throw new Error(errors[0].message)
+      updateBranch(parentId, branch => ({ ...branch, rows: branch.rows.map(row => chips.has(row.id) ? { ...row, chips: chips.get(row.id) } : row) }))
+    } catch {
+      updateBranch(parentId, branch => ({ ...branch, chipsErrors: [...branch.chipsErrors, offset] }))
+    } finally {
+      updateBranch(parentId, branch => ({ ...branch, chipsLoading: branch.chipsLoading.filter(value => value !== offset) }))
+    }
+  }
+  const branchOffsets = (branch: Branch) => Array.from({ length: Math.ceil(branch.nextOffset / BRANCH_PAGE_SIZE) }, (_, index) => index * BRANCH_PAGE_SIZE)
+  // After a move on a row: a root's chips are the page's to read again, a child's are its branch's.
+  const chipsChanged = (parentId: string | undefined) => {
+    const branch = parentId ? branchCache.current[parentId] : undefined
+    if (!parentId || !branch) { onChipsChanged?.(); return }
+    for (const offset of branchOffsets(branch)) void loadChips(parentId, offset)
+  }
+
   const loadChildren = async (parentId: string, more = false) => {
     const cached = branchCache.current[parentId]
     if (!active.current || cached?.loading || (cached?.loaded && !more)) return
@@ -86,8 +116,8 @@ export function AgentTreeView({ roots, schemeType, status, formatAmount, pending
         nextOffset: items.length ? offset + items.length : page?.total ?? offset,
         rows: [...new Map([...branch.rows, ...items.filter(row => row.id !== parentId)].map(row => [row.id, row])).values()],
       }))
-      // Identity appears first; aggregate activity follows without blocking expansion.
-      if (items.length) await loadStats(parentId, offset)
+      // Identity appears first; aggregate activity (and a CREDIT branch's chips) follow without blocking expansion.
+      if (items.length) await Promise.all([loadStats(parentId, offset), schemeType === 'CREDIT' ? loadChips(parentId, offset) : null])
     } catch {
       updateBranch(parentId, branch => ({ ...branch, loading: false, error: true }))
     }
@@ -123,10 +153,12 @@ export function AgentTreeView({ roots, schemeType, status, formatAmount, pending
     { key: 'earned', header: 'Earned', cell: row => formatAmount(row.stats?.commissionEarned) },
     login,
   ] : schemeType === 'CREDIT' ? [
+    // Chips (spec 2026-11-02 §2): the agent's own balance, and its Ref P/L in colour (green: the upline owes it).
     players,
-    { key: 'credit', header: 'Credit used', cell: row => { const usage = creditUsage(row)
-      return usage.limit > 0 ? <span className={usage.high ? styles.creditHigh : styles.credit}><span>{usage.percent}%</span><Meter value={usage.percent} tone={usage.high ? 'warn' : 'acc'} className={styles.creditMeter} /></span> : '—' } },
-    { key: 'available', header: 'Available', cell: row => formatAmount(row.creditAvailable) },
+    { key: 'balance', header: 'Balance', cell: row => row.chips ? formatAmount(roundChips(row.chips.balance)) : '—' },
+    { key: 'refPnl', header: 'Ref P/L', cell: row => { if (!row.chips) return '—'
+      const tone = chipTone(row.chips.refPnl)
+      return <span className={tone === 'gain' ? styles.gain : tone === 'loss' ? styles.loss : undefined}>{signedChips(row.chips.refPnl, value => formatAmount(value))}</span> } },
     login,
   ] : [
     players,
@@ -137,6 +169,7 @@ export function AgentTreeView({ roots, schemeType, status, formatAmount, pending
   ]
 
   const renderNode = (row: AgentListRow, ancestors: string[] = []): ReactNode => {
+    const branchParent = ancestors[ancestors.length - 1]
     if (ancestors.includes(row.id)) return null
     const branch = branches[row.id]
     const isOpen = expanded.includes(row.id)
@@ -153,7 +186,7 @@ export function AgentTreeView({ roots, schemeType, status, formatAmount, pending
             : <span className={styles.leaf} aria-hidden="true" />}
           <Avatar name={row.username} hue="auto" className={styles.avatar} />
           <div className={styles.person}>
-            <div className={styles.name}><Link to={`/agents/${row.id}`}>{name}</Link><CopyButton value={name} label={`Copy username ${name}`} />{row.tallyEnabled && <StatusPill tone="ok">Tally</StatusPill>}</div>
+            <div className={styles.name}><Link to={`/agents/${row.id}`}>{name}</Link><CopyButton value={name} label={`Copy username ${name}`} />{tallyIsOn(row.tallyEnabled, row.tallyDomains) && <StatusPill tone="ok">Tally</StatusPill>}</div>
             <div className={styles.meta}>
               {row.levelIndex ? <span className={styles.level}>L{row.levelIndex}</span> : null}
               <span>{row.levelIndex ? agentLevelNames[row.levelIndex] || `Level ${row.levelIndex}` : 'Agent'}</span>
@@ -163,20 +196,25 @@ export function AgentTreeView({ roots, schemeType, status, formatAmount, pending
         </div>
         {columns.map(column => <div key={column.key} className={styles.cell} data-col={column.key}><span className={styles.cellLabel}>{column.header}</span><span className={styles.value}>{column.cell(row)}</span></div>)}
         <div className={styles.statusCell}><StatusPill status={row.status}>{row.status === 'ACTIVE' ? 'Active' : row.status === 'SUSPENDED' ? 'Suspended' : 'Inactive'}</StatusPill></div>
-        <div className={styles.actions}><Link to={`/agents/${row.id}`} className={buttonClassName({ size: 'sm' })} aria-label={`View profile ${name}`}>View</Link></div>
+        <div className={styles.actions}>
+          {/* D / W / CR render for the direct parent only (ChipActions checks); everyone else sees View alone. */}
+          {row.chips ? <ChipActions account={row.chips} onDone={() => chipsChanged(branchParent)} /> : null}
+          <Link to={`/agents/${row.id}`} className={buttonClassName({ size: 'sm' })} aria-label={`View profile ${name}`}>View</Link>
+        </div>
       </div>
       <div id={childrenId} className={styles.branch} hidden={!isOpen}>{isOpen && <>
         {branch?.loading && !branch.loaded && <p className={styles.message} role="status">Loading sub-agents…</p>}
         {branch?.error && <div className={styles.message} role="alert">Could not load sub-agents. <Button size="sm" onClick={() => void loadChildren(row.id, branch.loaded)}>Retry sub-agents</Button></div>}
         {branch?.loaded && branch.rows.length === 0 && <p className={styles.message}>No sub-agents{status ? ' match this status' : ''}.</p>}
         {branch && branch.statsErrors.length > 0 && <div className={styles.message} role="alert">Activity totals unavailable. <Button size="sm" onClick={() => { for (const offset of branch.statsErrors) void loadStats(row.id, offset) }}>Retry activity</Button></div>}
+        {branch && branch.chipsErrors.length > 0 && <div className={styles.message} role="alert">Chip figures unavailable. <Button size="sm" onClick={() => { for (const offset of branch.chipsErrors) void loadChips(row.id, offset) }}>Retry chips</Button></div>}
         {branch && branch.rows.length > 0 && <ul className={styles.children} aria-label={`Sub-agents of ${name}`}>{branch.rows.map(child => renderNode(child, [...ancestors, row.id]))}</ul>}
         {branch?.loaded && branch.nextOffset < branch.total && !branch.error && <div className={styles.more}><span>{branch.rows.length} of {branch.total} sub-agents</span><Button size="sm" loading={branch.loading} onClick={() => void loadChildren(row.id, true)}>Load more sub-agents</Button></div>}
       </>}</div>
     </li>
   }
 
-  return <section className={styles.treeView} aria-label="Agent hierarchy">
+  return <section className={styles.treeView} data-scheme={schemeType || undefined} aria-label="Agent hierarchy">
     <div className={styles.toolbar}>
       <div className={styles.hint}>
         <IconHierarchy2 size={17} aria-hidden />

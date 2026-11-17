@@ -5,7 +5,7 @@ type ActorInfo {
   id: ID!
   name: String!
   email: String
-  type: String! # 'admin' | 'agent' | 'system'
+  type: String! # 'admin' | 'player' | 'agent' | 'system' | 'deleted' | 'unknown'
   role: String
 }
 
@@ -74,6 +74,7 @@ type AuditExportJob {
   filtersJson: JSON!
   exportFormat: AuditExportFormat!
   status: AuditExportJobStatus!
+  # The file's bare name once completed; the file itself comes from auditExportJobDownload.
   fileUrl: String
   errorMessage: String
   scheduledAt: String
@@ -99,13 +100,15 @@ type AuditAnnotation {
 }
 
 # Filter input types
+# domain, action and resourceType each take one value or several (an event matching any of them is kept):
+# the Audit Trail's filters are multi-selects and send lists, which a String field refused outright.
 input AuditListFilter {
   tenant: String
   id: ID
-  domain: String
-  action: String
+  domain: [String!]
+  action: [String!]
   actorId: ID
-  resourceType: String
+  resourceType: [String!]
   resourceId: String
   from: String
   to: String
@@ -127,4 +130,16 @@ input UpdateAuditAnnotationInput {
 
 type DeleteAuditAnnotationResult {
   success: Boolean!
+}
+
+# The values this tenant's trail actually holds, each list sorted and without duplicates: the Audit Trail's
+# Domain, Action and Resource Type filters offer these (a fixed list offered names nothing records).
+type AuditFilterOptions {
+  domains: [String!]!
+  actions: [String!]!
+  resourceTypes: [String!]!
+}
+
+extend type Query {
+  auditFilterOptions: AuditFilterOptions!
 }

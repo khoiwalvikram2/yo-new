@@ -1,12 +1,13 @@
 import {
   getReferralProgramByTenantDb,
   getReferralRulesByProgramDb,
-  getReferralAttributionsByReferrerDb,
+  getConfirmedReferrerOfDb,
   getReferralRuleByIdDb,
 } from '@src/repos/referrals/referralsRepo.js'
 import { createReferralEarningDb } from '@src/repos/referrals/referralEarningsRepo.js'
 import { currencyService } from '@src/services/currencyService.js'
 import { CurrencyCode } from '@src/types/currency.js'
+import { withoutCreditBeneficiaries } from './creditBeneficiaries.js'
 
 export type RuleType =
   | 'SIGNUP_CPA'
@@ -48,6 +49,57 @@ export interface RewardCalculationResult {
     netAmount: number
     currency: string
   }>
+}
+
+/** Reads who referred `userId` in the tenant (its confirmed referrer), or null. Injectable for tests. */
+export type ReferrerOfReader = (userId: number, tenant: string) => Promise<number | null>
+
+/** Most tiers a tiered rule (LOSS_SHARE) pays: the direct referrer and three levels above it. */
+const MAX_UPLINE_TIERS = 4
+
+/**
+ * The referral upline a tiered rule pays: the direct referrer at tier 1, whoever referred them at tier 2, and so on
+ * up to maxDepth tiers (never more than 4). Each step reads the attribution in which the current referrer is the
+ * REFEREE, in the same tenant (readReferrerOf). The walk stops at the top of the chain, at an id that is not a user,
+ * and at anyone already on it: a cycle (A referred B, B referred A), or the referee itself, is never paid twice for
+ * one event.
+ *
+ * It used to read the attributions in which the current person is the REFERRER (its own referees), so tiers 2-4
+ * repeated the direct referrer, the real upline never earned, and the direct referrer was paid once per tier.
+ */
+export async function walkReferralUpline(
+  tenant: string,
+  directReferrerId: number,
+  maxDepth: number,
+  readReferrerOf: ReferrerOfReader = getConfirmedReferrerOfDb,
+  refereeId?: number
+): Promise<Array<{ referrerId: number; tier: number }>> {
+  const upline: Array<{ referrerId: number; tier: number }> = []
+  const depth = Math.min(Math.floor(Number(maxDepth) || 0), MAX_UPLINE_TIERS)
+  const seen = new Set<number>()
+  if (refereeId != null) seen.add(Number(refereeId))
+  let current: number | null = Number(directReferrerId)
+  while (upline.length < depth && current != null && Number.isSafeInteger(current) && current > 0 && !seen.has(current)) {
+    seen.add(current)
+    upline.push({ referrerId: current, tier: upline.length + 1 })
+    if (upline.length >= depth) break
+    const parent = await readReferrerOf(current, tenant)
+    current = parent == null ? null : Number(parent)
+  }
+  return upline
+}
+
+/**
+ * A rule's rate or fixed amount for `tier`. The admin referral editor saves these maps keyed by the tier number
+ * ({"1": 10, "2": 5}: referralRulesModel.ts in the admin app); older rows may be keyed "tier1", "tier2". Both shapes
+ * are read, the editor's first. A missing or non-numeric entry is 0.
+ */
+export function tierValue(map: unknown, tier: number): number {
+  if (!map || typeof map !== 'object') return 0
+  const entries = map as Record<string, unknown>
+  const raw = entries[String(tier)] ?? entries[`tier${tier}`]
+  const value = typeof raw === 'number' ? raw : Number(raw)
+  return Number.isFinite(value) ? value : 0
 }
 
 /**
@@ -94,8 +146,12 @@ export class RewardsCalculatorService {
       earnings.push(...ruleEarnings)
     }
 
+    // A credit player earns no referral cash or loss-share (credit D/W chips, decision 7): its chips move only through
+    // its upline. Its earnings are dropped before the caps, so they use up no budget either.
+    const payable = await withoutCreditBeneficiaries(input.tenant, earnings)
+
     // Apply caps and budgets
-    const cappedEarnings = await this.applyCaps(input.tenant, input.refereeId, earnings, program)
+    const cappedEarnings = await this.applyCaps(input.tenant, input.refereeId, payable, program)
 
     return { earnings: cappedEarnings }
   }
@@ -121,15 +177,11 @@ export class RewardsCalculatorService {
     const isTiered = tieredRuleTypes.includes(rule.ruleType)
     const maxDepth = isTiered ? Math.min(program.maxDepth || 4, 4) : 1
 
-    // Get upline (referrer and their upline) - only for tiered rules
-    const upline = await this.getUpline(
-      input.tenant,
-      attribution.referrerId,
-      maxDepth
-    )
-
-    // For non-tiered rules, only calculate for direct referrer (tier 1)
-    const tiersToProcess = isTiered ? upline : [{ referrerId: attribution.referrerId, tier: 1 }]
+    // Tiered rules pay the upline (the direct referrer and those above it); the others only the direct referrer
+    // (tier 1), so they read no upline at all.
+    const tiersToProcess = isTiered
+      ? await this.getUpline(input.tenant, attribution.referrerId, maxDepth, input.refereeId)
+      : [{ referrerId: attribution.referrerId, tier: 1 }]
 
     // Calculate for each tier in upline
     for (const tierMember of tiersToProcess) {
@@ -173,39 +225,15 @@ export class RewardsCalculatorService {
   }
 
   /**
-   * Get upline (referrer and their upline up to maxDepth, max 4)
+   * Get upline (referrer and their upline up to maxDepth, max 4): walkReferralUpline on the database.
    */
   private async getUpline(
     tenant: string,
     referrerId: number,
-    maxDepth: number
+    maxDepth: number,
+    refereeId: number
   ): Promise<Array<{ referrerId: number; tier: number }>> {
-    const upline: Array<{ referrerId: number; tier: number }> = []
-    let currentReferrerId = referrerId
-    let tier = 1
-    const effectiveMaxDepth = Math.min(maxDepth, 4) // Enforce max 4 tiers
-
-    while (tier <= effectiveMaxDepth && currentReferrerId) {
-      upline.push({ referrerId: currentReferrerId, tier })
-
-      // Get parent referrer (who referred this referrer)
-      const parentAttribution = await getReferralAttributionsByReferrerDb(
-        currentReferrerId,
-        tenant,
-        1 // Direct referral only
-      )
-
-      if (parentAttribution.length === 0) {
-        break
-      }
-
-      // Get the referrer of the current referrer
-      const parent = parentAttribution[0]
-      currentReferrerId = parent.referrerId
-      tier++
-    }
-
-    return upline
+    return walkReferralUpline(tenant, referrerId, maxDepth, getConfirmedReferrerOfDb, refereeId)
   }
 
   /**
@@ -219,10 +247,9 @@ export class RewardsCalculatorService {
     attribution: any,
     program: any
   ): Promise<RewardCalculationResult['earnings'][0] | null> {
-    const tierRates = (rule.tierRates || {}) as Record<number, number>
-    const fixedAmounts = (rule.fixedAmounts || {}) as Record<number, number>
-    const rate = tierRates[tier] ?? 0
-    const fixedAmount = fixedAmounts[tier] ?? 0
+    // Keyed the way the admin editor saves them ({"1": 10, "2": 5}), or "tier1" on older rows (tierValue).
+    const rate = tierValue(rule.tierRates, tier)
+    const fixedAmount = tierValue(rule.fixedAmounts, tier)
 
     let grossAmount = 0
 
@@ -485,9 +512,9 @@ export class RewardsCalculatorService {
     // This is a simplified version - in reality, you'd calculate the referrer's commission
     // based on the event data (net revenue, etc.)
     if (input.eventType === 'bet_settlement' && input.eventData.netRevenue) {
-      const tierRates = (rule.tierRates || {}) as Record<string, number>
+      // It read only "tier1" keys, which the admin editor never saves ({"1": 10}); tierValue reads both shapes.
       const tier = attribution.tier || 1
-      const rate = tierRates[`tier${tier}`] || tierRates['tier1'] || 0
+      const rate = tierValue(rule.tierRates, tier) || tierValue(rule.tierRates, 1)
       return (Math.abs(input.eventData.netRevenue) * rate) / 100
     }
     return 0

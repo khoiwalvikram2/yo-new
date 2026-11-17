@@ -1,13 +1,15 @@
 import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { useQuery } from '@apollo/client'
 import {
   IconAlertCircle,
   IconCalculator,
   IconCoins,
-  IconFilter,
   IconPlus,
   IconSettings,
 } from '@tabler/icons-react'
-import { useCurrencies, useCurrencyActions } from '@/shared/core/useCurrency'
+import { useCurrencyActions } from '@/shared/core/useCurrency'
+import { useAuthStore } from '@/shared/core/authStore'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 import { CurrencyTable } from '@/modules/currency/components/CurrencyTable'
 import { CurrencyForm } from '@/modules/currency/components/CurrencyForm'
 import { CurrencyConverter } from '@/modules/currency/components/CurrencyConverter'
@@ -45,6 +47,7 @@ import {
   storeDefaultCurrency,
   type CurrencyView,
 } from './currencyManagementModel'
+import { ALL_CURRENCIES } from './currencyQueries'
 import styles from './CurrencyManagementPage.module.css'
 
 const PAGE_TITLE = 'Currency Management'
@@ -138,8 +141,14 @@ function CurrencySettings({
 
 function CurrencyManagementPageContent() {
   const pageEyebrow = usePageEyebrow()
-  const { data, loading, error, refetch } = useCurrencies()
+  const { data, loading, error, refetch } = useQuery(ALL_CURRENCIES, { errorPolicy: 'all' })
   const { createCurrency, updateCurrency, loading: actionLoading } = useCurrencyActions()
+  // Viewing is enough to open the page; each change needs its own permission, and the server refuses it
+  // without one, so a read-only admin is not offered controls that can only end in "Forbidden".
+  const permissions = useAuthStore((state) => state.permissions) ?? []
+  const canCreate = hasPermissionWithNested(permissions, 'currency.list', 'create')
+  const canUpdate = hasPermissionWithNested(permissions, 'currency.list', 'update')
+  const canDelete = hasPermissionWithNested(permissions, 'currency.list', 'delete')
 
   const [showForm, setShowForm] = useState(false)
   const [editingCurrency, setEditingCurrency] = useState<Currency | undefined>()
@@ -166,6 +175,8 @@ function CurrencyManagementPageContent() {
   const shownPage = clampPage(currentPage, filteredCurrencies.length, pageSize)
   const paginatedCurrencies = pageSlice(filteredCurrencies, shownPage, pageSize)
 
+  // The server's answer, success or refusal, is toasted once by the Apollo notification link; the page
+  // toasting it again showed every result twice. Only a request that fails outright is reported here.
   const handleCreateCurrency = async (input: CreateCurrencyInput) => {
     const close = notify.loading('Creating currency...')
     try {
@@ -173,9 +184,6 @@ function CurrencyManagementPageContent() {
       if (result.data?.createCurrency?.success) {
         setShowForm(false)
         await refetch() // Refresh the data
-        notify.success('Currency created successfully')
-      } else {
-        notify.error(result.data?.createCurrency?.message || 'Failed to create currency')
       }
     } catch {
       notify.error('Failed to create currency')
@@ -194,9 +202,6 @@ function CurrencyManagementPageContent() {
         setShowForm(false)
         setEditingCurrency(undefined)
         await refetch() // Refresh the data
-        notify.success('Currency updated successfully')
-      } else {
-        notify.error(result.data?.updateCurrency?.message || 'Failed to update currency')
       }
     } catch {
       notify.error('Failed to update currency')
@@ -281,6 +286,8 @@ function CurrencyManagementPageContent() {
             <CurrencyTable
               currencies={paginatedCurrencies}
               loading={loading}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
               onEdit={handleEditCurrency}
               footer={!loading && filteredCurrencies.length > 0 ? (
                 <Pagination
@@ -300,7 +307,7 @@ function CurrencyManagementPageContent() {
       case 'converter':
         return renderSwitchedView(
           <Card title="Currency Converter">
-            <CurrencyConverter currencies={currencies} />
+            <CurrencyConverter currencies={activeCurrencies} />
           </Card>,
         )
       case 'settings':
@@ -344,23 +351,20 @@ function CurrencyManagementPageContent() {
         eyebrow={pageEyebrow}
         title={PAGE_TITLE}
         sub={PAGE_SUB}
-        actions={(
-          <>
-            {/* Legacy: this button has never had an action. */}
-            <Button icon={<IconFilter size={16} stroke={strokeFor(16)} />}>Bulk Actions</Button>
-            <Button
-              variant="primary"
-              icon={<IconPlus size={16} stroke={strokeFor(16)} />}
-              onClick={() => {
-                setActiveTab('currencies')
-                setEditingCurrency(undefined)
-                setShowForm(true)
-              }}
-            >
-              Add Currency
-            </Button>
-          </>
-        )}
+        // "Bulk Actions" stood here with no action behind it; it is gone until there are bulk actions.
+        actions={canCreate ? (
+          <Button
+            variant="primary"
+            icon={<IconPlus size={16} stroke={strokeFor(16)} />}
+            onClick={() => {
+              setActiveTab('currencies')
+              setEditingCurrency(undefined)
+              setShowForm(true)
+            }}
+          >
+            Add Currency
+          </Button>
+        ) : undefined}
       />
 
       <div className={styles.content}>

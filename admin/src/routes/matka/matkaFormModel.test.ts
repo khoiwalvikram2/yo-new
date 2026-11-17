@@ -8,6 +8,7 @@ import {
   buildCreateMatkaInput,
   buildUpdateMatkaInput,
   createMatkaInitialValues,
+  matkaErrorStep,
   matkaFormSchema,
   matkaStepFields,
   matkaValuesFromRecord,
@@ -98,15 +99,35 @@ describe('matka form copy and defaults', () => {
 })
 
 describe('matka form validation and day helpers', () => {
-  test('step zero validates the legacy fields; betting Next intentionally validates none', () => {
+  test('step zero validates the legacy fields; betting Next validates its limits, status and cutoffs', () => {
     assert.deepEqual(matkaStepFields(0, false), [
       'name', 'code', 'schedule.openTime', 'schedule.closeTime', 'schedule.daysOfWeek',
     ])
     assert.deepEqual(matkaStepFields(0, true), [
       'name', 'schedule.openTime', 'schedule.closeTime', 'schedule.daysOfWeek',
     ])
-    assert.deepEqual(matkaStepFields(1, false), [])
+    // Min Bet 0 used to pass Next and reach Review, refused only by Create Matka.
+    const betting = [
+      'limits.minBet', 'limits.maxBet', 'status', 'settings.autoPauseOnLiabilityThreshold',
+      'settings.betWindowMinsBeforeOpen', 'settings.betWindowMinsBeforeClose',
+    ]
+    assert.deepEqual(matkaStepFields(1, false), betting)
+    assert.deepEqual(matkaStepFields(1, true), betting)
     assert.deepEqual(matkaStepFields(2, true), [])
+  })
+
+  test('every error the full submit can raise on Betting Configuration is a field its Next checks', () => {
+    const invalid = values({
+      name: 'Milan', code: 'milan', status: '',
+      limits: { minBet: 0, maxBet: -1 },
+      settings: { autoPauseOnLiabilityThreshold: -1, betWindowMinsBeforeOpen: null, betWindowMinsBeforeClose: -2, notes: '' },
+    })
+    const raised = Object.keys(errors(false, invalid))
+    assert.equal(raised.length, 6)
+    for (const path of raised) {
+      assert.equal(matkaErrorStep([path]), 1, `${path} is shown on Betting Configuration`)
+      assert.ok((matkaStepFields(1, false) as string[]).includes(path), `${path} is checked by its Next`)
+    }
   })
 
   test('create requires name, kebab-case code, both times and at least one day; edit does not require code', () => {
@@ -146,6 +167,22 @@ describe('matka form validation and day helpers', () => {
       'settings.betWindowMinsBeforeClose': 'Value must be at least 0',
     })
     assert.deepEqual(errors(false, values({ name: 'Milan', code: 'milan' })), {})
+  })
+
+  test('stake limits follow the server: a positive minimum and a maximum no lower than it', () => {
+    // The server answers "Maximum stake must be at least the positive minimum stake" for both.
+    assert.deepEqual(errors(false, values({ name: 'Milan', code: 'milan', limits: { minBet: 0, maxBet: 10000 } })), { 'limits.minBet': 'Value must be more than 0' })
+    assert.deepEqual(errors(false, values({ name: 'Milan', code: 'milan', limits: { minBet: 50, maxBet: 10 } })), { 'limits.maxBet': 'Max bet must be at least the min bet' })
+    assert.deepEqual(errors(false, values({ name: 'Milan', code: 'milan', limits: { minBet: 50, maxBet: 50 } })), {})
+  })
+
+  test('a refused submit is sent back to the first step that shows one of its errors', () => {
+    assert.equal(matkaErrorStep(['limits.minBet']), 1)
+    assert.equal(matkaErrorStep(['settings.betWindowMinsBeforeClose', 'status']), 1)
+    assert.equal(matkaErrorStep(['limits.maxBet', 'schedule.daysOfWeek']), 0)
+    assert.equal(matkaErrorStep(['code', 'priority', 'settings.matkaType']), 0)
+    assert.equal(matkaErrorStep(['_form']), null)
+    assert.equal(matkaErrorStep([]), null)
   })
 
   test('slugging, toggles, quick-set comparison and selection summaries match the legacy UI', () => {

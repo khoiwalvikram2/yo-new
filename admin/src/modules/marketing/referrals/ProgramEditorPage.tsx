@@ -84,6 +84,8 @@ function ProgramEditorPageContent() {
   const [upsertProgram, { loading: saving }] = useMutation(
     UPSERT_REFERRAL_PROGRAM_MUTATION,
     {
+      // Reported below; the global mutation toast said each outcome a second time (MAR-06).
+      context: { skipNotification: true },
       onCompleted: (result) => {
         if (result.upsertReferralProgram.success) {
           toast(programSaveToast(result.upsertReferralProgram))

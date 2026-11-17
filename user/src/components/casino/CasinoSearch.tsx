@@ -14,10 +14,10 @@ type Props = {
   slotsOnly?: boolean
   selectedProviders?: string[]
   onProvidersChange?: (providers: string[]) => void
-  /** The rows the lobby rendered, in order, with their totals; null until they load. */
-  rowCategories?: LobbyCategory[] | null
-  /** Games in the whole lobby, for the "All" tab; null while unknown. */
-  totalCount?: number | null
+  /** The rows the lobby rendered, in order, with their totals; null until they have all loaded. */
+  rowCategories: LobbyCategory[] | null
+  /** Games in the whole lobby, for the "All" tab: undefined while it loads, null if it could not be read. */
+  totalCount: number | null | undefined
 }
 
 /** The lobby's category tabs, search toolbar, provider filter and search results. */
@@ -25,8 +25,8 @@ export default function CasinoSearch({
   slotsOnly = false,
   selectedProviders = [],
   onProvidersChange,
-  rowCategories = null,
-  totalCount = null,
+  rowCategories,
+  totalCount,
 }: Props) {
   const { t } = useTranslation()
   const location = useLocation()
@@ -69,7 +69,7 @@ export default function CasinoSearch({
     return { title: title || 'Game', provider, imageUrl, gameId, category }
   }, [])
 
-  // Categories (for the tabs before the rows have loaded) and the provider list for the filter.
+  // Category icons (for rows that come without one) and the provider list for the filter.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -94,13 +94,13 @@ export default function CasinoSearch({
     return () => { cancelled = true }
   }, [slotsOnly])
 
-  // Tabs: the rendered rows once known (with their counts and order), the fetched list before that.
+  // Tabs: All, then the rows' list in row order. Until the rows and the total have both loaded the strip
+  // shows placeholders, then every tab and count at once, so it never jumps while loading (owner 2026-11-01).
+  const tabsLoading = rowCategories === null || totalCount === undefined
   const tabs = useMemo<LobbyCategory[]>(() => {
     const icons = new Map(categories.map((c) => [c.id, c.iconData]))
-    const list = rowCategories
-      ? rowCategories.map((row) => ({ ...row, iconData: row.iconData ?? icons.get(row.id) ?? null }))
-      : categories
-    return [{ id: ALL_TAB, name: t('casinoLobby.all', { defaultValue: 'All' }), count: totalCount, iconData: null }, ...list]
+    const list = (rowCategories ?? []).map((row) => ({ ...row, iconData: row.iconData ?? icons.get(row.id) ?? null }))
+    return [{ id: ALL_TAB, name: t('casinoLobby.all', { defaultValue: 'All' }), count: totalCount ?? null, iconData: null }, ...list]
   }, [categories, rowCategories, totalCount, t])
 
   // The rows' scrollspy moves the red tab; at the top of the page, or above the first row, it is "All".
@@ -223,7 +223,7 @@ export default function CasinoSearch({
 
   return (
     <>
-      <LobbyTabs tabs={tabs} active={activeCategoryId} onSelect={selectTab} label={t('casinoLobby.categories', { defaultValue: 'Game categories' })} />
+      <LobbyTabs tabs={tabs} active={activeCategoryId} onSelect={selectTab} loading={tabsLoading} label={t('casinoLobby.categories', { defaultValue: 'Game categories' })} />
 
       <div className="nova-lobby-toolbar">
         <div className="nova-lobby-search">

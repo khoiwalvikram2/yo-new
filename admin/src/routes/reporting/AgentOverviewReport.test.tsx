@@ -173,17 +173,25 @@ vi.mock('@/ui/components/DateRangeField', () => ({
    operation to the app's GraphQL inventory, so a link in front of the mocks answers that one operation
    by name and records what it was sent. */
 const exportRequests: Array<Record<string, unknown>> = []
+/** A finished job keeps its file in its row; the hook asks for it by the job's id and the server answers it as a
+ *  base64 data URI (2026-11-04). */
+const storedFiles = new Map<string, string>()
 
 const exportLink = new ApolloLink((operation, forward) => {
+  if (operation.operationName === 'ExportJobDownloadUrlFromHook') {
+    return Observable.of({ data: { exportJobDownloadUrl: storedFiles.get(String(operation.variables.jobId)) ?? null } })
+  }
   if (operation.operationName !== 'CreateExportJobFromHook') return forward(operation)
   exportRequests.push(operation.variables)
-  const format = (operation.variables.input as { exportFormat: string }).exportFormat
+  const format = (operation.variables.input as { exportFormat: string }).exportFormat.toLowerCase()
+  const id = `job-${exportRequests.length}`
+  storedFiles.set(id, `data:${format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'};base64,${btoa(`report.${format}`)}`)
   return Observable.of({
     data: {
       createExportJob: {
-        id: `job-${exportRequests.length}`,
+        id,
         status: 'completed',
-        fileUrl: `https://files.test/report.${format}`,
+        fileUrl: `exports/t/t/ggr-${id}.csv`,
         errorMessage: null,
       },
     },
@@ -300,9 +308,16 @@ function allMocks(filter: Filter): MockedResponse[] {
   return [kpisMock(filter), trendsMock(filter), performanceMock(filter), playersMock(filter)]
 }
 
-/** The export job input the legacy page sent: report `ggr`, no filters, the applied range. */
+/** The export job input: report `ggr`, the processor's format name, the applied range, also as the
+ *  dateFrom / dateTo its fetchers read ('csv' and a dateRange alone made every job fail, F-REP-02). */
 function exportInput(format: 'csv' | 'xlsx', dateRange: { from: string; to: string }) {
-  return { input: { reportType: 'ggr', exportFormat: format, filtersJson: { dateRange } } }
+  return {
+    input: {
+      reportType: 'ggr',
+      exportFormat: format.toUpperCase(),
+      filtersJson: { dateRange, dateFrom: dateRange.from, dateTo: dateRange.to },
+    },
+  }
 }
 
 function renderPage(mocks: MockedResponse[]) {
@@ -333,6 +348,8 @@ function bodyRows(table: HTMLElement) {
 }
 
 let clicked: HTMLAnchorElement[] = []
+/** The Blob behind each object URL the export hook made, in order. */
+let savedFiles: Blob[] = []
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -354,6 +371,12 @@ beforeEach(() => {
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function click(this: HTMLAnchorElement) {
     clicked.push(this)
   })
+  savedFiles = []
+  window.URL.createObjectURL = vi.fn((blob: Blob) => {
+    savedFiles.push(blob)
+    return `blob:report-${savedFiles.length}`
+  })
+  window.URL.revokeObjectURL = vi.fn()
 })
 
 afterEach(() => {
@@ -444,7 +467,8 @@ describe('AgentOverviewReport', () => {
 
     const totals = screen.getByRole('group', { name: 'Agent overview totals' })
     for (const [label, value, note] of [
-      ['Total Turnover', '₹25,00,000.00', 'All time'],
+      // F-REP-09: the note is the applied period, not "All time"
+      ['Total Turnover', '₹25,00,000.00', 'Last 30 Days'],
       ['Total GGR', '₹1,64,001.00', 'Gross gaming revenue'],
       ['Commission Earned', '₹8,200.00', 'All commissions'],
       ['Share Earned', '₹1,800.00', 'All shares'],
@@ -490,11 +514,11 @@ describe('AgentOverviewReport', () => {
 
     const tablist = screen.getByRole('tablist', { name: 'Agent Overview Report tabs selector' })
     const tabs = within(tablist).getAllByRole('tab')
+    // F-REP-08: the Top Events/Games placeholder (no query behind it) is gone
     assert.deepEqual(tabs.map((tab) => tab.textContent), [
       'GGR by Domain',
       'Player Activity',
       'Top Players',
-      'Top Events/Games',
     ])
     assert.equal(tabs[0].getAttribute('aria-selected'), 'true')
     assert.equal(screen.getByRole('tabpanel').getAttribute('aria-labelledby'), tabs[0].id)
@@ -545,9 +569,9 @@ describe('AgentOverviewReport', () => {
     assert.equal(within(lastPage[9]).getAllByRole('cell')[0].textContent, 'player49ID: p-49')
     assert.equal(screen.queryByRole('button', { name: 'Page 4' }), null)
 
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Top Players' }), { key: 'End' })
-    assert.ok(screen.getByText('Top events and games will be displayed here'))
-    assert.equal(screen.queryByRole('table'), null)
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'GGR by Domain' }), { key: 'End' })
+    assert.equal(screen.getByRole('tab', { name: 'Top Players' }).getAttribute('aria-selected'), 'true')
+    assert.equal(screen.queryByText('Top events and games will be displayed here'), null)
   })
 
   test('filters by domain through a native radio group and re-queries with the domain', async () => {
@@ -705,7 +729,9 @@ describe('AgentOverviewReport', () => {
     assert.deepEqual(feedback.loading.mock.calls, [['Preparing export...', 0]])
     assert.equal(feedback.hide.mock.calls.length, 1)
     assert.deepEqual(feedback.success.mock.calls, [['Export ready! Downloading...']])
-    assert.equal(clicked[0].getAttribute('href'), 'https://files.test/report.csv')
+    // The file arrives as a data URI and is saved as a Blob of its type.
+    assert.equal(clicked[0].getAttribute('href'), 'blob:report-1')
+    assert.equal(savedFiles[0]?.type, 'text/csv')
     assert.match(clicked[0].download, /^export-\d+\.csv$/)
     assert.equal(feedback.error.mock.calls.length, 0)
   })

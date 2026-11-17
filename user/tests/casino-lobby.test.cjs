@@ -204,6 +204,73 @@ test('toolbar: tabs from the rendered rows with All, search, provider count and 
   assert.doesNotMatch(html, /Search results/);
 });
 
+// Owner 2026-11-01: on refresh the strip must not jump. It is placeholders until every row and the lobby
+// total have loaded, then every tab and count at once.
+test('category strip: placeholders until the rows and the total have both loaded', async () => {
+  const api = {
+    getCasinoCategories: async () => ({ data: [{ name: 'Roulette' }, { name: 'Featured Games' }] }),
+    getCasinoProviders: async () => ({ data: [] }),
+    getCasinoGames: async () => ({ data: [], meta: { total: 0 } }),
+  };
+  const stubs = { [file('src/components/casino/LobbyTabs.tsx')]: marker('tabs'), [file('src/components/casino/ProviderFilterDrawer.tsx')]: marker('drawer') };
+  const rows = [{ id: 'roulette', name: 'Roulette', count: 42, iconData: null }];
+  const stripFor = async props => {
+    const search = harness('src/components/casino/CasinoSearch.tsx', props, { api, stubs });
+    search.render();
+    search.runEffects();
+    await flush();
+    return JSON.parse(search.render().match(/data-stub="tabs" data-props="([^"]*)"/)[1].replace(/&quot;/g, '"'));
+  };
+  assert.equal((await stripFor({ rowCategories: null, totalCount: 248 })).loading, true, 'rows still loading');
+  assert.equal((await stripFor({ rowCategories: rows, totalCount: undefined })).loading, true, 'total still loading');
+  const failedTotal = await stripFor({ rowCategories: rows, totalCount: null });
+  assert.equal(failedTotal.loading, false, 'a total that could not be read does not hold the strip');
+  assert.deepEqual(failedTotal.tabs[0], { id: 'all', name: 'All', count: null, iconData: null });
+
+  const tabs = [{ id: 'all', name: 'All', count: 248, iconData: null }, { id: 'roulette', name: 'Roulette', count: 42, iconData: null }];
+  const loading = harness('src/components/casino/LobbyTabs.tsx', { tabs, active: 'all', onSelect() {}, label: 'Game categories', loading: true }).render();
+  assert.equal(loading.match(/<span class="nova-lobby-tab-skeleton" aria-hidden="true"><\/span>/g)?.length, 7);
+  assert.doesNotMatch(loading, /<button type="button" data-tab=/, 'no real tab shows before everything has loaded');
+  assert.match(loading, /role="group" aria-label="Game categories" aria-busy="true"/);
+  const loaded = harness('src/components/casino/LobbyTabs.tsx', { tabs, active: 'all', onSelect() {}, label: 'Game categories' }).render();
+  assert.doesNotMatch(loaded, /nova-lobby-tab-skeleton|aria-busy/);
+  assert.match(loaded, /<span>Roulette<\/span><small>42<\/small>/);
+});
+
+test('rows tell the strip nothing while they load, and every row with its count once all have loaded', async () => {
+  const reported = [];
+  const pending = [];
+  const api = {
+    getCasinoCategories: async () => ({ data: [{ name: 'Roulette' }, { name: 'Featured Games' }, { name: 'Baccarat', iconData: 'ICON' }] }),
+    getCasinoGames: ({ category }) => new Promise(resolve => pending.push(() => resolve({ data: [game(`${category} One`)], meta: { total: category.length, page: 1 } }))),
+    getCasinoSummary: async () => ({ data: [] }),
+  };
+  const lobby = harness('src/components/casino/CategorySections.tsx', { onCategoriesChange: rows => reported.push(rows) }, { api });
+  const plain = value => JSON.parse(JSON.stringify(value));
+  lobby.render();
+  lobby.runEffects();
+  await flush();
+  // The harness re-runs every effect on each pass (no dependency tracking), so each pass also restarts the load.
+  lobby.render();
+  lobby.runEffects();
+  assert.equal(reported.at(-1), null, 'categories known, games not: still loading');
+
+  pending.shift()();
+  await flush();
+  assert.match(lobby.render(), /id="cat-featured-games"/, 'the first row renders as soon as it arrives');
+  lobby.runEffects();
+  assert.equal(reported.at(-1), null, 'one arrived row does not put a one-tab strip up');
+
+  while (pending.length) { pending.shift()(); await flush(); await flush(); }
+  lobby.render();
+  lobby.runEffects();
+  assert.deepEqual(plain(reported.at(-1)), [
+    { id: 'featured-games', name: 'Featured Games', count: 14, iconData: null },
+    { id: 'roulette', name: 'Roulette', count: 8, iconData: null },
+    { id: 'baccarat', name: 'Baccarat', count: 8, iconData: 'ICON' },
+  ]);
+});
+
 test('search results: labelled panel with total, tile grid and View more', async () => {
   const api = {
     getCasinoCategories: async () => ({ data: [] }),

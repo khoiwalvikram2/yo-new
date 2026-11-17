@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useMutation, gql } from '@apollo/client'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { IconEye, IconWallet, IconCreditCard, IconCheck, IconGift, IconEdit, IconDots, IconCopy, IconDownload } from '@tabler/icons-react'
+import { IconEye, IconWallet, IconCoins, IconGift, IconEdit, IconDots, IconCopy, IconDownload } from '@tabler/icons-react'
 import type { Player } from '@/shared/types/player'
 import { useAuthStore } from '@/shared/core/authStore'
 import { useCurrency } from '@/shared/core/CurrencyContext'
@@ -10,6 +10,7 @@ import { useFormatDate } from '@/shared/core/useFormatDate'
 import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 import { notify } from '@/shared/services/notification'
 import { AccountListPanel } from '@/modules/account-lists/AccountList'
+import { ChipActions, chipTone, isDirectParent, refPnlNote, signedChips, useChipActor, useChipFormat, type ChipAccount } from '@/modules/chips'
 import { Button } from '@/ui/components/Button'
 import { IconButton } from '@/ui/components/IconButton'
 import { DataTable, type DataTableColumn } from '@/ui/components/DataTable'
@@ -31,12 +32,38 @@ type PlayersTableProps = {
   convertFromWhitelabelCurrency: (n: number) => number
   onOpenActions: (p: Player) => void
   onAdjustBalance?: (p: Player) => void
-  onAdjustCredit?: (p: Player) => void
-  onSettleCredit?: (p: Player) => void
   onSpecialBonus?: (p: Player) => void
   onView?: (id: string) => void
+  /** After a change made from the table, a chip move included: the list asks again. */
   onRefetch?: () => void
+  /** Every row under the current filters, for Export Excel. Without it the export holds the rows shown. */
+  loadAllForExport?: () => Promise<SearchPlayer[]>
   footer?: ReactNode
+}
+
+const MASK = '••••'
+
+/* A credit player's chips (spec 2026-11-02 §2), in the whitelabel's currency as the server keeps them and
+   masked like every credit figure without players.credit:view. */
+function ChipBalanceCell({ chips, visible }: { chips?: ChipAccount | null; visible: boolean }) {
+  const format = useChipFormat(chips?.currency)
+  if (!chips) return <>—</>
+  return <div className={styles.cell}><span>Chips: {visible ? format(chips.balance) : MASK}</span><span className={styles.secondary}>Available: {visible ? format(chips.available) : MASK}</span></div>
+}
+
+function CreditRefCell({ chips, visible }: { chips?: ChipAccount | null; visible: boolean }) {
+  const format = useChipFormat(chips?.currency)
+  if (!chips) return <>—</>
+  return <div className={styles.cell}><span>{visible ? format(chips.creditReference) : MASK}</span><span className={styles.secondary}>Reference only</span></div>
+}
+
+/** Ref P/L: green when the upline owes the player, rose when the player owes the upline, with the words under it. */
+function RefPnlCell({ chips, visible }: { chips?: ChipAccount | null; visible: boolean }) {
+  const format = useChipFormat(chips?.currency)
+  if (!chips) return <>—</>
+  if (!visible) return <>{MASK}</>
+  const tone = chipTone(chips.refPnl)
+  return <div className={styles.cell}><span className={tone === 'gain' ? styles.positive : tone === 'loss' ? styles.negative : undefined}>{signedChips(chips.refPnl, format)}</span><span className={styles.secondary}>{refPnlNote(chips.refPnl)}</span></div>
 }
 
 
@@ -51,7 +78,7 @@ const UpdatePlayerRemarkMutation = gql`
 `
 
 
-export function PlayersTable({ players, fetching, total, parentType = 'ALL', loggedInAgentSchemeType, convertFromWhitelabelCurrency, onOpenActions, onAdjustBalance, onAdjustCredit, onSettleCredit, onSpecialBonus, onView, onRefetch, footer }: PlayersTableProps) {
+export function PlayersTable({ players, fetching, total, parentType = 'ALL', loggedInAgentSchemeType, convertFromWhitelabelCurrency, onOpenActions, onAdjustBalance, onSpecialBonus, onView, onRefetch, loadAllForExport, footer }: PlayersTableProps) {
   const { formatAmount } = useCurrency()
   const { formatDateTime } = useFormatDate()
   const agent = useAuthStore(s => s.agent)
@@ -60,10 +87,14 @@ export function PlayersTable({ players, fetching, total, parentType = 'ALL', log
   const canViewWallet = isAgentLoggedIn || hasPermissionWithNested(permissions, 'players.wallet', 'view')
   const canViewCredit = isAgentLoggedIn || hasPermissionWithNested(permissions, 'players.credit', 'view')
   const canGrantSpecialBonus = isAgentLoggedIn || hasPermissionWithNested(permissions, 'players.specialBonus', 'create')
-  const mask = '••••'
-  // Whitelabel credit players belong to the whitelabel: only admins change their credit (the API refuses agents).
-  // An agent credit player's credit is changed by its own agent.
-  const canManageCredit = (u: Player) => u.playerType === 'WHITELABEL_CREDIT' ? !agent : !!(agent?.id && agent.id === u.agentId)
+  const mask = MASK
+  // Only a credit player's direct parent moves its chips (spec 2026-11-02 decision 3): its own agent, or an admin
+  // (as the whitelabel) for a whitelabel credit player. The chip actions check it; anyone else sees why not.
+  const chipActor = useChipActor()
+  const canMoveChips = (u: SearchPlayer) => Boolean(u.chips && chipActor.canManage && isDirectParent(u.chips, chipActor.agentId))
+  const chipsLockedLabel = (u: SearchPlayer) => u.playerType === 'WHITELABEL_CREDIT'
+    ? agent ? 'Chips managed by the whitelabel' : 'Moving chips needs agents.credit:update'
+    : "Chips managed by the player's agent"
   const [exporting, setExporting] = useState(false)
   const [remarkModalPlayer, setRemarkModalPlayer] = useState<Player | null>(null)
   const [remarkValue, setRemarkValue] = useState('')
@@ -82,7 +113,8 @@ export function PlayersTable({ players, fetching, total, parentType = 'ALL', log
   async function handleExport() {
     if (!players.length) { notify.warning('There are no players to export.', 'No Data'); return }
     setExporting(true)
-    try { await exportPlayerListToExcel(players, total ?? players.length); notify.success('Player list exported to Excel successfully.', 'Export Complete') }
+    // The file's title counts the rows it holds: it used to claim the whole list over the current page's rows.
+    try { const rows = loadAllForExport ? await loadAllForExport() : players; await exportPlayerListToExcel(rows, rows.length); notify.success('Player list exported to Excel successfully.', 'Export Complete') }
     catch (cause) { notify.error(cause instanceof Error ? cause.message : 'Something went wrong during export.', 'Export Failed') }
     finally { setExporting(false) }
   }
@@ -101,9 +133,9 @@ export function PlayersTable({ players, fetching, total, parentType = 'ALL', log
         {u.remark?.trim() && <p className={styles.secondary}>Remark: {u.remark}</p>}
       </div>
       case 'Status': return <StatusPill tone={u.status === 'ACTIVE' ? 'ok' : u.status === 'SUSPENDED' ? 'neg' : 'neutral'}>{u.status === 'ACTIVE' ? 'Active' : u.status === 'SUSPENDED' ? 'Suspended' : 'Inactive'}</StatusPill>
-      case 'Balance': return <div className={styles.cell}><span>Main: {canViewWallet ? u.wallet ? money(u.wallet.balance) : '—' : mask}</span><span className={styles.secondary}>Bonus: {canViewWallet ? u.wallet ? money(u.wallet.bonus) : '—' : mask}</span></div>
-      case 'Credit': return <div className={styles.cell}><span>Limit: {money(u.creditLimit)}</span><span>Used: {money(u.creditUsed)}</span><span>Avail: {money(u.creditAvailable)}</span></div>
-      case 'Settlement': return <div className={styles.cell}><span className={(u.settlementBalance || 0) >= 0 ? styles.positive : styles.negative}>Pending: {canViewCredit ? money(u.settlementBalance) : mask}</span>{onSettleCredit && !(agent && u.playerType === 'WHITELABEL_CREDIT') && (u.settlementBalance || 0) !== 0 && <Button size="xs" variant="link" onClick={() => onSettleCredit(u)}>Settle</Button>}</div>
+      case 'Balance': return isCreditPlayer(type) ? <ChipBalanceCell chips={u.chips} visible={canViewCredit} /> : <div className={styles.cell}><span>Main: {canViewWallet ? u.wallet ? money(u.wallet.balance) : '—' : mask}</span><span className={styles.secondary}>Bonus: {canViewWallet ? u.wallet ? money(u.wallet.bonus) : '—' : mask}</span></div>
+      case 'Credit Ref': return <CreditRefCell chips={u.chips} visible={canViewCredit} />
+      case 'Ref P/L': return <RefPnlCell chips={u.chips} visible={canViewCredit} />
       case 'Deposits/Withdrawals': return <div className={styles.cell}><span>Deposits: {canViewWallet ? money(stats.totalDeposits) : mask}</span><span className={styles.secondary}>D: {stats.depositCount ?? 0} | M: {stats.manualDepositCount ?? 0}</span><span>Withdrawals: {canViewWallet ? money(stats.totalWithdrawals) : mask}</span><span className={styles.secondary}>D: {stats.withdrawalCount ?? 0} | M: {stats.manualWithdrawalCount ?? 0}</span></div>
       case 'Performance': return <div className={styles.cell}><span>GGR: {canViewWallet ? money(stats.ggr) : mask}</span><div className={styles.actions}><span className={(stats.profitLoss ?? 0) >= 0 ? styles.positive : styles.negative}>P/L: {canViewWallet ? money(stats.profitLoss) : mask}</span>{canViewWallet && trend(stats.plTrend)}</div>{stats.betCount != null && <span className={styles.secondary}>{stats.betCount} bets</span>}</div>
       case 'Commission': return <div className={styles.cell}><span>Earned: {canViewWallet ? money(stats.commissionEarned) : mask}</span>{canViewWallet && trend(stats.commissionTrend)}</div>
@@ -111,11 +143,15 @@ export function PlayersTable({ players, fetching, total, parentType = 'ALL', log
       case 'Exposure': return canViewWallet ? u.wallet ? money(u.wallet.exposure) : '—' : mask
       case 'Last Activity': { const last = stats.lastActivityAt ?? stats.lastLogin; return <div className={styles.cell}><span>{last ? dayjs(last).fromNow() : 'Never'}</span>{last && <span className={styles.secondary}>{formatDateTime(last, 'dd MMM yyyy, hh:mm a')}</span>}{stats.lastBetAt && <span className={styles.secondary}>Last bet: {formatDateTime(stats.lastBetAt, 'dd MMM yyyy, hh:mm a')}</span>}{stats.daysSinceLastBet != null && <span className={styles.secondary}>{stats.daysSinceLastBet === 0 ? 'Today' : stats.daysSinceLastBet + 'd since last bet'}</span>}</div> }
       case 'Actions': {
-        const editableCredit = canManageCredit(u)
+        // A credit player's chips move by D / W (and its credit reference by CR) from its direct parent only.
+        const chipsAction = isCreditPlayer(type)
+          ? u.chips && canMoveChips(u) ? <ChipActions account={u.chips} onDone={onRefetch} /> : <IconButton disabled label={chipsLockedLabel(u)} icon={<IconCoins size={16} />} />
+          : null
         return <div className={styles.actions}>
           <IconButton label={'View Profile ' + u.id} icon={<IconEye size={16} />} onClick={() => view(u)} />
-          {isCreditPlayer(type) ? editableCredit ? <><IconButton label={'Adjust Credit ' + u.id} icon={<IconCreditCard size={16} />} onClick={() => onAdjustCredit ? onAdjustCredit(u) : onOpenActions(u)} /><IconButton label={'Settle Credit ' + u.id} icon={<IconCheck size={16} />} onClick={() => onSettleCredit ? onSettleCredit(u) : onOpenActions(u)} /></> : <IconButton disabled label={type === 'WHITELABEL_CREDIT' ? 'Credit managed by the whitelabel' : 'Credit managed through agent'} icon={<IconCreditCard size={16} />} /> : !agent && <IconButton label={'Adjust Balance ' + u.id} icon={<IconWallet size={16} />} onClick={() => onAdjustBalance ? onAdjustBalance(u) : onOpenActions(u)} />}
-          {onSpecialBonus && canGrantSpecialBonus && !agent && loggedInAgentSchemeType !== 'SHARING' && <IconButton label={'Special Bonus ' + u.id} icon={<IconGift size={16} />} onClick={() => onSpecialBonus(u)} />}
+          {isCreditPlayer(type) ? chipsAction : !agent && <IconButton label={'Adjust Balance ' + u.id} icon={<IconWallet size={16} />} onClick={() => onAdjustBalance ? onAdjustBalance(u) : onOpenActions(u)} />}
+          {/* No bonus for a credit player or one whose bonus eligibility is off: the server refuses both. */}
+          {onSpecialBonus && canGrantSpecialBonus && !agent && loggedInAgentSchemeType !== 'SHARING' && !isCreditPlayer(type) && u.bonusAllowed !== false && <IconButton label={'Special Bonus ' + u.id} icon={<IconGift size={16} />} onClick={() => onSpecialBonus(u)} />}
           {!agent && <IconButton label={'Update Remark ' + u.id} icon={<IconEdit size={16} />} onClick={() => { setRemarkError(''); setRemarkValue(u.remark || ''); setRemarkModalPlayer(u) }} />}
           <IconButton label={'More Actions ' + u.id} icon={<IconDots size={16} />} onClick={() => onOpenActions(u)} />
         </div>
@@ -123,7 +159,7 @@ export function PlayersTable({ players, fetching, total, parentType = 'ALL', log
       default: return null
     }
   }
-  const columns: DataTableColumn<SearchPlayer>[] = getAllHeaders().filter(header => shouldShowColumnForParentType(header, parentType, loggedInAgentSchemeType)).map(header => ({ key: header, header, cell: u => cell(u, header), sticky: header === 'Actions' ? 'end' : undefined, minWidth: header === 'Player' ? 250 : header === 'Actions' ? 180 : 135 }))
+  const columns: DataTableColumn<SearchPlayer>[] = getAllHeaders().filter(header => shouldShowColumnForParentType(header, parentType, loggedInAgentSchemeType)).map(header => ({ key: header, header, cell: u => cell(u, header), sticky: header === 'Actions' ? 'end' : undefined, minWidth: header === 'Player' ? 250 : header === 'Actions' ? 220 : 135 }))
   return <><AccountListPanel title="Players" sub={(total ?? players.length).toLocaleString() + ((total ?? players.length) === 1 ? ' player' : ' players')} body="table" tools={<Button size="sm" icon={<IconDownload size={16} />} loading={exporting} disabled={!players.length || fetching} onClick={() => void handleExport()}>Export Excel</Button>}>
     <DataTable label="Players" columns={columns} rows={players} rowKey={u => u.id} state={fetching ? 'loading' : 'ready'} empty="No players found" pagination={false} />
     {footer && <div className={styles.footer}>{footer}</div>}

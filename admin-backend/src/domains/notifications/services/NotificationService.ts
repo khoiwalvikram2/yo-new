@@ -29,6 +29,7 @@ export class NotificationService {
 		whitelabelId?: string;
 		category?: 'general' | 'task';
 		allowedTypes?: Array<'DEPOSIT' | 'WITHDRAWAL' | 'KYC' | 'SYSTEM' | 'AGENT' | 'PLAYER' | 'SETTLEMENT' | 'COMMISSION'>;
+		isRead?: boolean;
 		limit?: number;
 		offset?: number;
 	}) {

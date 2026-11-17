@@ -12,7 +12,8 @@ import { AgentsRepo } from '@src/repos/agents/AgentsRepo.js'
  * back on by its parent — or first made stricter (which records the parent as its setter) and then
  * lifted. Admin callers are not limited by this rule.
  *
- * "Who set it" is read from the audit log: the newest agent row whose `after` carries a status.
+ * "Who set it" is read from the audit log: the newest agent row that changed the status (its `after`
+ * carries a status that differs from its `before`; a creation row has no `before` and counts).
  */
 
 export interface StatusSetter {
@@ -55,7 +56,11 @@ export async function findLastStatusSetter(agentId: string): Promise<StatusSette
       and(
         eq(auditLogs.resourceType, 'agent'),
         eq(auditLogs.resourceId, String(agentId)),
-        sql`${auditLogs.after} ? 'status'`
+        sql`${auditLogs.after} ? 'status'`,
+        // Only a row that changed the status set it. update_agent records the status on every save, so an
+        // unchanged one would otherwise make whoever saved the agent its setter, and a parent could lift an
+        // admin's suspension by saving the sub-agent once first.
+        sql`upper(${auditLogs.before}->>'status') is distinct from upper(${auditLogs.after}->>'status')`
       )
     )
     .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))

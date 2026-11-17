@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
+import { ApolloLink, from } from '@apollo/client'
+import { MockedProvider, MockLink, type MockedResponse } from '@apollo/client/testing'
 import { GraphQLError } from 'graphql'
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -86,6 +87,8 @@ interface Server {
   failQueries: number
   mutations: Array<Record<string, unknown>>
   deleteReply: { success: boolean; message: string } | Error
+  /** Each operation sent, with whether it told the global notification link to stay quiet. */
+  sent: Array<{ name: string; skipNotification: boolean }>
 }
 
 let server: Server
@@ -132,9 +135,16 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>
 }
 
+function recordSent() {
+  return new ApolloLink((operation, forward) => {
+    server.sent.push({ name: operation.operationName, skipNotification: operation.getContext().skipNotification === true })
+    return forward(operation)
+  })
+}
+
 function renderPage() {
   return render(
-    <MockedProvider mocks={[rolesMock(), deleteMock()]}>
+    <MockedProvider link={from([recordSent(), new MockLink([rolesMock(), deleteMock()])])}>
       <MemoryRouter initialEntries={['/security/roles']}>
         <PageEyebrowProvider value="Security">
           <Routes>
@@ -189,6 +199,7 @@ beforeEach(() => {
     failQueries: 0,
     mutations: [],
     deleteReply: { success: true, message: 'Role removed' },
+    sent: [],
   }
   allow(['read', 'write', 'delete'])
   feedback.confirm.mockReset()
@@ -200,7 +211,7 @@ beforeEach(() => {
 })
 
 describe('RolesManagementPage', () => {
-  test('renders the kit page, statistics, legacy cells and current-page export', async () => {
+  test('renders the kit page, statistics, legacy cells and the export', async () => {
     await renderLoaded()
 
     assert.equal(screen.getByRole('heading', { level: 1 }).textContent, 'Roles & Permissions')
@@ -273,20 +284,30 @@ describe('RolesManagementPage', () => {
     await waitFor(() => assert.ok(screen.queryByRole('dialog') === null, 'dialog closed'))
   })
 
-  test('paginates locally, clamps a filtered page and exports only visible rows', async () => {
+  /* N001: the card's count and the export covered only the page on screen. With 15 roles the card said "10 roles"
+     and "Roles — 10 role(s)" held 10, silently leaving 5 out. Both now cover every role the search matched. */
+  test('paginates locally, clamps a filtered page, and counts and exports every matching role', async () => {
     server.roles = Array.from({ length: 23 }, (_, index) => role(String(index + 1)))
     renderPage()
     await screen.findByText('Role 1')
+    const card = () => within(screen.getByRole('region', { name: 'Roles List' }))
     assert.equal(bodyRowNames().length, 10)
-    assert.equal(exporter.options?.data.length, 10)
+    assert.ok(card().getByText('23 roles'), 'the card counts every role, not the 10 on this page')
+    assert.equal(exporter.options?.data.length, 23)
+    assert.equal(exporter.options?.title, 'Roles — 23 role(s)')
 
     fireEvent.click(screen.getByRole('button', { name: 'Page 3' }))
     await waitFor(() => assert.deepEqual(bodyRowNames(), ['Role 21', 'Role 22', 'Role 23']))
-    assert.equal(exporter.options?.data.length, 3)
+    assert.ok(card().getByText('23 roles'))
+    assert.deepEqual(exporter.options?.data.map((r) => r.name), server.roles.map((r) => r.name), 'the export holds every role, in list order')
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search roles' }), { target: { value: 'Role 1' } })
     await waitFor(() => assert.deepEqual(bodyRowNames(), ['Role 19']))
     assert.equal(screen.getByRole('button', { name: 'Page 2' }).getAttribute('aria-current'), 'page')
+    // A search narrows both to what it matched (Role 1 and Role 10-19), whatever page is shown.
+    assert.ok(card().getByText('11 roles'))
+    assert.equal(exporter.options?.data.length, 11)
+    assert.equal(exporter.options?.title, 'Roles — 11 role(s)')
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Rows per page:' }), { target: { value: '20' } })
     await waitFor(() => assert.equal(bodyRowNames().length, 11))
@@ -340,6 +361,8 @@ describe('RolesManagementPage', () => {
     })
     await waitFor(() => assert.deepEqual(server.mutations, [{ id: 'operations' }]))
     await waitFor(() => assert.deepEqual(feedback.success.mock.calls.at(-1), ['Role removed']))
+    const deletes = server.sent.filter((op) => op.name === 'DeleteRBACRole')
+    assert.ok(deletes.length > 0 && deletes.every((op) => op.skipNotification), 'the delete let the global link toast it a second time')
     await waitFor(() => assert.ok(server.queryCalls > queriesBefore, 'roles refetched'))
   })
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createRef, useState, type ComponentProps } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, test, vi } from 'vitest'
 import { NumberField } from './NumberField'
 
@@ -41,6 +41,44 @@ describe('NumberField', () => {
     assert.equal(input.value, '1234567.50')
     fireEvent.blur(input)
     assert.equal(input.value, '12,34,567.50')
+  })
+
+  test('keeps the whole value selected when Tab focus swaps grouped text for digits, so typing replaces it', () => {
+    render(<ControlledNumberField value={50000} grouping="en-IN" />)
+    const input = screen.getByRole('textbox', { name: 'Amount' }) as HTMLInputElement
+    assert.equal(input.value, '50,000')
+
+    act(() => {
+      // What a browser does on Tab: everything is selected as the field takes focus.
+      input.setSelectionRange(0, input.value.length)
+      input.focus()
+    })
+    assert.equal(input.value, '50000')
+    assert.deepEqual([input.selectionStart, input.selectionEnd], [0, 5], 'not a caret after 50000, where typing appends')
+  })
+
+  test('leaves the caret of a click where it landed, and changes nothing for ungrouped text', () => {
+    render(
+      <>
+        <ControlledNumberField label="Grouped" value={50000} grouping="en-IN" />
+        <ControlledNumberField label="Plain" value={500} />
+      </>,
+    )
+    const grouped = screen.getByRole('textbox', { name: 'Grouped' }) as HTMLInputElement
+    act(() => {
+      grouped.setSelectionRange(2, 2)
+      grouped.focus()
+    })
+    assert.equal(grouped.value, '50000')
+    assert.notDeepEqual([grouped.selectionStart, grouped.selectionEnd], [0, 5])
+
+    const plain = screen.getByRole('textbox', { name: 'Plain' }) as HTMLInputElement
+    act(() => {
+      plain.setSelectionRange(0, 3)
+      plain.focus()
+    })
+    assert.equal(plain.value, '500')
+    assert.deepEqual([plain.selectionStart, plain.selectionEnd], [0, 3])
   })
 
   test('keeps transient signs, decimals and trailing decimal text without corrupting the numeric value', () => {

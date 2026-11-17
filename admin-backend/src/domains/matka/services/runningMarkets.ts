@@ -88,3 +88,14 @@ export async function listRunningMatkaBets(tenant: string, input: unknown, execu
   ) SELECT COUNT(*)::int AS total,COALESCE((SELECT json_agg(items) FROM (SELECT * FROM selected ORDER BY "createdAt" ASC,id ASC LIMIT ${filters.limit} OFFSET ${(filters.page - 1) * filters.limit}) items),'[]'::json) AS items FROM selected`))
   return { items: data?.items || [], total: data?.total || 0 }
 }
+/**
+ * The open bets (pending or active) one result session still has to settle, for the results list. The same
+ * rules as the running list: the trading date (legacy rows without one by the market's timezone) and the
+ * settlement session, so Jodi and Sangam wait for Close. Placement stores bets as active and a rollback
+ * re-opens them as active, so counting only "pending" on the created_at day never found any.
+ */
+export async function countOpenMatkaBets(tenant: string, matkaId: string, date: string, session: 'open' | 'close', executor: any = db): Promise<number> {
+  const filters = filtersSchema.extend({ matkaId: z.string().uuid(), date: day }).parse({ matkaId, date, session })
+  const [row] = resultRows(await executor.execute(sql`SELECT COUNT(*)::int AS count FROM (${scopedBets(tenant, filters)}) open_bets`))
+  return row?.count ?? 0
+}

@@ -1,9 +1,10 @@
-import { getVipDepositContext } from '@shared/vip/depositAccess.js'
+import { getVipDepositContext, gatewayDepositLimits } from '@shared/vip/depositAccess.js'
+import { getWhitelabelCurrency } from '../../../shared/whitelabelConfig.js'
 import { intersectDepositLimits } from '@shared/vip/depositPolicy.js'
 import { ResolverContext } from '../../../types/context.js'
 import { settingsVersion, siteAssetUrl } from '../../../services/siteAssets.js'
 import { getStatementPage, type StatementPageInput } from '../../../repos/statementPageRepo.js'
-import { isDataUri } from '@shared/utils/dataUri.js'
+import { displayableAsset } from '@shared/utils/dataUri.js'
 import {
   getUserDetail,
   getLedgerItems,
@@ -43,6 +44,7 @@ import { ensureWallet } from '../../../repos/userRepo.js'
 import { getOrCreateMyReferralLink } from '../../../repos/referralRepo.js'
 import { CREDIT_PLAYER_REFERRAL_MESSAGE, isCreditPlayerUser } from '../services/playerCreditState.js'
 import { AgentBettingBlockedError } from '../services/agentBettingGate.js'
+import { CasinoGameAccessError } from '../../casino/casinoGameAccess.js'
 import { vipService } from '../../../services/vipService.js'
 import { db } from '../../../db/client.js'
 import {
@@ -58,6 +60,8 @@ import {
 } from '@shared/db/schema.js'
 import { eq, and } from 'drizzle-orm'
 import { isWelivepayAllowedForUser } from '../../../config/env.js'
+import { findOrderByOrderId } from '../../../repos/welivepayOrdersRepo.js'
+import { reconcileWelivepayPayin } from '../../../services/welivepayPayinStatusService.js'
 
 function metaOk(message = 'ok') {
   return { code: 200, message }
@@ -129,6 +133,18 @@ export const userAppQueryResolvers = {
       })),
     }
   },
+  /**
+   * The player's own pending checkout, read from WeLivePay's authenticated status (at most once a
+   * minute per order, so a polling page cannot hammer the provider). A paid order is credited here
+   * if its callback has not arrived yet.
+   */
+  welivepayDepositStatus: async (_: unknown, { orderId }: { orderId: string }, ctx: ResolverContext) => {
+    if (!ctx.auth.userId) throw new Error('Unauthorized')
+    const local = await findOrderByOrderId(orderId)
+    if (!local || local.tenant !== ctx.auth.tenant || local.userId !== ctx.auth.userId) throw new Error('Payment order not found')
+    const order = await reconcileWelivepayPayin(orderId, ctx.auth.tenant, false)
+    return { orderId: order.orderid, status: order.status, amount: Number(order.amount) }
+  },
   welivepayConfig: async (_: unknown, __: unknown, ctx: ResolverContext) => {
     // Public (per-tenant) WeLivePay availability for the deposit UI. Never exposes the
     // secret key or webhook token. enabled implies a key is configured (enforced on the
@@ -144,11 +160,10 @@ export const userAppQueryResolvers = {
       maxDeposit: whitelabelPgSettings.maxDeposit,
       hasKey: whitelabelPgSettings.secretSiteKeyEncrypted,
     }).from(whitelabelPgSettings).where(eq(whitelabelPgSettings.tenant, ctx.auth.tenant)).limit(1)
-    if (!s) return { enabled: false, displayName: 'UPI (Instant)', minAmount: null, maxAmount: null }
+    // WeLivePay collects INR only.
+    if (!s || await getWhitelabelCurrency(ctx.auth.tenant) !== 'INR') return { enabled: false, displayName: s?.displayName ?? 'UPI (Instant)', minAmount: null, maxAmount: null }
     const access = await getVipDepositContext(db, ctx.auth.tenant, ctx.auth.userId).catch(() => null)
-    const limits = access ? intersectDepositLimits([access.baseLimits, {
-      min: s.minDeposit == null ? 10 : Number(s.minDeposit), max: s.maxDeposit == null ? null : Number(s.maxDeposit),
-    }]) : null
+    const limits = access ? intersectDepositLimits([access.baseLimits, gatewayDepositLimits(s)]) : null
     return {
       enabled: Boolean(s.enabled && s.hasKey && access?.policy.enabled && access.policy.methods.includes('GATEWAY') && limits?.available),
       displayName: s.displayName,
@@ -156,29 +171,15 @@ export const userAppQueryResolvers = {
       maxAmount: limits?.max ?? null,
     }
   },
-  adminAccounts: async (_: unknown, __: unknown, ctx: ResolverContext) => {
-    const accounts = await getWhitelabelAccounts(ctx.auth.tenant, ctx.auth.userId)
-    const enrichedAccounts = await Promise.all(
-      accounts.map(async (a) => {
-        if (a.type === 'upi' && a.qrKey && !a.qrUrl) {
-          // QR images are stored inline as base64 data URIs. A data URI is already
-          // displayable and must never be presigned — that would sign a nonexistent
-          // key and render a broken image on the player deposit screen. Legacy rows
-          // still hold an S3 key and are signed as before until the backfill runs.
-          if (isDataUri(a.qrKey)) {
-            return { ...a, qrUrl: a.qrKey, source: 'whitelabel' as const }
-          }
-          try {
-            const { generatePresignedGetUrl } = await import('../../../services/storage/s3.js')
-            const qrUrl = await generatePresignedGetUrl(a.qrKey, 3600)
-            return { ...a, qrUrl, source: 'whitelabel' as const }
-          } catch {
-            return { ...a, source: 'whitelabel' as const }
-          }
-        }
-        return { ...a, source: 'whitelabel' as const }
-      })
-    )
+  adminAccounts: async (_: unknown, args: { includeCrypto?: boolean | null }, ctx: ResolverContext) => {
+    // USDT wallets only for clients that ask for them (see getWhitelabelAccounts).
+    const accounts = await getWhitelabelAccounts(ctx.auth.tenant, ctx.auth.userId, { includeCrypto: args?.includeCrypto === true })
+    // QR images are stored inline as base64 data URIs (or are external URLs) and are shown as they are. S3 is gone:
+    // a legacy S3 key or URL can no longer be fetched, so that account shows no QR rather than a broken image.
+    const enrichedAccounts = accounts.map((a) => {
+      const qrUrl = displayableAsset(a.qrUrl) ?? (a.type === 'upi' || a.type === 'crypto' ? displayableAsset(a.qrKey) : null)
+      return { ...a, qrUrl, source: 'whitelabel' as const }
+    })
     return { meta: metaOk(), data: enrichedAccounts.map(account => ({ ...account, qrUrl: siteAssetUrl(account.qrUrl, ctx.auth.requestTenant, 'payments') })) }
   },
   adminDepositRequests: async (_: unknown, args: { startDate?: string; endDate?: string }, ctx: ResolverContext) => {
@@ -198,6 +199,10 @@ export const userAppQueryResolvers = {
         method: row.method,
         provider: row.provider,
         expiresAt: row.expiresAt,
+        cryptoAmount: row.cryptoAmount,
+        cryptoRate: row.cryptoRate,
+        cryptoNetwork: row.cryptoNetwork,
+        cryptoBonusAmount: row.cryptoBonusAmount,
       })),
     }
   },
@@ -369,8 +374,9 @@ export const userAppQueryResolvers = {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Casino launch failed'
       const stack = err instanceof Error ? err.stack : undefined
-      // A blocked agent branch is a refusal, not a provider failure; its message is player-safe.
-      if (err instanceof AgentBettingBlockedError) return { meta: { code: 403, message }, data: null }
+      // A blocked agent branch, or the game's own rules (betting off, the day's Max Win, premium, VIP tier), is a
+      // refusal, not a provider failure; its message is player-safe and the player UI shows it only for a 403.
+      if (err instanceof AgentBettingBlockedError || err instanceof CasinoGameAccessError) return { meta: { code: 403, message }, data: null }
       return { meta: { code: 502, message }, data: null }
     }
   },
@@ -504,8 +510,9 @@ export const userAppQueryResolvers = {
       return { meta: metaOk(), data: { redirectUrl: result.redirectUrl } }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Casino launch failed'
-      // A blocked agent branch is a refusal, not a provider failure; its message is player-safe.
-      if (err instanceof AgentBettingBlockedError) return { meta: { code: 403, message }, data: null }
+      // A blocked agent branch, or the game's own rules (betting off, the day's Max Win, premium, VIP tier), is a
+      // refusal, not a provider failure; its message is player-safe and the player UI shows it only for a 403.
+      if (err instanceof AgentBettingBlockedError || err instanceof CasinoGameAccessError) return { meta: { code: 403, message }, data: null }
       console.warn('[Casino Launch] Error', { message, stack: err instanceof Error ? err.stack : undefined })
       return { meta: { code: 502, message }, data: null }
     }

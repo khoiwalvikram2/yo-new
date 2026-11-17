@@ -53,7 +53,8 @@ export default function AccountsTab({
     <div className="wd-accounts">
       <div className="wd-notice is-info">
         <Info className="h-4 w-4" />
-        <p>{totalAccounts < 2 ? 'Your first 2 accounts are auto-approved.' : 'New accounts require admin approval before you can withdraw from them.'}</p>
+        {/* These lists hold live accounts only; the server counts every account ever added, deleted ones too (FIN-05) */}
+        <p>{totalAccounts < 2 ? 'Your first 2 accounts are auto-approved (deleted accounts count toward the 2).' : 'New accounts require admin approval before you can withdraw from them.'}</p>
       </div>
       <SectionCard>
         <div className="nova-acct-panel-head wd-section-head">

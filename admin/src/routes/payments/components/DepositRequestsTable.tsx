@@ -10,21 +10,23 @@ import { Card } from '@/ui/components/Card'
 import { DataTable, type DataTableColumn } from '@/ui/components/DataTable'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { IconButton } from '@/ui/components/IconButton'
-import { ImagePreview } from '@/ui/components/ImagePreview'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { toast } from '@/ui/components/toast'
 import type { DepositRequest } from '../DepositRequests'
-import { depositStatusLabel, hasValidDepositProof } from '../depositRequestsModel'
+import { depositRowMethodLabel, depositRowStatusLabel, hasDepositProof, shortTxHash } from '../depositRequestsModel'
 import { exportDepositsToExcel } from '../utils/exportDeposits'
+import { DepositRequestsProofButton } from './DepositRequestsProof'
 import styles from '../DepositRequests.module.css'
 
 /** Filter fields for adminDepositRequests (excluding offset/limit). */
 export type DepositRequestsExportFilter = {
   status?: string
   method?: string
+  source?: 'GATEWAY'
   query?: string
   fromDate?: string
   toDate?: string
+  includeGatewayOrders?: boolean
 }
 
 type DepositRequestsTableProps = {
@@ -38,6 +40,16 @@ type DepositRequestsTableProps = {
 }
 
 const EXPORT_CHUNK = 500
+
+/**
+ * A UTR or reference. For a crypto deposit both hold the TxID, which runs to 64-88 characters: the cell
+ * shows its ends and the whole hash on hover.
+ */
+function identifierCell(request: DepositRequest, value: string | null) {
+  if (!value) return '—'
+  if (request.method !== 'CRYPTO') return value
+  return <span title={value}>{shortTxHash(value)}</span>
+}
 
 export function DepositRequestsTable({
   requests,
@@ -150,41 +162,33 @@ export function DepositRequestsTable({
         key: 'method',
         header: 'Method',
         cell: (request) => (
-          <StatusPill tone="info">{request.method.replace(/_/g, ' ')}</StatusPill>
+          <StatusPill tone={request.gateway ? 'neutral' : 'info'}>{depositRowMethodLabel(request)}</StatusPill>
         ),
       },
       {
         key: 'utr',
         header: 'UTR',
-        cell: (request) => request.utr || '—',
+        cell: (request) => identifierCell(request, request.utr),
         emphasis: 'id',
       },
       {
         key: 'referenceId',
         header: 'Reference ID',
-        cell: (request) => request.referenceId || '—',
+        cell: (request) => identifierCell(request, request.referenceId),
         emphasis: 'id',
       },
       {
         key: 'proof',
         header: 'Proof',
+        // A row says whether there is a proof; its screenshot is read only when this is pressed (no read per row).
         cell: (request) =>
-          hasValidDepositProof(request) ? (
-            <ImagePreview
-              src={request.proofUrl!}
-              alt="Payment proof"
-              dialogTitle="Payment proof"
-              openLabel="View payment proof"
-            />
-          ) : (
-            '—'
-          ),
+          hasDepositProof(request) ? <DepositRequestsProofButton requestId={request.id} /> : '—',
       },
       {
         key: 'status',
         header: 'Status',
         cell: (request) => (
-          <StatusPill status={request.status}>{depositStatusLabel(request.status)}</StatusPill>
+          <StatusPill status={request.status}>{depositRowStatusLabel(request)}</StatusPill>
         ),
       },
       {

@@ -202,9 +202,11 @@ async function buildFixtures(): Promise<void> {
   u4 = await mkUser('u4', X)
   u5 = await mkUser('u5', null)
   uB = await mkUser('uB', null, OTHER)
+  // Confirmed: only a confirmed attribution routes a player to its referrer's agent (commissionPlayerScope,
+  // PlayerAuthService.getAgentPlayerIds). The column defaults to 'pending', which left u3 out of P's players.
   await db.execute(sql`
-    INSERT INTO referral_attributions (tenant, referrer_id, referee_id, tier)
-    VALUES (${TENANT}, ${u1}, ${u3}, 1)`)
+    INSERT INTO referral_attributions (tenant, referrer_id, referee_id, tier, status)
+    VALUES (${TENANT}, ${u1}, ${u3}, 1, 'confirmed')`)
 
   // --- Activity inside the 5-minute window (all settled, so none is open) ---
   await sportsBet(u1, 'lost', ago(1 * MIN))

@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { ApolloClient, ApolloLink, ApolloProvider, InMemoryCache, Observable, type FetchResult, type Operation } from '@apollo/client'
 import { MemoryRouter } from 'react-router-dom'
 import { agentsSearchResponse, agentsSearchRow, agentListStatsFixture } from '../../../../test/agentsSearchPreviewData'
+import { chipAccountFixture } from '@/modules/chips/chipTestKit'
 import type { AgentListRow, AgentListStats } from './agentsSearchModel'
 import { AgentTreeView } from './AgentTreeView'
 
@@ -150,6 +151,28 @@ test('View opens the agent profile (there is no details drawer); status and figu
   assert.ok(screen.getByText('Active'))
   assert.ok(screen.getByText('INR 1200'))
   assert.ok(screen.getByText('INR 450000'))
+})
+
+test('a CREDIT branch reads its chips beside its page, shows balance and Ref P/L, and a failed read can be retried', async () => {
+  pages.a = { rows: [{ ...row('a1', 'Alpha child', 'a'), schemeType: 'CREDIT' }] }
+  let failChips = true
+  server = async operation => {
+    if (operation.operationName !== 'AgentsChips') return response(operation)
+    if (failChips) throw new Error('Chips unavailable')
+    return { data: { agents: { agentsPage: { items: [{ id: 'a1', chips: chipAccountFixture({ id: 'a1', username: 'Alpha child', parentAgentId: 'a', balance: 3200, available: 3200, refPnl: -800 }) }] } } } }
+  }
+  mount([{ ...row('a', 'Alpha'), schemeType: 'CREDIT', chips: chipAccountFixture({ id: 'a', username: 'Alpha', balance: 9100, refPnl: 600 }) }], 'CREDIT')
+  // The root's chips come with the page's own read.
+  assert.ok(screen.getByText('INR 9100')); assert.ok(screen.getByText('+INR 600'))
+  fireEvent.click(screen.getByRole('button', { name: 'Expand Alpha' }))
+  await screen.findByText('Alpha child')
+  await screen.findByText('Chip figures unavailable.')
+  failChips = false
+  fireEvent.click(screen.getByRole('button', { name: 'Retry chips' }))
+  await screen.findByText('−INR 800')
+  assert.ok(screen.getByText('INR 3200'))
+  assert.equal(screen.queryByRole('alert'), null)
+  assert.deepEqual(calls.filter(call => call.name === 'AgentsChips').map(call => [call.parent, call.offset, call.limit]), [['a', 0, 20], ['a', 0, 20]])
 })
 
 test('a level-4 credit agent cannot have sub-agents, so it shows no expand control', () => {

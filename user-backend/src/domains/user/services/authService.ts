@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { getAppConfig } from '../../../config/app.js'
-import { ensureWallet, findUserById, findUserByPhone, findUserByUsername, mapUserProfile, createUser, updatePassword, incrementTokenVersion, setLastLoginAt, type UserRow } from '../../../repos/userRepo.js'
+import { ensureWallet, findUserById, findUserByPhone, findUsersByUsername, isUsernameTaken, mapUserProfile, createUser, updatePassword, incrementTokenVersion, setLastLoginAt, type UserRow } from '../../../repos/userRepo.js'
 import { getReferralLinkByCode, getUnsettledReferralBalance } from '../../../repos/referralRepo.js'
 import {
   isAgentBranchActive,
@@ -92,9 +92,8 @@ export async function registerUser(input: RegisterInput, tenant = 'default') {
     throw new Error('This number cannot be registered. Please contact support.')
   }
   
-  // Check if username is already taken BEFORE sending OTP
-  const existingUsername = await findUserByUsername(input.username, tenant)
-  if (existingUsername) {
+  // Check if username is already taken BEFORE sending OTP (ignoring case, the rule every creation path uses)
+  if (await isUsernameTaken(input.username ?? '', tenant)) {
     throw new Error('This username is already taken')
   }
 
@@ -376,9 +375,33 @@ export async function loginWithOtp(phone: string, otp: string, tenant = 'default
 
 export async function loginWithPassword(identifier: string, password: string, tenant = 'default', requestMeta?: RequestMeta) {
   const normalizedTenant = (typeof tenant === 'string' && tenant.trim()) ? tenant.trim() : 'default'
-  const user = /^\+?[0-9]{6,15}$/.test(identifier)
-    ? await findUserByPhone(identifier, normalizedTenant)
-    : await findUserByUsername(identifier, normalizedTenant)
+  const candidates = /^\+?[0-9]{6,15}$/.test(identifier)
+    ? [await findUserByPhone(identifier, normalizedTenant)].filter((row): row is UserRow => row != null)
+    : await findUsersByUsername(identifier, normalizedTenant)
+  // Older accounts can share a username (only new usernames are checked). The password picks the account; if it
+  // fits more than one, none is chosen, so a username login never lands in somebody else's account.
+  let user: UserRow | null = candidates[0] ?? null
+  let passwordVerified = false
+  if (candidates.length > 1) {
+    const matching: UserRow[] = []
+    for (const candidate of candidates) {
+      if (await bcrypt.compare(password, candidate.passwordHash)) matching.push(candidate)
+    }
+    if (matching.length > 1) {
+      await recordAudit(db, {
+        tenant: normalizedTenant,
+        actorId: 'unknown',
+        domain: 'players',
+        action: 'login_failed',
+        resourceType: 'user',
+        resourceId: 'unknown',
+        after: buildAuditMeta(requestMeta, { success: false }),
+      }).catch(() => {})
+      throw new Error('More than one account uses this username. Please log in with your phone number.')
+    }
+    user = matching[0] ?? null
+    passwordVerified = user != null
+  }
   if (!user) {
     await recordAudit(db, {
       tenant: normalizedTenant,
@@ -414,7 +437,7 @@ export async function loginWithPassword(identifier: string, password: string, te
     ? user.tenant.trim()
     : normalizedTenant
 
-  const match = await bcrypt.compare(password, user.passwordHash)
+  const match = passwordVerified || await bcrypt.compare(password, user.passwordHash)
   if (!match) {
     await recordAudit(db, {
       tenant: userTenant,
@@ -449,16 +472,34 @@ export async function loginWithPassword(identifier: string, password: string, te
   return { token, user: userProfile }
 }
 
-export async function changePassword(userId: number, currentPassword: string, newPassword: string, tenant = 'default') {
+/**
+ * The player changed their own password (a change, the forced change after an admin's reset flag, or an OTP
+ * reset). Recorded like a login, with the player as actor, so the admin profile's Activity Log can list and
+ * count it; nothing wrote a row for it before.
+ */
+async function recordPasswordChange(user: UserRow, tenant: string, via: 'change' | 'otp_reset', requestMeta?: RequestMeta) {
+  await recordAudit(db, {
+    tenant,
+    actorId: String(user.id),
+    domain: 'players',
+    action: 'change_password',
+    resourceType: 'user',
+    resourceId: String(user.id),
+    after: buildAuditMeta(requestMeta, { success: true, via, wasResetRequired: Boolean(user.requirePasswordReset) }),
+  }).catch(() => {})
+}
+
+export async function changePassword(userId: number, currentPassword: string, newPassword: string, tenant = 'default', requestMeta?: RequestMeta) {
   const user = await findUserById(userId, tenant)
   if (!user) throw new Error('User not found')
   const matches = await bcrypt.compare(currentPassword, user.passwordHash)
   if (!matches) throw new Error('Incorrect password')
   await updatePassword(userId, newPassword)
+  await recordPasswordChange(user, tenant, 'change', requestMeta)
   return { success: true }
 }
 
-export async function resetPassword(phone: string, otp: string, newPassword: string, tenant = 'default') {
+export async function resetPassword(phone: string, otp: string, newPassword: string, tenant = 'default', requestMeta?: RequestMeta) {
   // Verify OTP with reset purpose
   const verification = await verifyOtp({
     phone,
@@ -479,6 +520,7 @@ export async function resetPassword(phone: string, otp: string, newPassword: str
   
   // Update password
   await updatePassword(user.id, newPassword)
+  await recordPasswordChange(user, tenant, 'otp_reset', requestMeta)
   return { success: true, message: 'Password reset successfully' }
 }
 

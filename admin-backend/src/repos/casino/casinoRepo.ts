@@ -1,6 +1,6 @@
 import { db } from '@/db/client.js'
 import { and, eq, ilike, inArray, count, sql, isNull, isNotNull, or, gte, lte } from 'drizzle-orm'
-import { casinoApiProviders, casinoGames, casinoMainCategoryEnum, casinoVendors, whitelabelCasinoGameSettings, whitelabelCasinoVendorSettings, whitelabelCasinoProviderSettings, whitelabelCasinoVendorSuperAdminOverride, whitelabelCasinoGameSuperAdminOverride, vipTierCasinoGames, casinoGameBetSettings, casinoCategories, casinoCategoryGames, casinoProviderVendorShares, casinoBets, users } from '@/db/schema.js'
+import { casinoApiProviders, casinoGames, casinoMainCategoryEnum, casinoVendors, whitelabelCasinoGameSettings, whitelabelCasinoVendorSettings, whitelabelCasinoProviderSettings, whitelabelCasinoVendorSuperAdminOverride, whitelabelCasinoGameSuperAdminOverride, vipTierCasinoGames, vipTiersTable, casinoGameBetSettings, casinoCategories, casinoCategoryGames, casinoProviderVendorShares, casinoBets, users } from '@/db/schema.js'
 import type { CasinoCategoryDbType } from '@src/domains/casino/categoryType.js'
 import { CASINO_LOUNGE_DEFAULT_CATEGORIES } from '@shared/casino/defaultLounge.js'
 export { CASINO_LOUNGE_DEFAULT_CATEGORIES } from '@shared/casino/defaultLounge.js'
@@ -355,16 +355,25 @@ function casinoGameReadConditions(args: CasinoGameReadArgs) {
       )
     }
   } else {
-    // Core mode: filter by global isActive only (no tenant-specific settings)
-    // enabled filter is handled by baseWhere.push(eq(casinoGames.isActive, true)) below
+    // Core mode: no tenant-specific settings; the enabled filter reads the global
+    // isActive flag instead (see the platform-blocked filter below)
   }
 
   // VIP tier filter: if vipTierId is provided, show ONLY games that are explicitly enabled for that tier
   let vipTierFilter: any = null
   if (args.vipTierId) {
-    // Show only games that are explicitly enabled for the selected tier
+    // Show only games that are explicitly enabled for the selected tier. A tier is one
+    // whitelabel's: with a tenant set, another whitelabel's tier id matches nothing.
     const tierIdParam = args.vipTierId
-    vipTierFilter = sql`EXISTS (
+    vipTierFilter = args.tenant !== undefined
+      ? sql`EXISTS (
+      SELECT 1 FROM "vip_tier_casino_games" vtg
+      INNER JOIN "vip_tiers" vt ON vt."id" = vtg."tier_id" AND vt."tenant" = ${args.tenant}
+      WHERE vtg."game_id" = ${casinoGames.id}
+        AND vtg."tier_id" = ${tierIdParam}::uuid
+        AND vtg."enabled" = true
+    )`
+      : sql`EXISTS (
       SELECT 1 FROM "vip_tier_casino_games" vtg
       WHERE vtg."game_id" = ${casinoGames.id}
         AND vtg."tier_id" = ${tierIdParam}::uuid
@@ -418,9 +427,15 @@ function casinoGameReadConditions(args: CasinoGameReadArgs) {
     baseWhere.push(providerEnabled, vendorNotDisabled, gameNotDisabled)
   }
 
-  // Always filter out platform-blocked games (isActive = false)
-  // This ensures whitelabel admins don't see games that are globally disabled
-  baseWhere.push(eq(casinoGames.isActive, true))
+  // Platform-blocked games (isActive = false) are hidden from whitelabel views and the
+  // selection picker. Core mode is the one screen with the Master Control switch, so it
+  // must list them, or a game disabled there vanishes with no way to switch it back on.
+  // There the Status filter reads the platform flag, the only status core mode has.
+  if (args.tenant !== undefined || args.selectionMode) {
+    baseWhere.push(eq(casinoGames.isActive, true))
+  } else if (typeof args.enabled === 'boolean') {
+    baseWhere.push(eq(casinoGames.isActive, args.enabled))
+  }
 
   // Build where conditions array - only include non-null filters
   const whereConditions = [...baseWhere]
@@ -520,11 +535,15 @@ export async function listCasinoGamesPagedDb(args: CasinoGameReadArgs) {
     })
     .from(casinoGames)
     .innerJoin(casinoVendors, eq(casinoVendors.id, casinoGames.vendorId))
-    // CRITICAL: Skip tenant-specific settings JOIN if tenant is undefined (Director Admin core mode)
+    // CRITICAL: Skip tenant-specific settings JOIN if tenant is undefined (Director Admin core mode).
+    // Joining on the game alone gave one row per whitelabel that had a settings row, so core mode
+    // listed every game once per tenant while the count stayed distinct, and paging never reached
+    // most of the catalogue. With no tenant the per-tenant columns (enabled, order, premium,
+    // limits) have no single value, so they come back null.
     .leftJoin(whitelabelCasinoGameSettings, args.tenant !== undefined ? and(
       eq(whitelabelCasinoGameSettings.gameId, casinoGames.id),
       eq(whitelabelCasinoGameSettings.tenantId, args.tenant),
-    ) : args.selectionMode ? sql`false` : eq(whitelabelCasinoGameSettings.gameId, casinoGames.id))
+    ) : sql`false`)
 
   // Build where conditions for items query (same as count query but with vendorEnabled check)
   const itemsWhereConditions = [...baseWhere]
@@ -532,9 +551,11 @@ export async function listCasinoGamesPagedDb(args: CasinoGameReadArgs) {
   if (enabledFilter) itemsWhereConditions.push(enabledFilter)
   if (vipTierFilter) itemsWhereConditions.push(vipTierFilter)
 
+  // Management pages by (order, name), the order the admin page shows each page in, so a page
+  // boundary falls where the admin sees it and a drag reorders the list as displayed.
   const items = await itemsQuery
     .where(and(...itemsWhereConditions))
-    .orderBy(...(args.selectionMode ? [sql`CASE ${casinoGames.mainCategory} WHEN 'slots' THEN 0 WHEN 'casino' THEN 1 ELSE 2 END`, whitelabelCasinoGameSettings.order, casinoGames.id] : [whitelabelCasinoGameSettings.order, casinoGames.id]))
+    .orderBy(...(args.selectionMode ? [sql`CASE ${casinoGames.mainCategory} WHEN 'slots' THEN 0 WHEN 'casino' THEN 1 ELSE 2 END`, whitelabelCasinoGameSettings.order, casinoGames.id] : [whitelabelCasinoGameSettings.order, casinoGames.name, casinoGames.id]))
     .limit(pageSize)
     .offset((page - 1) * pageSize)
 
@@ -661,16 +682,28 @@ export async function reorderVendorGamesDb(tenant: string, vendorId: number, cat
     eq(casinoGames.vendorId, vendorId),
     eq(casinoGames.mainCategory, category as any),
   ))
-  const validIds = rows.map(r => r.id)
-  let updated = 0
-  for (let i = 0; i < validIds.length; i++) {
-    const gid = validIds[i]
-    const ord = i + 1
-    await db.insert(whitelabelCasinoGameSettings).values({ tenantId: tenant, gameId: gid, order: ord })
-      .onConflictDoUpdate({ target: [whitelabelCasinoGameSettings.tenantId, whitelabelCasinoGameSettings.gameId], set: { order: ord } })
-    updated++
-  }
-  return { updated }
+  // The SELECT returns rows in database order, and numbering those discarded the requested
+  // order: every drag saved id order and reported success. Number the request's own order,
+  // keeping only ids that passed the check above.
+  const valid = new Set(rows.map(r => r.id))
+  const validIds = [...new Set(orderedGameIds)].filter(id => valid.has(id))
+  // A drag sends the vendor's whole order, so it is written as one renumbering: a statement per
+  // few thousand rows inside one transaction, where a row at a time took a round trip per game
+  // and could stop half-way through.
+  // A game with no settings row is live for players (lobby and launch refuse only enabled=false), so a
+  // row a drag creates is enabled: the column default (false) would hide it. An existing row keeps its
+  // own value; the conflict update below changes only the order.
+  const values = validIds.map((gameId, i) => ({ tenantId: tenant, gameId, order: i + 1, enabled: true }))
+  await db.transaction(async (tx) => {
+    for (let start = 0; start < values.length; start += 5000) {
+      await tx.insert(whitelabelCasinoGameSettings).values(values.slice(start, start + 5000))
+        .onConflictDoUpdate({
+          target: [whitelabelCasinoGameSettings.tenantId, whitelabelCasinoGameSettings.gameId],
+          set: { order: sql`excluded."order"` },
+        })
+    }
+  })
+  return { updated: values.length }
 }
 
 // VIP Tier Game Management
@@ -706,16 +739,41 @@ export async function getVipTierGamesDb(tierId: string) {
   return rows
 }
 
-export async function getGameVipTiersDb(gameId: number) {
+/**
+ * The VIP tier rows of a game, with each tier's name.
+ *
+ * VIP tiers belong to one whitelabel, and this used to return every
+ * whitelabel's rows: the game drawer then offered other tenants' tier ids, and
+ * "Set as Available to All" sent disables for them. With a tenant, only that
+ * tenant's tiers come back; without one (core mode) every tier does.
+ */
+export async function getGameVipTiersDb(gameId: number, tenant?: string) {
+  const conditions = [eq(vipTierCasinoGames.gameId, gameId)]
+  if (tenant !== undefined) conditions.push(eq(vipTiersTable.tenant, tenant))
   const rows = await db
     .select({
       tierId: vipTierCasinoGames.tierId,
+      tierName: vipTiersTable.name,
       enabled: vipTierCasinoGames.enabled,
       updatedAt: vipTierCasinoGames.updatedAt,
     })
     .from(vipTierCasinoGames)
-    .where(eq(vipTierCasinoGames.gameId, gameId))
+    .innerJoin(vipTiersTable, eq(vipTiersTable.id, vipTierCasinoGames.tierId))
+    .where(and(...conditions))
   return rows
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** True when the VIP tier exists and belongs to this whitelabel. */
+export async function vipTierBelongsToTenantDb(tierId: string, tenant: string): Promise<boolean> {
+  if (typeof tierId !== 'string' || !UUID_PATTERN.test(tierId)) return false
+  const rows = await db
+    .select({ id: vipTiersTable.id })
+    .from(vipTiersTable)
+    .where(and(eq(vipTiersTable.id, tierId), eq(vipTiersTable.tenant, tenant)))
+    .limit(1)
+  return rows.length > 0
 }
 
 export async function bulkUpdateVipTierGamesDb(tierId: string, gameIds: number[], enabled: boolean) {
@@ -742,7 +800,7 @@ export async function computeVendorGGRDb(
   startDate: string,
   endDate: string,
   tenant: string | undefined
-): Promise<{ ggr: number; transactionCount: number; vendorName: string }> {
+): Promise<{ ggr: number; transactionCount: number; totalStake: number; vendorName: string }> {
   const start = new Date(startDate)
   const end = new Date(endDate)
   const conditions = [
@@ -761,14 +819,16 @@ export async function computeVendorGGRDb(
     .select({
       ggr: sql<number>`COALESCE(SUM(${casinoBets.stake}::numeric - COALESCE(${casinoBets.payout}::numeric, ${casinoBets.winAmount}::numeric, 0)), 0)`,
       transactionCount: sql<number>`COUNT(*)::int`,
+      totalStake: sql<number>`COALESCE(SUM(${casinoBets.stake}::numeric), 0)`,
       vendorName: sql<string>`MAX(${casinoBets.vendorName})`,
     })
     .from(casinoBets)
     .where(and(...conditions))
   const ggr = Number(row?.ggr ?? 0)
   const transactionCount = Number(row?.transactionCount ?? 0)
+  const totalStake = Number(row?.totalStake ?? 0)
   const vendorName = row?.vendorName ?? 'Vendor ' + vendorId
-  return { ggr, transactionCount, vendorName }
+  return { ggr, transactionCount, totalStake, vendorName }
 }
 
 export type VendorGGRBreakdownRow = {
@@ -776,6 +836,8 @@ export type VendorGGRBreakdownRow = {
   vendorName: string
   ggr: number
   transactionCount: number
+  /** Sum of the settled stakes, so an average bet is stake / bets rather than |GGR| / bets. */
+  totalStake: number
 }
 
 /** Real GGR from casino_bets for a provider: total and per-vendor breakdown (settled bets only). */
@@ -802,6 +864,7 @@ export async function computeProviderGGRDb(
       vendorName: casinoBets.vendorName,
       ggr: sql<number>`COALESCE(SUM(${casinoBets.stake}::numeric - COALESCE(${casinoBets.payout}::numeric, ${casinoBets.winAmount}::numeric, 0)), 0)`,
       transactionCount: sql<number>`COUNT(*)::int`,
+      totalStake: sql<number>`COALESCE(SUM(${casinoBets.stake}::numeric), 0)`,
     })
     .from(casinoBets)
     .where(and(...conditions))
@@ -812,6 +875,7 @@ export async function computeProviderGGRDb(
     vendorName: r.vendorName ?? 'Unknown',
     ggr: Number(r.ggr ?? 0),
     transactionCount: Number(r.transactionCount ?? 0),
+    totalStake: Number(r.totalStake ?? 0),
   }))
   const totalGGR = vendorBreakdown.reduce((sum, v) => sum + v.ggr, 0)
   return { totalGGR, vendorBreakdown }

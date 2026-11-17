@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
-import { playerPasswordSchema, playerNoteSchema, playerNoteInput, profileCreditSchema, profileForModal, profilePlayerType, relativeProfileTime, type PlayerProfile } from './profileModel'
+import { playerPasswordSchema, playerNoteSchema, playerNoteInput, profileForModal, profilePlayerType, relativeProfileTime, type PlayerProfile } from './profileModel'
 
 describe('Player Profile retained contracts', () => {
   test('notes preserve untrimmed content, nullable category, duplicate tags and explicit pin value', () => {
@@ -8,19 +8,10 @@ describe('Player Profile retained contracts', () => {
     const input = playerNoteInput('p1', { content: '  reviewed  ', category: '', tags: ' risk, risk, ,vip ', isPinned: true })
     assert.deepEqual(input, { playerId: 'p1', content: '  reviewed  ', category: null, tags: ['risk', 'risk', 'vip'], isPinned: true })
   })
-  test('credit decreases honor both available credit and current limit, without altering mutation amounts', () => {
-    const decrease = profileCreditSchema('DECREASE', 500, 450)
-    assert.equal(decrease.safeParse({ amount: null, notes: '' }).success, false)
-    assert.equal(decrease.safeParse({ amount: 0, notes: '' }).success, false)
-    assert.equal(decrease.safeParse({ amount: 501, notes: '' }).success, false)
-    assert.equal(decrease.safeParse({ amount: 451, notes: '' }).success, false)
-    assert.equal(decrease.safeParse({ amount: 450, notes: 'keep exact text' }).success, true)
-    assert.equal(profileCreditSchema('INCREASE', 500, 450).safeParse({ amount: 1000, notes: '' }).success, true)
-    assert.equal(profileCreditSchema('LIMIT_CHANGE', 500, 450).safeParse({ amount: 100, notes: '' }).success, true)
-  })
-  test('password change requires all three private fields, length6 and confirmation equality', () => {
+  test('password change requires all three private fields, length 8 (the server minimum) and confirmation equality', () => {
     assert.equal(playerPasswordSchema.safeParse({ newPassword: '', confirmPassword: '', adminPassword: '' }).success, false)
     assert.equal(playerPasswordSchema.safeParse({ newPassword: 'short', confirmPassword: 'short', adminPassword: 'operator' }).success, false)
+    assert.equal(playerPasswordSchema.safeParse({ newPassword: 'seven77', confirmPassword: 'seven77', adminPassword: 'operator' }).success, false)
     assert.equal(playerPasswordSchema.safeParse({ newPassword: 'new-pass', confirmPassword: 'other-pass', adminPassword: 'operator' }).success, false)
     assert.equal(playerPasswordSchema.safeParse({ newPassword: 'new-pass', confirmPassword: 'new-pass', adminPassword: 'operator' }).success, true)
   })
@@ -33,7 +24,8 @@ describe('Player Profile retained contracts', () => {
     assert.equal(relativeProfileTime('2026-10-08T12:00:00Z', now), '1d ago')
   })
   test('shared finance modal receives unchanged local-currency amounts and explicit wallet metadata', () => {
-    const profile: PlayerProfile = { id: 'p1', name: 'Preview player', phone: '9000000000', status: 'ACTIVE', bonusAllowed: false, playerType: 'AGENT_CREDIT', creditLimit: 500, creditUsed: 25, creditAvailable: 475, wallet: { userId: 'p1', currency: 'INR', balance: 123.45, bonus: 5, exposure: 25, updatedAt: '2026-10-09T00:00:00Z' } }
-    assert.deepEqual(profileForModal(profile), { id: 'p1', name: 'Preview player', email: undefined, phone: '9000000000', username: undefined, status: 'ACTIVE', bonusAllowed: false, playerType: 'AGENT_CREDIT', creditLimit: 500, creditUsed: 25, creditAvailable: 475, wallet: profile.wallet })
+    // The balance modal is for cash players; the retired credit-limit figures are not carried any more.
+    const profile: PlayerProfile = { id: 'p1', name: 'Preview player', phone: '9000000000', status: 'ACTIVE', bonusAllowed: false, playerType: 'REGULAR', creditLimit: 500, creditUsed: 25, creditAvailable: 475, wallet: { userId: 'p1', currency: 'INR', balance: 123.45, bonus: 5, exposure: 25, updatedAt: '2026-10-09T00:00:00Z' } }
+    assert.deepEqual(profileForModal(profile), { id: 'p1', name: 'Preview player', email: undefined, phone: '9000000000', username: undefined, status: 'ACTIVE', bonusAllowed: false, playerType: 'REGULAR', wallet: profile.wallet })
   })
 })

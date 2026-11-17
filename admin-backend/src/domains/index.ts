@@ -104,7 +104,10 @@ const rawResolvers = {
   Whitelabel: commonResolvers.Whitelabel,
   Market: commonResolvers.Market,
   Game: commonResolvers.Game,
-  User: commonResolvers.User,
+  // The users map's vipDepositAccess, vipTierName and parentAgent were never wired, so user(id) answered null for a
+  // player that has them (the player drawer reads all three). The common map comes last: its tenant, username,
+  // wallet, chips and access (PLA-09) win where both define a field.
+  User: { ...usersResolvers.User, ...commonResolvers.User },
   PlayerBonus: commonResolvers.PlayerBonus,
   CasinoCategory: casinoResolvers.CasinoCategory,
   BetItem: betsResolvers.BetItem,

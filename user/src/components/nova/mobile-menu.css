@@ -1,0 +1,42 @@
+/* The phone menu (MobileMenuTiles in the NovaWorkspace navigation drawer), owner 2026-11-02 from a reference:
+   charcoal like the desktop sidebar in both themes; red section headings, square tiles with a white glyph over the
+   label, wide product buttons, hairline dividers between the parts. Corners follow the site's --ui-radius. */
+.nova-shell-matchbook .nova-panel.nova-navigation-panel { color: #FFFFFF; background: var(--mb-chrome); }
+.nova-mm { display: grid; }
+.nova-mm-section { padding: 16px 0 18px; border-bottom: 1px solid var(--mb-chrome-line); }
+.nova-mm-heading { margin: 0 0 12px; color: var(--mb-chrome-red); font-size: 17px; font-weight: 700; letter-spacing: .02em; line-height: 1.2; text-transform: uppercase; }
+.nova-mm-tiles,
+.nova-mm-wide { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.nova-mm-tiles.is-top { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.nova-mm-tiles.is-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.nova-mm-wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* An odd last product spans the row rather than leaving a hole. */
+.nova-mm-wide > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+.nova-mm-tile,
+.nova-mm-wide-link { color: #FFFFFF; background: var(--mb-chrome-2); text-decoration: none; transition: background-color .15s; -webkit-tap-highlight-color: transparent; }
+.nova-mm-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; height: 100%; min-height: 80px; padding: 10px 4px; text-align: center; }
+.nova-mm-tiles.is-top .nova-mm-tile { min-height: 78px; padding-inline: 2px; }
+.nova-mm-wide-link { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 50px; padding: 0 12px; }
+.nova-mm-tile:hover,
+.nova-mm-wide-link:hover { background: var(--mb-chrome-3); }
+.nova-mm-tile:focus-visible,
+.nova-mm-wide-link:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -2px; }
+.nova-mm-tile.is-active,
+.nova-mm-wide-link.is-active { background: var(--mb-chrome-3); box-shadow: inset 0 -3px 0 var(--mb-brand-accent); }
+.nova-mm-icon { display: grid; flex: none; width: 24px; height: 24px; place-items: center; }
+.nova-mm-icon :is(svg, img) { width: 24px; height: 24px; }
+/* Sport glyphs ship black; on charcoal they are drawn white, as in the sidebar. The colourful sets keep their colours. */
+.nova-mm-icon img { object-fit: contain; filter: invert(1); }
+.nova-mm-label { max-width: 100%; font-size: 14px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.nova-mm-tiles.is-top .nova-mm-label { font-size: 13px; }
+.nova-mm-wide-link .nova-mm-label { font-size: 16px; }
+
+/* The drawer's own rows under the tiles (theme switch, preferences), on the same charcoal. */
+.nova-shell-matchbook .nova-panel.nova-navigation-panel .nova-panel-mobile-theme { margin-top: 4px; padding: 10px 0; border-bottom: 1px solid var(--mb-chrome-line); color: #FFFFFF; }
+.nova-shell-matchbook .nova-panel.nova-navigation-panel .nova-mm-settings { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; }
+.nova-shell-matchbook .nova-panel.nova-navigation-panel .nova-mm-settings svg { color: #A3A1A7; }
+@media (prefers-reduced-motion: reduce) {
+  .nova-mm-tile,
+  .nova-mm-wide-link { transition: none; }
+}

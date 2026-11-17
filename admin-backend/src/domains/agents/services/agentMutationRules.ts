@@ -86,6 +86,20 @@ export function restrictedAgentFieldChanges(
   return changed
 }
 
+const TALLY_DOMAINS: ReadonlySet<string> = new Set(['sports', 'casino', 'matka'])
+
+/**
+ * Whether a COMMISSION agent's cross-domain tally is on: the flag AND at least one domain, which is how the
+ * commission engine reads it (commissionTallyRules.applyTallyRulesForSettlement). A flag with no domain nets
+ * nothing, so createAgent and updateAgent store it as off rather than keep a "Tally on" that pays as off.
+ */
+export function tallyIsOn(
+  enabled: boolean | null | undefined,
+  domains: readonly string[] | null | undefined
+): boolean {
+  return Boolean(enabled) && (domains ?? []).some((d) => TALLY_DOMAINS.has(d))
+}
+
 // ---------------------------------------------------------------------------
 // Rate history (agent_commission_config / agent_sharing_config)
 // ---------------------------------------------------------------------------
@@ -174,6 +188,30 @@ export function firstCapBreach(params: {
     if (params.rate > params.fallbackCap + 1e-9) return { at, cap: params.fallbackCap, source: 'whitelabel' }
   }
   return null
+}
+
+/**
+ * Whether a new rate row would change nothing, so it is better not inserted: it is open-ended, no row of the agent
+ * starts after it, and the row in force when it starts is open-ended with the same rate. The agent edit form sent
+ * every domain's rate on every save, and each became one more open row identical to the one before it. A row that
+ * is dated before the one in force, ends, or changes the rate is never redundant.
+ */
+export function isRedundantRateRow(
+  ownRows: readonly RateRow[],
+  row: { effectiveFrom: Date; effectiveTo: Date | null; rate: number }
+): boolean {
+  if (row.effectiveTo) return false
+  const from = row.effectiveFrom.getTime()
+  if (ownRows.some((r) => r.effectiveFrom.getTime() > from)) return false
+  // The row in force at `from`, picked as rateAt picks it.
+  let inForce: RateRow | null = null
+  for (const r of ownRows) {
+    const start = r.effectiveFrom.getTime()
+    if (start > from + 1000) continue
+    if (r.effectiveTo && r.effectiveTo.getTime() < from) continue
+    if (!inForce || start > inForce.effectiveFrom.getTime()) inForce = r
+  }
+  return Boolean(inForce && inForce.effectiveTo === null && Math.abs(inForce.rate - row.rate) < 1e-9)
 }
 
 /**

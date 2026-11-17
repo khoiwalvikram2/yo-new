@@ -18,11 +18,17 @@
  *
  * Player counts leave out admin users the way getPlayerStatistics does: a user holding any role whose name
  * contains "admin" is not a player.
+ *
+ * Credit figures are chips (CREDIT on Deposit/Withdraw, 2026-11-02): chip movements read credit_chip_ledger,
+ * a credit player's chips are its cash wallet, and the settlement figure is the Ref P/L of the whitelabel's
+ * direct chip downline (dashboardChipFigures). The retired credit_used / credit_available / settlement_balance
+ * columns of agents and players are not read.
  */
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '@/db/client.js'
 import { getLedgerAggregatesByWalletDb, getManualDepositWithdrawalStatsTenantDb } from '@/repos/players/walletsRepo.js'
 import { OPEN_SPORTS_STATUSES, OPEN_CASINO_STATUSES, OPEN_MATKA_STATUSES } from '@/services/realtimeSnapshotService.js'
+import { sumRefPnl, topCreditAgents, whitelabelCreditPlayers } from '@/services/dashboardChipFigures.js'
 
 /** "Online now": a sign-in or a bet in this many trailing minutes. */
 export const ONLINE_WINDOW_MINS = 10
@@ -68,6 +74,7 @@ export interface DashboardOperations {
   inactivePlayers: number
   suspendedPlayers: number
   // Balances & Agents
+  /** Cash players' wallets.cash, now (credit players' chips are in chipsWithPlayers). */
   walletBalance: number
   bonusGiven: number
   sharingAgentsActive: number
@@ -82,8 +89,10 @@ export interface DashboardOperations {
   creditLimit: number
   creditUsed: number
   creditAvailable: number
+  /** Σ Ref P/L of the root CREDIT agents and WHITELABEL_CREDIT players: positive, the whitelabel owes them. */
   settlementDue: number
   settledAmount: number
+  /** Credit players' available chips: Σ (cash - exposure) of their wallets. */
   chipsWithPlayers: number
   // Players & Agents
   directPlayers: number
@@ -128,7 +137,19 @@ export function istMidnight(now: Date): Date {
   return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()) - IST_OFFSET_MS)
 }
 
-/** Head counts, statuses, sign-ins and the credit players' chips, from users in one pass. */
+/**
+ * A credit player's chip wallet as `alias`: its first wallets row for its tenant (the row ChipService moves),
+ * for a source that has joined users as `player`.
+ */
+export function creditWalletOf(player: SQL, alias: SQL): SQL {
+  return sql`LEFT JOIN LATERAL (
+    SELECT cw.cash, cw.exposure FROM wallets cw
+    WHERE cw.user_id = ${player}.id AND cw.tenant = ${player}.tenant
+    ORDER BY cw.id LIMIT 1
+  ) ${alias} ON TRUE`
+}
+
+/** Head counts, statuses, sign-ins and the credit players' available chips (cash - exposure), now. */
 function usersAggregate(scope: DashboardOperationsScope, from: Date, to: Date, today: Date): SQL {
   return sql`
     SELECT
@@ -140,7 +161,10 @@ function usersAggregate(scope: DashboardOperationsScope, from: Date, to: Date, t
       COUNT(*) FILTER (WHERE u.agent_id IS NOT NULL)::int AS agent_players,
       COUNT(*) FILTER (WHERE u.player_type::text IN ${CREDIT_TYPES})::int AS credit_players,
       COUNT(*) FILTER (WHERE u.player_type::text IN ${CASH_TYPES})::int AS cash_players,
-      COALESCE(SUM(u.credit_available) FILTER (WHERE u.player_type::text IN ${CREDIT_TYPES}), 0) AS chips_with_players
+      (SELECT COALESCE(SUM(COALESCE(w.cash, 0) - COALESCE(w.exposure, 0)), 0)
+        FROM users cu ${creditWalletOf(sql`cu`, sql`w`)}
+        WHERE ${inTenant(sql`cu.tenant`, scope.tenant)} AND cu.player_type::text IN ${CREDIT_TYPES} AND ${isPlayer(sql`cu`)}
+      ) AS chips_with_players
     FROM users u
     WHERE ${inTenant(sql`u.tenant`, scope.tenant)} AND ${isPlayer(sql`u`)}`
 }
@@ -199,18 +223,22 @@ function pendingAggregate(scope: DashboardOperationsScope): SQL {
       (SELECT COALESCE(SUM(d.amount), 0) FROM deposit_requests d WHERE ${inTenant(sql`d.tenant`, scope.tenant)} AND d.status::text = 'PENDING') AS deposit_amount,
       (SELECT COUNT(*)::int FROM withdrawal_requests w WHERE ${inTenant(sql`w.tenant`, scope.tenant)} AND w.status::text = 'PENDING') AS withdrawals,
       (SELECT COALESCE(SUM(w.amount), 0) FROM withdrawal_requests w WHERE ${inTenant(sql`w.tenant`, scope.tenant)} AND w.status::text = 'PENDING') AS withdrawal_amount,
-      (SELECT COUNT(*)::int FROM user_payout_accounts p WHERE ${inTenant(sql`p.tenant`, scope.tenant)} AND p.approval_status::text = 'PENDING') AS payout_accounts,
+      (SELECT COUNT(*)::int FROM user_payout_accounts p WHERE ${inTenant(sql`p.tenant`, scope.tenant)} AND p.approval_status::text = 'PENDING' AND p.deleted_at IS NULL) AS payout_accounts,
       (SELECT EXISTS (SELECT 1 FROM whitelabel_pg_settings g WHERE ${inTenant(sql`g.tenant`, scope.tenant)} AND g.enabled)) AS pg_enabled,
       (SELECT EXISTS (SELECT 1 FROM whitelabel_payment_methods pm WHERE ${inTenant(sql`pm.tenant`, scope.tenant)}
         AND pm.enabled_methods IS NOT NULL AND pm.enabled_methods::text NOT IN ('[]', '{}', 'null', ''))) AS methods_enabled`
 }
 
-/** Players' cash and the bonus awarded in the period (cancelled awards left out). */
+/**
+ * Players' cash and the bonus awarded in the period (cancelled awards left out). The cash is the cash players'
+ * only: a credit player's wallets.cash holds its chips, which Chips with Players already counts.
+ */
 function moneyAggregate(scope: DashboardOperationsScope, from: Date, to: Date): SQL {
   return sql`
     SELECT
       (SELECT COALESCE(SUM(w.cash), 0) FROM wallets w JOIN users u ON u.id = w.user_id
-        WHERE ${inTenant(sql`w.tenant`, scope.tenant)} AND ${isPlayer(sql`u`)}) AS wallet_balance,
+        WHERE ${inTenant(sql`w.tenant`, scope.tenant)} AND ${isPlayer(sql`u`)}
+          AND u.player_type::text IN ${CASH_TYPES}) AS wallet_balance,
       (SELECT COALESCE(SUM(b.amount), 0) FROM bonus_awards b JOIN users u ON u.id = b.user_id
         WHERE ${inTenant(sql`u.tenant`, scope.tenant)} AND b.awarded_at >= ${from} AND b.awarded_at <= ${to}
           AND b.status::text <> 'cancelled') AS bonus_given,
@@ -219,42 +247,65 @@ function moneyAggregate(scope: DashboardOperationsScope, from: Date, to: Date): 
 }
 
 /**
- * Chip movements in the period, from agent_credit_ledger (the one ledger every credit move writes; the
- * player_credit_adjustments table is written by only a few paths). An adjustment's amount is unsigned, so
- * its direction is the change in the receiver's balance; a SETTLE adjustment is a settlement, not chips.
+ * Chip movements read credit_chip_ledger as `l`. A deposit or a withdrawal writes two rows that share a
+ * transfer_id, one per side; each transfer is counted once, on its parent's row: the whitelabel's row, or the
+ * agent's row that gave chips (a deposit, amount < 0) or took them back (a withdrawal, amount > 0). OPENING
+ * rows (the 0019 conversion) and CREDIT_REFERENCE rows move no chips between accounts and are left out.
  */
+const CHIP_PARENT_ROW = sql`(l.account_type::text <> 'player'
+  AND ((l.kind::text = 'DEPOSIT' AND l.amount < 0) OR (l.kind::text = 'WITHDRAW' AND l.amount > 0)))`
+
+/**
+ * One Chip Movements figure, by its drill-down arg; any other arg is every movement. Deposits and withdrawals
+ * are split by who was the parent (the whitelabel's pool, or an agent); to_agents is every deposit an agent
+ * received, from the whitelabel or from its parent agent. The drill-down lists use the same predicates, so a
+ * list's total matches its figure.
+ */
+export function chipMoveWhere(arg: string): SQL {
+  const deposit = sql`l.kind::text = 'DEPOSIT'`
+  const withdraw = sql`l.kind::text = 'WITHDRAW'`
+  const byWhitelabel = sql`l.account_type::text = 'whitelabel'`
+  const byAgent = sql`l.account_type::text = 'agent'`
+  switch (arg) {
+    case 'wl_in': return sql`(${CHIP_PARENT_ROW} AND ${deposit} AND ${byWhitelabel})`
+    case 'agent_in': return sql`(${CHIP_PARENT_ROW} AND ${deposit} AND ${byAgent})`
+    case 'in': return sql`(${CHIP_PARENT_ROW} AND ${deposit})`
+    case 'wl_out': return sql`(${CHIP_PARENT_ROW} AND ${withdraw} AND ${byWhitelabel})`
+    case 'agent_out': return sql`(${CHIP_PARENT_ROW} AND ${withdraw} AND ${byAgent})`
+    case 'out': return sql`(${CHIP_PARENT_ROW} AND ${withdraw})`
+    case 'to_agents': return sql`(${CHIP_PARENT_ROW} AND ${deposit} AND l.counterparty_type::text = 'agent')`
+    default: return CHIP_PARENT_ROW
+  }
+}
+
+/** Chip movements in the period, each transfer once (see chipMoveWhere). */
 function chipsAggregate(scope: DashboardOperationsScope, from: Date, to: Date): SQL {
-  const up = sql`l.balance_after > l.balance_before`
-  const down = sql`l.balance_after < l.balance_before`
-  const adjusting = sql`l.transaction_type::text IN ('ADJUSTMENT', 'CREDIT_LIMIT_ADJUSTMENT')`
-  const notSettle = sql`COALESCE(l.metadata->>'adjustmentType', l.meta->>'adjustmentType', '') <> 'SETTLE'`
+  const sum = (arg: string) => sql`COALESCE(SUM(ABS(l.amount)) FILTER (WHERE ${chipMoveWhere(arg)}), 0)`
   return sql`
-    SELECT
-      COALESCE(SUM(ABS(l.amount)) FILTER (WHERE l.from_entity_type::text = 'whitelabel' AND l.to_entity_type::text = 'player'
-        AND (l.transaction_type::text = 'DEPOSIT' OR (${adjusting} AND ${up})) AND ${notSettle}), 0) AS wl_in,
-      COALESCE(SUM(ABS(l.amount)) FILTER (WHERE l.from_entity_type::text = 'agent' AND l.to_entity_type::text = 'player'
-        AND l.transaction_type::text IN ('DEPOSIT', 'ALLOCATION')), 0) AS agent_in,
-      COALESCE(SUM(ABS(l.amount)) FILTER (WHERE (l.from_entity_type::text = 'player' AND l.to_entity_type::text = 'whitelabel'
-        AND l.transaction_type::text = 'WITHDRAWAL')
-        OR (l.from_entity_type::text = 'whitelabel' AND l.to_entity_type::text = 'player' AND ${adjusting} AND ${down} AND ${notSettle})), 0) AS wl_out,
-      COALESCE(SUM(ABS(l.amount)) FILTER (WHERE l.from_entity_type::text = 'player' AND l.to_entity_type::text = 'agent'
-        AND l.transaction_type::text = 'WITHDRAWAL'), 0) AS agent_out,
-      COALESCE(SUM(ABS(l.amount)) FILTER (WHERE l.from_entity_type::text = 'whitelabel' AND l.to_entity_type::text = 'agent'
-        AND (l.transaction_type::text IN ('DEPOSIT', 'ALLOCATION') OR (${adjusting} AND ${up}))), 0) AS to_agents
-    FROM agent_credit_ledger l
+    SELECT ${sum('wl_in')} AS wl_in, ${sum('agent_in')} AS agent_in, ${sum('wl_out')} AS wl_out,
+      ${sum('agent_out')} AS agent_out, ${sum('to_agents')} AS to_agents
+    FROM credit_chip_ledger l
     WHERE ${inTenant(sql`l.tenant_id`, scope.tenant)} AND l.created_at >= ${from} AND l.created_at <= ${to}`
 }
 
-/** The whitelabel's credit pool and what it owes or is owed on settlement, now. */
+/** The whitelabel's credit pool (the chips its admins deposit from), now. */
 function poolAggregate(scope: DashboardOperationsScope): SQL {
   return sql`
     SELECT
       COALESCE(SUM(wl.credit_limit), 0) AS credit_limit,
       COALESCE(SUM(wl.credit_used), 0) AS credit_used,
-      COALESCE(SUM(wl.credit_available), 0) AS credit_available,
-      COALESCE(SUM(wl.settlement_balance), 0) AS settlement_due
+      COALESCE(SUM(wl.credit_available), 0) AS credit_available
     FROM whitelabels wl
     WHERE ${inTenant(sql`wl.id`, scope.tenant)}`
+}
+
+/**
+ * What the whitelabel owes its direct chip downline, net, now: Σ Ref P/L of the top CREDIT agents and the
+ * WHITELABEL_CREDIT players. Positive: the whitelabel owes them; negative: they owe the whitelabel.
+ */
+async function whitelabelRefPnl(scope: DashboardOperationsScope): Promise<number> {
+  const [agentsAtTop, players] = await Promise.all([topCreditAgents(scope), whitelabelCreditPlayers(scope)])
+  return sumRefPnl([...agentsAtTop, ...players])
 }
 
 /**
@@ -315,7 +366,7 @@ export async function getDashboardOperations(
   const to = range.dateTo && !isNaN(Date.parse(range.dateTo)) ? new Date(range.dateTo) : now
   const onlineSince = new Date(now.getTime() - ONLINE_WINDOW_MINS * 60_000)
 
-  const [people, act, agentsRow, pending, money, chips, pool, split, awaiting] = await Promise.all([
+  const [people, act, agentsRow, pending, money, chips, pool, split, awaiting, settlementDue] = await Promise.all([
     one(usersAggregate(scope, from, to, today)),
     activity(scope, from, to, onlineSince),
     one(agentsAggregate(scope)),
@@ -325,6 +376,7 @@ export async function getDashboardOperations(
     one(poolAggregate(scope)),
     moneySplit(scope, from, to),
     one(awaitingAggregate(scope, now)),
+    whitelabelRefPnl(scope),
   ])
 
   const showCredit = num(people.credit_players) > 0 || num(agentsRow.credit_any) > 0
@@ -360,7 +412,7 @@ export async function getDashboardOperations(
     creditLimit: num(pool.credit_limit),
     creditUsed: num(pool.credit_used),
     creditAvailable: num(pool.credit_available),
-    settlementDue: num(pool.settlement_due),
+    settlementDue,
     settledAmount: num(money.settled_amount),
     chipsWithPlayers: num(people.chips_with_players),
     directPlayers: num(people.direct_players),

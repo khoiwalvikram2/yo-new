@@ -101,45 +101,17 @@ export function toCreditFigures(payload: CreditPayload): CreditFigures {
   }
 }
 
-export type SettlementDomainLabel = 'Sports' | 'Casino' | 'Matka'
-
-export interface SettlementSummary {
-  balance: number
-  rows: ReadonlyArray<{ domain: SettlementDomainLabel; amount: number }>
-}
-
-export interface SettlementPayload {
-  settlementBalance?: number | null
-  settlementBalanceSports?: number | null
-  settlementBalanceCasino?: number | null
-  settlementBalanceMatka?: number | null
-}
-
 /**
- * Unlike this file's other functions, there is no working legacy component to port this from:
- * AgentCreditIndicator.tsx's "Settlement" tab currently renders dead/unreachable code (its tab
- * button never wires to a rendered pane), and no other component has a settlement view at all.
- * This maps the `settlementBalance*` fields straight from the GraphQL schema (agentCredit.ts),
- * not from an observed old-component behavior — verify against the product/backend contract
- * directly rather than assuming behavior parity with anything currently shipped.
+ * A CREDIT agent's wallet on Deposit/Withdraw chips (spec 2026-11-02 §2): its own balance, what its
+ * downline holds, its credit reference and Ref P/L (balance + downline − credit reference). The old
+ * settlement balance is retired for the scheme, so the wallet no longer has a Settlement tab.
  */
-export function toSettlementSummary(payload: SettlementPayload): SettlementSummary {
-  return {
-    balance: payload.settlementBalance || 0,
-    rows: [
-      { domain: 'Sports', amount: payload.settlementBalanceSports || 0 },
-      { domain: 'Casino', amount: payload.settlementBalanceCasino || 0 },
-      { domain: 'Matka', amount: payload.settlementBalanceMatka || 0 },
-    ],
-  }
-}
-
-export type AmountSign = 'positive' | 'negative' | 'zero'
-
-export function amountSign(amount: number): AmountSign {
-  if (amount > 0) return 'positive'
-  if (amount < 0) return 'negative'
-  return 'zero'
+export interface ChipWalletFigures {
+  currency: string
+  balance: number
+  downlineBalance: number
+  creditReference: number
+  refPnl: number
 }
 
 /** 'Credit limit nearly exhausted' when critical, a rounded percentage when only near the limit, else null. */

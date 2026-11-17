@@ -57,6 +57,35 @@ export interface MatkaRateVersionInput {
   createdBy?: string
 }
 
+/**
+ * What a failed matka write may tell its caller. A driver error's message is "Failed query: <the SQL>
+ * params: <every bound value>", and mercurius hands it to the browser as it is (a duplicate code returned the
+ * whole INSERT with the tenant, the creator and the settings JSON). A duplicate name or code is named; any
+ * other database failure is reported generically, with the original kept as the cause; a message thrown on
+ * purpose (validation, "Settle or void pending bets ...") passes through.
+ */
+export function matkaWriteError(error: unknown): Error {
+  const pg = (error as { cause?: any })?.cause ?? error as any
+  // ES2020 has no Error(message, { cause }); the cause is attached for the server log.
+  const withCause = (message: string) => Object.assign(new Error(message), { cause: error })
+  if (pg?.code === '23505') {
+    return withCause(/name/i.test(String(pg?.constraint ?? '')) ? 'A matka with this name already exists' : 'A matka with this code already exists')
+  }
+  const message = error instanceof Error ? error.message : ''
+  if (!message || pg?.code || /^Failed query/i.test(message)) return withCause('The matka could not be saved. Please try again.')
+  return error as Error
+}
+
+/** Names and codes stay unique per whitelabel across deleted matkas too (the unique indexes cover them), so a
+ *  clash is named before the insert, including when a deleted matka is the one holding it. */
+async function assertNameAndCodeFree(tenant: string, name: string, code: string) {
+  const [taken] = await db.select({ name: matkas.name, code: matkas.code, deletedAt: matkas.deletedAt }).from(matkas)
+    .where(and(eq(matkas.tenant, tenant), or(eq(matkas.code, code), eq(matkas.name, name)))).limit(1)
+  if (!taken) return
+  const field = taken.code === code ? 'code' : 'name'
+  throw new Error(`A matka with this ${field} already exists${taken.deletedAt ? ' (a deleted matka still holds it)' : ''}`)
+}
+
 function buildWhere(filters: MatkaFilters, tenant: string | undefined = 'default') {
   const parts: any[] = [isNull(matkas.deletedAt)]
   // CRITICAL: Skip tenant filtering if tenant is undefined (Director Admin core mode)
@@ -156,6 +185,7 @@ export async function getMatkasByIdsDb(ids: string[], tenant: string | undefined
 
 export async function createMatkaDb(input: MatkaCreateInput, tenant = 'default') {
   validateMatkaConfiguration(input)
+  await assertNameAndCodeFree(tenant, input.name, input.code)
   const now = new Date()
   const [created] = await db.insert(matkas).values({
     tenant,
@@ -176,11 +206,16 @@ export async function createMatkaDb(input: MatkaCreateInput, tenant = 'default')
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
-  }).returning()
+  }).returning().catch((error) => { throw matkaWriteError(error) })
   return created
 }
 
 export async function updateMatkaDb(input: MatkaUpdateInput, tenant = 'default') {
+  // A rename onto another matka's name is a unique violation: named, not echoed as SQL.
+  return updateMatkaInTransaction(input, tenant).catch((error) => { throw matkaWriteError(error) })
+}
+
+function updateMatkaInTransaction(input: MatkaUpdateInput, tenant: string) {
   return db.transaction(async (tx) => {
     const before = await lockMatkaMarket(tx, tenant, input.id)
     const next = { ...before, ...input }
@@ -230,18 +265,48 @@ export async function softDeleteMatkaDb(id: string, reason: string, tenant = 'de
   return true
 }
 
+/**
+ * Applies a drag in the management list. The page sends the rows it shows (one page, perhaps filtered or
+ * searched) in their new order, numbered 1..n. Written as given, those numbers clashed with the markets
+ * outside the view and lifted the moved rows to the top of the whole list, and of the player lobby, which
+ * orders by priority too. Instead the sent rows keep the places they already hold in the whole list (by
+ * priority, then name, as the lobby shows ties), take them in their new order, and the whole list is numbered
+ * 1..N: every market outside the view keeps its place and no two share a priority.
+ */
 export async function reorderMatkasDb(order: Array<{ id: string; priority: number }>, tenant = 'default') {
   if (!order.length) return true
-  // simple loop updates; DB transaction if needed
-  for (const { id, priority } of order) {
-    await db.update(matkas).set({ priority }).where(and(eq(matkas.id, id), eq(matkas.tenant, tenant)))
-  }
-  return true
+  return db.transaction(async (tx) => {
+    const all = await tx.select({ id: matkas.id, priority: matkas.priority }).from(matkas)
+      .where(and(eq(matkas.tenant, tenant), isNull(matkas.deletedAt)))
+      .orderBy(asc(matkas.priority), asc(matkas.name), asc(matkas.id)).for('update')
+    const current = new Map(all.map((row) => [row.id, row.priority]))
+    const moved = [...new Set(order.filter((item) => current.has(item.id)).sort((a, b) => a.priority - b.priority).map((item) => item.id))]
+    const movedIds = new Set(moved)
+    let next = 0
+    const placed = all.map((row) => (movedIds.has(row.id) ? moved[next++] : row.id))
+    for (const [index, id] of placed.entries()) {
+      if (current.get(id) !== index + 1) await tx.update(matkas).set({ priority: index + 1 }).where(and(eq(matkas.id, id), eq(matkas.tenant, tenant)))
+    }
+    return true
+  })
 }
 
-export async function cloneMatkaDb(id: string, { name, code, actor }: { name: string; code: string; actor?: string }, tenant = 'default') {
+/** The name and code a clone gets: the ones asked for, or the first free numbered pair ("Kalyan Copy 2",
+ *  "kalyan-copy-2"), so cloning the same matka again (or after its clone was deleted) still works. */
+async function freeCloneNameAndCode(tenant: string, name: string, code: string) {
+  for (let n = 1; n <= 100; n += 1) {
+    const candidate = n === 1 ? { name, code } : { name: `${name} ${n}`, code: `${code}-${n}` }
+    const [taken] = await db.select({ id: matkas.id }).from(matkas)
+      .where(and(eq(matkas.tenant, tenant), or(eq(matkas.code, candidate.code), eq(matkas.name, candidate.name)))).limit(1)
+    if (!taken) return candidate
+  }
+  throw new Error('A matka with this name already exists')
+}
+
+export async function cloneMatkaDb(id: string, { name: wantedName, code: wantedCode, actor }: { name: string; code: string; actor?: string }, tenant = 'default') {
   const src = await getMatkaDb(id, tenant)
   if (!src) throw new Error('Not found')
+  const { name, code } = await freeCloneNameAndCode(tenant, wantedName, wantedCode)
   const created = await createMatkaDb({
     name,
     code,

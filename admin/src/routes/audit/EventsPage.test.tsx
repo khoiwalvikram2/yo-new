@@ -13,6 +13,8 @@ vi.mock('@/shared/services/notification', () => ({ notify: feedback }))
 let options: AuditFixtureOptions
 let calls: { name: string; kind: string; variables: Record<string, unknown> }[]
 let live: ((result: FetchResult) => void) | undefined
+/** The answer to AuditExportJobDownload (2026-11-04: the file itself, as a base64 data URI). */
+let downloadAnswer: FetchResult
 function Location() { return <output aria-label="Current route">{useLocation().pathname}{useLocation().search}</output> }
 function page(route = '/audit/events') {
   const pageCalls = calls
@@ -22,12 +24,14 @@ function page(route = '/audit/events') {
     const kind = definition?.kind === 'OperationDefinition' ? definition.operation : ''
     pageCalls.push({ name: operation.operationName, kind, variables: JSON.parse(JSON.stringify(operation.variables)) as Record<string, unknown> })
     if (kind === 'subscription') { const next = observer.next.bind(observer); live = next; return () => { if (live === next) live = undefined } }
+    if (operation.operationName === 'AuditExportJobDownload') { const answer = downloadAnswer; queueMicrotask(() => { observer.next(answer); observer.complete() }); return }
     queueMicrotask(() => { try { observer.next(auditFixtureResponse(operation, fixtureOptions)); observer.complete() } catch (error) { observer.error(error) } })
   }))
   return render(<MockedProvider cache={new InMemoryCache()} link={link}><MemoryRouter initialEntries={[route]}><Location /><Routes><Route path="/audit/events" element={<EventsPage />} /><Route path="*" element={<div>Destination page</div>} /></Routes></MemoryRouter></MockedProvider>)
 }
 beforeEach(() => {
   options = {}; calls = []; live = undefined; vi.clearAllMocks()
+  downloadAnswer = { data: { auditExportJobDownload: `data:text/csv;base64,${btoa('id,action\nevent-1,update\n')}` } }
   useAuditStore.setState({ filters: { page: 1, limit: 100, sort: 'timestamp:desc' }, savedPresets: [], recentSearches: [], autoRefresh: false, visibleColumns: ['expand', 'id', 'timestamp', 'actor', 'domain', 'action', 'resource', 'details'], columnOrder: ['expand', 'id', 'timestamp', 'actor', 'domain', 'action', 'resource', 'details'], tableDensity: 'middle' })
   useAuthStore.setState({ permissions: [{ domain: 'audit.events', actions: ['view', 'export'] }], agent: undefined, agentPermissions: [], roles: [] })
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:preview') }); Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() }); vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
@@ -80,4 +84,29 @@ test('export jobs use the exact current filters and a refused create retains the
   options.refuseJob = true; fireEvent.change(within(create).getByRole('combobox', { name: 'Format' }), { target: { value: 'JSON' } }); await act(async () => { fireEvent.click(within(create).getByRole('button', { name: 'Create job' })) }); await waitFor(() => assert.equal(feedback.error.mock.calls.length, 1)); assert.ok(create.textContent?.includes('Export queue unavailable')); assert.equal((within(create).getByRole('combobox', { name: 'Format' }) as HTMLSelectElement).value, 'JSON')
   options.refuseJob = false; await act(async () => { fireEvent.click(within(create).getByRole('button', { name: 'Create job' })) }); await waitFor(() => assert.equal(screen.queryByRole('dialog', { name: 'Create export job' }), null))
   assert.deepEqual(calls.find((call) => call.name === 'CreateAuditExportJob')?.variables.input, { filtersJson: { page: 1, limit: 100, sort: 'timestamp:desc', domain: ['players'] }, exportFormat: 'JSON' })
+})
+test('Download asks auditExportJobDownload for the file and saves its data URI as a Blob; the job list link is never opened', async () => {
+  const opened = vi.spyOn(window, 'open').mockImplementation(() => null)
+  const saved: string[] = []
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function click(this: HTMLAnchorElement) { saved.push(this.download) })
+  page(); await screen.findByRole('table', { name: 'Audit events' }); fireEvent.click(screen.getByRole('button', { name: 'Export Jobs' }))
+  const jobs = await screen.findByRole('dialog', { name: 'Export Jobs' })
+  await act(async () => { fireEvent.click(await within(jobs).findByRole('button', { name: 'Download' })) })
+  await waitFor(() => assert.equal(feedback.success.mock.calls.length, 1))
+  assert.deepEqual(calls.filter((call) => call.name === 'AuditExportJobDownload').map((call) => call.variables), [{ id: 'job-ready' }])
+  const blob = (URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as Blob
+  assert.equal(blob.type, 'text/csv'); assert.equal(blob.size, 'id,action\nevent-1,update\n'.length)
+  assert.deepEqual(saved, ['Audit Trail-2026-10-09-job-read.csv'])
+  assert.deepEqual(feedback.success.mock.calls[0], ['Your file download has started.', 'Download Started'])
+  assert.equal(opened.mock.calls.length, 0, 'the stored file name was opened as a link')
+})
+test("a refused audit download shows the server's words and saves nothing", async () => {
+  downloadAnswer = { data: { auditExportJobDownload: null }, errors: [{ message: 'This export was made before files moved into the database; run it again' }] as never }
+  page(); await screen.findByRole('table', { name: 'Audit events' }); fireEvent.click(screen.getByRole('button', { name: 'Export Jobs' }))
+  const jobs = await screen.findByRole('dialog', { name: 'Export Jobs' })
+  await act(async () => { fireEvent.click(await within(jobs).findByRole('button', { name: 'Download' })) })
+  await waitFor(() => assert.equal(feedback.error.mock.calls.length, 1))
+  assert.deepEqual(feedback.error.mock.calls[0], ['This export was made before files moved into the database; run it again', 'Download Failed'])
+  assert.equal((URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls.length, 0)
+  assert.equal(feedback.success.mock.calls.length, 0)
 })

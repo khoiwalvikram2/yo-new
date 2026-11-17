@@ -1,16 +1,20 @@
 import { z } from 'zod'
-import { upsertAppConfigDb } from '@src/repos/app-config/appConfigRepo.js'
+import { getAppConfigDb, upsertAppConfigDb } from '@src/repos/app-config/appConfigRepo.js'
 import { invalidateWhitelabelConfigCache } from '@src/shared/whitelabelConfig.js'
 import { deleteCmsPageDb, publishCmsPageDb, upsertCmsPageDb } from '@src/repos/app-config/cmsRepo.js'
 import { createAdvertisementDb, updateAdvertisementDb, deleteAdvertisementDb, reorderAdvertisementsDb } from '@src/repos/app-config/advertisementsRepo.js'
+import { parsePlayerThemeInput } from '@src/domains/app-config/playerThemeInput.js'
 import { recordAuditDb } from '@src/repos/audit/auditRepo.js'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { hasPermission } from '@src/domains/common/auth.js'
+import { defaultStakeLimitsProblem } from '@src/domains/sports/settingsLimits.js'
+import { assertStorableImage, storedImageProblem } from '@src/services/storage/storedImage.js'
 
 const UpdateAppConfigInput = z.object({
   input: z.object({
     // appName removed - use whitelabel.name instead
-    supportEmail: z.union([z.string().email(), z.null()]).optional(),
+    // '' is a cleared field (the Contact form sends it), not an invalid address: see clearable().
+    supportEmail: z.union([z.string().email(), z.literal(''), z.null()]).optional(),
     supportPhone: z.string().nullish(),
     whatsappSupportPhone: z.string().nullish(),
     defaultLocale: z.string().nullish(),
@@ -121,6 +125,7 @@ const UpdateAppConfigInput = z.object({
     }).nullish(),
     preLoginBannerUrl: z.string().nullish(),
     postLoginBannerUrl: z.string().nullish(),
+    playerTheme: z.unknown().optional(),
     sportsGlobalConfig: z.object({
       oddsFormat: z.enum(['decimal', 'fractional', 'american']).nullish(),
       showFancy: z.boolean().nullish(),
@@ -131,6 +136,8 @@ const UpdateAppConfigInput = z.object({
         bookmaker: z.number().nullish(),
         fancy: z.number().nullish(),
       }).nullish(),
+      // A min above its max (or a negative stake) made every stake fail where these defaults apply;
+      // the same rule guards the sport, league and event settings (domains/sports/settingsLimits.ts).
       defaultStakeLimits: z.object({
         exchangeMin: z.number().nullish(),
         exchangeMax: z.number().nullish(),
@@ -138,6 +145,9 @@ const UpdateAppConfigInput = z.object({
         bookmakerMax: z.number().nullish(),
         fancyMin: z.number().nullish(),
         fancyMax: z.number().nullish(),
+      }).superRefine((limits, issue) => {
+        const problem = defaultStakeLimitsProblem(limits)
+        if (problem) issue.addIssue({ code: 'custom', path: [problem.field], message: problem.message })
       }).nullish(),
       defaultBetDelays: z.object({
         exchange: z.number().int().min(0).nullish(),
@@ -167,6 +177,28 @@ const UpsertCMSPageInput = z.object({
 
 const IdInput = z.object({ id: z.string() })
 
+/**
+ * The CMS mutations answered success, and wrote an audit row, for an id they did not change: another tenant's page,
+ * a missing id, a page already deleted (MAR-08's bundle fix, for the generic CMS pages). They now say "not found" and
+ * record nothing. A page id is a positive integer within cms_pages.id's int4 range; anything else names no page (one
+ * past that range reached Postgres and failed "out of range for type integer" instead of answering not found).
+ */
+const CMS_PAGE_NOT_FOUND = { success: false, message: 'CMS page not found' } as const
+function cmsPageId(raw: string): number | null {
+  const id = Number(raw)
+  return Number.isSafeInteger(id) && id > 0 && id <= 2147483647 ? id : null
+}
+
+/**
+ * An optional text setting as the forms send it: absent keeps the stored value, null or '' clears it.
+ * `value ?? undefined` read an explicit null as "not sent", so removing a popup banner, or clearing an SEO
+ * title or the support address, answered "Configuration updated" while the old value stayed.
+ */
+export function clearable(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined
+  return value === null || value.trim() === '' ? null : value
+}
+
 export const appConfigMutationResolvers = {
   updateAppConfig: async (_: any, args: unknown, ctx: any) => {
     if (!hasPermission(ctx?.permissions ?? [], 'config.app', 'update')) {
@@ -182,6 +214,13 @@ export const appConfigMutationResolvers = {
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
     const userId = ctx?.user?.sub || '0'
     const input = p.data.input
+    // The popup banners are stored as data URIs (S3 is gone): an image of at most 2 MB, or a link.
+    assertStorableImage(input.preLoginBannerUrl, 'Pre-login banner')
+    assertStorableImage(input.postLoginBannerUrl, 'Post-login banner')
+    // Validated before anything is written: a theme players could not read is refused with its field.
+    const playerTheme = input.playerTheme === undefined ? undefined : parsePlayerThemeInput(input.playerTheme)
+    // The previous theme, for the audit trail (only read when the theme is being changed).
+    const previousPlayerTheme = playerTheme === undefined ? undefined : ((await getAppConfigDb(tenant)).playerTheme ?? null)
 
     // Check if features are being modified - only Super Admin can modify feature toggles
     if (input.features) {
@@ -226,9 +265,9 @@ export const appConfigMutationResolvers = {
 
     await upsertAppConfigDb(tenant, {
       // appName removed - use whitelabel.name instead
-      supportEmail: input.supportEmail ?? undefined,
-      supportPhone: input.supportPhone ?? undefined,
-      whatsappSupportPhone: input.whatsappSupportPhone ?? undefined,
+      supportEmail: clearable(input.supportEmail),
+      supportPhone: clearable(input.supportPhone),
+      whatsappSupportPhone: clearable(input.whatsappSupportPhone),
       defaultLocale: input.defaultLocale ?? undefined,
       timeZone: input.timeZone ?? undefined,
       baseCurrency: input.baseCurrency ?? undefined,
@@ -243,9 +282,9 @@ export const appConfigMutationResolvers = {
       maintenance: input.maintenance ?? undefined,
       maintenanceMessage: input.maintenanceMessage ?? undefined,
       newsTicker: input.newsTicker ?? undefined,
-      seoTitle: input.seoTitle ?? undefined,
-      seoDescription: input.seoDescription ?? undefined,
-      ogImageUrl: input.ogImageUrl ?? undefined,
+      seoTitle: clearable(input.seoTitle),
+      seoDescription: clearable(input.seoDescription),
+      ogImageUrl: clearable(input.ogImageUrl),
       socialLinks: input.socialLinks as any,
       analytics: input.analytics as any,
       sportsEnabled: input.features?.sportsEnabled ?? undefined,
@@ -309,8 +348,10 @@ export const appConfigMutationResolvers = {
       pwa: input.pwa as any,
       theme: input.theme as any,
       sportsGlobalConfig: input.sportsGlobalConfig as any,
-      preLoginBannerUrl: input.preLoginBannerUrl ?? undefined,
-      postLoginBannerUrl: input.postLoginBannerUrl ?? undefined,
+      // Remove Banner sends null: the popup goes.
+      preLoginBannerUrl: clearable(input.preLoginBannerUrl),
+      postLoginBannerUrl: clearable(input.postLoginBannerUrl),
+      playerTheme,
     })
 
     invalidateWhitelabelConfigCache(tenant)
@@ -322,8 +363,8 @@ export const appConfigMutationResolvers = {
       action: 'update',
       resourceType: 'AppConfig',
       resourceId: tenant,
-      before: null,
-      after: { keys: Object.keys(input) },
+      before: previousPlayerTheme === undefined ? null : { playerTheme: previousPlayerTheme },
+      after: playerTheme === undefined ? { keys: Object.keys(input) } : { keys: Object.keys(input), playerTheme },
     })
     return { success: true, message: 'Configuration updated' }
   },
@@ -338,8 +379,10 @@ export const appConfigMutationResolvers = {
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
     const userId = ctx?.user?.sub || '0'
+    const pageId = p.data.input.id ? cmsPageId(p.data.input.id) : undefined
+    if (pageId === null) return { ...CMS_PAGE_NOT_FOUND }
     const res = await upsertCmsPageDb(tenant, {
-      id: p.data.input.id ? Number(p.data.input.id) : undefined,
+      id: pageId,
       slug: p.data.input.slug,
       title: p.data.input.title,
       locale: p.data.input.locale,
@@ -347,6 +390,8 @@ export const appConfigMutationResolvers = {
       seoTitle: p.data.input.seoTitle,
       seoDescription: p.data.input.seoDescription,
     })
+    // An edit by id that matched no page of this tenant saved nothing.
+    if (!res.success) return { ...CMS_PAGE_NOT_FOUND }
     await recordAuditDb({
       tenant,
       actorId: String(userId),
@@ -370,7 +415,8 @@ export const appConfigMutationResolvers = {
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
     const userId = ctx?.user?.sub || '0'
-    await publishCmsPageDb(tenant, Number(p.data.id))
+    const pageId = cmsPageId(p.data.id)
+    if (pageId === null || !(await publishCmsPageDb(tenant, pageId)).success) return { ...CMS_PAGE_NOT_FOUND }
     await recordAuditDb({
       tenant,
       actorId: String(userId),
@@ -392,7 +438,8 @@ export const appConfigMutationResolvers = {
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
     const userId = ctx?.user?.sub || '0'
-    await deleteCmsPageDb(tenant, Number(p.data.id))
+    const pageId = cmsPageId(p.data.id)
+    if (pageId === null || !(await deleteCmsPageDb(tenant, pageId)).success) return { ...CMS_PAGE_NOT_FOUND }
     await recordAuditDb({
       tenant,
       actorId: String(userId),
@@ -424,6 +471,9 @@ export const appConfigMutationResolvers = {
     })
     const p = CreateAdvertisementInput.safeParse(args)
     if (!p.success) throw new Error('Invalid input')
+    // Stored as a data URI (S3 is gone): an image of at most 2 MB, or a link.
+    const imageProblem = storedImageProblem(p.data.input.imageUrl, 'Advertisement image')
+    if (imageProblem) return { success: false, message: imageProblem }
     // CRITICAL: For Director Admin, use effective tenant based on mode
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
@@ -463,11 +513,17 @@ export const appConfigMutationResolvers = {
     })
     const p = UpdateAdvertisementInput.safeParse(args)
     if (!p.success) throw new Error('Invalid input')
+    // A new image is stored as a data URI (S3 is gone): an image of at most 2 MB, or a link.
+    const imageProblem = p.data.input.imageUrl ? storedImageProblem(p.data.input.imageUrl, 'Advertisement image') : null
+    if (imageProblem) return { success: false, message: imageProblem }
     // CRITICAL: For Director Admin, use effective tenant based on mode
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
     const userId = ctx?.user?.sub || '0'
-    await updateAdvertisementDb(Number(p.data.input.id), tenant, p.data.input)
+    // Only an advertisement of this tenant is changed, recorded and reported as updated.
+    const adId = Number(p.data.input.id)
+    const updated = Number.isSafeInteger(adId) && adId > 0 ? await updateAdvertisementDb(adId, tenant, p.data.input) : { success: false }
+    if (!updated.success) return { success: false, message: 'Advertisement not found' }
     await recordAuditDb({
       tenant,
       actorId: String(userId),
@@ -491,7 +547,10 @@ export const appConfigMutationResolvers = {
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
     const userId = ctx?.user?.sub || '0'
-    await deleteAdvertisementDb(Number(p.data.id), tenant)
+    // As in updateAdvertisement: nothing deleted is not reported (or recorded) as a delete.
+    const adId = Number(p.data.id)
+    const deleted = Number.isSafeInteger(adId) && adId > 0 ? await deleteAdvertisementDb(adId, tenant) : { success: false }
+    if (!deleted.success) return { success: false, message: 'Advertisement not found' }
     await recordAuditDb({
       tenant,
       actorId: String(userId),
@@ -519,7 +578,10 @@ export const appConfigMutationResolvers = {
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || 'default')
     const userId = ctx?.user?.sub || '0'
-    await reorderAdvertisementsDb(tenant, p.data.orders.map(o => ({ id: Number(o.id), order: o.order })))
+    const orders = p.data.orders.map(o => ({ id: Number(o.id), order: o.order }))
+    if (orders.some(o => !Number.isSafeInteger(o.id) || o.id <= 0)) return { success: false, message: 'Advertisement not found' }
+    const reordered = await reorderAdvertisementsDb(tenant, orders)
+    if (!reordered.success) return { success: false, message: 'Advertisement not found' }
     await recordAuditDb({
       tenant,
       actorId: String(userId),

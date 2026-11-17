@@ -15,12 +15,33 @@ import {
   getReferralSettlementsByReferrerDb,
   getTopReferrersDb,
   getReferrerStatsDb,
+  getReferralOverviewStatsDb,
 } from '@src/repos/referrals/referralEarningsRepo.js'
 import { getUsersByIdsBasicDb } from '@src/repos/users/usersRepo.js'
 import { z } from 'zod'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { hasPermission } from '@src/domains/common/auth.js'
 import { requireReadPermission } from '@src/domains/common/auth.js'
+
+/**
+ * Whether an agent may see a referral link: a link of one of its own players (the closure subtree plus the
+ * players linked to it, as PlayerAuthService scopes every agent player read), or its own or a sub-agent's link.
+ */
+async function agentMayReadReferralLink(
+  agentId: string,
+  link: { userId?: number | null; agentId?: string | null },
+  tenant: string
+): Promise<boolean> {
+  if (link.userId != null) {
+    const { PlayerAuthService } = await import('@src/domains/players/services/PlayerAuthService.js')
+    return new PlayerAuthService().canAgentAccessPlayer(agentId, Number(link.userId), tenant)
+  }
+  if (link.agentId) {
+    const { AgentsRepo } = await import('@src/repos/agents/AgentsRepo.js')
+    return (await new AgentsRepo().getDescendantIds(agentId)).includes(String(link.agentId))
+  }
+  return false
+}
 
 export const referralsQueryResolvers = {
   referralProgramByTenant: async (_: unknown, args: unknown, ctx: any) => {
@@ -94,6 +115,17 @@ export const referralsQueryResolvers = {
   },
 
   referralLink: async (_: unknown, args: unknown, ctx: any) => {
+    // Measured with no session at all: this returned any player's or agent's link by id, and mapped a code back to
+    // its owner's user id, for whichever tenant the X-Whitelabel-ID header named; every agent read links outside
+    // its subtree. Nothing in the admin panel calls it (player profiles use playerReferralProfile, agent profiles
+    // agentReferralLink), so it asks for a session and then either an admin holding referrals.overview:view or an
+    // agent reading a link of its own subtree. Another agent's or player's link reads as no link at all.
+    if (!ctx?.user) throw new Error('Unauthorized: authentication required')
+    const callerAgentId = ctx.user.type === 'agent' && ctx.user.agentId ? String(ctx.user.agentId) : null
+    if (!callerAgentId && !hasPermission(ctx?.permissions ?? [], 'referrals.overview', 'view')) {
+      throw new Error('Forbidden: insufficient permissions to view referral links')
+    }
+
     const { userId, code, agentId } = z.object({
       userId: z.string().optional(),
       code: z.string().optional(),
@@ -104,49 +136,27 @@ export const referralsQueryResolvers = {
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.whitelabel?.id || ctx?.tenant || 'default')
 
+    let link: any = null
     if (code) {
-      const link = await getReferralLinkByCodeDb(code)
-      if (!link || link.tenant !== tenant) return null
-      return {
-        ...link,
-        id: String(link.id),
-        agentId: link.agentId || null,
-        userId: link.userId || null,
-        utmParams: link.utmParams || {},
-        createdAt: link.createdAt instanceof Date ? link.createdAt.toISOString() : String(link.createdAt),
-        updatedAt: link.updatedAt instanceof Date ? link.updatedAt.toISOString() : String(link.updatedAt),
-      }
+      const byCode = await getReferralLinkByCodeDb(code)
+      link = byCode && byCode.tenant === tenant ? byCode : null
+    } else if (userId) {
+      link = await getReferralLinkByUserDb(Number(userId), tenant)
+    } else if (agentId) {
+      link = await getReferralLinkByAgentDb(agentId, tenant)
     }
+    if (!link) return null
+    if (callerAgentId && !(await agentMayReadReferralLink(callerAgentId, link, tenant))) return null
 
-    if (userId) {
-      const link = await getReferralLinkByUserDb(Number(userId), tenant)
-      if (!link) return null
-      return {
-        ...link,
-        id: String(link.id),
-        agentId: link.agentId || null,
-        userId: link.userId || null,
-        utmParams: link.utmParams || {},
-        createdAt: link.createdAt instanceof Date ? link.createdAt.toISOString() : String(link.createdAt),
-        updatedAt: link.updatedAt instanceof Date ? link.updatedAt.toISOString() : String(link.updatedAt),
-      }
+    return {
+      ...link,
+      id: String(link.id),
+      agentId: link.agentId || null,
+      userId: link.userId || null,
+      utmParams: link.utmParams || {},
+      createdAt: link.createdAt instanceof Date ? link.createdAt.toISOString() : String(link.createdAt),
+      updatedAt: link.updatedAt instanceof Date ? link.updatedAt.toISOString() : String(link.updatedAt),
     }
-
-    if (agentId) {
-      const link = await getReferralLinkByAgentDb(agentId, tenant)
-      if (!link) return null
-      return {
-        ...link,
-        id: String(link.id),
-        agentId: link.agentId || null,
-        userId: link.userId || null,
-        utmParams: link.utmParams || {},
-        createdAt: link.createdAt instanceof Date ? link.createdAt.toISOString() : String(link.createdAt),
-        updatedAt: link.updatedAt instanceof Date ? link.updatedAt.toISOString() : String(link.updatedAt),
-      }
-    }
-
-    return null
   },
 
   agentReferralLink: async (_: unknown, args: unknown, ctx: any) => {
@@ -478,15 +488,13 @@ export const referralsQueryResolvers = {
     const { getWhitelabelCurrency } = await import('@src/shared/whitelabelConfig.js')
     const currency = await getWhitelabelCurrency(tenant)
 
-    // TODO: Implement stats aggregation
-    // This would query clicks, attributions, earnings, settlements
+    // These were hard-coded zeros, so the overview cards read 0 whatever the tenant's data (MAR-09).
+    const stats = await getReferralOverviewStatsDb(tenant, {
+      fromDate: fromDate ? new Date(fromDate) : undefined,
+      toDate: toDate ? new Date(toDate) : undefined,
+    })
     return {
-      totalClicks: 0,
-      totalSignups: 0,
-      totalAttributions: 0,
-      totalEarnings: 0,
-      totalSettled: 0,
-      totalPending: 0,
+      ...stats,
       currency,
       periodStart: fromDate,
       periodEnd: toDate,

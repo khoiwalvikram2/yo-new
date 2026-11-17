@@ -98,7 +98,10 @@ function RoleEditor({ id, isEdit }: { id: string | undefined; isEdit: boolean })
     errorPolicy: 'all',
   })
 
+  // Each save reports its own outcome below, so the global notification link stays quiet (it toasted the same
+  // message a second time).
   const [createRole, { loading: creating }] = useMutation(CREATE_RBAC_ROLE_MUTATION, {
+    context: { skipNotification: true },
     onCompleted: (data) => {
       if (data?.createRBACRole?.success) {
         notify.success(data.createRBACRole.message || 'Role created successfully!')
@@ -113,6 +116,7 @@ function RoleEditor({ id, isEdit }: { id: string | undefined; isEdit: boolean })
   })
 
   const [updateRole, { loading: updating }] = useMutation(UPDATE_RBAC_ROLE_MUTATION, {
+    context: { skipNotification: true },
     onCompleted: (data) => {
       if (data?.updateRBACRole?.success) {
         notify.success(data.updateRBACRole.message || 'Role updated successfully!')
@@ -173,17 +177,19 @@ function RoleEditor({ id, isEdit }: { id: string | undefined; isEdit: boolean })
     )
   }
 
-  if (isEdit && roleError && !role) {
+  // No role to edit: the load failed, or the server has no such role in this whitelabel (another tenant's id
+  // answers null). The editor used to open empty and savable for the second case.
+  if (isEdit && !role) {
     return (
       <Page>
         <PageHeader eyebrow={pageEyebrow} title={pageTitle(isEdit)} sub={pageSub(isEdit)} />
         <Notice
           tone="error"
           icon={<IconAlertTriangle size={18} stroke={strokeFor(18)} />}
-          title="Error Loading Role"
+          title={roleError ? 'Error Loading Role' : 'Role not found'}
           action={backLink}
         >
-          {roleError.message || 'Failed to load role data'}
+          {roleError ? roleError.message || 'Failed to load role data' : 'There is no such role in this whitelabel. It may have been deleted.'}
         </Notice>
       </Page>
     )

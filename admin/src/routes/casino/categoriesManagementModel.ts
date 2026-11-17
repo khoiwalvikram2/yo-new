@@ -170,6 +170,28 @@ export function categoryReorderInputs(ids: readonly string[]): Array<{ id: strin
   return ids.map((id, idx) => ({ id, order: idx + 1 }))
 }
 
+/**
+ * The main category's whole order after a drag in the list as shown, or null when the drop changes nothing.
+ *
+ * With a Type filter on, the list holds only some of the categories, and numbering those 1..n gave them the
+ * numbers of the ones the filter hid (a General 6 beside Featured Games 6), so the lobby order between them was
+ * no longer the admin's. The shown categories keep the slots they hold in the whole order, in the order shown;
+ * the dragged one moves to its drop target's place there, and every category is numbered. Unfiltered, this is
+ * the plain move.
+ */
+export function categoryOrderAfterMove(
+  allIds: readonly string[],
+  shownIds: readonly string[],
+  activeId: string,
+  overId: string | null | undefined,
+): string[] | null {
+  const shown = new Set(shownIds)
+  const inShownOrder = shownIds.filter((id) => allIds.includes(id))
+  let next = 0
+  const whole = allIds.map((id) => (shown.has(id) ? inShownOrder[next++] : id))
+  return moveId(whole, activeId, overId)
+}
+
 /** The category's game ids in their saved order, keeping only the games GamesByIds returned. */
 export function orderedGameIds(orderedIds: readonly unknown[], games: readonly CategoryGame[]): string[] {
   const gameIdSet = new Set(games.map((g) => g.id))
@@ -309,47 +331,58 @@ export const categoryFormSchema: z.ZodType<CategoryFormValues> = z
   })
 
 export interface IconState {
-  /** What the drawer can show: a URL or data URI. */
+  /** What the drawer can show: a data URI or an external URL. */
   preview: string | null
-  /** A value that only the save can carry: a freshly compressed data URI, or a raw storage key. */
+  /** A value that only the save can carry: a freshly compressed data URI. */
   value: string | null
 }
 
-/* The backend returns a presigned URL (or a data URI) for an icon it can show; anything without a protocol
-   is a raw storage key, which cannot be previewed but is kept for the save. */
+/* Icons are stored as data URIs (2026-11-04: no external file store). The backend returns a stored icon as its data
+   URI, or an external URL as it was saved, and null for a legacy value it can no longer serve. Anything else is not an
+   image the drawer can show, and it is never sent back: an unchanged icon is left as stored. */
 export function initialIconState(iconData: string | null | undefined): IconState {
   if (!iconData) return { preview: null, value: null }
   if (iconData.startsWith('http://') || iconData.startsWith('https://') || iconData.startsWith('data:')) {
     return { preview: iconData, value: null }
   }
-  return { preview: null, value: iconData }
+  return { preview: null, value: null }
 }
 
 export function isImageType(type: string): boolean {
   return type.startsWith('image/')
 }
 
-/** The legacy onFinish: the freshly compressed icon first, then the form's value. */
-export function categorySubmitValues(values: CategoryFormValues, iconValue: string | null): CategorySubmitValues {
-  const iconDataToSubmit = iconValue || values.iconData || undefined
+/**
+ * The drawer's values as the mutations take them. The icon goes only when it changed: the freshly compressed one,
+ * or null when the admin removed it. A stored icon is only the drawer's preview, so an unchanged one is not sent.
+ */
+export function categorySubmitValues(
+  values: CategoryFormValues,
+  iconValue: string | null,
+  iconRemoved = false,
+): CategorySubmitValues {
   return {
     mainCategory: values.mainCategory as MainCategory,
     type: values.type as CategoryType,
     subtitle: values.subtitle || undefined,
     name: values.name,
     slug: values.slug,
-    iconData: iconDataToSubmit,
+    iconData: iconRemoved ? null : iconValue || undefined,
     isActive: !!values.isActive,
   }
 }
 
-/** UpdateCasinoCategory input, in the legacy key order. */
+/**
+ * UpdateCasinoCategory input, in the legacy key order. An emptied subtitle is sent as null, which clears it: a
+ * missing key leaves the stored one, so clearing the field used to save nothing and still say "Category Updated".
+ * The icon is null when removed and absent when unchanged.
+ */
 export function categoryUpdatePatch(values: CategorySubmitValues): Record<string, unknown> {
   return {
     mainCategory: values.mainCategory,
     name: values.name,
     slug: values.slug,
-    subtitle: values.subtitle,
+    subtitle: values.subtitle?.trim() ? values.subtitle : null,
     iconData: values.iconData,
     isActive: values.isActive,
     type: values.type,

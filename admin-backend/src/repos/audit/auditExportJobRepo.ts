@@ -18,6 +18,26 @@ export interface AuditExportJobRow {
 }
 
 /**
+ * The columns every statement here reads or returns: all but file_data, which holds the finished file as a data URI
+ * of up to 40 MB. The Export Jobs list polls every 5 s for up to 100 jobs and no caller here uses the file;
+ * auditExportJobDownload reads file_data itself, for the one job it hands out.
+ */
+const JOB_COLUMNS = {
+  id: auditExportJobs.id,
+  tenant: auditExportJobs.tenant,
+  whitelabelId: auditExportJobs.whitelabelId,
+  createdBy: auditExportJobs.createdBy,
+  filtersJson: auditExportJobs.filtersJson,
+  exportFormat: auditExportJobs.exportFormat,
+  status: auditExportJobs.status,
+  fileUrl: auditExportJobs.fileUrl,
+  errorMessage: auditExportJobs.errorMessage,
+  scheduledAt: auditExportJobs.scheduledAt,
+  completedAt: auditExportJobs.completedAt,
+  createdAt: auditExportJobs.createdAt,
+}
+
+/**
  * List export jobs with filters
  */
 export async function getAuditExportJobsPage(filters: {
@@ -46,7 +66,7 @@ export async function getAuditExportJobsPage(filters: {
   const limit = Math.min(100, Math.max(1, filters.limit ?? 50))
 
   const [count] = await db.select({ total: sql<number>`count(*)::int` }).from(auditExportJobs).where(whereClause)
-  const rows = await db.select()
+  const rows = await db.select(JOB_COLUMNS)
     .from(auditExportJobs)
     .where(whereClause)
     .orderBy(desc(auditExportJobs.createdAt), desc(auditExportJobs.id))
@@ -80,7 +100,7 @@ export async function getAuditExportJobById(
   id: string,
   tenant: string
 ): Promise<AuditExportJobRow | null> {
-  const rows = await db.select()
+  const rows = await db.select(JOB_COLUMNS)
     .from(auditExportJobs)
     .where(
       and(
@@ -130,7 +150,7 @@ export async function createAuditExportJob(input: {
     exportFormat: input.exportFormat,
     status: 'pending',
     scheduledAt: input.scheduledAt ?? null,
-  }).returning()
+  }).returning(JOB_COLUMNS)
 
   const row = result[0]
   return {
@@ -183,7 +203,7 @@ export async function updateAuditExportJob(input: {
         eq(auditExportJobs.tenant, input.tenant)
       )
     )
-    .returning()
+    .returning(JOB_COLUMNS)
 
   if (!result[0]) {
     throw new Error('Export job not found')

@@ -9,6 +9,8 @@ import { toast } from 'sonner'
 import { setWhitelabelCurrencyDefaults } from './currency'
 import { setWhitelabelTimezone } from './dateUtils'
 import { normalizeLocale } from './locale'
+import { applyPlayerTheme, parsePlayerThemeSetting } from './playerTheme'
+import type { PlayerTheme } from '../../../shared/src/theme/playerTheme'
 
 // Cache configuration
 const CACHE_KEY = 'app_settings_cache'
@@ -144,6 +146,9 @@ const parsedAppSettingsSchema = z.object({
   logoUrl: z.string().nullable().optional(),
   faviconUrl: z.string().nullable().optional(),
   whitelabelTheme: whitelabelThemeSchema,
+  playerTheme: z.any().nullable().optional(),
+  preLoginBannerUrl: z.string().nullable().optional(),
+  postLoginBannerUrl: z.string().nullable().optional(),
   seoTitle: z.string().nullable().optional(),
   seoDescription: z.string().nullable().optional(),
   ogImageUrl: z.string().nullable().optional(),
@@ -185,6 +190,7 @@ const parseSettingsArray = (settingsArray: Array<{ key: string; value: string | 
   })
 
   const get = (key: string) => settingsMap.get(key) ?? null
+  const playerTheme = parsePlayerThemeSetting(get('playerTheme'))
 
   const parsed: ParsedAppSettings = {
     // App identity — backend is the only source; blank stays blank (no fallback).
@@ -201,6 +207,9 @@ const parseSettingsArray = (settingsArray: Array<{ key: string; value: string | 
     logoUrl: get('logoUrl'),
     faviconUrl: get('faviconUrl'),
     whitelabelTheme: parseObjectOrNull(get('whitelabelTheme')),
+    playerTheme,
+    preLoginBannerUrl: get('preLoginBannerUrl'),
+    postLoginBannerUrl: get('postLoginBannerUrl'),
     
     // SEO & Social
     seoTitle: get('seoTitle'),
@@ -275,7 +284,7 @@ const parseSettingsArray = (settingsArray: Array<{ key: string; value: string | 
     // Legacy fields (for backward compatibility)
     logoImg: get('logoUrl'), // Use whitelabel logoUrl
     siteTitle: get('seoTitle') || get('appName') || '',
-    color: parseObjectOrNull(get('whitelabelTheme'))?.primary || null, // Use theme primary color
+    color: playerTheme?.colors?.action || parseObjectOrNull(get('whitelabelTheme'))?.primary || null, // PWA theme colour
     faviconImg: get('faviconUrl'), // Use whitelabel faviconUrl
     
     // Agent credit settings
@@ -458,6 +467,11 @@ export type ParsedAppSettings = {
   logoUrl?: string | null
   faviconUrl?: string | null
   whitelabelTheme?: WhitelabelTheme | null
+  /** App Configuration → Branding & Theme; null = the Matchbook default. */
+  playerTheme?: PlayerTheme | null
+  /** User Panel Banners (popups): data URIs or URLs. */
+  preLoginBannerUrl?: string | null
+  postLoginBannerUrl?: string | null
   
   // SEO & Social
   seoTitle?: string | null
@@ -550,6 +564,8 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const [parsedSettings, setParsedSettings] = useState<ParsedAppSettings>(() => {
     // Try to load from cache on initial mount
     const cached = getCachedSettings(ownerKey)
+    // Paint the cached player theme before the first render; the fetch below re-applies it through applyTheme.
+    if (typeof document !== 'undefined') applyPlayerTheme(cached?.playerTheme)
     return cached || getDefaultSettings()
   })
   const [allAppSettings, setAllAppSettings] = useState<any | null>(null)
@@ -589,6 +605,10 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   // Apply theme colors to CSS variables
   const applyTheme = (parsed: ParsedAppSettings) => {
     if (typeof document === 'undefined') return
+
+    // The player theme overrides the Matchbook tokens (both modes in one <style>); the legacy theme below only feeds
+    // the older variables. Every path that applies settings (cache, fresh, fallback, mode switch) comes through here.
+    applyPlayerTheme(parsed.playerTheme)
 
     const theme = parsed.whitelabelTheme
     const root = document.documentElement
@@ -919,7 +939,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
         const legacySettings: AppSettings = {
           siteTitle: parsed.seoTitle || parsed.appName || '',
           logoImg: parsed.logoUrl || null, // Use whitelabel logoUrl
-          color: parsed.whitelabelTheme?.primary || undefined, // Use theme primary color
+          color: parsed.playerTheme?.colors?.action || parsed.whitelabelTheme?.primary || undefined, // PWA theme colour: the player action colour, else the legacy primary
           faviconImg: parsed.faviconUrl || null, // Use whitelabel faviconUrl
         }
         setAppSettings(legacySettings)

@@ -1,5 +1,5 @@
 /* Market identity, session summary and the fourteen-game selection workspace. */
-.m99-kit .m99-market-details { --m99-workspace-tint: #c51a1b08; min-width: 0; }
+.m99-kit .m99-market-details { --m99-workspace-tint: color-mix(in srgb, var(--mb-red) 3.1%, transparent); min-width: 0; }
 .m99-kit[data-theme='dark'] .m99-market-details { --m99-workspace-tint: #ee55550b; }
 .m99-kit .m99-market-context { display: flex; align-items: center; gap: 18px; margin: 2px 0 13px; min-height: 33px; }
 .m99-kit .m99-market-context > .m99-back-button { font-size: 12px; min-height: 30px; padding: 4px 0; color: var(--m99-muted); }
@@ -11,9 +11,9 @@
 .m99-kit .m99-workspace-switch { display: flex; align-items: center; gap: 9px; color: var(--m99-muted); font-size: 12px; }
 .m99-kit .m99-workspace-switch > select { min-width: 145px; padding: 7px 9px; border: 1px solid var(--m99-border); border-radius: var(--ui-radius); background: var(--m99-surface); color: var(--m99-ink); font: inherit; }
 .m99-kit .m99-market-hero { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 19px 22px; margin-bottom: 12px; border: 1px solid var(--m99-border); border-radius: var(--ui-radius); overflow: hidden; background: radial-gradient(ellipse at 90% 0, var(--m99-workspace-tint), transparent 65%), var(--m99-surface); }
-.m99-kit .m99-market-hero::before { content: ''; position: absolute; left: 0; top: 21px; bottom: 21px; width: 3px; background: #c51a1b; border-radius: var(--ui-radius); }
+.m99-kit .m99-market-hero::before { content: ''; position: absolute; left: 0; top: 21px; bottom: 21px; width: 3px; background: var(--mb-red); border-radius: var(--ui-radius); }
 .m99-kit .m99-market-identity { display: flex; align-items: center; gap: 15px; min-width: 0; }
-.m99-kit .m99-workspace-market-mark { display: grid; place-content: center; justify-items: center; gap: 6px; width: 57px; height: 64px; color: #c51a1b; background: #c51a1b0a; border: 1px solid #c51a1b15; border-radius: var(--ui-radius); font-size: 22px; font-weight: 700; flex-shrink: 0; }
+.m99-kit .m99-workspace-market-mark { display: grid; place-content: center; justify-items: center; gap: 6px; width: 57px; height: 64px; color: var(--mb-red); background: color-mix(in srgb, var(--mb-red) 3.9%, transparent); border: 1px solid color-mix(in srgb, var(--mb-red) 8.2%, transparent); border-radius: var(--ui-radius); font-size: 22px; font-weight: 700; flex-shrink: 0; }
 .m99-kit .m99-workspace-market-mark > svg { opacity: .65; }
 .m99-kit .m99-market-identity-status { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
 .m99-kit .m99-market-identity-status > span:first-child { font-size: 9px; letter-spacing: 1.1px; font-weight: 600; color: var(--m99-muted); }
@@ -23,7 +23,7 @@
 .m99-kit .m99-market-identity h1 { font-size: 29px; color: var(--m99-ink); font-weight: 700; letter-spacing: -.4px; line-height: 1.15; }
 .m99-kit .m99-market-identity p { display: flex; align-items: center; gap: 7px; margin-top: 6px; font-size: 12px; color: var(--m99-muted); }
 .m99-kit .m99-market-identity p > span { color: #a8aab0; }
-.m99-kit .m99-workspace-result { position: relative; min-width: 240px; padding: 12px 18px; border: 1px solid #ffffff08; border-radius: var(--ui-radius); background: #2b2f35; color: white; overflow: hidden; }
+.m99-kit .m99-workspace-result { position: relative; min-width: 240px; padding: 12px 18px; border: 1px solid #ffffff08; border-radius: var(--ui-radius); background: var(--mb-chrome); color: white; overflow: hidden; }
 .m99-kit .m99-workspace-result::after { content: ''; position: absolute; top: -30px; right: -15px; width: 110px; height: 110px; border: 1px solid #ffffff08; border-radius: 50%; pointer-events: none; }
 .m99-kit .m99-workspace-result > span { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #bac0ca; letter-spacing: .5px; text-transform: uppercase; }
 .m99-kit .m99-workspace-result > span > i { width: 4px; height: 4px; background: #f08283; border-radius: 50%; }
@@ -57,14 +57,14 @@
 .m99-kit .m99-picker-progress > li > span { display: grid; place-items: center; width: 21px; height: 21px; border: 1px solid var(--m99-border); border-radius: 50%; background: var(--m99-sidebar); font-size: 9px; }
 .m99-kit .m99-picker-progress > li:first-child > span { color: var(--m99-success); background: var(--m99-success-soft); border-color: transparent; }
 .m99-kit .m99-picker-progress > li[aria-current] { color: var(--m99-text); font-weight: 600; }
-.m99-kit .m99-picker-progress > li[aria-current] > span { color: #fff; background: #c51a1b; border-color: #c51a1b; }
+.m99-kit .m99-picker-progress > li[aria-current] > span { color: var(--mb-on-red); background: var(--mb-red); border-color: var(--mb-red); }
 .m99-kit .m99-picker-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 9px 16px; border-top: 1px solid var(--m99-border); border-bottom: 1px solid var(--m99-border); background: var(--m99-sidebar); }
 .m99-kit .m99-picker-toolbar > .m99-segmented { gap: 3px; padding: 0; border: 0; background: transparent; border-radius: var(--ui-radius); }
 .m99-kit .m99-picker-toolbar > .m99-segmented > button { border: 0; border-radius: var(--ui-radius); padding: 5px 11px; font-size: 11px; font-weight: 500; color: var(--m99-muted); }
-.m99-kit .m99-picker-toolbar > .m99-segmented > button.is-active { color: #fff; background: #34383f; }
+.m99-kit .m99-picker-toolbar > .m99-segmented > button.is-active { color: #fff; background: var(--mb-chrome-band); }
 .m99-kit .m99-picker-toolbar > span { color: var(--m99-muted); font-size: 10px; }
 .m99-kit .m99-market-details .m99-game-picker-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 14px 16px; gap: 10px; }
-.m99-kit .m99-market-details .m99-game-card { --m99-game-accent: #c51a1b; align-items: flex-start; text-align: left; min-height: 158px; padding: 13px 13px 0; border-radius: var(--ui-radius); background: linear-gradient(130deg, var(--m99-surface) 65%, var(--m99-workspace-tint)); transition: border-color .2s, box-shadow .2s, transform .2s; animation: m99-game-arrive .3s ease-out backwards; animation-delay: calc(var(--m99-game-order, 0) * 20ms); }
+.m99-kit .m99-market-details .m99-game-card { --m99-game-accent: var(--mb-red); align-items: flex-start; text-align: left; min-height: 158px; padding: 13px 13px 0; border-radius: var(--ui-radius); background: linear-gradient(130deg, var(--m99-surface) 65%, var(--m99-workspace-tint)); transition: border-color .2s, box-shadow .2s, transform .2s; animation: m99-game-arrive .3s ease-out backwards; animation-delay: calc(var(--m99-game-order, 0) * 20ms); }
 .m99-kit .m99-market-details .m99-game-card::before { content: ''; position: absolute; top: 15px; right: 14px; width: 35px; height: 35px; border: 1px solid var(--m99-border); border-radius: 50%; opacity: .25; }
 .m99-kit .m99-market-details .m99-game-card:hover, .m99-kit .m99-market-details .m99-game-card:focus-visible { transform: translateY(-2px); border-color: #ce7b7d; box-shadow: 0 5px 13px #7821260b; background: var(--m99-surface); }
 .m99-kit .m99-market-details .m99-game-card-symbol { margin-bottom: 10px; width: 35px; height: 35px; border-radius: 50%; color: #fff; background: var(--m99-game-accent); border: 0; transition: transform .2s; }
@@ -76,8 +76,8 @@
 .m99-kit .m99-market-details .m99-game-card-description { margin-top: 4px; margin-bottom: 11px; min-height: 14px; font-size: 11px; line-height: 1.3; }
 .m99-kit .m99-market-details .m99-game-card-footer { min-height: 31px; padding: 5px 0; font-size: 10px; color: var(--m99-muted); }
 .m99-kit .m99-game-card-footer > span { display: flex; align-items: center; gap: 4px; }
-.m99-kit .m99-game-card-footer > i { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; color: var(--m99-brand); background: #c51a1b08; font-style: normal; transition: transform .2s, background .2s, color .2s; }
-.m99-kit .m99-game-card:hover .m99-game-card-footer > i { background: #c51a1b; color: #fff; transform: translateX(2px); }
+.m99-kit .m99-game-card-footer > i { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; color: var(--m99-brand); background: color-mix(in srgb, var(--mb-red) 3.1%, transparent); font-style: normal; transition: transform .2s, background .2s, color .2s; }
+.m99-kit .m99-game-card:hover .m99-game-card-footer > i { background: var(--mb-red); color: var(--mb-on-red); transform: translateX(2px); }
 .m99-kit .m99-picker-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 15px; padding: 10px 16px; border-top: 1px solid var(--m99-border); background: var(--m99-sidebar); color: var(--m99-muted); font-size: 10px; }
 .m99-kit .m99-picker-foot > span { display: inline-flex; align-items: center; gap: 5px; }
 .m99-kit[data-theme='dark'] .m99-workspace-market-mark { color: #ff8d90; background: #f66d7010; border-color: #f66d7024; }

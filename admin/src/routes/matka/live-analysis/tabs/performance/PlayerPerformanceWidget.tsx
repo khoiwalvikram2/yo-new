@@ -7,6 +7,8 @@ import { useMemo } from 'react'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { gql } from '@apollo/client'
 import dayjs from 'dayjs'
+import { useAuthStore } from '@/shared/core/authStore'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 
 const MATKA_BETS_QUERY = gql`
   query MatkaBets($query: MatkaBetsQuery) {
@@ -26,12 +28,18 @@ const MATKA_BETS_QUERY = gql`
 
 export const PlayerPerformanceWidget: React.FC = () => {
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
+  // Each player's GGR and average bet only with settlements.center view, masked in the page as on the Players tab and in
+  // Player Analytics (matkaBets sends amounts to every caller); the counts, segments and ranking stay (owner, 2026-11-04).
+  const permissions = useAuthStore(s => s.permissions)
+  const hasFinanceView = hasPermissionWithNested(permissions, 'settlements.center', 'view')
+  const maskAmount = (amount: number) => (hasFinanceView ? formatAmount(convertFromWhitelabelCurrency(amount)) : '••••')
 
   // NOTE: Don't pass tenant from frontend - let backend derive both tenant and whitelabelId from context
   const { data, loading } = useQuery<MatkaBetsData>(MATKA_BETS_QUERY, {
     variables: {
       query: {
-        status: 'pending',
+        // Open bets, as the Players and Analytics tabs ask: a placed bet is 'active' until it settles.
+        statuses: ['pending', 'active'],
         limit: 5000,
       },
     },
@@ -78,7 +86,9 @@ export const PlayerPerformanceWidget: React.FC = () => {
       }
 
       const betAmount = Number(bet.betAmount || 0)
-      const payout = Number(bet.actualWin || bet.potentialWin || 0)
+      // What the bet has paid: an open bet has paid nothing yet, so its GGR is its stake, as the dashboard and Top Matkas
+      // count it. Its potential win is exposure (the Players tab), not a payout; counting it showed GGR as minus the exposure.
+      const payout = Number(bet.actualWin || 0)
       
       stats.wagered += betAmount
       stats.payouts += payout
@@ -181,7 +191,7 @@ export const PlayerPerformanceWidget: React.FC = () => {
   return <section className={styles.stack} aria-label="Player Performance">
     <h3 className={styles.heading}>Player Performance</h3><p className={styles.muted}>Comprehensive player analytics</p>
     <section className={styles.stack}><h4 className={styles.heading}>Player Segments</h4><div className={styles.grid3} aria-busy={pending || undefined}><Stat variant="bare" size="compact" label="High Rollers" value={performance.highRollers} hue="vio" loading={pending} /><Stat variant="bare" size="compact" label="Regular" value={performance.regularPlayers} hue="blu" loading={pending} /><Stat variant="bare" size="compact" label="Low Stakes" value={performance.lowStakes} loading={pending} /></div></section>
-    {performance.topContributors.length > 0 && <section className={styles.stack}><h4 className={styles.heading}>Top GGR Contributors</h4><ol className={styles.list}>{performance.topContributors.map((player, idx) => <li key={player.userId} className={styles.item}><div className={styles.row}><span className={styles.inline}><span className={styles.rank}>{idx + 1}</span><strong className={styles.heading}>{player.userName}</strong></span><span className={player.ggr >= 0 ? styles.positive : styles.negative}>{formatAmount(convertFromWhitelabelCurrency(player.ggr))}</span></div><DescriptionList items={[{ term: 'Bets', value: player.bets }, { term: 'RTP', value: 'Pending settlement' }, { term: 'Avg', value: formatAmount(convertFromWhitelabelCurrency(player.avgBet)) }]} /></li>)}</ol></section>}
+    {performance.topContributors.length > 0 && <section className={styles.stack}><h4 className={styles.heading}>Top GGR Contributors</h4><ol className={styles.list}>{performance.topContributors.map((player, idx) => <li key={player.userId} className={styles.item}><div className={styles.row}><span className={styles.inline}><span className={styles.rank}>{idx + 1}</span><strong className={styles.heading}>{player.userName}</strong></span><span className={!hasFinanceView ? styles.amount : player.ggr >= 0 ? styles.positive : styles.negative}>{maskAmount(player.ggr)}</span></div><DescriptionList items={[{ term: 'Bets', value: player.bets }, { term: 'RTP', value: 'Pending settlement' }, { term: 'Avg', value: maskAmount(player.avgBet) }]} /></li>)}</ol></section>}
   </section>
 }
 

@@ -14,6 +14,7 @@ import { tokenService, authSecurity } from '@/shared/security/auth'
 import { localStorageService } from '@/shared/services/storage'
 import { useUIStore } from '@/shared/core/uiStore'
 import { useAuthStore } from '@/shared/core/authStore'
+import { keepSignOutReasonForReload, rememberSignOutReason } from '@/shared/core/signOutReason'
 
 // Endpoints
 const HTTP_URI = import.meta.env.VITE_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql'
@@ -27,8 +28,13 @@ const httpLink = new BatchHttpLink({
   batchInterval: 20,
 })
 
+/** The whitelabel an operation names as its target (context `targetWhitelabelId`), if any. */
+function operationTarget(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
 // Auth Link - CRITICAL: Read from store first so agent login works before persist writes to localStorage
-const authLink = setContext((_, { headers }) => {
+const authLink = setContext((_, { headers, targetWhitelabelId }) => {
   const storeState = useAuthStore.getState()
   let token = storeState.token
   let agent = storeState.agent
@@ -62,7 +68,16 @@ const authLink = setContext((_, { headers }) => {
     )
     
     // Super Admin mode handling
-    if (isSuperAdmin) {
+    const target = operationTarget(targetWhitelabelId)
+    if (isSuperAdmin && target) {
+      // An operation about one whitelabel (App Configuration opened from the Whitelabels list) runs in
+      // whitelabel mode for it, whatever the switcher holds. A bare x-whitelabel-id header could not do
+      // this: in core mode the server ignores it, so the page showed "Managing: <brand>" while it read
+      // and would have saved the default tenant's settings.
+      authHeaders['X-Admin-Mode'] = 'whitelabel'
+      authHeaders['X-Whitelabel-ID'] = target
+      authHeaders['X-Whitelabel'] = target
+    } else if (isSuperAdmin) {
       // Send Super Admin mode header
       authHeaders['X-Admin-Mode'] = directorMode
       
@@ -73,7 +88,8 @@ const authLink = setContext((_, { headers }) => {
       }
       // Core mode: don't send X-Whitelabel-ID (backend will skip tenant filtering)
     } else {
-      // CRITICAL: Whitelabel Admin and Agents use existing logic (UNCHANGED)
+      // CRITICAL: Whitelabel Admin and Agents use existing logic (UNCHANGED); a target is ignored, since
+      // they are bound to their own tenant (the server refuses another one).
       // Always send whitelabel ID header if available (needed for login before auth state is set)
       // Check localStorage for tenant (which is the whitelabel ID) or X_WHITELABEL_ID
       const tenantFromStorage = (typeof window !== 'undefined' ? window.localStorage.getItem('TENANT') : null)
@@ -109,9 +125,22 @@ const authLink = setContext((_, { headers }) => {
   }
 })
 
-// Error Link - show backend error messages via AntD notification
-// CRITICAL: Always return forward(operation) so the link chain completes and requests don't hang/loop
-const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
+/**
+ * Whether a subscription failed in its transport (the socket was refused or closed, or spoke a protocol graphql-ws
+ * cannot read), as opposed to the server answering it with GraphQL errors, which GraphQLWsLink hands on as an
+ * ApolloError carrying them. Only an operation sent over the socket can fail this way.
+ */
+export function isSubscriptionTransportFailure(definition: unknown, networkError: unknown): boolean {
+  if ((definition as { operation?: string } | null)?.operation !== 'subscription') return false
+  const graphQLErrors = (networkError as { graphQLErrors?: unknown } | null)?.graphQLErrors
+  return !(Array.isArray(graphQLErrors) && graphQLErrors.length > 0)
+}
+
+// Error Link - show backend error messages as toasts, and end the session on a session-ending error.
+// It returns nothing, so the result or the network error flows on to the caller unchanged. Returning
+// forward(operation) here is onError's *retry*: every failing operation was sent a second time, mutations
+// included (one click on a refused save ran it twice, a failed login counted twice against the lockout).
+const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
   // Skip error link notifications for mutations - let them handle errors in catch blocks
   // This prevents duplicate error messages
   const definition = getMainDefinition(operation.query)
@@ -144,25 +173,66 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
   }
   const isPermissionError = (msg: string) =>
     /insufficient permissions|permission denied|not allowed|forbidden.*permissions/i.test(msg)
+  /** T029: the tenant this browser stored (TENANT / X_WHITELABEL_ID, written at sign-in) is not this whitelabel
+   *  admin's own, say from another session's sign-in in a shared browser. The server refuses every request alike,
+   *  so it is a session matter: the panel clears the stored tenant and signs out once, instead of toasting the
+   *  same refusal on every request. */
+  const isStaleTenantError = (msg: string) =>
+    /whitelabel admins can only access their own tenant|whitelabel admins cannot switch tenants/i.test(msg)
 
   // Never force-logout on login operations — auth failures there are expected (wrong password, suspended, etc.)
   const opName = operation.operationName || ''
   const isLoginOp = /agentLogin|^Login$/i.test(opName)
+  // An operation that reports its own outcome (context skipNotification, as for the notification link below)
+  // gets no toast from here either; a background read with a fallback, say. A session end still signs out.
+  const isSilent = operation.getContext()?.skipNotification === true
+  // A refusal sent with an HTTP error status arrives as a networkError whose parsed body holds the errors (an array of
+  // results, from the batching link), so the stale-tenant check reads those too; neither form is toasted.
+  const networkResult = (networkError as { result?: unknown } | undefined)?.result
+  const networkResultErrors = (Array.isArray(networkResult) ? networkResult : networkResult ? [networkResult] : [])
+    .flatMap((entry) => (Array.isArray((entry as { errors?: unknown })?.errors) ? (entry as { errors: Array<{ message?: unknown }> }).errors : []))
+  const staleTenant = !isLoginOp && [...(graphQLErrors ?? []), ...networkResultErrors]
+    .some((e) => isStaleTenantError(String(e?.message ?? '')))
+  // A session already gone here has nothing left to end: a reply still in flight after a sign-out on purpose
+  // (an admin's password change signs out at once, since it ends every session of that admin) raises no
+  // "Session ended" and does not reload the sign-in page over the message that sign-out showed. The same holds
+  // for the other replies of a stale-tenant burst: the first signs out, the rest find no session and stay quiet.
+  const hasSession = () => Boolean(useAuthStore.getState().token || tokenService.getToken())
+  const signOut = (reason: 'session-ended' | 'tenant-changed') => {
+    if (reason === 'tenant-changed' && typeof window !== 'undefined') {
+      // Cleared before the sign-out too, so no request after it can name the stale tenant again.
+      try {
+        window.localStorage.removeItem('TENANT')
+        window.localStorage.removeItem('X_WHITELABEL_ID')
+      } catch {
+        // No storage: the sign-out below clears what it can.
+      }
+    }
+    useAuthStore.getState().logout()
+    if (reason === 'tenant-changed') {
+      toast({ title: 'Signed out', message: 'This browser held another whitelabel. Please sign in again.', tone: 'error', duration: 5000 })
+    } else {
+      toast({ title: 'Session ended', message: 'Please log in again.', tone: 'error', duration: 5000 })
+    }
+    // The reload below drops that toast, so the sign-in page shows the reason instead (signOutReason.ts). The route
+    // guard shows this document's own sign-in page before the reload lands; it leaves the reason for the reloaded one.
+    rememberSignOutReason(reason)
+    keepSignOutReasonForReload()
+    if (typeof window !== 'undefined') window.location.href = '/login'
+  }
+
+  if (staleTenant && hasSession()) signOut('tenant-changed')
 
   if (graphQLErrors) {
     const authErrors = graphQLErrors.filter(
       (e) => !isLoginOp && isSessionEndingAuthError(e.message) && !isPermissionError(e.message)
     )
-    const shouldForceLogout = authErrors.length > 0
+    const shouldForceLogout = authErrors.length > 0 || staleTenant
 
-    if (shouldForceLogout) {
-      useAuthStore.getState().logout()
-      toast({ title: 'Session ended', message: 'Please log in again.', tone: 'error', duration: 5000 })
-      if (typeof window !== 'undefined') window.location.href = '/login'
-    }
+    if (authErrors.length > 0 && hasSession()) signOut('session-ended')
     graphQLErrors.forEach(({ message: errorMessage, locations: _locations, path: _path }) => {
       // Login ops handle their own errors (toast shown by LoginPage onError handler)
-      if (isLoginOp) return
+      if (isLoginOp || isSilent) return
       if (!shouldForceLogout && !isMutation) {
         // Don't show toast for permission-denied on queries (e.g. background badge polling, nav)
         const isPermissionDenied = isPermissionError(errorMessage)
@@ -176,7 +246,11 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
   }
 
   if (networkError) {
-    if (!isMutation) {
+    // A subscription whose socket was refused, closed or answered in a protocol graphql-ws cannot read raised the raw
+    // text ("Invalid message 'type' property "connection_error"") beside the readable session message (SCO-10
+    // follow-up). That is transport, not something the user did, so it is not toasted; the subscriber still gets the
+    // error, and a session that has ended is signed out by the next request's own refusal, as before.
+    if (!isMutation && !isSilent && !staleTenant && !isSubscriptionTransportFailure(definition, networkError)) {
       toast({
         message: (networkError as any)?.message || 'Network error occurred',
         tone: 'error',
@@ -184,8 +258,6 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
       })
     }
   }
-
-  return forward(operation)
 })
 
 // Helper function to recursively find payload with success and message
@@ -369,6 +441,12 @@ export const apolloClient = new ApolloClient({
           // Add field policies for caching
         },
       },
+      // The agents namespace objects have no id. Without a merge, two queries on one page that select
+      // different fields under Query.agents (a page's list beside its chips reads, the player form's credit
+      // agents beside other agents reads) replace each other's object in the cache, and each then refetches.
+      // Merging keeps every field; the fields under it are still keyed by their own arguments.
+      AgentsQuery: { merge: true },
+      AgentsMutation: { merge: true },
     },
   }),
   defaultOptions: {

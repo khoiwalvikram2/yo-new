@@ -17,14 +17,12 @@ import { Tooltip } from '@/ui/components/Tooltip'
 import {
   EMPTY_VENDOR_ANALYTICS,
   VENDOR_COMPARATORS,
-  VENDOR_TREND_DIVISOR,
   analyticsProviderIds,
   avgBet,
   gamesLabel,
   ggrTrend,
   legacySortCycle,
   toVendorRows,
-  trendPercent,
   vendorAnalyticsKey,
   vendorAnalyticsMap,
   vendorRowKey,
@@ -68,7 +66,7 @@ const VendorAnalyticsCell: React.FC<{
   }
 
   return (
-    <TodayFigure amount={formattedGgr} trend={ggrTrend(ggr)} percent={trendPercent(ggr, VENDOR_TREND_DIVISOR)}>
+    <TodayFigure amount={formattedGgr} trend={ggrTrend(ggr)}>
       <span>Share: {formattedShare}</span>
       <span>Txns: {transactionCount.toLocaleString()}</span>
     </TodayFigure>
@@ -113,8 +111,8 @@ const VendorPerformanceCell: React.FC<{
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
   const analytics: VendorAnalyticsData | null | undefined = analyticsFromProps ?? data?.vendorAnalytics
   const transactionCount = analytics?.transactionCount ?? 0
-  const ggr = analytics?.ggr ?? 0
-  const average = avgBet(ggr, transactionCount)
+  // Stake per settled bet; not shown when the figures came without the stakes.
+  const average = avgBet(analytics?.totalStake, transactionCount)
 
   if (analyticsFromProps === undefined && loading) {
     return <span className={styles.figureCell}>Loading…</span>
@@ -127,7 +125,7 @@ const VendorPerformanceCell: React.FC<{
         <span className={styles.figure}>{transactionCount}</span>
       </span>
       <span>Txns: {transactionCount}</span>
-      {average > 0 && <span>Avg: {formatAmount(convertFromWhitelabelCurrency(average))}</span>}
+      {average != null && average > 0 && <span>Avg: {formatAmount(convertFromWhitelabelCurrency(average))}</span>}
     </div>
   )
 }

@@ -1,9 +1,7 @@
 import { NotificationsRepo } from '../../../repos/notifications/notificationsRepo';
 import { NotificationService } from '../services/NotificationService';
-import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js';
 
-import { notificationReadScope } from '../services/notificationReadScope.js';
-import { hasPermission } from '@src/domains/common/auth.js';
+import { notificationReadScope, notificationStatsScope } from '../services/notificationReadScope.js';
 
 export function buildNotificationsQueryResolvers() {
 	const notificationsRepo = new NotificationsRepo();
@@ -11,17 +9,20 @@ export function buildNotificationsQueryResolvers() {
 
 	const myNotificationsResolver = async (
 		parent: any,
-		args: { category?: string; limit?: number; offset?: number } | undefined,
+		args: { category?: string; limit?: number; offset?: number; unreadOnly?: boolean | null } | undefined,
 		ctx: any
 	) => {
+		// Outside the try: a caller without a session is refused, not handed an empty inbox.
+		const scope = notificationReadScope(ctx, args?.category);
 		try {
-			const { category } = args || {};
 			// Both went straight into the SQL query with no ceiling, so one call could
 			// pull the tenant's whole notifications table.
 			const limit = Math.min(200, Math.max(1, args?.limit ?? 50));
 			const offset = Math.min(100_000, Math.max(0, args?.offset ?? 0));
 
-			const filters = { ...notificationReadScope(ctx, category), limit, offset };
+			// The bells list unread rows only. Reading the newest rows and keeping the unread ones hid
+			// any unread notification older than the window, while the badge (notificationStats) counted it.
+			const filters = { ...scope, ...(args?.unreadOnly ? { isRead: false } : {}), limit, offset };
 
 			const notifications = await notificationService.getNotificationsForUser(filters);
 
@@ -42,32 +43,10 @@ export function buildNotificationsQueryResolvers() {
 	};
 
 	const notificationStatsResolver = async (parent: any, args: any, ctx: any) => {
+		// The same recipient scope as the list, so the counts and the rows agree. Outside the try:
+		// a caller without a session is refused rather than answered with zero counts.
+		const filters = notificationStatsScope(ctx);
 		try {
-			// CRITICAL: For Director Admin, use effective tenant based on mode
-			// For Whitelabel Admin and Agents, use existing logic (UNCHANGED)
-			const directorTenant = getEffectiveTenantForDirector(ctx)
-			let tenant = directorTenant ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
-			if (typeof tenant !== 'string' || tenant.trim() === '') {
-				tenant = 'default';
-			} else {
-				tenant = tenant.trim();
-			}
-
-			const filters: any = {
-				tenant,
-			};
-
-			// Filter by user type
-			if (ctx?.user?.type === 'user' && ctx?.user?.userId) {
-				filters.userId = ctx.user.userId;
-			} else if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) {
-				filters.agentId = ctx.user.agentId;
-			} else if (directorTenant || ctx?.whitelabel?.id) {
-				filters.whitelabelId = directorTenant ?? ctx?.whitelabel?.id;
-				// Whitelabel admins should only count DEPOSIT/WITHDRAWAL as tasks
-				filters.allowedTypes = ['DEPOSIT', 'WITHDRAWAL'];
-			}
-
 			const stats = await notificationService.getNotificationStats(filters);
 
 			return {
@@ -86,12 +65,13 @@ export function buildNotificationsQueryResolvers() {
 
 	return {
     myNotification: async (_: any, args: { id: string; category?: string }, ctx: any) => {
-      if (!ctx?.user) throw new Error('Unauthorized: authentication required');
-      if (!hasPermission(ctx?.permissions ?? [], 'notifications.list', 'view')) throw new Error('Forbidden: insufficient permissions for notifications');
-      if ((ctx.user.type === 'agent' && !ctx.user.agentId) || (ctx.user.type === 'user' && !ctx.user.userId)) throw new Error('Forbidden: recipient identity required');
+      // The caller's own inbox, scoped exactly as myNotifications is, so a session is all it takes (the scope
+      // refuses a caller without one). It also required notifications.list:view, "Manage system notifications",
+      // which no Whitelabel Admin or agent holds: the bell listed their notifications and every detail refused them.
+      const scope = notificationReadScope(ctx, args.category);
       if (args.category != null && args.category !== 'general' && args.category !== 'task') throw new Error('Invalid notification category');
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(args.id)) return null;
-      const rows = await notificationService.getNotificationsForUser({ ...notificationReadScope(ctx, args.category), id: args.id, limit: 1, offset: 0 });
+      const rows = await notificationService.getNotificationsForUser({ ...scope, id: args.id, limit: 1, offset: 0 });
       const notification = rows[0];
       return notification ? { ...notification, createdAt: notification.createdAt?.toISOString() || new Date().toISOString() } : null;
     },

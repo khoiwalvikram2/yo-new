@@ -92,8 +92,6 @@ type Query {
   myWhitelabelCreditHistory(limit: Int, offset: Int): [WhitelabelCreditTransaction!]!
   myWhitelabelSettlements(limit: Int, offset: Int, agentOffset: Int, whitelabelOffset: Int): WhitelabelSettlementSummary!
   myWhitelabelSharing: WhitelabelSharingInfo!
-  myAgentCredit: AgentCreditInfo!
-  myAgentCreditHistory(limit: Int, offset: Int): [CreditTransaction!]!
   myAgentSettlements(limit: Int, offset: Int): AgentSettlementSummary!
   myAgentSharing: AgentSharingInfo!
   myAgentCommission: AgentCommissionInfo!
@@ -106,7 +104,6 @@ type Query {
   casinoCategories: [CategoryTree!]!
   limits(scope: String): [Limit!]!
   jackpots: [Jackpot!]!
-  content: [Content!]!
   users(query: String, status: PlayerStatus, balanceMin: Float, balanceMax: Float, registeredFrom: String, registeredTo: String): [User!]!
   usersPage(query: String, status: PlayerStatus, balanceMin: Float, balanceMax: Float, registeredFrom: String, registeredTo: String, offset: Int, limit: Int, parentType: String, agentId: ID, onlyDirect: Boolean, includeDownline: Boolean, playerType: String, sortBy: String, sortOrder: String): UsersPage!
   playersListStats(parentType: String): PlayersListStats!
@@ -140,7 +137,6 @@ type Query {
   previewBonusDistribution(campaignId: ID!): BonusDistributionPreview!
   casinoGameBundles(search: String, domain: BonusDomain): [CasinoGameBundle!]!
   casinoGameBundle(id: ID!): CasinoGameBundle
-  promotions(status: PromotionStatus, search: String): [Promotion!]!
   # Matka queries
   draws(status: String, from: String, to: String): [Draw!]!
   rates(current: Boolean): [RateVersion!]!
@@ -174,6 +170,7 @@ type Query {
   savedReports: [SavedReport!]!
   exportJobsPage(status: String, limit: Int, offset: Int): ExportJobsPage!
   exportJobs(status: String, limit: Int): [ExportJob!]!
+  # The completed job's file as a base64 data URI (data:<mime>;base64,...), read from its row; the name stays for the page.
   exportJobDownloadUrl(jobId: ID!): String!
   # Rows an agent's export of reportType would hold (its own subtree, capped like the file); null for non-agents.
   agentExportRowCount(reportType: String!, filtersJson: JSON): Int
@@ -231,6 +228,8 @@ type Query {
   auditExportCSV(domain: String, action: String, actor: ID, from: String, to: String, filters: AuditListFilter): String!
   auditExportJobsPage(status: String, limit: Int, offset: Int): AuditExportJobsPage!
   auditExportJobs(status: String, limit: Int): [AuditExportJob!]!
+  # The caller's completed audit export as a base64 data URI (data:<mime>;base64,...); the job list carries only its name.
+  auditExportJobDownload(id: ID!): String!
   auditAnnotations(auditEventId: ID!): [AuditAnnotation!]!
   # VIP queries
   vipTiers: [VIPTier!]!
@@ -345,14 +344,14 @@ type Query {
   # Deposits
   myDepositMethods: WhitelabelPaymentMethods!
   adminDepositRequests(input: ListDepositRequestsInput): DepositRequestListResult!
+  # One request's payment proof as a data URI or a link, null when none; list rows carry only hasProof.
+  depositRequestProof(id: ID!): String
   whitelabelPaymentMethods: WhitelabelPaymentMethods
   # Player Profile queries
   playerProfile(id: ID!): PlayerProfile!
   playerOverview(input: PlayerOverviewInput!): PlayerOverview!
   playerBets(playerId: ID!, filter: PlayerBetsFilter): PlayerBetsPage!
   playerTransactions(playerId: ID!, filter: PlayerTransactionsFilter): PlayerTransactionsPage!
-  playerCreditTransactions(playerId: ID!, limit: Int, offset: Int): [CreditTransaction!]!
-  playerCreditStatement(playerId: ID!, dateFrom: String!, dateTo: String!, limit: Int, offset: Int): PlayerCreditStatement
   playerBonuses(playerId: ID!): [PlayerBonus!]!
   playerVip(playerId: ID!): PlayerVipInfo
   playerDevices(playerId: ID!): [PlayerDevice!]!

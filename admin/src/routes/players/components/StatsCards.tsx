@@ -1,12 +1,14 @@
 import { useQuery, gql } from '@apollo/client'
-import { IconUsers, IconWallet, IconActivity, IconAlertCircle, IconCreditCard } from '@tabler/icons-react'
+import { IconUsers, IconWallet, IconActivity, IconAlertCircle, IconCoins, IconScale, IconTarget } from '@tabler/icons-react'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { useAuthStore } from '@/shared/core/authStore'
 import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
+import { chipTone, refPnlNote, signedChips } from '@/modules/chips'
 import type { StatProps } from '@/ui/components/Stat'
 import { AccountListMetric } from '@/modules/account-lists/AccountList'
 import { strokeFor } from '@/ui/components/icons'
 import styles from '@/modules/account-lists/AccountList.module.css'
+import listStyles from '../PlayersSearch.module.css'
 const PLAYER_LIST_STATS_QUERY = gql`
   query PlayerListStats($parentType: String) {
     playersListStats(parentType: $parentType) {
@@ -18,8 +20,6 @@ const PLAYER_LIST_STATS_QUERY = gql`
       totalBonus
       totalExposure
       totalCreditLimit
-      totalCreditUsed
-      highUtilizationCount
     }
   }
 `;
@@ -50,10 +50,10 @@ export function StatsCards({ parentType = 'ALL', defer = false }: { parentType?:
   const totalBalance = s?.totalBalance ?? 0;
   const totalBonus = s?.totalBonus ?? 0;
   const totalExposure = s?.totalExposure ?? 0;
-  const totalCreditLimit = s?.totalCreditLimit ?? 0;
-  const totalCreditUsed = s?.totalCreditUsed ?? 0;
-  const highUtilizationPlayers = s?.highUtilizationCount ?? 0;
-  const creditUtilization = totalCreditLimit > 0 ? Math.round((totalCreditUsed / totalCreditLimit) * 100) : 0;
+  // Credit players are on chips (spec 2026-11-02 §2): their wallets hold the chips, users.credit_limit is the
+  // credit reference, and Ref P/L is what the chips are above (+) or below (−) the reference.
+  const totalCreditReference = s?.totalCreditLimit ?? 0;
+  const totalRefPnl = totalBalance - totalCreditReference;
   const activeRate = totalPlayers > 0 ? Math.round((activePlayers / totalPlayers) * 100) : 0;
 
 
@@ -65,10 +65,11 @@ export function StatsCards({ parentType = 'ALL', defer = false }: { parentType?:
   const rate: StatProps = { label: 'Active Rate', value: activeRate + '%', note: `${activePlayers} of ${totalPlayers}`, icon: <IconActivity size={18} stroke={strokeFor(18)} />, hue: 'grn' }
   const exposure: StatProps = { label: 'Exposure', value: canViewWallet ? money(totalExposure) : mask, note: suspendedPlayers + ' at risk', icon: <IconAlertCircle size={18} stroke={strokeFor(18)} />, hue: 'red' }
   const attention: StatProps = { label: 'Attention', value: suspendedPlayers + inactivePlayers, note: `${suspendedPlayers} suspended, ${inactivePlayers} inactive`, icon: <IconAlertCircle size={18} stroke={strokeFor(18)} />, hue: 'red' }
+  const refTone = chipTone(totalRefPnl)
   const credit: StatProps[] = [count,
-    { label: 'Utilization', value: creditUtilization + '%', note: canViewCredit ? money(totalCreditUsed) + ' / ' + money(totalCreditLimit) : mask, icon: <IconCreditCard size={18} stroke={strokeFor(18)} />, hue: 'blu' },
-    { label: 'Available', value: canViewCredit ? money(totalCreditLimit - totalCreditUsed) : mask, note: canViewCredit ? 'Limit: ' + money(totalCreditLimit) : undefined, icon: <IconWallet size={18} stroke={strokeFor(18)} />, hue: 'grn' },
-    { label: 'Alerts', value: highUtilizationPlayers, note: highUtilizationPlayers > 0 ? 'High usage' : 'Healthy', icon: <IconAlertCircle size={18} stroke={strokeFor(18)} />, hue: 'red' }]
+    { label: 'Balance', value: canViewCredit ? money(totalBalance) : mask, note: canViewCredit ? 'Exposure: ' + money(totalExposure) : 'Chips in players\' wallets', icon: <IconCoins size={18} stroke={strokeFor(18)} />, hue: 'ind' },
+    { label: 'Credit Ref', value: canViewCredit ? money(totalCreditReference) : mask, note: 'Reference only', icon: <IconTarget size={18} stroke={strokeFor(18)} />, hue: 'blu' },
+    { label: 'Ref P/L', value: canViewCredit ? <span className={refTone === 'gain' ? listStyles.positive : refTone === 'loss' ? listStyles.negative : undefined}>{signedChips(totalRefPnl, money)}</span> : mask, note: canViewCredit ? refPnlNote(totalRefPnl) : 'Balance − credit ref', icon: <IconScale size={18} stroke={strokeFor(18)} />, hue: 'vio' }]
   const cards = parentType === 'CREDIT' ? credit : [count, balance, rate, parentType === 'SHARING' || parentType === 'COMMISSION' ? attention : exposure]
   if (!['ALL', 'DIRECT', 'CREDIT', 'SHARING', 'COMMISSION', 'SUB_AGENTS'].includes(parentType)) return null
   return <div className={styles.metrics} aria-busy={pending || undefined}>{cards.map(card => <AccountListMetric key={String(card.label)} {...card} loading={pending} />)}</div>

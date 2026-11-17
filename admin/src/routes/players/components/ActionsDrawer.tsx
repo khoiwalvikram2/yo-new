@@ -20,6 +20,7 @@ import { WalletBonusSection } from './actionsDrawer/WalletBonusSection'
 import { CommissionInfoSection } from './actionsDrawer/CommissionInfoSection'
 import { SharingInfoSection } from './actionsDrawer/SharingInfoSection'
 import { useCurrency } from '@/shared/core/CurrencyContext'
+import { chipTone, refPnlNote, signedChips, useChipFormat, type ChipAccount } from '@/modules/chips'
 import { usePlayersUiStore } from '@/state/playersUiStore'
 import { useAuthStore } from '@/shared/core/authStore'
 import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
@@ -123,9 +124,24 @@ export function ActionsDrawer({ user, open, onClose, onRefetch }: ActionsDrawerP
         withdrawalLock
         playerType
         creditLimit
-        creditUsed
-        creditAvailable
         agentId
+        chips {
+          accountType
+          id
+          username
+          name
+          status
+          parentAgentId
+          playerType
+          currency
+          creditReference
+          balance
+          exposure
+          available
+          downlineBalance
+          refPnl
+          downlineCount
+        }
         parentAgent {
           id
           username
@@ -194,8 +210,6 @@ export function ActionsDrawer({ user, open, onClose, onRefetch }: ActionsDrawerP
         wallet: drawerUserData.wallet,
         // Ensure ALL fields are from query
         creditLimit: drawerUserData.user.creditLimit,
-        creditUsed: drawerUserData.user.creditUsed,
-        creditAvailable: drawerUserData.user.creditAvailable,
         playerType: drawerUserData.user.playerType,
         vipTierId: drawerUserData.user.vipDepositAccess?.tierId ?? drawerUserData.user.vipTierId,
         vipTierName: drawerUserData.user.vipDepositAccess?.tierName ?? drawerUserData.user.vipTierName,
@@ -205,6 +219,10 @@ export function ActionsDrawer({ user, open, onClose, onRefetch }: ActionsDrawerP
         agentId: drawerUserData.user.agentId,
       } as Player)
     : user || null
+
+  // A credit player's chips account: the drawer's own fresh read first, else the list row's.
+  const chips: ChipAccount | null = drawerUserData?.user?.chips ?? (user as { chips?: ChipAccount | null } | null)?.chips ?? null
+  const formatChips = useChipFormat(chips?.currency)
 
   // Sync withdrawalLock & bonusAllowed from server data when drawer opens or user changes
   useEffect(() => {
@@ -241,12 +259,20 @@ export function ActionsDrawer({ user, open, onClose, onRefetch }: ActionsDrawerP
   }, [limitsData, user?.id])
 
   function close() { closeDrawer(); onClose(); setSelectedUser(null) }
-  const money = (value: number | undefined, visible: boolean) => !visible ? mask : value ? formatAmount(Number(value), effectiveUser?.wallet?.currency) : '—'
+  // A credit player's chips (spec 2026-11-02 §2): balance, exposure, credit reference and Ref P/L, masked like
+  // every credit figure without players.credit:view.
+  const chipFigure = (value: number | undefined) => !canViewCredit ? mask : chips && value != null ? formatChips(value) : '—'
+  const chipItems = [
+    { term: 'Balance', value: chipFigure(chips?.balance) },
+    { term: 'Exposure', value: chipFigure(chips?.exposure) },
+    { term: 'Credit Reference', value: chipFigure(chips?.creditReference) },
+    { term: 'Ref P/L', value: !canViewCredit || !chips ? chipFigure(undefined) : <span className={chipTone(chips.refPnl) === 'gain' ? styles.positive : chipTone(chips.refPnl) === 'loss' ? styles.negative : undefined}>{`${signedChips(chips.refPnl, formatChips)} · ${refPnlNote(chips.refPnl)}`}</span> },
+  ]
   return <>
     <Drawer title="Player Actions" open={open && !moveOpen} onOpenChange={next => { if (!next) close() }} size="lg" footer={<div className={styles.row}><p className={styles.secondary}>Manage player account settings, limits, and wallet controls</p><Button size="sm" onClick={close}>Close</Button></div>}>
       {drawerLoading && !effectiveUser ? <LoadingState label="Loading player data" /> : effectiveUser ? <div className={styles.stack}>
         <div className={styles.row}><div className={styles.person}><Avatar name={effectiveUser.name} hue="auto" /><div><div className={styles.name}>{effectiveUser.name || effectiveUser.username || 'Player'}</div><p className={styles.secondary}>{effectiveUser.email || effectiveUser.phone || 'No contact info'}</p></div></div><StatusPill tone={effectiveUser.status === 'ACTIVE' ? 'ok' : effectiveUser.status === 'SUSPENDED' ? 'neg' : 'neutral'}>{effectiveUser.status === 'ACTIVE' ? 'Active' : effectiveUser.status === 'SUSPENDED' ? 'Suspended' : 'Inactive'}</StatusPill></div>
-        {!isSharingAgent && <div><h3 className={styles.name}>{isCreditPlayer(effectiveUser.playerType) ? 'Credit Information' : 'Wallet Balance'}</h3><DescriptionList items={isCreditPlayer(effectiveUser.playerType) ? [{ term: 'Limit', value: money(effectiveUser.creditLimit, canViewCredit) }, { term: 'Used', value: money(effectiveUser.creditUsed, canViewCredit) }, { term: 'Available', value: money(effectiveUser.creditAvailable, canViewCredit) }] : [{ term: 'Balance', value: canViewWallet ? effectiveUser.wallet ? formatAmount(effectiveUser.wallet.balance, effectiveUser.wallet.currency) : '—' : mask }, { term: 'Exposure', value: canViewWallet ? effectiveUser.wallet ? formatAmount(effectiveUser.wallet.exposure, effectiveUser.wallet.currency) : '—' : mask }, { term: 'Bonus', value: canViewWallet ? effectiveUser.wallet ? formatAmount(effectiveUser.wallet.bonus || 0, effectiveUser.wallet.currency) : '—' : mask }]} /></div>}
+        {!isSharingAgent && <div><h3 className={styles.name}>{isCreditPlayer(effectiveUser.playerType) ? 'Chips' : 'Wallet Balance'}</h3><DescriptionList items={isCreditPlayer(effectiveUser.playerType) ? chipItems : [{ term: 'Balance', value: canViewWallet ? effectiveUser.wallet ? formatAmount(effectiveUser.wallet.balance, effectiveUser.wallet.currency) : '—' : mask }, { term: 'Exposure', value: canViewWallet ? effectiveUser.wallet ? formatAmount(effectiveUser.wallet.exposure, effectiveUser.wallet.currency) : '—' : mask }, { term: 'Bonus', value: canViewWallet ? effectiveUser.wallet ? formatAmount(effectiveUser.wallet.bonus || 0, effectiveUser.wallet.currency) : '—' : mask }]} /></div>}
         {drawerLoading && <Notice tone="info">Refreshing player data…</Notice>}
           {/* Content Area */}
           <div className={styles.stack}>

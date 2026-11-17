@@ -37,6 +37,8 @@ export interface LiveNavigationProps {
   isUpdating: boolean
   cubeRotation: number
   compact?: boolean
+  /** The Testing tab is a diagnostic the server lets only some callers run; false leaves it out. @default true */
+  showTesting?: boolean
 }
 
 function liveTabPrefix(feature: LiveFeature) {
@@ -44,12 +46,13 @@ function liveTabPrefix(feature: LiveFeature) {
 }
 
 export function LiveWorkspaceNavigation({
-  feature, activeTab, setActiveTab, hasDashData, isUpdating,
+  feature, activeTab, setActiveTab, hasDashData, isUpdating, showTesting = true,
 }: LiveNavigationProps & { feature: LiveFeature }) {
+  const tabs = feature === 'sports' ? SPORTS : showTesting ? GAMING : GAMING.filter((tab) => tab.value !== 'testing')
   return (
     <nav className={styles.navigation} aria-label={`${feature} analysis navigation`}>
       <div className={styles.navigationScroll}>
-        <Tabs value={activeTab} onChange={setActiveTab} items={feature === 'sports' ? SPORTS : GAMING} size="sm"
+        <Tabs value={activeTab} onChange={setActiveTab} items={tabs} size="sm"
           label={`${feature} analysis views`} idPrefix={liveTabPrefix(feature)} />
       </div>
       <span className={styles.connectionState}>

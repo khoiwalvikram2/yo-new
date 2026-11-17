@@ -16,7 +16,7 @@ import timezone from 'dayjs/plugin/timezone'
  *   state and the <html> theme leak from one test into the next.
  * - dayjs utc/timezone: main.tsx registers these for the browser, but vitest never
  *   loads main.tsx, so anything reaching dayjs.tz (date.ts nowIST -> useIstClock ->
- *   DateTime) throws "dayjs.tz is not a function" without them.
+ *   PanelFooter's clock) throws "dayjs.tz is not a function" without them.
  */
 
 dayjs.extend(utc)

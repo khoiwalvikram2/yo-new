@@ -63,10 +63,13 @@ describe('DepositRequestsFiltersBar', () => {
       ['', 'All Methods'],
       ['BANK_TRANSFER', 'Bank Transfer'],
       ['UPI', 'UPI'],
+      ['CRYPTO', 'Crypto (USDT)'],
+      ['GATEWAY', 'Payment Gateway'],
     ])
     fireEvent.change(method, { target: { value: 'UPI' } })
     fireEvent.change(method, { target: { value: '' } })
-    assert.deepEqual(handlers.onChangeMethod.mock.calls, [['UPI'], ['']])
+    fireEvent.change(method, { target: { value: 'CRYPTO' } })
+    assert.deepEqual(handlers.onChangeMethod.mock.calls, [['UPI'], [''], ['CRYPTO']])
   })
 
   test('counts Pending as the initial filter, treats Today as the default and delegates Clear all once', () => {

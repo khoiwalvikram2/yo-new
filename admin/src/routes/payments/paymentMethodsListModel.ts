@@ -1,8 +1,18 @@
 /**
  * Pure logic of /payments/methods, moved out of the legacy PaymentMethodsListPage.tsx unchanged in
  * behaviour: the input cleaning, the upsert payloads (key order kept), the stats arithmetic and the copy.
+ * Crypto wallets (USDT) were added later: their saves send only what changes (the wallet list, the rate
+ * or the bonus), because the server keeps whatever an upsert omits.
  * The page and its tests read everything from here; nothing in this file touches React or Apollo.
  */
+import {
+  CRYPTO_BONUS_MAX_PERCENT,
+  CRYPTO_COIN,
+  CRYPTO_RATE_MAX,
+  cryptoAmountFor,
+  cryptoBonusFor,
+  parseCryptoBonusPercent,
+} from './cryptoWalletModel'
 
 /** One entry of `whitelabelPaymentMethods.banks`, exactly the fields WHITELABEL_PAYMENT_METHODS selects. */
 export interface BankDetail {
@@ -32,6 +42,21 @@ export interface UpiDetail {
   enabled?: boolean
 }
 
+/** One entry of `whitelabelPaymentMethods.cryptos`: a USDT wallet on one network; `qrUrl` is output only. */
+export interface CryptoDetail {
+  id: string
+  network: string
+  walletAddress: string
+  displayName?: string | null
+  qrKey?: string | null
+  qrUrl?: string | null
+  minAmount?: number | null
+  maxAmount?: number | null
+  weight: number
+  enabled?: boolean
+  vipTierIds?: string[] | null
+}
+
 export interface PaymentMethodLimits {
   min: number
   max: number
@@ -42,6 +67,11 @@ export interface WhitelabelPaymentMethodsData {
   enabledMethods?: string[] | null
   banks?: BankDetail[] | null
   upis?: UpiDetail[] | null
+  cryptos?: CryptoDetail[] | null
+  /** Deposit currency per 1 USDT, one for the whole whitelabel; null until set (players then see no wallet). */
+  cryptoRate?: number | null
+  /** Extra % paid into the cash wallet on every approved crypto deposit; null for none. */
+  cryptoBonusPercent?: number | null
   limits?: PaymentMethodLimits | null
 }
 
@@ -53,8 +83,23 @@ export interface PaymentMethodsUpsertInput {
   limits: PaymentMethodLimits
 }
 
-export type PaymentMethodsTab = 'banks' | 'upis'
-export type PaymentMethodType = 'bank' | 'upi'
+/**
+ * A crypto save: exactly one of the wallet list, the rate or the bonus. Everything an upsert omits (bank
+ * accounts, UPI IDs, limits, the other crypto settings) is kept as stored by the server.
+ */
+export type CryptoUpsertInput = CryptoWalletsInput | CryptoRateInput | CryptoBonusInput
+export interface CryptoWalletsInput {
+  cryptos: Record<string, unknown>[]
+}
+export interface CryptoRateInput {
+  cryptoRate: number
+}
+export interface CryptoBonusInput {
+  cryptoBonusPercent: number
+}
+
+export type PaymentMethodsTab = 'banks' | 'upis' | 'cryptos'
+export type PaymentMethodType = 'bank' | 'upi' | 'crypto'
 
 export interface PaymentMethodCountStats {
   total: number
@@ -65,6 +110,7 @@ export interface PaymentMethodCountStats {
 export interface PaymentMethodStats {
   banks: PaymentMethodCountStats
   upis: PaymentMethodCountStats
+  cryptos: PaymentMethodCountStats
   total: number
   active: number
   /** Whole percent of enabled methods; 0 when there are none. */
@@ -96,7 +142,7 @@ export function cleanBankForInput(bank: BankDetail): Record<string, unknown> {
   return cleaned
 }
 
-/** Remove `__typename` and the presigned `qrUrl` (output only); a missing `enabled` is sent as `true`. */
+/** Remove `__typename` and the displayable `qrUrl` (output only); a missing `enabled` is sent as `true`. */
 export function cleanUpiForInput(upi: UpiDetail): Record<string, unknown> {
   const { __typename: _t, qrUrl: _q, ...cleaned } = upi as unknown as Record<string, unknown>
   void _t
@@ -190,20 +236,77 @@ export function buildToggleUpiInput(
   )
 }
 
+/**
+ * Remove `__typename` and the output-only `qrUrl`; a missing `enabled` is sent as `true`. Everything else,
+ * VIP tier access included, goes back as stored.
+ */
+export function cleanCryptoForInput(crypto: CryptoDetail): Record<string, unknown> {
+  const { __typename: _t, qrUrl: _q, ...cleaned } = crypto as unknown as Record<string, unknown>
+  void _t
+  void _q
+  if (cleaned.enabled === undefined) {
+    cleaned.enabled = true
+  }
+  return cleaned
+}
+
+function cryptosOf(methods: WhitelabelPaymentMethodsData | null | undefined): CryptoDetail[] {
+  return methods?.cryptos ?? []
+}
+
+/** Only the wallet list without one wallet; `cryptos: []` when the last one goes. */
+export function buildDeleteCryptoInput(
+  methods: WhitelabelPaymentMethodsData | null | undefined,
+  cryptoId: string,
+): CryptoWalletsInput {
+  return { cryptos: cryptosOf(methods).filter((crypto) => crypto.id !== cryptoId).map(cleanCryptoForInput) }
+}
+
+/** Only the wallet list, with one wallet's `enabled` replaced. */
+export function buildToggleCryptoInput(
+  methods: WhitelabelPaymentMethodsData | null | undefined,
+  cryptoId: string,
+  enabled: boolean,
+): CryptoWalletsInput {
+  return {
+    cryptos: cryptosOf(methods).map((crypto) => {
+      const cleaned = cleanCryptoForInput(crypto)
+      if (crypto.id === cryptoId) cleaned.enabled = enabled
+      return cleaned
+    }),
+  }
+}
+
+/** Only the rate. The server can replace the rate but never clear it, so there is no empty variant. */
+export function buildCryptoRateInput(rate: number): CryptoRateInput {
+  return { cryptoRate: rate }
+}
+
+/** Only the bonus; an empty field is sent as 0, which switches the bonus off. */
+export function buildCryptoBonusInput(percent: number | null): CryptoBonusInput {
+  return { cryptoBonusPercent: percent ?? 0 }
+}
+
 function countStats(rows: readonly { enabled?: boolean }[]): PaymentMethodCountStats {
   const active = rows.filter((row) => row.enabled).length
   return { total: rows.length, active, inactive: rows.filter((row) => !row.enabled).length }
 }
 
-/** The four legacy stat cards' figures. */
-export function paymentMethodStats(banks: readonly BankDetail[], upis: readonly UpiDetail[]): PaymentMethodStats {
+/** The stat cards' figures: one card per method type, then the totals and active rate across all three. */
+export function paymentMethodStats(
+  banks: readonly BankDetail[],
+  upis: readonly UpiDetail[],
+  cryptos: readonly CryptoDetail[] = [],
+): PaymentMethodStats {
   const bankStats = countStats(banks)
   const upiStats = countStats(upis)
-  const total = banks.length + upis.length
-  const active = bankStats.active + upiStats.active
+  const cryptoStats = countStats(cryptos)
+  const total = banks.length + upis.length + cryptos.length
+  const active = bankStats.active + upiStats.active + cryptoStats.active
   return {
     banks: bankStats,
     upis: upiStats,
+    cryptos: cryptoStats,
     total,
     active,
     activeRate: total > 0 ? Math.round((active / total) * 100) : 0,
@@ -226,25 +329,43 @@ export function accountCountLabel(count: number): string {
   return `${count} ${count === 1 ? 'account' : 'accounts'}`
 }
 
+/** The table card's count: accounts for banks and UPIs, wallets for crypto. */
+export function tabCountLabel(tab: PaymentMethodsTab, count: number): string {
+  if (tab !== 'cryptos') return accountCountLabel(count)
+  return `${count} ${count === 1 ? 'wallet' : 'wallets'}`
+}
+
+const TAB_COPY: Record<PaymentMethodsTab, {
+  title: string
+  empty: string
+  itemName: string
+  type: PaymentMethodType
+  add: string
+}> = {
+  banks: { title: 'Bank Accounts', empty: 'No bank accounts found', itemName: 'bank accounts', type: 'bank', add: 'Bank' },
+  upis: { title: 'UPI Accounts', empty: 'No UPI accounts found', itemName: 'UPI accounts', type: 'upi', add: 'UPI' },
+  cryptos: { title: 'Crypto Wallets', empty: 'No crypto wallets found', itemName: 'crypto wallets', type: 'crypto', add: 'Crypto' },
+}
+
 export function tabTitle(tab: PaymentMethodsTab): string {
-  return tab === 'banks' ? 'Bank Accounts' : 'UPI Accounts'
+  return TAB_COPY[tab].title
 }
 
 export function tabEmptyTitle(tab: PaymentMethodsTab): string {
-  return tab === 'banks' ? 'No bank accounts found' : 'No UPI accounts found'
+  return TAB_COPY[tab].empty
 }
 
 /** The pagination's item name; the pager singularises it for one row. */
 export function tabItemName(tab: PaymentMethodsTab): string {
-  return tab === 'banks' ? 'bank accounts' : 'UPI accounts'
+  return TAB_COPY[tab].itemName
 }
 
 export function tabMethodType(tab: PaymentMethodsTab): PaymentMethodType {
-  return tab === 'banks' ? 'bank' : 'upi'
+  return TAB_COPY[tab].type
 }
 
 export function addMethodLabel(tab: PaymentMethodsTab): string {
-  return `Add ${tab === 'banks' ? 'Bank' : 'UPI'}`
+  return `Add ${TAB_COPY[tab].add}`
 }
 
 export function addMethodPath(tab: PaymentMethodsTab): string {
@@ -255,8 +376,14 @@ export function editMethodPath(type: PaymentMethodType, id: string): string {
   return `/payments/methods/edit/${type}/${id}`
 }
 
+const DELETE_TITLES: Record<PaymentMethodType, string> = {
+  bank: 'Delete Bank Account',
+  upi: 'Delete UPI Account',
+  crypto: 'Delete Crypto Wallet',
+}
+
 export function deleteConfirmTitle(type: PaymentMethodType): string {
-  return type === 'bank' ? 'Delete Bank Account' : 'Delete UPI Account'
+  return DELETE_TITLES[type]
 }
 
 /** No minimum is shown as a dash. */
@@ -293,21 +420,90 @@ export function upiTitle(upi: Pick<UpiDetail, 'displayName' | 'upiId'>): string 
   return upi.displayName || upi.upiId
 }
 
+/** A QR is on record: its data URI, or a legacy stored value the server can no longer serve (qrKey without qrUrl). */
 export function hasQrCode(upi: Pick<UpiDetail, 'qrUrl' | 'qrKey'>): boolean {
   return Boolean(upi.qrUrl || upi.qrKey)
 }
 
-/** The failed image's address, cut at 50 characters as the legacy message printed it. */
-export function qrUrlExcerpt(url: string): string {
-  return `${url.substring(0, 50)}...`
+const METHOD_KIND_NAMES: Record<PaymentMethodType, string> = {
+  bank: 'Bank account',
+  upi: 'UPI account',
+  crypto: 'Crypto wallet',
 }
 
 /** The name a row's controls use in their accessible names: the shown title, else its kind. */
 export function methodName(name: string | null | undefined, type: PaymentMethodType): string {
-  return name || (type === 'bank' ? 'Bank account' : 'UPI account')
+  return name || METHOD_KIND_NAMES[type]
 }
 
 /** The status switch's accessible name; the visible Active/Inactive text sits beside it. */
 export function statusSwitchLabel(name: string | null | undefined, type: PaymentMethodType): string {
   return `${methodName(name, type)} active`
+}
+
+/* ---------- crypto settings: one USDT rate and one deposit bonus per whitelabel ---------- */
+
+/** The round deposit the rate and bonus examples are worked on. */
+export const CRYPTO_SAMPLE_DEPOSIT = 10000
+
+export const CRYPTO_NO_RATE_NOTICE =
+  `Set the ${CRYPTO_COIN} rate to start crypto deposits. Players do not see crypto wallets until a rate is saved.`
+
+/** Formats an amount in the deposit currency; `wholeUnits` drops the decimals (for the round sample). */
+export type FormatDepositAmount = (amount: number, wholeUnits?: boolean) => string
+
+/** Why a typed rate cannot be saved, or null. An empty field has nothing to save: a rate can only be replaced. */
+export function cryptoRateDraftError(draft: number | null): string | null {
+  if (draft === null) return null
+  if (!Number.isFinite(draft) || draft <= 0) return `The ${CRYPTO_COIN} rate must be above 0`
+  if (draft > CRYPTO_RATE_MAX) return `The ${CRYPTO_COIN} rate can be at most ${CRYPTO_RATE_MAX.toLocaleString('en-IN')}`
+  return null
+}
+
+/** Save Rate is offered for a valid rate that differs from the stored one. */
+export function canSaveCryptoRate(draft: number | null, saved: number | null | undefined): boolean {
+  return draft !== null && cryptoRateDraftError(draft) === null && draft !== (saved ?? null)
+}
+
+/** Why a typed bonus cannot be saved, or null. An empty field means 0: no bonus. */
+export function cryptoBonusDraftError(draft: number | null): string | null {
+  if (draft === null) return null
+  if (!Number.isFinite(draft) || draft < 0) return 'Crypto bonus cannot be negative'
+  if (draft > CRYPTO_BONUS_MAX_PERCENT) return `Crypto bonus can be at most ${CRYPTO_BONUS_MAX_PERCENT}%`
+  return null
+}
+
+/** Save Bonus is offered for a valid percent that differs from the stored one (empty and 0 are both "none"). */
+export function canSaveCryptoBonus(draft: number | null, saved: number | null | undefined): boolean {
+  return cryptoBonusDraftError(draft) === null && (draft ?? 0) !== (saved ?? 0)
+}
+
+/**
+ * The rate the example is worked on: the typed one while it is valid, so a rate entered the wrong way round
+ * shows before it is saved; else the stored one (an empty field keeps the stored rate).
+ */
+export function cryptoRatePreview(draft: number | null, saved: number | null | undefined): number | null {
+  return draft !== null && cryptoRateDraftError(draft) === null ? draft : saved ?? null
+}
+
+/** The bonus the example is worked on: the typed one (empty is none) while it is valid, else the stored one. */
+export function cryptoBonusPreview(draft: number | null, saved: number | null | undefined): number | null {
+  return cryptoBonusDraftError(draft) === null ? draft : saved ?? null
+}
+
+/** What a round deposit asks the player to send at `rate`; USDT is rounded up, as the server quotes it. */
+export function cryptoRateExample(rate: number | null | undefined, formatAmount: FormatDepositAmount): string {
+  const usdt = cryptoAmountFor(CRYPTO_SAMPLE_DEPOSIT, rate)
+  if (usdt === null) return 'No rate saved yet'
+  return `A ${formatAmount(CRYPTO_SAMPLE_DEPOSIT, true)} deposit asks the player for ${usdt.toFixed(2)} ${CRYPTO_COIN}`
+}
+
+/** What a round deposit earns at `percent`; the bonus is rounded down to the paisa, as the server pays it. */
+export function cryptoBonusExample(percent: number | null | undefined, formatAmount: FormatDepositAmount): string {
+  if (parseCryptoBonusPercent(percent) === null) {
+    return `No bonus. Set up to ${CRYPTO_BONUS_MAX_PERCENT}% to add an extra % to every approved crypto deposit.`
+  }
+  const bonus = cryptoBonusFor(CRYPTO_SAMPLE_DEPOSIT, percent)
+  return `On approval a ${formatAmount(CRYPTO_SAMPLE_DEPOSIT, true)} crypto deposit also gets ${formatAmount(bonus)} bonus `
+    + `in the cash wallet (${formatAmount(CRYPTO_SAMPLE_DEPOSIT + bonus)} in all)`
 }

@@ -3,6 +3,7 @@ import {
   useEffect,
   useId,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -150,7 +151,18 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
   const [focused, setFocused] = useState(false)
   const [raw, setRaw] = useState(() => displayNumber(value, grouping, normalisedPrecision))
   const [announcement, setAnnouncement] = useState('')
+  // Keyboard focus (Tab) selects the whole value, so typing replaces it. Focus swaps grouped text for raw
+  // digits, and rewriting the input collapses that selection to a caret at the end: typed digits were
+  // appended (50,000 then 60000 became 5,000,060,000). The swap restores a selection the browser made.
+  const reselectAllRef = useRef(false)
   useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement, [])
+
+  useLayoutEffect(() => {
+    if (!reselectAllRef.current) return
+    reselectAllRef.current = false
+    const input = inputRef.current
+    if (input && input.ownerDocument.activeElement === input) input.select()
+  }, [raw])
 
   useEffect(() => {
     setRaw((currentRaw) => {
@@ -258,8 +270,16 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
                 }
               }}
               onFocus={(event) => {
+                const input = event.currentTarget
+                const nextRaw = rawNumber(value, normalisedPrecision)
+                // Only a whole-value selection is restored: a click keeps its caret where it landed.
+                reselectAllRef.current =
+                  nextRaw !== input.value &&
+                  input.value !== '' &&
+                  input.selectionStart === 0 &&
+                  input.selectionEnd === input.value.length
                 setFocused(true)
-                setRaw(rawNumber(value, normalisedPrecision))
+                setRaw(nextRaw)
                 onFocus?.(event)
               }}
               onBlur={handleBlur}

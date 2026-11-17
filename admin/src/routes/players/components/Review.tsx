@@ -3,7 +3,7 @@ import { Card } from '@/ui/components/Card'
 import { DescriptionList } from '@/ui/components/DescriptionList'
 import { StatusPill } from '@/ui/components/StatusPill'
 import type { FormApi } from '@/ui/form/useForm'
-import { PLAYER_LIMITS, isCreditPlayer, type PlayerCreateValues } from '../playerCreateModel'
+import { PLAYER_LIMITS, givesOpeningChips, isCreditPlayer, type PlayerCreateValues } from '../playerCreateModel'
 import styles from '../PlayerCreateForm.module.css'
 
 export default function Review({ form }: { form: FormApi<PlayerCreateValues> }) {
@@ -14,7 +14,10 @@ export default function Review({ form }: { form: FormApi<PlayerCreateValues> }) 
     { term: 'Phone Number', value: value.dialCode ? `+${value.dialCode} ${value.phone}` : value.phone },
     { term: 'Email Address', value: value.email || '—' }, { term: 'Player Type', value: value.playerType },
     ...(value.agentId ? [{ term: 'Agent', value: value.agentId }] : []),
-    ...(isCreditPlayer(value.playerType) ? [{ term: 'Credit Limit', value: formatAmount(Number(value.creditLimit ?? 0), value.currency) }] : []),
+    ...(isCreditPlayer(value.playerType) ? [{ term: 'Credit Reference', value: formatAmount(Number(value.creditLimit ?? 0), value.currency) }] : []),
+    // The admin's review (the agent form has none): a whitelabel credit player's opening chips come from the pool, an
+    // agent credit player's from its agent's chips.
+    ...(givesOpeningChips(value, false) ? [{ term: 'Opening Chips', value: formatAmount(Number(value.openingChips ?? 0), value.currency) }] : []),
     { term: 'Initial Balance', value: formatAmount(0, value.currency) }, { term: 'Currency', value: value.currency },
     { term: 'Account Status', value: <StatusPill status={value.status}>{value.status}</StatusPill> },
     { term: 'Risk Type', value: value.riskType || 'Default' },

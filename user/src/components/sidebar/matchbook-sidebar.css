@@ -1,15 +1,15 @@
 /* Left sidebar in the matchbook exchange style. Width stays with the shell rules in panel-refresh.css. */
 .nova-shell-matchbook > .nova-sidebar.nova-mb-sidebar {
-  --surface: #2B2F35;
-  --surface-2: #3A3D43;
-  --border: #3A3D43;
+  --surface: var(--mb-chrome);
+  --surface-2: var(--mb-chrome-line);
+  --border: var(--mb-chrome-line);
   --text: #FFFFFF;
   --subtle: #A3A1A7;
-  --nova-accent: #C51A1B;
+  --nova-accent: var(--mb-red);
   padding: 0;
-  border-right: 1px solid #23262B;
+  border-right: 1px solid var(--mb-chrome-sunk);
   color: #FFFFFF;
-  background: #2B2F35;
+  background: var(--mb-chrome);
 }
 
 .nova-mb-side-scroll {
@@ -22,7 +22,7 @@
   scrollbar-width: none;
 }
 .nova-mb-side-scroll::-webkit-scrollbar { display: none; }
-.nova-mb-side-section { display: grid; padding: 4px 0 8px; border-bottom: 1px solid #3A3D43; }
+.nova-mb-side-section { display: grid; padding: 4px 0 8px; border-bottom: 1px solid var(--mb-chrome-line); }
 .nova-mb-side-section:last-child { border-bottom: 0; }
 .nova-mb-side-heading {
   margin: 0;
@@ -47,38 +47,38 @@
   text-decoration: none;
   transition: background-color .15s;
 }
-.nova-mb-side-link:hover { background: #3A3D43; }
+.nova-mb-side-link:hover { color: var(--mb-link-hover-on-chrome); background: var(--mb-chrome-line); }
 .nova-mb-side-link:focus-visible { outline: 2px solid #00B2FF; outline-offset: -2px; }
-.nova-mb-side-link.active { background: #43444A; }
-.nova-mb-side-link.active::before { content: ''; position: absolute; inset: 6px auto 6px 0; width: 3px; background: #E5252A; }
+.nova-mb-side-link.active { background: var(--mb-chrome-2); }
+.nova-mb-side-link.active::before { content: ''; position: absolute; inset: 6px auto 6px 0; width: 3px; background: var(--mb-brand-accent); }
 .nova-mb-side-icon { display: grid; flex: 0 0 20px; width: 20px; height: 20px; place-items: center; }
 /* Sport glyphs ship black; the dark rail needs them white. */
 .nova-mb-side-icon img { width: 20px; height: 20px; object-fit: contain; filter: invert(1); }
 .nova-mb-side-icon svg { width: 19px; height: 19px; }
 .nova-mb-side-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nova-mb-side-bottom { flex: 0 0 auto; display: grid; background: #2B2F35; }
+.nova-mb-side-bottom { flex: 0 0 auto; display: grid; background: var(--mb-chrome); }
 .nova-mb-side-more {
   display: grid;
   height: 26px;
   place-items: center;
   border: 0;
-  border-top: 1px solid #3A3D43;
+  border-top: 1px solid var(--mb-chrome-line);
   color: #FFFFFF;
-  background: #23262B;
+  background: var(--mb-chrome-sunk);
   cursor: pointer;
 }
-.nova-mb-side-more:hover { background: #1B1E22; }
+.nova-mb-side-more:hover { color: var(--mb-link-hover-on-chrome); background: var(--mb-chrome-well); }
 .nova-mb-side-more svg { width: 18px; height: 18px; }
 
 .nova-mb-sidebar .nova-sidebar-locale.nova-locale-settings {
   margin: 0;
   padding: 6px 14px 6px 18px;
   border: 0;
-  border-top: 1px solid #3A3D43;
+  border-top: 1px solid var(--mb-chrome-line);
   border-radius: var(--ui-radius);
-  background: #2B2F35;
+  background: var(--mb-chrome);
 }
-.nova-mb-sidebar .nova-locale-currency { border-right-color: #43444A; }
+.nova-mb-sidebar .nova-locale-currency { border-right-color: var(--mb-chrome-2); }
 .nova-mb-sidebar .nova-locale-field select option { color: #333333; background: #FFFFFF; }
 
 .nova-mb-side-clock {
@@ -89,9 +89,9 @@
   min-height: 34px;
   padding: 0 12px;
   color: #FFFFFF;
-  background: #1B1E22;
+  background: var(--mb-chrome-well);
   font-size: 15px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.nova-mb-side-clock > span[aria-hidden] { color: #E5252A; }
+.nova-mb-side-clock > span[aria-hidden] { color: var(--mb-brand-accent); }

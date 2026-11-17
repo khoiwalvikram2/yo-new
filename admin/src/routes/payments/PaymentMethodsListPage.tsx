@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from '@apollo/client'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  IconAlertCircle,
   IconBuildingBank,
   IconChartLine,
   IconCheck,
+  IconCurrencyTether,
   IconInbox,
   IconPencil,
   IconPlus,
@@ -29,29 +29,45 @@ import { Dialog } from '@/ui/components/Dialog'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { IconButton } from '@/ui/components/IconButton'
 import { strokeFor } from '@/ui/components/icons'
-import { Grid } from '@/ui/components/LayoutPrimitives'
 import { LoadingState } from '@/ui/components/LoadingState'
+import { Notice } from '@/ui/components/Notice'
+import { NumberField } from '@/ui/components/NumberField'
 import { Page } from '@/ui/components/Page'
 import { PageHeader } from '@/ui/components/PageHeader'
 import { Pagination } from '@/ui/components/Pagination'
 import { Spinner } from '@/ui/components/Spinner'
 import { Stat } from '@/ui/components/Stat'
 import { StatusPill } from '@/ui/components/StatusPill'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { Switch } from '@/ui/components/Switch'
 import { tabId, tabPanelId } from '@/ui/components/tabIds'
 import { Tabs, type TabItem } from '@/ui/components/Tabs'
+import { toast } from '@/ui/components/toast'
 import { Tooltip } from '@/ui/components/Tooltip'
+import { CRYPTO_COIN, cryptoNetworkLabel, cryptoWalletTitle } from './cryptoWalletModel'
 import {
+  CRYPTO_NO_RATE_NOTICE,
   DELETE_CONFIRM_DESCRIPTION,
   PAGE_SIZE_OPTIONS,
-  accountCountLabel,
   addMethodLabel,
   addMethodPath,
   bankDetailLines,
+  buildCryptoBonusInput,
+  buildCryptoRateInput,
   buildDeleteBankInput,
+  buildDeleteCryptoInput,
   buildDeleteUpiInput,
   buildToggleBankInput,
+  buildToggleCryptoInput,
   buildToggleUpiInput,
+  canSaveCryptoBonus,
+  canSaveCryptoRate,
+  cryptoBonusDraftError,
+  cryptoBonusExample,
+  cryptoBonusPreview,
+  cryptoRateDraftError,
+  cryptoRateExample,
+  cryptoRatePreview,
   deleteConfirmTitle,
   editMethodPath,
   hasQrCode,
@@ -61,13 +77,16 @@ import {
   pageSlice,
   paymentMethodStats,
   priorityStarCount,
-  qrUrlExcerpt,
   statusSwitchLabel,
+  tabCountLabel,
   tabEmptyTitle,
   tabItemName,
   tabTitle,
   upiTitle,
   type BankDetail,
+  type CryptoDetail,
+  type CryptoUpsertInput,
+  type FormatDepositAmount,
   type PaymentMethodType,
   type PaymentMethodsTab,
   type PaymentMethodsUpsertInput,
@@ -81,6 +100,16 @@ const TABS_ID = 'payment-methods'
 const STAR_NUMBERS = [1, 2, 3, 4, 5] as const
 
 type FormatAmount = (amount: number) => string
+
+/** The QR code the preview dialog shows: a UPI account's or a crypto wallet's. */
+interface QrView {
+  /** The dialog title and the image's alt text, e.g. "UPI QR Code". */
+  title: string
+  /** The method's shown name, after the title. */
+  name: string
+  qrUrl?: string | null
+  qrKey?: string | null
+}
 
 /** A detail value with its copy action. An empty value shows a dash and offers nothing to copy. */
 function DetailValue({ label, value, mono }: { label: string; value: string; mono: boolean }) {
@@ -136,6 +165,28 @@ function BankDetailsCell({ bank }: { bank: BankDetail }) {
   )
 }
 
+/** A UPI account's or wallet's QR state: a button that opens the preview, or "No QR Code". */
+function QrStatus({ uploaded, name, onView }: { uploaded: boolean; name: string; onView: () => void }) {
+  return (
+    <div className={styles.qrRow}>
+      {uploaded ? (
+        <button
+          type="button"
+          className={styles.qrButton}
+          aria-haspopup="dialog"
+          aria-label={`QR Code Uploaded, view the QR code for ${name}`}
+          onClick={onView}
+        >
+          <IconCheck size={11} stroke={strokeFor(11)} aria-hidden="true" />
+          QR Code Uploaded
+        </button>
+      ) : (
+        <StatusPill tone="neutral">No QR Code</StatusPill>
+      )}
+    </div>
+  )
+}
+
 function UpiDetailsCell({ upi, onViewQr }: { upi: UpiDetail; onViewQr: (upi: UpiDetail) => void }) {
   const title = upiTitle(upi)
   return (
@@ -162,22 +213,39 @@ function UpiDetailsCell({ upi, onViewQr }: { upi: UpiDetail; onViewQr: (upi: Upi
             </div>
           ) : null}
         </dl>
-        <div className={styles.qrRow}>
-          {hasQrCode(upi) ? (
-            <button
-              type="button"
-              className={styles.qrButton}
-              aria-haspopup="dialog"
-              aria-label={`QR Code Uploaded, view the QR code for ${methodName(title, 'upi')}`}
-              onClick={() => onViewQr(upi)}
-            >
-              <IconCheck size={11} stroke={strokeFor(11)} aria-hidden="true" />
-              QR Code Uploaded
-            </button>
-          ) : (
-            <StatusPill tone="neutral">No QR Code</StatusPill>
-          )}
+        <QrStatus uploaded={hasQrCode(upi)} name={methodName(title, 'upi')} onView={() => onViewQr(upi)} />
+      </div>
+    </div>
+  )
+}
+
+/** A USDT wallet: its name, the network players must send on, and the address with its copy action. */
+function CryptoDetailsCell({ crypto, onViewQr }: { crypto: CryptoDetail; onViewQr: (crypto: CryptoDetail) => void }) {
+  const title = cryptoWalletTitle(crypto)
+  const network = `${CRYPTO_COIN} · ${cryptoNetworkLabel(crypto.network)}`
+  return (
+    <div className={styles.methodCell}>
+      <span className={clsx(styles.methodIcon, styles.cryptoIcon)} aria-hidden="true">
+        <IconCurrencyTether size={18} stroke={strokeFor(18)} />
+      </span>
+      <div className={styles.methodBody}>
+        <div className={styles.methodTitleRow}>
+          <span className={styles.methodTitle} title={title}>{title}</span>
+          {crypto.enabled ? <VerifiedPill /> : null}
         </div>
+        <dl className={styles.detailList}>
+          <div className={styles.detailRow}>
+            <dt className={styles.detailTerm}>Network</dt>
+            <dd className={styles.detailValue}>
+              <span className={styles.detailText} title={network}>{network}</span>
+            </dd>
+          </div>
+          <div className={styles.detailRow}>
+            <dt className={styles.detailTerm}>Address</dt>
+            <DetailValue label="Address" value={crypto.walletAddress || ''} mono />
+          </div>
+        </dl>
+        <QrStatus uploaded={hasQrCode(crypto)} name={methodName(title, 'crypto')} onView={() => onViewQr(crypto)} />
       </div>
     </div>
   )
@@ -250,16 +318,19 @@ function StatusCell({
 
 function RowActions({
   name,
+  noun = 'Account',
   onEdit,
   onDelete,
 }: {
   name: string
+  /** The tooltips' noun: "Account" for banks and UPIs, "Wallet" for crypto. */
+  noun?: string
   onEdit: () => void
   onDelete: () => void
 }) {
   return (
     <span className={styles.rowActions}>
-      <Tooltip content="Edit Account">
+      <Tooltip content={`Edit ${noun}`}>
         <IconButton
           size="sm"
           label={`Edit ${name}`}
@@ -267,7 +338,7 @@ function RowActions({
           onClick={onEdit}
         />
       </Tooltip>
-      <Tooltip content="Delete Account">
+      <Tooltip content={`Delete ${noun}`}>
         <IconButton
           size="sm"
           label={`Delete ${name}`}
@@ -279,39 +350,205 @@ function RowActions({
   )
 }
 
-function PaymentMethodsStats({ banks, upis }: { banks: BankDetail[]; upis: UpiDetail[] }) {
-  const stats = paymentMethodStats(banks, upis)
+function PaymentMethodsStats({
+  banks,
+  upis,
+  cryptos,
+}: {
+  banks: BankDetail[]
+  upis: UpiDetail[]
+  cryptos: CryptoDetail[]
+}) {
+  const stats = paymentMethodStats(banks, upis, cryptos)
   return (
-    <Grid cols={{ base: 1, md: 2, xl: 4 }} gap={12} role="group" aria-label="Payment method statistics">
-      <Stat
-        label="Bank Accounts"
-        value={stats.banks.total}
-        note={`Active: ${stats.banks.active} · Inactive: ${stats.banks.inactive}`}
-        icon={<IconBuildingBank size={18} stroke={strokeFor(18)} />}
-        hue="blu"
-      />
-      <Stat
-        label="UPI Accounts"
-        value={stats.upis.total}
-        note={`Active: ${stats.upis.active} · Inactive: ${stats.upis.inactive}`}
-        icon={<IconQrcode size={18} stroke={strokeFor(18)} />}
-        hue="vio"
-      />
-      <Stat
-        label="Total Methods"
-        value={stats.total}
-        note={`Banks: ${stats.banks.total} · UPI: ${stats.upis.total}`}
-        icon={<IconWallet size={18} stroke={strokeFor(18)} />}
-        hue="grn"
-      />
-      <Stat
-        label="Active Rate"
-        value={`${stats.activeRate}%`}
-        note={`Active: ${stats.active} · Total: ${stats.total}`}
-        icon={<IconChartLine size={18} stroke={strokeFor(18)} />}
-        hue="ind"
-      />
-    </Grid>
+    <div className={styles.statsFrame}>
+      <div className={styles.stats} role="group" aria-label="Payment method statistics">
+        <Stat
+          label="Bank Accounts"
+          value={stats.banks.total}
+          note={`Active: ${stats.banks.active} · Inactive: ${stats.banks.inactive}`}
+          icon={<IconBuildingBank size={18} stroke={strokeFor(18)} />}
+          hue="blu"
+        />
+        <Stat
+          label="UPI Accounts"
+          value={stats.upis.total}
+          note={`Active: ${stats.upis.active} · Inactive: ${stats.upis.inactive}`}
+          icon={<IconQrcode size={18} stroke={strokeFor(18)} />}
+          hue="vio"
+        />
+        <Stat
+          label="Crypto Wallets"
+          value={stats.cryptos.total}
+          note={`Active: ${stats.cryptos.active} · Inactive: ${stats.cryptos.inactive}`}
+          icon={<IconCurrencyTether size={18} stroke={strokeFor(18)} />}
+          hue="amb"
+        />
+        <Stat
+          label="Total Methods"
+          value={stats.total}
+          note={`Banks: ${stats.banks.total} · UPI: ${stats.upis.total} · Crypto: ${stats.cryptos.total}`}
+          icon={<IconWallet size={18} stroke={strokeFor(18)} />}
+          hue="grn"
+        />
+        <Stat
+          label="Active Rate"
+          value={`${stats.activeRate}%`}
+          note={`Active: ${stats.active} · Total: ${stats.total}`}
+          icon={<IconChartLine size={18} stroke={strokeFor(18)} />}
+          hue="ind"
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * One crypto setting: its field and Save on one row, the worked example under them. The example and any
+ * error sit outside the field so the button lines up with the input; both are tied to it for assistive tech.
+ */
+function CryptoSettingRow({
+  label,
+  value,
+  onChange,
+  prefix,
+  suffix,
+  placeholder,
+  example,
+  error,
+  saveLabel,
+  canSave,
+  saving,
+  disabled,
+  onSave,
+}: {
+  label: string
+  value: number | null
+  onChange: (value: number | null) => void
+  prefix?: ReactNode
+  suffix?: ReactNode
+  placeholder: string
+  example: string
+  error: string | null
+  saveLabel: string
+  canSave: boolean
+  saving: boolean
+  disabled: boolean
+  onSave: () => void
+}) {
+  const exampleId = useId()
+  const errorId = useId()
+  return (
+    <form
+      className={styles.setting}
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (canSave && !saving) onSave()
+      }}
+    >
+      <div className={styles.settingControls}>
+        <NumberField
+          className={styles.settingField}
+          label={label}
+          value={value}
+          onChange={onChange}
+          prefix={prefix}
+          suffix={suffix}
+          placeholder={placeholder}
+          precision={2}
+          status={error ? 'error' : 'default'}
+          aria-describedby={error ? `${errorId} ${exampleId}` : exampleId}
+          disabled={disabled || saving}
+        />
+        <Button type="submit" variant="primary" loading={saving} disabled={!canSave && !saving}>
+          {saveLabel}
+        </Button>
+      </div>
+      {error ? (
+        <p id={errorId} className={styles.settingError} role="alert">{error}</p>
+      ) : null}
+      <p id={exampleId} className={styles.settingExample}>{example}</p>
+    </form>
+  )
+}
+
+/**
+ * The whitelabel's one USDT rate and one deposit bonus. Each saves on its own and sends nothing else; the
+ * examples follow what is typed, so a rate entered the wrong way round is visible before it is saved.
+ */
+function CryptoSettingsCard({
+  rate,
+  bonusPercent,
+  loading,
+  currencySymbol,
+  formatAmount,
+  onSave,
+}: {
+  rate: number | null
+  bonusPercent: number | null
+  loading: boolean
+  currencySymbol: string
+  formatAmount: FormatDepositAmount
+  onSave: (input: CryptoUpsertInput) => Promise<void>
+}) {
+  const [rateDraft, setRateDraft] = useState<number | null>(rate)
+  const [bonusDraft, setBonusDraft] = useState<number | null>(bonusPercent)
+  const [saving, setSaving] = useState<'rate' | 'bonus' | null>(null)
+
+  // A saved (or refetched) value replaces the draft; a failed save leaves the typed value to retry.
+  useEffect(() => {
+    setRateDraft(rate)
+  }, [rate])
+  useEffect(() => {
+    setBonusDraft(bonusPercent)
+  }, [bonusPercent])
+
+  const save = async (setting: 'rate' | 'bonus', input: CryptoUpsertInput) => {
+    setSaving(setting)
+    try {
+      await onSave(input)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <Card title="Crypto settings" sub={`One ${CRYPTO_COIN} rate and deposit bonus for every crypto wallet`}>
+      <div className={styles.cryptoSettings}>
+        {!loading && rate === null ? <Notice tone="warn">{CRYPTO_NO_RATE_NOTICE}</Notice> : null}
+        <div className={styles.settingsGrid}>
+          <CryptoSettingRow
+            label={`${CRYPTO_COIN} rate`}
+            value={rateDraft}
+            onChange={setRateDraft}
+            prefix={`1 ${CRYPTO_COIN} = ${currencySymbol}`}
+            placeholder="Set rate"
+            example={cryptoRateExample(cryptoRatePreview(rateDraft, rate), formatAmount)}
+            error={cryptoRateDraftError(rateDraft)}
+            saveLabel="Save Rate"
+            canSave={canSaveCryptoRate(rateDraft, rate) && saving === null}
+            saving={saving === 'rate'}
+            disabled={loading}
+            onSave={() => void save('rate', buildCryptoRateInput(rateDraft as number))}
+          />
+          <CryptoSettingRow
+            label="Deposit bonus"
+            value={bonusDraft}
+            onChange={setBonusDraft}
+            suffix="%"
+            placeholder="0"
+            example={cryptoBonusExample(cryptoBonusPreview(bonusDraft, bonusPercent), formatAmount)}
+            error={cryptoBonusDraftError(bonusDraft)}
+            saveLabel="Save Bonus"
+            canSave={canSaveCryptoBonus(bonusDraft, bonusPercent) && saving === null}
+            saving={saving === 'bonus'}
+            disabled={loading}
+            onSave={() => void save('bonus', buildCryptoBonusInput(bonusDraft))}
+          />
+        </div>
+      </div>
+    </Card>
   )
 }
 
@@ -330,11 +567,13 @@ function PaymentMethodsContent() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [qrModalVisible, setQrModalVisible] = useState(false)
-  const [selectedUpi, setSelectedUpi] = useState<UpiDetail | null>(null)
+  const [qrView, setQrView] = useState<QrView | null>(null)
   const [qrImageLoading, setQrImageLoading] = useState(true)
   const [qrImageError, setQrImageError] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const { formatAmount } = useCurrency()
+  const { formatAmount, getCurrencySymbol } = useCurrency()
+  const formatDepositAmount: FormatDepositAmount = (amount, wholeUnits) =>
+    formatAmount(amount, undefined, wholeUnits ? { fractionDigits: 0 } : undefined)
 
   // Reset pagination when tab changes
   useEffect(() => {
@@ -353,6 +592,9 @@ function PaymentMethodsContent() {
   const methods: WhitelabelPaymentMethodsData | undefined = data?.whitelabelPaymentMethods
   const banks: BankDetail[] = useMemo(() => methods?.banks ?? [], [methods?.banks])
   const upis: UpiDetail[] = useMemo(() => methods?.upis ?? [], [methods?.upis])
+  const cryptos: CryptoDetail[] = useMemo(() => methods?.cryptos ?? [], [methods?.cryptos])
+  const cryptoRate = methods?.cryptoRate ?? null
+  const cryptoBonusPercent = methods?.cryptoBonusPercent ?? null
 
   // The whole method set is written back on every change; the list refetches whether or not it worked.
   const saveMethods = async (input: PaymentMethodsUpsertInput) => {
@@ -364,13 +606,31 @@ function PaymentMethodsContent() {
     }
   }
 
+  // A crypto save sends only the wallets, the rate or the bonus; the server keeps everything else. Apollo's
+  // links do not report a failed mutation, and the server's reason (an address on the wrong network, a rate
+  // out of range) is what the admin needs, so it is shown here. The list refetches either way.
+  const saveCryptoMethods = async (input: CryptoUpsertInput) => {
+    try {
+      await upsertMethods({ variables: { input } })
+    } catch (error: unknown) {
+      toast({
+        message: error instanceof Error && error.message ? error.message : 'Failed to save crypto settings',
+        tone: 'error',
+      })
+    }
+    await refetch()
+  }
+
   const handleToggle = async (type: PaymentMethodType, id: string, enabled: boolean) => {
     setTogglingId(id)
-    const input = type === 'bank'
-      ? buildToggleBankInput(methods, id, enabled)
-      : buildToggleUpiInput(methods, id, enabled)
     try {
-      await saveMethods(input)
+      if (type === 'crypto') {
+        await saveCryptoMethods(buildToggleCryptoInput(methods, id, enabled))
+      } else {
+        await saveMethods(type === 'bank'
+          ? buildToggleBankInput(methods, id, enabled)
+          : buildToggleUpiInput(methods, id, enabled))
+      }
     } finally {
       setTogglingId(null)
     }
@@ -385,21 +645,34 @@ function PaymentMethodsContent() {
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
       tone: 'danger',
-      onConfirm: () =>
-        saveMethods(type === 'bank' ? buildDeleteBankInput(methods, id) : buildDeleteUpiInput(methods, id)),
+      onConfirm: () => {
+        if (type === 'crypto') return saveCryptoMethods(buildDeleteCryptoInput(methods, id))
+        return saveMethods(type === 'bank' ? buildDeleteBankInput(methods, id) : buildDeleteUpiInput(methods, id))
+      },
     })
   }
 
-  const openQrCode = (upi: UpiDetail) => {
-    setSelectedUpi(upi)
+  const openQrCode = (view: QrView) => {
+    setQrView(view)
     setQrImageLoading(true)
     setQrImageError(false)
     setQrModalVisible(true)
   }
 
+  const openUpiQrCode = (upi: UpiDetail) =>
+    openQrCode({ title: 'UPI QR Code', name: upiTitle(upi), qrUrl: upi.qrUrl, qrKey: upi.qrKey })
+
+  const openCryptoQrCode = (crypto: CryptoDetail) =>
+    openQrCode({
+      title: 'Wallet QR Code',
+      name: cryptoWalletTitle(crypto),
+      qrUrl: crypto.qrUrl,
+      qrKey: crypto.qrKey,
+    })
+
   const closeQrCode = () => {
     setQrModalVisible(false)
-    setSelectedUpi(null)
+    setQrView(null)
     setQrImageLoading(true)
     setQrImageError(false)
   }
@@ -428,7 +701,7 @@ function PaymentMethodsContent() {
   ]
 
   const upiColumns: DataTableColumn<UpiDetail>[] = [
-    { key: 'details', header: 'UPI Details', cell: (upi) => <UpiDetailsCell upi={upi} onViewQr={openQrCode} /> },
+    { key: 'details', header: 'UPI Details', cell: (upi) => <UpiDetailsCell upi={upi} onViewQr={openUpiQrCode} /> },
     {
       key: 'limits',
       header: 'Limit Range',
@@ -450,6 +723,33 @@ function PaymentMethodsContent() {
     },
   ]
 
+  const cryptoColumns: DataTableColumn<CryptoDetail>[] = [
+    {
+      key: 'details',
+      header: 'Wallet Details',
+      cell: (crypto) => <CryptoDetailsCell crypto={crypto} onViewQr={openCryptoQrCode} />,
+    },
+    {
+      key: 'limits',
+      header: 'Limit Range',
+      cell: (crypto) => <LimitRange min={crypto.minAmount} max={crypto.maxAmount} formatAmount={formatAmount} />,
+    },
+    { key: 'priority', header: 'Priority', cell: (crypto) => <Priority weight={crypto.weight} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (crypto) => (
+        <StatusCell
+          name={cryptoWalletTitle(crypto)}
+          type="crypto"
+          enabled={crypto.enabled}
+          busy={togglingId === crypto.id}
+          onToggle={(checked) => void handleToggle('crypto', crypto.id, checked)}
+        />
+      ),
+    },
+  ]
+
   const tabItems: TabItem<PaymentMethodsTab>[] = [
     {
       value: 'banks',
@@ -461,9 +761,14 @@ function PaymentMethodsContent() {
       label: `UPI Accounts (${upis.length})`,
       icon: <IconQrcode size={15} stroke={strokeFor(15)} />,
     },
+    {
+      value: 'cryptos',
+      label: `Crypto Wallets (${cryptos.length})`,
+      icon: <IconCurrencyTether size={15} stroke={strokeFor(15)} />,
+    },
   ]
 
-  const tabTotal = activeTab === 'banks' ? banks.length : upis.length
+  const tabTotal = activeTab === 'banks' ? banks.length : activeTab === 'upis' ? upis.length : cryptos.length
   const tableState = loading ? 'loading' : 'ready'
   const emptyState = (
     <EmptyState title={tabEmptyTitle(activeTab)} icon={<IconInbox size={20} stroke={strokeFor(20)} />} />
@@ -476,7 +781,7 @@ function PaymentMethodsContent() {
       <PageHeader
         eyebrow={pageEyebrow}
         title="Payment Methods"
-        sub="Manage bank accounts and UPI IDs organized by amount tiers"
+        sub="Manage bank accounts, UPI IDs and crypto wallets organized by amount tiers"
         actions={(
           <>
             <Tabs
@@ -496,7 +801,7 @@ function PaymentMethodsContent() {
       />
 
       <div className={styles.content}>
-        <PaymentMethodsStats banks={banks} upis={upis} />
+        <PaymentMethodsStats banks={banks} upis={upis} cryptos={cryptos} />
 
         <div
           className={styles.panel}
@@ -504,7 +809,17 @@ function PaymentMethodsContent() {
           id={tabPanelId(TABS_ID, activeTab)}
           aria-labelledby={tabId(TABS_ID, activeTab)}
         >
-          <Card title={tabTitle(activeTab)} sub={accountCountLabel(tabTotal)} body="table">
+          {activeTab === 'cryptos' ? (
+            <CryptoSettingsCard
+              rate={cryptoRate}
+              bonusPercent={cryptoBonusPercent}
+              loading={loading}
+              currencySymbol={getCurrencySymbol()}
+              formatAmount={formatDepositAmount}
+              onSave={saveCryptoMethods}
+            />
+          ) : null}
+          <Card title={tabTitle(activeTab)} sub={tabCountLabel(activeTab, tabTotal)} body="table">
             {activeTab === 'banks' ? (
               <DataTable
                 key="banks"
@@ -525,7 +840,7 @@ function PaymentMethodsContent() {
                   ),
                 })}
               />
-            ) : (
+            ) : activeTab === 'upis' ? (
               <DataTable
                 key="upis"
                 columns={upiColumns}
@@ -541,6 +856,27 @@ function PaymentMethodsContent() {
                       name={methodName(upiTitle(upi), 'upi')}
                       onEdit={() => navigate(editMethodPath('upi', upi.id))}
                       onDelete={() => requestDelete('upi', upi.id)}
+                    />
+                  ),
+                })}
+              />
+            ) : (
+              <DataTable
+                key="cryptos"
+                columns={cryptoColumns}
+                rows={pageSlice(cryptos, currentPage, pageSize)}
+                rowKey={(crypto) => crypto.id}
+                label="Crypto wallets"
+                state={tableState}
+                width="wide"
+                empty={emptyState}
+                rowActions={(crypto) => ({
+                  primary: (
+                    <RowActions
+                      name={methodName(cryptoWalletTitle(crypto), 'crypto')}
+                      noun="Wallet"
+                      onEdit={() => navigate(editMethodPath('crypto', crypto.id))}
+                      onDelete={() => requestDelete('crypto', crypto.id)}
                     />
                   ),
                 })}
@@ -570,40 +906,28 @@ function PaymentMethodsContent() {
         size="sm"
         title={(
           <>
-            UPI QR Code
-            {selectedUpi ? (
+            {qrView?.title ?? 'QR Code'}
+            {qrView ? (
               <>
                 {' '}
-                <span className={styles.qrTitleName}>({upiTitle(selectedUpi)})</span>
+                <span className={styles.qrTitleName}>({qrView.name})</span>
               </>
             ) : null}
           </>
         )}
         footer={<Button onClick={closeQrCode}>Close</Button>}
       >
-        {selectedUpi && hasQrCode(selectedUpi) ? (
+        {qrView && hasQrCode(qrView) ? (
           <div className={styles.qrBody}>
-            {selectedUpi.qrUrl ? (
+            {qrView.qrUrl && !qrImageError ? (
               <>
-                {qrImageLoading && !qrImageError ? (
+                {qrImageLoading ? (
                   <LoadingState label="Loading QR code..." minHeight={192} />
                 ) : null}
-                {qrImageError ? (
-                  <div className={styles.qrProblem} role="alert">
-                    <span className={clsx(styles.qrProblemIcon, styles.qrProblemError)} aria-hidden="true">
-                      <IconAlertCircle size={32} stroke={strokeFor(32)} />
-                    </span>
-                    <p className={styles.qrProblemTitle}>Failed to load QR code image</p>
-                    <p className={styles.qrProblemText}>The image URL may have expired. Please refresh the page.</p>
-                    <p className={styles.qrProblemCode}>
-                      <code>URL: {qrUrlExcerpt(selectedUpi.qrUrl)}</code>
-                    </p>
-                  </div>
-                ) : null}
                 <img
-                  src={selectedUpi.qrUrl}
-                  alt="UPI QR Code"
-                  className={clsx(styles.qrImage, (qrImageLoading || qrImageError) && styles.qrHidden)}
+                  src={qrView.qrUrl}
+                  alt={qrView.title}
+                  className={clsx(styles.qrImage, qrImageLoading && styles.qrHidden)}
                   onLoad={() => {
                     setQrImageLoading(false)
                     setQrImageError(false)
@@ -613,25 +937,19 @@ function PaymentMethodsContent() {
                     setQrImageError(true)
                   }}
                 />
-                {!qrImageLoading && !qrImageError ? (
-                  <>
-                    <p className={styles.qrCaption}>Scan this QR code to make a payment</p>
-                    <p className={styles.qrStore}>Stored in Amazon S3</p>
-                  </>
+                {!qrImageLoading ? (
+                  <p className={styles.qrCaption}>Scan this QR code to make a payment</p>
                 ) : null}
               </>
-            ) : selectedUpi.qrKey ? (
-              <div className={styles.qrProblem}>
-                <span className={styles.qrProblemIcon} aria-hidden="true">
-                  <IconQrcode size={32} stroke={strokeFor(32)} />
-                </span>
-                <p className={styles.qrProblemTitle}>QR Code Available</p>
-                <p className={styles.qrProblemText}>Presigned URL not available. Please refresh the page.</p>
-                <p className={styles.qrProblemCode}>
-                  <code>Key: {selectedUpi.qrKey}</code>
-                </p>
+            ) : (
+              /* A stored QR the server can no longer serve (a legacy file: qrKey without qrUrl) or one that will not
+                 load: a placeholder naming it, never a broken image (SYS-18), and how to replace it. */
+              <div className={styles.qrProblem} role={qrImageError ? 'alert' : undefined}>
+                <StoredImage src={null} alt={qrView.title} className={styles.qrMissing} />
+                <p className={styles.qrProblemTitle}>This QR code cannot be shown</p>
+                <p className={styles.qrProblemText}>Upload it again on the payment method&apos;s edit page.</p>
               </div>
-            ) : null}
+            )}
           </div>
         ) : (
           <p className={styles.qrEmpty}>No QR code available</p>

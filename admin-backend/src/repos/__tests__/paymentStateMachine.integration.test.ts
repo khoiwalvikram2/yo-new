@@ -28,6 +28,8 @@ const TENANT = 'payments-race-tenant'
 let db: (typeof import('@src/db/client.js'))['db']
 let userId = 0
 let walletId = 0
+/** The player's approved payout account: a request is paid out only to one (FIN-05). */
+let accountId = 0
 
 const money = (v: unknown) => Number(v ?? 0)
 
@@ -68,6 +70,11 @@ before(async () => {
     RETURNING id`)
   walletId = Number((w.rows[0] as { id: number }).id)
 
+  const a = await db.execute(sql`
+    INSERT INTO user_payout_accounts (tenant, user_id, method, account_number, ifsc_code, account_holder_name, approval_status)
+    VALUES (${TENANT}, ${userId}, 'BANK', '555000000001', 'SBIN0000001', 'Racer', 'APPROVED') RETURNING id`)
+  accountId = Number((a.rows[0] as { id: number }).id)
+
   // Warm the pool. On cold connections the two approvals below do not actually
   // overlap — the second waits on a TCP connect and a handshake while the first
   // has already committed — and the test passes without exercising the race.
@@ -76,9 +83,12 @@ before(async () => {
 
 after(async () => {
   if (db) {
+    // The deposit approvals and the COMPLETED withdrawal write wallet_ledger rows too; they were left behind on every run.
+    await db.execute(sql`DELETE FROM wallet_ledger WHERE tenant = ${TENANT}`)
     await db.execute(sql`DELETE FROM ledger_entries WHERE tenant = ${TENANT}`)
     await db.execute(sql`DELETE FROM deposit_requests WHERE tenant = ${TENANT}`)
     await db.execute(sql`DELETE FROM withdrawal_requests WHERE tenant = ${TENANT}`)
+    await db.execute(sql`DELETE FROM user_payout_accounts WHERE tenant = ${TENANT}`)
     await db.execute(sql`DELETE FROM wallets WHERE tenant = ${TENANT}`)
     await db.execute(sql`DELETE FROM users WHERE tenant = ${TENANT}`)
     await db.execute(sql`DELETE FROM whitelabels WHERE id = ${TENANT}`)
@@ -129,8 +139,8 @@ describe('a settled withdrawal cannot be reopened', () => {
   it('refuses to move a COMPLETED request back to PENDING', async () => {
     const repo = await import('@src/repos/payments/withdrawalRequestsRepo.js')
     const w = await db.execute(sql`
-      INSERT INTO withdrawal_requests (tenant, user_id, wallet_id, amount, currency, status)
-      VALUES (${TENANT}, ${userId}, ${walletId}, 100, 'INR', 'PENDING')
+      INSERT INTO withdrawal_requests (tenant, user_id, wallet_id, payout_account_id, amount, currency, status)
+      VALUES (${TENANT}, ${userId}, ${walletId}, ${accountId}, 100, 'INR', 'PENDING')
       RETURNING id`)
     const id = Number((w.rows[0] as { id: number }).id)
 
@@ -162,8 +172,8 @@ describe('a settled withdrawal cannot be reopened', () => {
   it('still allows PENDING to PROCESSING, which is a live transition', async () => {
     const repo = await import('@src/repos/payments/withdrawalRequestsRepo.js')
     const w = await db.execute(sql`
-      INSERT INTO withdrawal_requests (tenant, user_id, wallet_id, amount, currency, status)
-      VALUES (${TENANT}, ${userId}, ${walletId}, 100, 'INR', 'PENDING')
+      INSERT INTO withdrawal_requests (tenant, user_id, wallet_id, payout_account_id, amount, currency, status)
+      VALUES (${TENANT}, ${userId}, ${walletId}, ${accountId}, 100, 'INR', 'PENDING')
       RETURNING id`)
     const id = Number((w.rows[0] as { id: number }).id)
 

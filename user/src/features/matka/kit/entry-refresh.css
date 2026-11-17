@@ -1,0 +1,225 @@
+/* Place entry: the builder and the ticket slip (spec docs/superpowers/specs/2026-11-01-matka-place-entry-redesign-
+   design.md). The game's accent arrives as --m99-game-accent (inline, the same channel the game cards use); text uses
+   an inked mix of it so light accents such as cyan still pass contrast, lighter in the dark theme. Loaded after
+   market-detail-refresh.css, so equal-specificity rules here win. */
+.gw-matka .m99-market-details :is(.m99-entry-builder, .m99-draft-row) {
+  --g: var(--m99-game-accent, var(--m99-brand));
+  --g-ink: color-mix(in oklab, var(--g) 76%, black);
+  --g-soft: color-mix(in oklab, var(--g) 11%, var(--m99-surface));
+  --g-deep: color-mix(in oklab, var(--g) 82%, black);
+}
+.gw-matka[data-theme='dark'] .m99-market-details :is(.m99-entry-builder, .m99-draft-row) {
+  --g-ink: color-mix(in oklab, var(--g) 58%, white);
+  --g-soft: color-mix(in oklab, var(--g) 18%, var(--m99-surface));
+}
+
+/* Head: the game's icon tile, name and description, and its payout pill */
+.gw-matka .m99-market-details .m99-entry-head { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--m99-border); }
+.gw-matka .m99-market-details .m99-entry-icon { --ui-radius: 12px; display: grid; flex: none; place-items: center; width: 46px; height: 46px; color: #fff; background: linear-gradient(145deg, color-mix(in oklab, var(--g) 78%, white), var(--g) 55%, var(--g-deep)); box-shadow: 0 9px 18px -9px color-mix(in oklab, var(--g) 75%, transparent), inset 0 1px 0 rgb(255 255 255 / 28%); }
+.gw-matka .m99-market-details .m99-entry-icon > svg { width: 26px; height: 26px; }
+.gw-matka .m99-market-details .m99-entry-title { min-width: 0; margin-right: auto; }
+.gw-matka .m99-market-details .m99-entry-title h2 { color: var(--m99-ink); font-size: 21px; font-weight: 800; line-height: 1.15; }
+.gw-matka .m99-market-details .m99-entry-title p { margin-top: 2px; color: var(--m99-muted); font-size: 12.5px; }
+.gw-matka .m99-market-details .m99-entry-rate { --ui-radius: 999px; flex: none; padding: 5px 12px; color: var(--g-ink); background: var(--g-soft); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.gw-matka .m99-market-details .m99-entry-builder > form > .m99-entry-fieldset { padding: 0 18px 18px; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-entry-fieldset .m99-entry-fieldset { padding: 0; }
+
+/* Session: a joined pair of cells (Open / Close with their result times), the chosen one in the game's colour,
+   then the live status. A closed session keeps its lock; a one-session game shows its single cell. */
+.gw-matka .m99-market-details .m99-entry-session { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 16px 0; border-bottom: 1px dashed var(--m99-border); }
+.gw-matka .m99-market-details .m99-entry-label { color: var(--m99-muted); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.gw-matka .m99-market-details .m99-session-cells { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--m99-border); background: var(--m99-sidebar); }
+.gw-matka .m99-market-details .m99-session-cells > button { --ui-radius: 4px; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; color: var(--m99-text); font-size: 13px; transition: background .15s ease, color .15s ease; }
+.gw-matka .m99-market-details .m99-session-cells > button b { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.gw-matka .m99-market-details .m99-session-cells > button span { color: var(--m99-muted); font-weight: 600; }
+.gw-matka .m99-market-details .m99-session-cells > button[aria-pressed='true'] { color: #fff; background: var(--g); box-shadow: 0 6px 14px -8px var(--g); }
+.gw-matka .m99-market-details .m99-session-cells > button[aria-pressed='true'] span { color: rgb(255 255 255 / 85%); }
+.gw-matka .m99-market-details .m99-session-cells > button.is-closed:not([aria-pressed='true']) { color: var(--m99-muted); }
+.gw-matka .m99-market-details .m99-session-cells > button:not([aria-pressed='true']):not(:disabled):hover { color: var(--m99-ink); background: var(--m99-surface); }
+.gw-matka .m99-market-details .m99-session-cells > button:disabled { opacity: 1; cursor: default; }
+.gw-matka .m99-market-details .m99-entry-status { display: inline-flex; align-items: center; gap: 7px; color: var(--m99-muted); font-size: 12.5px; font-weight: 600; }
+.gw-matka .m99-market-details .m99-entry-status.is-open { color: var(--m99-success); }
+.gw-matka .m99-market-details .m99-entry-status > i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 18%, transparent); animation: m99-entry-lamp 2.4s ease-in-out infinite; }
+.gw-matka .m99-market-details .m99-entry-session .m99-game-range { margin-left: auto; color: var(--m99-muted); font-size: 11.5px; }
+
+/* Tools: the directory's filter strip (search, number filter, Select page, Clear); the wrapper is the frame the open
+   filter list is placed against. */
+.gw-matka .m99-market-details .m99-entry-tools { position: relative; margin: 16px 0 12px; }
+.gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filterbar { margin: 0; }
+.gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filterbar > * { min-height: 44px; }
+.gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filter-search { flex: 999 1 160px; }
+.gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filter-action { padding: 0 16px; font-size: 14px; }
+.gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filter-action:disabled { opacity: .55; cursor: default; }
+
+/* Numbers: split flaps (a lit top half, a hinge line), filled with the game's colour when chosen */
+.gw-matka .m99-market-details .m99-entry-builder .m99-number-grid { gap: 8px; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-number-grid > button { --ui-radius: 6px; position: relative; isolation: isolate; min-height: 46px; border: 1px solid color-mix(in oklab, var(--m99-border) 80%, var(--m99-muted)); color: var(--m99-ink); background: linear-gradient(var(--m99-surface) 50%, color-mix(in oklab, var(--m99-soft) 70%, var(--m99-surface)) 50%); box-shadow: 0 1px 0 color-mix(in oklab, var(--m99-ink) 8%, transparent); font-size: 19px; font-weight: 800; transition: transform .12s ease, border-color .15s ease, color .15s ease; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-number-grid > button::after { content: ''; position: absolute; z-index: -1; left: 1px; right: 1px; top: calc(50% - .5px); height: 1px; background: color-mix(in oklab, var(--m99-border) 85%, var(--m99-muted)); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-number-grid > button:hover { transform: translateY(-1px); border-color: var(--g); color: var(--g-ink); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-number-grid > button.is-active { color: #fff; border-color: var(--g-deep); background: linear-gradient(var(--g) 50%, color-mix(in oklab, var(--g) 88%, black) 50%); box-shadow: 0 8px 16px -10px var(--g); animation: m99-entry-flip .32s cubic-bezier(.2, .8, .25, 1); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-number-grid > button.is-active::after { background: var(--g-deep); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-number-footer { color: var(--m99-muted); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-picked { color: var(--g-ink); font-weight: 700; }
+/* bulk: each number a flap with its own amount */
+.gw-matka .m99-market-details .m99-entry-builder .m99-bulk-number-grid > div { border: 1px solid var(--m99-border); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-bulk-number-grid > div > button { font-size: 15px; font-weight: 800; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-bulk-number-grid > div.is-selected { border-color: var(--g); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-bulk-number-grid > div.is-selected > button { color: var(--g-ink); background: var(--g-soft); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-bulk-number-grid > div.is-selected .m99-bulk-checkbox { border-color: var(--g); color: #fff; background: var(--g); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-bulk-number-grid input:focus { border-color: var(--g); outline: none; }
+/* motor and sangam, in the same colours */
+.gw-matka .m99-market-details .m99-entry-builder .m99-motor-preview { border: 1px dashed color-mix(in oklab, var(--g) 45%, var(--m99-border)); background: color-mix(in oklab, var(--g) 5%, var(--m99-surface)); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-generated-numbers > span { color: var(--g-ink); background: var(--g-soft); font-weight: 700; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-combination-fields input { min-height: 48px; font-size: 22px; font-weight: 800; letter-spacing: .18em; text-align: center; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-combination-fields input::placeholder { font-size: 15px; font-weight: 500; letter-spacing: normal; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-combination-fields input:focus { border-color: var(--g); outline: none; box-shadow: 0 0 0 3px var(--g-soft); }
+
+/* Amount: a large field with a ₹ prefix, preset chips, the live total and the Add button in the game's colour */
+.gw-matka .m99-market-details .m99-entry-builder .m99-entry-amount-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--m99-border); }
+.gw-matka .m99-market-details .m99-entry-amount-row .m99-field.m99-entry-amount { position: relative; width: 160px; }
+.gw-matka .m99-market-details .m99-entry-amount > label { color: var(--m99-muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.gw-matka .m99-market-details .m99-entry-amount::after { content: '₹'; position: absolute; left: 12px; bottom: 0; color: var(--m99-muted); font-size: 17px; font-weight: 700; line-height: 48px; pointer-events: none; }
+.gw-matka .m99-market-details .m99-entry-amount-row .m99-entry-amount input { min-height: 48px; padding-left: 28px; border: 1.5px solid var(--m99-border); color: var(--m99-ink); font-size: 22px; font-weight: 800; }
+.gw-matka .m99-market-details .m99-entry-amount-row .m99-entry-amount input:focus { border-color: var(--g); outline: none; box-shadow: 0 0 0 3px var(--g-soft); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-entry-presets { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 6px; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-entry-presets button { --ui-radius: 999px; min-height: 36px; padding: 0 14px; border: 1px solid var(--m99-border); color: var(--m99-text); background: var(--m99-surface); font-size: 13px; font-weight: 700; }
+.gw-matka .m99-market-details .m99-entry-builder .m99-entry-presets button:hover { border-color: var(--g); color: var(--g-ink); }
+.gw-matka .m99-market-details .m99-entry-builder .m99-entry-presets button.is-active { border-color: var(--g); color: var(--g-ink); background: var(--g-soft); }
+.gw-matka .m99-market-details .m99-entry-add { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-left: auto; }
+.gw-matka .m99-market-details .m99-entry-total { color: var(--m99-muted); font-size: 12.5px; }
+.gw-matka .m99-market-details .m99-entry-total b { color: var(--g-ink); font-size: 15px; }
+.gw-matka .m99-market-details .m99-entry-builder :is(.m99-entry-add, .m99-bulk-summary) .m99-button[type='submit'] { min-height: 46px; padding: 0 20px; border-color: var(--g-deep); color: #fff; background: linear-gradient(var(--g), var(--g-deep)); box-shadow: 0 10px 20px -12px var(--g); font-size: 15px; }
+.gw-matka .m99-market-details .m99-entry-builder :is(.m99-entry-add, .m99-bulk-summary) .m99-button[type='submit']:hover:not(:disabled) { filter: brightness(1.06); }
+
+/* The ticket slip: a head with the count, one row per entry with its number in that game's colour, a perforated tear
+   line with notches, then a large total and Review. */
+.gw-matka .m99-market-details .m99-ticket-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--m99-border); background: var(--m99-sidebar); }
+.gw-matka .m99-market-details .m99-ticket-head h2 { display: inline-flex; align-items: center; gap: 8px; color: var(--m99-ink); font-size: 17px; font-weight: 800; }
+.gw-matka .m99-market-details .m99-ticket-count { --ui-radius: 999px; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; color: var(--mb-on-red); background: var(--m99-brand); font-size: 12px; font-weight: 800; }
+.gw-matka .m99-market-details .m99-ticket .m99-draft-row { border-bottom: 1px dashed var(--m99-border); }
+.gw-matka .m99-market-details .m99-ticket .m99-draft-number { --ui-radius: 6px; display: grid; place-items: center; min-width: 44px; height: 32px; padding: 0 6px; color: var(--g-ink); background: var(--g-soft); font-size: 17px; font-weight: 800; }
+.gw-matka .m99-market-details .m99-ticket-perf { position: relative; height: 16px; margin: 0 -1px; background: radial-gradient(circle at 0 50%, var(--m99-canvas) 7px, transparent 7.5px), radial-gradient(circle at 100% 50%, var(--m99-canvas) 7px, transparent 7.5px); }
+.gw-matka .m99-market-details .m99-ticket-perf::before { content: ''; position: absolute; left: 14px; right: 14px; top: calc(50% - 1px); border-top: 2px dashed var(--m99-border); }
+.gw-matka .m99-market-details .m99-ticket .m99-slip-summary { padding-top: 6px; border-top: 0; }
+.gw-matka .m99-market-details .m99-ticket .m99-slip-total strong { color: var(--m99-ink); font-size: 26px; font-weight: 800; }
+.gw-matka .m99-market-details .m99-ticket .m99-slip-summary > p { display: flex; align-items: center; justify-content: center; gap: 5px; }
+
+@keyframes m99-entry-lamp { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes m99-entry-flip { from { transform: perspective(160px) rotateX(-70deg); } to { transform: none; } }
+
+/* With the activity panel gone the slip is the side column's only panel: keep it full width where the old layout
+   split the side column in two. */
+@media (max-width: 900px) and (min-width: 761px) {
+  .gw-matka .m99-market-details .m99-entry-side { display: block; }
+}
+@media (max-width: 760px) {
+  .gw-matka .m99-market-details .m99-entry-head { flex-wrap: wrap; padding: 14px; }
+  .gw-matka .m99-market-details .m99-entry-builder > form > .m99-entry-fieldset { padding: 0 14px 14px; }
+  .gw-matka .m99-market-details .m99-entry-session .m99-game-range { display: none; }
+  .gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filter-search { flex-basis: 100%; }
+  .gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filterbar > :not(.gw-matka-filter-search) { flex: 1 1 0; justify-content: center; }
+  .gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filter-select { flex-grow: 1.4; }
+  .gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filter-select > button { min-width: 0; gap: 6px; padding: 0 10px 0 12px; font-size: 14px; }
+  .gw-matka-refresh .m99-market-details .m99-entry-tools .gw-matka-filter-action { padding: 0 8px; font-size: 13px; }
+  .gw-matka .m99-market-details .m99-entry-builder .m99-number-grid > button { min-height: 44px; }
+  .gw-matka .m99-market-details .m99-entry-amount-row .m99-field.m99-entry-amount { width: 100%; }
+  .gw-matka .m99-market-details .m99-entry-builder .m99-entry-presets { width: 100%; }
+  .gw-matka .m99-market-details .m99-entry-builder .m99-entry-presets button { flex: 1 1 0; padding: 0 6px; }
+  .gw-matka .m99-market-details .m99-entry-add { width: 100%; align-items: stretch; }
+  .gw-matka .m99-market-details .m99-entry-add .m99-entry-total { text-align: center; }
+}
+/* Phones: a bar above the dock carries the count and the total; it (or adding entries) opens the slip as a bottom sheet
+   like the sports bet slip (SlipSheet in MarketDetails.jsx). Wider screens keep the slip in the side column. */
+.gw-matka .m99-market-details .m99-slip-toggle { display: none; }
+.gw-matka .m99-market-details .m99-slip-sheet { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; color: inherit; background: transparent; overflow: hidden; }
+.gw-matka .m99-market-details .m99-slip-sheet[open] { display: flex; align-items: flex-end; justify-content: center; }
+.gw-matka .m99-market-details .m99-slip-sheet::backdrop { background: rgb(8 12 18 / .55); animation: m99-sheet-fade .25s ease-out; }
+.gw-matka .m99-market-details .m99-slip-sheet.is-closing::backdrop { animation: m99-sheet-fade-out .25s ease-in forwards; }
+.gw-matka .m99-market-details .m99-slip-sheet-panel { display: flex; flex-direction: column; width: min(600px, 100%); max-height: 88dvh; overflow: hidden; border: 1px solid var(--m99-border); border-bottom: 0; background: var(--m99-surface); box-shadow: 0 -24px 60px rgb(5 12 24 / .32); transition: transform .2s cubic-bezier(.4, 0, .2, 1); animation: m99-sheet-spring .4s cubic-bezier(.34, 1.56, .64, 1); }
+.gw-matka .m99-market-details .m99-slip-sheet-panel.is-dragging { transition: none; }
+.gw-matka .m99-market-details .m99-slip-sheet.is-closing .m99-slip-sheet-panel { animation: m99-sheet-exit .25s cubic-bezier(.4, 0, 1, 1) forwards; }
+.gw-matka .m99-market-details .m99-slip-sheet-grip { display: flex; flex-shrink: 0; justify-content: center; padding: 10px 0 4px; background: var(--m99-sidebar); cursor: grab; touch-action: none; user-select: none; }
+.gw-matka .m99-market-details .m99-slip-sheet-grip:active { cursor: grabbing; }
+.gw-matka .m99-market-details .m99-slip-sheet-grip > i { width: 40px; height: 4px; background: var(--m99-muted); opacity: .45; }
+.gw-matka .m99-market-details .m99-slip-sheet .m99-entry-slip { flex: 1 1 auto; min-height: 0; margin: 0; overflow-y: auto; overscroll-behavior: contain; border: 0; box-shadow: none; padding-bottom: env(safe-area-inset-bottom); }
+.gw-matka .m99-market-details .m99-slip-sheet .m99-ticket-head { position: sticky; top: 0; z-index: 1; padding: 6px 8px 10px 16px; }
+.gw-matka .m99-market-details .m99-slip-sheet .m99-ticket-head > h2 { margin-right: auto; }
+.gw-matka .m99-market-details .m99-slip-sheet .m99-ticket-head > button:last-child { width: 44px; height: 44px; }
+@media (max-width: 760px) {
+  .gw-matka .m99-market-details .m99-entry-layout { padding-bottom: 66px; }
+  .gw-matka .m99-market-details .m99-entry-side { position: fixed; top: auto; left: 10px; right: 10px; bottom: calc(82px + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column-reverse; gap: 0; }
+  .gw-matka .m99-market-details .m99-slip-toggle { --ui-radius: 8px; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 14px 0 16px; border: 0; color: var(--mb-on-red); background: linear-gradient(var(--mb-brand-top-matka), var(--m99-brand)); box-shadow: 0 14px 28px -12px color-mix(in srgb, var(--mb-brand-shadow) 70%, transparent); font: inherit; cursor: pointer; }
+  .gw-matka .m99-market-details .m99-slip-toggle:focus-visible { outline: 2px solid var(--m99-ink); outline-offset: 2px; }
+  .gw-matka .m99-market-details .m99-slip-toggle-title { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; }
+  .gw-matka .m99-market-details .m99-slip-toggle .m99-ticket-count { color: var(--m99-brand); background: var(--mb-on-red); animation: m99-slip-pop .32s ease-out; }
+  .gw-matka .m99-market-details .m99-slip-toggle-total { margin-left: auto; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .gw-matka .m99-market-details .m99-slip-toggle > svg:last-child { flex-shrink: 0; transform: rotate(-90deg); }
+  /* the chat launcher sits where the bar is: lift it above the bar (the open sheet covers it anyway) */
+  body:has(.gw-matka .m99-entry-side) .gw-support .gw-chat-launcher { bottom: calc(144px + env(safe-area-inset-bottom)); }
+}
+@keyframes m99-slip-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.2); } 100% { transform: none; } }
+/* the sports bet slip's spring in and drop out */
+@keyframes m99-sheet-spring { 0% { transform: translateY(100%); } 60% { transform: translateY(-8px); } 80% { transform: translateY(4px); } 100% { transform: translateY(0); } }
+@keyframes m99-sheet-exit { to { transform: translateY(100%); opacity: .8; } }
+@keyframes m99-sheet-fade { from { opacity: 0; } }
+@keyframes m99-sheet-fade-out { to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .gw-matka .m99-market-details :is(.m99-entry-status > i, .m99-number-grid > button, .m99-slip-toggle .m99-ticket-count, .m99-slip-sheet-panel) { animation: none; transition: none; }
+  .gw-matka .m99-market-details .m99-slip-sheet::backdrop { animation: none; }
+}
+
+/* Review entries (the Modal in MarketDetails.jsx, portaled out of the page, so it is scoped by its own class). One card
+   per game and session with the numbers as chips in that game's colour; the groups scroll while the tear line, wallet,
+   total and Edit / Confirm stay in view. Phones get it as a bottom sheet with the bet slip's spring. */
+.nova-modal-surface:has(> .gw-matka-review) { --modal-width: 520px; }
+.m99-kit.gw-matka-modal.gw-matka-review { display: flex; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; }
+.m99-kit.gw-matka-modal.gw-matka-review .m99-modal-heading { flex-shrink: 0; margin: 0; padding: 16px 12px 14px 20px; }
+.m99-kit.gw-matka-review .m99-review-body { display: grid; flex: 1 1 auto; align-content: start; gap: 12px; min-height: 0; padding: 16px 20px; overflow-y: auto; overscroll-behavior: contain; }
+.m99-kit.gw-matka-review .m99-review-group {
+  --g: var(--m99-game-accent, var(--m99-brand));
+  --g-ink: color-mix(in oklab, var(--g) 76%, black);
+  --g-soft: color-mix(in oklab, var(--g) 11%, var(--m99-surface));
+  border: 1px solid var(--m99-border); background: var(--m99-surface);
+}
+.m99-kit.gw-matka-review[data-theme='dark'] .m99-review-group { --g-ink: color-mix(in oklab, var(--g) 58%, white); --g-soft: color-mix(in oklab, var(--g) 18%, var(--m99-surface)); }
+.m99-kit.gw-matka-review .m99-review-group > header { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--m99-border); background: var(--m99-sidebar); }
+.m99-kit.gw-matka-review .m99-review-icon { --ui-radius: 10px; display: grid; flex: none; place-items: center; width: 38px; height: 38px; color: #fff; background: linear-gradient(145deg, color-mix(in oklab, var(--g) 78%, white), var(--g) 55%, color-mix(in oklab, var(--g) 80%, black)); box-shadow: 0 8px 16px -9px color-mix(in oklab, var(--g) 75%, transparent), inset 0 1px 0 rgb(255 255 255 / 28%); }
+.m99-kit.gw-matka-review .m99-review-icon > svg { width: 21px; height: 21px; }
+.m99-kit.gw-matka-review .m99-review-group > header > div { display: grid; gap: 2px; min-width: 0; }
+.m99-kit.gw-matka-review .m99-review-group > header strong { color: var(--m99-ink); font-size: 15px; font-weight: 800; }
+.m99-kit.gw-matka-review .m99-review-group > header small { color: var(--m99-muted); font-size: 12px; }
+.m99-kit.gw-matka-review .m99-review-group > header > b { margin-left: auto; color: var(--m99-ink); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.m99-kit.gw-matka-review .m99-review-group > ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin: 0; padding: 12px 14px 14px; list-style: none; }
+.m99-kit.gw-matka-review .m99-review-group li { --ui-radius: 8px; display: grid; gap: 1px; padding: 8px 10px; background: var(--g-soft); font-variant-numeric: tabular-nums; }
+.m99-kit.gw-matka-review .m99-review-group li > strong { color: var(--g-ink); font-size: 21px; font-weight: 800; letter-spacing: .5px; line-height: 1.15; }
+.m99-kit.gw-matka-review .m99-review-group li > span { color: var(--m99-ink); font-size: 12.5px; font-weight: 700; }
+.m99-kit.gw-matka-review .m99-review-group li > small { color: var(--m99-success); font-size: 11px; font-weight: 700; }
+.m99-kit.gw-matka-review .m99-review-foot { flex-shrink: 0; padding: 0 20px 18px; background: var(--m99-surface); box-shadow: 0 -12px 20px -16px rgb(5 12 24 / .35); }
+.m99-kit.gw-matka-review .m99-review-perf { height: 0; margin: 0 -20px; border-top: 2px dashed var(--m99-border); }
+.m99-kit.gw-matka-review .m99-review-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--m99-border); }
+.m99-kit.gw-matka-review .m99-review-facts > div { display: grid; gap: 3px; min-width: 0; }
+.m99-kit.gw-matka-review .m99-review-facts > div:last-child { justify-items: end; }
+.m99-kit.gw-matka-review .m99-review-facts span { color: var(--m99-muted); font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+.m99-kit.gw-matka-review .m99-review-facts strong { display: inline-flex; align-items: center; gap: 6px; color: var(--m99-ink); font-size: 14px; font-weight: 700; }
+.m99-kit.gw-matka-review .m99-review-facts strong > svg { color: var(--m99-muted); }
+.m99-kit.gw-matka-modal.gw-matka-review .m99-review-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 0 2px; }
+.m99-kit.gw-matka-modal.gw-matka-review .m99-review-total span { color: var(--m99-muted); font-size: 14px; }
+.m99-kit.gw-matka-modal.gw-matka-review .m99-review-total strong { color: var(--m99-ink); font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.m99-kit.gw-matka-modal.gw-matka-review .m99-review-note { display: flex; align-items: flex-start; gap: 6px; margin: 6px 0 14px; color: var(--m99-muted); font-size: 12px; line-height: 1.45; }
+.m99-kit.gw-matka-review .m99-review-note > svg { flex: none; margin-top: 1px; color: var(--m99-success); }
+.m99-kit.gw-matka-review .m99-review-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px; }
+.m99-kit.gw-matka-review .m99-review-actions > .m99-button { justify-content: center; min-height: 48px; font-size: 15px; font-weight: 700; }
+.m99-kit.gw-matka-review .m99-review-actions > .m99-button-primary { box-shadow: 0 12px 24px -14px color-mix(in srgb, var(--mb-brand-shadow-2) 80%, transparent); }
+@media (max-width: 760px) {
+  .nova-modal-layer:has(.gw-matka-review) { align-items: flex-end; padding: 0; }
+  .nova-modal-surface:has(> .gw-matka-review) { max-width: 100%; max-height: 92dvh; border-bottom: 0; animation: m99-sheet-spring .4s cubic-bezier(.34, 1.56, .64, 1); }
+  .m99-kit.gw-matka-modal.gw-matka-review .m99-modal-heading { padding: 14px 8px 12px 16px; }
+  .m99-kit.gw-matka-review .m99-review-body { padding: 14px 16px; }
+  .m99-kit.gw-matka-review .m99-review-group > ul { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); padding: 10px 12px 12px; }
+  .m99-kit.gw-matka-review .m99-review-foot { padding: 0 16px calc(14px + env(safe-area-inset-bottom)); }
+  .m99-kit.gw-matka-review .m99-review-perf { margin: 0 -16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-modal-surface:has(> .gw-matka-review) { animation: none; }
+}

@@ -68,10 +68,10 @@ export function EmptyState({ title = 'Nothing here just yet', description = 'Try
   return <div className="m99-empty"><span className="m99-empty-icon"><Icon name="search" size={26} /></span><h3>{title}</h3><p>{description}</p>{action}</div>;
 }
 
-export function Modal({ title, subtitle, children, onClose }) {
+export function Modal({ title, subtitle, children, onClose, className = '' }) {
   const titleId = useId();
   return <ModalSurface open onClose={onClose} title={title} titleId={titleId} hideHeader className="gw-matka-native-dialog">
-    <div className="m99-kit gw-matka-modal" data-theme={getThemeMode()}><div className="m99-modal-heading"><div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><IconButton icon="close" label="Close dialog" onClick={onClose} /></div>{children}</div>
+    <div className={`m99-kit gw-matka-modal ${className}`} data-theme={getThemeMode()}><div className="m99-modal-heading"><div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><IconButton icon="close" label="Close dialog" onClick={onClose} /></div>{children}</div>
   </ModalSurface>;
 }
 

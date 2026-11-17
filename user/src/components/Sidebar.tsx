@@ -3,7 +3,8 @@ import { Link, useLocation } from "react-router-dom";
 import type { LanguageCode } from "@/types";
 import { getLanguageFromStorage } from "@/lib/locale";
 import { ChevronDown } from "lucide-react";
-import { useFeatureFlags, useParsedSettings } from "../hooks/useAppSettings";
+import { useFeatureFlags, useParsedSettings, useSportsIconStyle } from "../hooks/useAppSettings";
+import { sportIcon as styledIcon, sportIconClass } from "./nova/exchange-home/exchangeShared";
 import { useTranslation } from "react-i18next";
 import SidebarFooter from "./sidebar/SidebarFooter";
 import { languages } from "./sidebar/localeData";
@@ -70,7 +71,13 @@ export default function Sidebar() {
     behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
   });
 
-  const sportIcon = (src?: string) => (src ? <img src={src} alt="" /> : null);
+  const iconStyle = useSportsIconStyle();
+  // The colourful set when the whitelabel chose one, else the list's own single-colour image.
+  const sportIcon = (key: string, src?: string) => {
+    const colorful = sportIconClass(key, iconStyle);
+    const image = colorful ? styledIcon(key, iconStyle) : src;
+    return image ? <img src={image} alt="" className={colorful} /> : null;
+  };
 
   return (
     <aside className="nova-sidebar nova-mb-sidebar hidden min-[801px]:flex flex-col shrink-0 overflow-hidden" aria-label={t("nova.sidebarNavigation")} data-ui-radius="square">
@@ -92,7 +99,7 @@ export default function Sidebar() {
           <nav className="nova-mb-side-section" aria-labelledby="nova-mb-all-sports">
             <h2 id="nova-mb-all-sports" className="nova-mb-side-heading">{t("sidebar.allSports", { defaultValue: "All Sports" })}</h2>
             {ALL_SPORTS_AZ.map(sport => (
-              <SideLink key={sport.key} to={`/sports?sport=${sport.key}`} active={selectedSport === sport.key} icon={sportIcon(sport.imageSrc)}>
+              <SideLink key={sport.key} to={`/sports?sport=${sport.key}`} active={selectedSport === sport.key} icon={sportIcon(sport.key, sport.imageSrc)}>
                 {sportLabel(sport.key, sport.label)}
               </SideLink>
             ))}

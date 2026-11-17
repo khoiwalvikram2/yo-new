@@ -1,5 +1,6 @@
 import { gql } from '@apollo/client'
 import { useAuthStore } from '../core/authStore'
+import { keepSignOutReasonForReload, rememberSignOutReason, type SignOutReason } from '../core/signOutReason'
 import { localStorageService } from '../services/storage'
 import { messageService } from '../services/notification'
 
@@ -139,8 +140,9 @@ export const authSecurity = {
     localStorageService.remove(`login-attempts-${email}`)
   },
 
-  // Secure logout: invalidate token on server then clear local state
-  secureLogout: async (): Promise<void> => {
+  // Secure logout: invalidate token on server then clear local state. A forced sign-out passes its reason, which the
+  // sign-in page shows after the reload below (signOutReason.ts); a sign-out on purpose passes none.
+  secureLogout: async (reason?: SignOutReason): Promise<void> => {
     try {
       const { apolloClient } = await import('../core/api')
       await apolloClient.mutate({ mutation: LOGOUT_MUTATION })
@@ -155,6 +157,12 @@ export const authSecurity = {
         window.sessionStorage.clear()
       }
     } catch {}
+    // B009: after the clear (which would wipe it) and before the reload (which drops every toast). The route guard
+    // shows this document's own sign-in page before the reload lands; it leaves the reason for the reloaded one.
+    if (reason) {
+      rememberSignOutReason(reason)
+      keepSignOutReasonForReload()
+    }
     messageService.info('Logged out successfully')
     try {
       if (typeof window !== 'undefined') {
@@ -168,7 +176,7 @@ export const authSecurity = {
     if (sessionRedirectScheduled) return
     sessionRedirectScheduled = true
     messageService.warning('Your session has expired. Please log in again.')
-    authSecurity.secureLogout()
+    authSecurity.secureLogout('session-expired')
   },
 
   // Check session validity

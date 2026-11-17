@@ -7,10 +7,13 @@ import {
   type ReactNode,
 } from 'react'
 import { useMutation, useQuery, useSubscription } from '@apollo/client'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   IconCheck,
+  IconCreditCard,
   IconCurrencyRupee,
+  IconCurrencyTether,
+  IconExternalLink,
   IconInfoCircle,
   IconMessage,
   IconNote,
@@ -36,9 +39,9 @@ import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { Button } from '@/ui/components/Button'
 import { buttonClassName } from '@/ui/components/buttonClassName'
 import { confirm } from '@/ui/components/confirm'
+import { CopyButton } from '@/ui/components/CopyButton'
 import { DescriptionList } from '@/ui/components/DescriptionList'
 import { Drawer } from '@/ui/components/Drawer'
-import { ImagePreview } from '@/ui/components/ImagePreview'
 import { Page } from '@/ui/components/Page'
 import { PageHeader } from '@/ui/components/PageHeader'
 import { Pagination } from '@/ui/components/Pagination'
@@ -47,13 +50,20 @@ import { Textarea } from '@/ui/components/Textarea'
 import { toast } from '@/ui/components/toast'
 import { strokeFor } from '@/ui/components/icons'
 import { DepositRequestsFiltersBar } from './components/DepositRequestsFiltersBar'
+import { DepositRequestsProofPreview } from './components/DepositRequestsProof'
 import { DepositRequestsStatsCards } from './components/DepositRequestsStatsCards'
 import { DepositRequestsTable } from './components/DepositRequestsTable'
 import {
+  approveConfirmDescription,
   buildDepositRequestFilter,
-  depositStatusLabel,
+  canReviewDeposit,
+  cryptoDepositSummary,
+  depositRowMethodLabel,
+  depositRowStatusLabel,
+  gatewayDepositNotice,
+  gatewayStatusLabel,
   getDepositRangeForPreset,
-  hasValidDepositProof,
+  hasDepositProof,
   type DepositDateRange,
   type DepositRequest as DepositRequestRecord,
 } from './depositRequestsModel'
@@ -163,6 +173,56 @@ function DepositRequestsContent() {
     setApproveNote('')
   }, [])
 
+  /* ---- Task links ---- */
+  // A deposit task links to ?depositId=…: that request opens over the list (which keeps its own filters).
+  // Closing it drops the link, so a refresh does not open it again. The lookup names the request by its id,
+  // so it is found whatever its age or status (FIN-04: it used to search only the 100 newest requests).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linkedId = searchParams.get('depositId')?.trim() || null
+  const { data: linkedData, loading: linkedLoading } = useQuery(ADMIN_DEPOSIT_REQUESTS, {
+    variables: { input: { id: linkedId, offset: 0, limit: 1 } },
+    skip: !linkedId,
+    fetchPolicy: 'network-only',
+  })
+  const [linkedOpen, setLinkedOpen] = useState(false)
+  const handledLinkRef = useRef<string | null>(null)
+  const dropLink = useCallback(() => {
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params)
+      next.delete('depositId')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  useEffect(() => {
+    if (!linkedId) {
+      handledLinkRef.current = null
+      return
+    }
+    if (linkedLoading || !linkedData || handledLinkRef.current === linkedId) return
+    handledLinkRef.current = linkedId
+    const items = (linkedData.adminDepositRequests?.items ?? []) as DepositRequestRecord[]
+    const linked = items.find((item) => String(item.id) === linkedId)
+    if (!linked) {
+      toast({
+        message: `Deposit request #${linkedId} was not found`,
+        tone: 'warn',
+      })
+      dropLink()
+      return
+    }
+    drawerTriggerRef.current = null
+    setSelectedRequest(linked)
+    setDrawerOpen(true)
+    setLinkedOpen(true)
+  }, [dropLink, linkedData, linkedId, linkedLoading])
+
+  useEffect(() => {
+    if (drawerOpen || !linkedOpen) return
+    setLinkedOpen(false)
+    dropLink()
+  }, [drawerOpen, dropLink, linkedOpen])
+
   const [approveRequest, { loading: approving }] = useMutation(APPROVE_DEPOSIT_REQUEST, {
     context: { skipNotification: true },
     onCompleted: (result) => {
@@ -217,7 +277,7 @@ function DepositRequestsContent() {
 
     await confirm({
       title: 'Approve Deposit Request',
-      description: "This will credit the player's wallet. Are you sure?",
+      description: approveConfirmDescription(selectedRequest, formatAmount),
       confirmLabel: 'Yes, Approve',
       cancelLabel: 'Cancel',
       onConfirm: async () => {
@@ -259,15 +319,97 @@ function DepositRequestsContent() {
 
   const requests: DepositRequestRecord[] = data?.adminDepositRequests?.items ?? []
   const total = data?.adminDepositRequests?.total ?? 0
-  const isPending = selectedRequest?.status === 'PENDING'
+  // A gateway deposit is credited only when WeLivePay confirms it: it is never approved or rejected by hand.
+  const isPending = canReviewDeposit(selectedRequest)
+  const gatewayInfo = selectedRequest?.gateway ?? null
+  const gatewayItems = gatewayInfo
+    ? [
+        { key: 'gateway-provider', term: 'Provider', value: gatewayInfo.provider === 'WELIVEPAY' ? 'WeLivePay' : gatewayInfo.provider },
+        {
+          key: 'gateway-name',
+          term: 'Gateway',
+          value: gatewayInfo.gatewayName === gatewayInfo.gateway
+            ? gatewayInfo.gateway
+            : <>{gatewayInfo.gatewayName} <code className={styles.code}>{gatewayInfo.gateway}</code></>,
+        },
+        {
+          key: 'gateway-order',
+          term: 'Gateway Order ID',
+          value: (
+            <span className={styles.hashValue}>
+              <code className={styles.code}>{gatewayInfo.orderId}</code>
+              <CopyButton size="sm" value={gatewayInfo.orderId} label="Copy gateway order ID" copiedLabel="Gateway order ID copied" errorLabel="Failed to copy" />
+            </span>
+          ),
+        },
+        {
+          key: 'gateway-status',
+          term: 'Payment Status',
+          value: (
+            <StatusPill tone={gatewayInfo.status === 'success' ? 'ok' : gatewayInfo.status === 'pending' ? 'warn' : 'muted'}>
+              {gatewayStatusLabel(gatewayInfo.status)}
+            </StatusPill>
+          ),
+        },
+        { key: 'gateway-utr', term: 'Gateway UTR / Txn Ref', value: gatewayInfo.txnRef ? <code className={styles.code}>{gatewayInfo.txnRef}</code> : '—' },
+        ...(gatewayInfo.expiresAt
+          ? [{
+              key: 'gateway-expires',
+              term: 'Checkout Expires',
+              value: <time dateTime={gatewayInfo.expiresAt}>{formatDateTime(gatewayInfo.expiresAt, 'dd MMM yyyy, HH:mm:ss')}</time>,
+            }]
+          : []),
+      ]
+    : []
+  // A crypto deposit is checked on the chain: its TxID (held in utr) and quote get a section of their own.
+  const isCrypto = selectedRequest?.method === 'CRYPTO'
+  const cryptoSummary = selectedRequest && isCrypto ? cryptoDepositSummary(selectedRequest, formatAmount) : null
+
+  const cryptoItems = cryptoSummary
+    ? [
+        { key: 'usdt', term: 'USDT to Receive', value: <strong className={styles.usdt}>{cryptoSummary.usdt}</strong> },
+        { key: 'network', term: 'Network', value: cryptoSummary.network },
+        { key: 'rate', term: 'Rate', value: cryptoSummary.rate },
+        ...(cryptoSummary.bonus ? [{ key: 'bonus', term: 'Bonus', value: cryptoSummary.bonus }] : []),
+        {
+          key: 'txid',
+          term: 'TxID',
+          value: cryptoSummary.txHash ? (
+            <span className={styles.hashValue}>
+              <code className={styles.code}>{cryptoSummary.txHash}</code>
+              <CopyButton
+                size="sm"
+                value={cryptoSummary.txHash}
+                label="Copy TxID"
+                copiedLabel="TxID copied"
+                errorLabel="Failed to copy"
+              />
+            </span>
+          ) : '—',
+        },
+        ...(cryptoSummary.explorerUrl
+          ? [{
+              key: 'explorer',
+              term: 'Explorer',
+              value: (
+                <a className={styles.explorerLink} href={cryptoSummary.explorerUrl} target="_blank" rel="noopener noreferrer">
+                  View on explorer
+                  <IconExternalLink size={14} stroke={strokeFor(14)} aria-hidden="true" />
+                </a>
+              ),
+            }]
+          : []),
+      ]
+    : []
 
   const transactionItems = selectedRequest
     ? [
         { key: 'request-id', term: 'Request ID', value: <code className={styles.code}>{selectedRequest.id}</code> },
-        ...(selectedRequest.utr
+        ...(selectedRequest.utr && !isCrypto
           ? [{ key: 'utr', term: 'UTR Number', value: <code className={styles.code}>{selectedRequest.utr}</code> }]
           : []),
-        ...(selectedRequest.referenceId
+        // For CRYPTO the reference repeats the TxID shown in the crypto section.
+        ...(selectedRequest.referenceId && !isCrypto
           ? [{ key: 'reference-id', term: 'Reference ID', value: <code className={styles.code}>{selectedRequest.referenceId}</code> }]
           : []),
         {
@@ -275,7 +417,7 @@ function DepositRequestsContent() {
           term: 'Status',
           value: (
             <StatusPill status={selectedRequest.status}>
-              {depositStatusLabel(selectedRequest.status)}
+              {depositRowStatusLabel(selectedRequest)}
             </StatusPill>
           ),
         },
@@ -301,6 +443,9 @@ function DepositRequestsContent() {
           : []),
         ...(selectedRequest.walletTxnId
           ? [{ key: 'wallet-txn-id', term: 'Wallet Txn ID', value: <code className={styles.code}>{selectedRequest.walletTxnId}</code> }]
+          : []),
+        ...(selectedRequest.bonusWalletTxnId
+          ? [{ key: 'bonus-txn-id', term: 'Bonus Txn ID', value: <code className={styles.code}>{selectedRequest.bonusWalletTxnId}</code> }]
           : []),
       ]
     : []
@@ -390,7 +535,9 @@ function DepositRequestsContent() {
                 <IconInfoCircle size={15} stroke={strokeFor(15)} aria-hidden="true" />
                 {isPending
                   ? (!approveNote.trim() ? 'Enter remark to approve' : 'Review and process this request')
-                  : `This request has been ${selectedRequest.status.toLowerCase()}`}
+                  : gatewayInfo
+                    ? gatewayDepositNotice(gatewayInfo)
+                    : `This request has been ${selectedRequest.status.toLowerCase()}`}
               </p>
               <div className={styles.footerActions}>
                 {isPending ? (
@@ -453,11 +600,29 @@ function DepositRequestsContent() {
                 </div>
                 <div className={styles.method}>
                   <span>Method</span>
-                  <StatusPill tone={selectedRequest.method === 'UPI' ? 'info' : 'neutral'}>
-                    {selectedRequest.method.replace('_', ' ')}
+                  <StatusPill tone={selectedRequest.method === 'UPI' && !gatewayInfo ? 'info' : 'neutral'}>
+                    {depositRowMethodLabel(selectedRequest)}
                   </StatusPill>
                 </div>
               </section>
+
+              {gatewayInfo ? (
+                <DrawerSection
+                  icon={<IconCreditCard size={17} stroke={strokeFor(17)} />}
+                  title="Payment Gateway"
+                >
+                  <DescriptionList items={gatewayItems} />
+                </DrawerSection>
+              ) : null}
+
+              {cryptoSummary ? (
+                <DrawerSection
+                  icon={<IconCurrencyTether size={17} stroke={strokeFor(17)} />}
+                  title="Crypto Payment"
+                >
+                  <DescriptionList items={cryptoItems} />
+                </DrawerSection>
+              ) : null}
 
               <DrawerSection
                 icon={<IconReceipt size={17} stroke={strokeFor(17)} />}
@@ -476,18 +641,14 @@ function DepositRequestsContent() {
                 </aside>
               ) : null}
 
-              {hasValidDepositProof(selectedRequest) ? (
+              {/* The screenshot is read when the drawer shows it (the list says only whether there is one); keyed by
+                  the request, so the next request reads its own. */}
+              {hasDepositProof(selectedRequest) ? (
                 <DrawerSection
                   icon={<IconPhoto size={17} stroke={strokeFor(17)} />}
                   title="Payment Proof"
                 >
-                  <ImagePreview
-                    src={selectedRequest.proofUrl as string}
-                    alt="Payment proof"
-                    dialogTitle="Payment proof"
-                    openLabel="View payment proof"
-                    className={styles.proof}
-                  />
+                  <DepositRequestsProofPreview key={selectedRequest.id} requestId={selectedRequest.id} />
                 </DrawerSection>
               ) : null}
 

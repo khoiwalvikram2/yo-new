@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { CASINO_RTP_BAND, casinoRtpStanding } from '@/routes/live-analysis/liveWorkspaceStatsModel'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { Card } from '@/ui/components/Card'
 import { Stat } from '@/ui/components/Stat'
@@ -57,6 +58,7 @@ export function AlertsAndAnomaliesDashboard({
   kpis,
   breakdown,
   dataHistory = [],
+  windowMins = 10,
 }: AlertsAndAnomaliesDashboardProps) {
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
 
@@ -65,20 +67,22 @@ export function AlertsAndAnomaliesDashboard({
     if (!kpis || !breakdown?.byGame) return []
     const alerts: AlertItem[] = []
 
-    // Check overall RTP
-    if (kpis.rtp < 90) {
+    // Check overall RTP, on the band the RTP card uses. A window with (almost) no bets is not judged: with none at
+    // all RTP is 0%, which raised a critical alert while the card beside it said the same 0% was fine.
+    const standing = casinoRtpStanding(kpis.rtp, kpis.wagered)
+    if (standing === 'low') {
       alerts.push({
         id: 'rtp-overall-low',
         type: 'rtp',
         severity: 'critical',
         title: 'Overall RTP Below Threshold',
-        description: `Overall RTP is ${kpis.rtp.toFixed(2)}%, which is below the acceptable threshold of 90%`,
+        description: `Overall RTP is ${kpis.rtp.toFixed(2)}%, which is below the acceptable threshold of ${CASINO_RTP_BAND.low}%`,
         entity: 'Overall',
         value: kpis.rtp,
-        threshold: 90,
+        threshold: CASINO_RTP_BAND.low,
         timestamp: new Date().toISOString(),
       })
-    } else if (kpis.rtp > 110) {
+    } else if (standing === 'high') {
       alerts.push({
         id: 'rtp-overall-high',
         type: 'rtp',
@@ -87,7 +91,7 @@ export function AlertsAndAnomaliesDashboard({
         description: `Overall RTP is ${kpis.rtp.toFixed(2)}%, which is significantly above expected range`,
         entity: 'Overall',
         value: kpis.rtp,
-        threshold: 110,
+        threshold: CASINO_RTP_BAND.high,
         timestamp: new Date().toISOString(),
       })
     }
@@ -236,7 +240,9 @@ export function AlertsAndAnomaliesDashboard({
   }, [allAlerts])
 
   return <Card title="Alerts & Anomalies" tools={alertCounts.total > 0 && <div className={styles.actions}>{alertCounts.critical > 0 && <StatusPill tone="neg">{alertCounts.critical} Critical</StatusPill>}{alertCounts.warning > 0 && <StatusPill tone="warn">{alertCounts.warning} Warning</StatusPill>}{alertCounts.info > 0 && <StatusPill tone="info">{alertCounts.info} Info</StatusPill>}</div>}>
-    {!allAlerts.length ? <Notice tone="ok" title="All systems normal">No alerts detected</Notice> : <div className={styles.stack}><div className={styles.grid3}><Stat variant="bare" label="Critical" value={alertCounts.critical} hue="red" size="compact" /><Stat variant="bare" label="Warnings" value={alertCounts.warning} hue="amb" size="compact" /><Stat variant="bare" label="Info" value={alertCounts.info} hue="blu" size="compact" /></div>
+    {!allAlerts.length ? (kpis && !(kpis.wagered > 0)
+      ? <Notice tone="info" title="No activity">{`No casino bets in the last ${windowMins} minutes, so there is nothing to check.`}</Notice>
+      : <Notice tone="ok" title="All systems normal">No alerts detected</Notice>) : <div className={styles.stack}><div className={styles.grid3}><Stat variant="bare" label="Critical" value={alertCounts.critical} hue="red" size="compact" /><Stat variant="bare" label="Warnings" value={alertCounts.warning} hue="amb" size="compact" /><Stat variant="bare" label="Info" value={alertCounts.info} hue="blu" size="compact" /></div>
       {allAlerts.map(alert => <div key={alert.id} className={styles.details}><Notice title={alert.title} tone={alert.severity === 'critical' ? 'error' : alert.severity === 'warning' ? 'warn' : 'info'} action={<StatusPill tone={alert.severity === 'critical' ? 'neg' : alert.severity === 'warning' ? 'warn' : 'info'}>{alert.severity.toUpperCase()}</StatusPill>}>{alert.description}</Notice>
         <DescriptionList items={[{ term: 'Entity', value: alert.entity }, { term: 'Value', value: alert.type === 'rtp' ? `${alert.value.toFixed(2)}%` : `${alert.value.toFixed(0)}%` }, { term: 'Threshold', value: `${alert.threshold}%` }]} /></div>)}
     </div>}

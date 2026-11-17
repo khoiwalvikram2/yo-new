@@ -28,6 +28,8 @@ import { z } from 'zod'
 
 import { createMatkaResult, rollbackMatkaResult, buildMatkaResultContext } from '@src/repos/matka/matkaResultsRepo.js'
 
+import { publishWorliSessionView } from '@/domains/matka-worli/services/sessionView.js'
+
 import { validateResultForMarket } from '@src/domains/matka/services/resultFormat.js'
 
 
@@ -222,11 +224,17 @@ export const matkaMutationResolvers = {
 
     const a = apprSubmit(p.data.drawId, p.data.value, 'admin', p.data.reason ?? undefined)
 
+    // Audit under the caller's tenant and id (SYS-22): a missing tenant lands in 'default'.
+
+    const tenant = getEffectiveTenantForDirector(ctx) ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
+
+    const actorId = ctx?.user?.sub ? String(ctx.user.sub) : 'system'
+
     // dual-write to DB best-effort
 
     createResultApproval(a.drawId, a.value, a.requestedBy, p.data.reason ?? undefined)
 
-      .then(() => recordAuditDb({ actorId: 'admin', domain: 'matka.results', action: 'submit', resourceType: 'approval', resourceId: String(a.id) }))
+      .then(() => recordAuditDb({ tenant, actorId, domain: 'matka.results', action: 'submit', resourceType: 'approval', resourceId: String(a.id) }))
 
       .catch(()=>{})
 
@@ -244,9 +252,13 @@ export const matkaMutationResolvers = {
 
     const a = apprApprove(p.data.approvalId, 'approver')
 
+    const tenant = getEffectiveTenantForDirector(ctx) ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
+
+    const actorId = ctx?.user?.sub ? String(ctx.user.sub) : 'system'
+
     approveResultApproval(Number(a.id), 'approver')
 
-      .then(() => recordAuditDb({ actorId: 'approver', domain: 'matka.results', action: 'approve', resourceType: 'approval', resourceId: String(a.id) }))
+      .then(() => recordAuditDb({ tenant, actorId, domain: 'matka.results', action: 'approve', resourceType: 'approval', resourceId: String(a.id) }))
 
       .catch(()=>{})
 
@@ -272,9 +284,13 @@ export const matkaMutationResolvers = {
 
     const a = apprReject(p.data.approvalId, 'approver')
 
+    const tenant = getEffectiveTenantForDirector(ctx) ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
+
+    const actorId = ctx?.user?.sub ? String(ctx.user.sub) : 'system'
+
     rejectResultApproval(Number(a.id), 'approver')
 
-      .then(() => recordAuditDb({ actorId: 'approver', domain: 'matka.results', action: 'reject', resourceType: 'approval', resourceId: String(a.id) }))
+      .then(() => recordAuditDb({ tenant, actorId, domain: 'matka.results', action: 'reject', resourceType: 'approval', resourceId: String(a.id) }))
 
       .catch(()=>{})
 
@@ -332,7 +348,7 @@ export const matkaMutationResolvers = {
 
     const created = await createMatkaDb({ ...p.data.input, status: statusNorm, createdBy: ctx?.user?.sub ?? 'admin' }, tenant)
 
-    await recordAuditDb({ actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'create', resourceType: 'matka', resourceId: created.id, after: created })
+    await recordAuditDb({ tenant, actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'create', resourceType: 'matka', resourceId: created.id, after: created })
 
     return { success: true, message: 'Matka created successfully', matka: { ...created, status: String(created.status || '').toUpperCase() } }
 
@@ -388,7 +404,7 @@ export const matkaMutationResolvers = {
 
     const updated = await updateMatkaDb({ ...input, updatedBy: ctx?.user?.sub ?? 'admin' }, tenant)
 
-    await recordAuditDb({ actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'update', resourceType: 'matka', resourceId: updated.id, before, after: updated })
+    await recordAuditDb({ tenant, actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'update', resourceType: 'matka', resourceId: updated.id, before, after: updated })
 
     return { success: true, message: 'Matka updated successfully', matka: { ...updated, status: String(updated.status || '').toUpperCase() } }
 
@@ -412,7 +428,7 @@ export const matkaMutationResolvers = {
 
     await softDeleteMatkaDb(p.data.id, p.data.reason, tenant)
 
-    await recordAuditDb({ actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'delete', resourceType: 'matka', resourceId: p.data.id, before: { id: p.data.id }, after: { deleted: true, reason: p.data.reason } })
+    await recordAuditDb({ tenant, actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'delete', resourceType: 'matka', resourceId: p.data.id, before: { id: p.data.id }, after: { deleted: true, reason: p.data.reason } })
 
     return true
 
@@ -452,7 +468,7 @@ export const matkaMutationResolvers = {
 
     const updated = await updateMatkaDb({ id: p.data.id, status: to, updatedBy: ctx?.user?.sub ?? 'admin', reason: p.data.reason }, tenant)
 
-    await recordAuditDb({ actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'status', resourceType: 'matka', resourceId: updated.id, before, after: updated })
+    await recordAuditDb({ tenant, actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'status', resourceType: 'matka', resourceId: updated.id, before, after: updated })
 
     return { success: true, message: `Status changed from ${from} to ${to}`, matka: { ...updated, status: String(updated.status || '').toUpperCase() } }
 
@@ -512,7 +528,7 @@ export const matkaMutationResolvers = {
 
     const updated = await updateMatkaDb({ id: p.data.id, settings: nextSettings, updatedBy: ctx?.user?.sub ?? 'admin', reason: p.data.reason }, tenant)
 
-    await recordAuditDb({ actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'settings', resourceType: 'matka', resourceId: updated.id, before, after: updated })
+    await recordAuditDb({ tenant, actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'settings', resourceType: 'matka', resourceId: updated.id, before, after: updated })
 
     return { success: true, message: 'Settings updated', matka: { ...updated, status: String(updated.status || '').toUpperCase() } }
 
@@ -536,7 +552,7 @@ export const matkaMutationResolvers = {
 
     await reorderMatkasDb(p.data.input, tenant)
 
-    await recordAuditDb({ actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'reorder', resourceType: 'matka', resourceId: '*', after: p.data.input })
+    await recordAuditDb({ tenant, actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'reorder', resourceType: 'matka', resourceId: '*', after: p.data.input })
 
     return { success: true, message: 'Matkas order updated' }
 
@@ -554,7 +570,8 @@ export const matkaMutationResolvers = {
 
       marketName: z.string().min(1),
 
-      marketSession: z.string().optional(),
+      // GraphQL allows null for both (MatkaBidRuleInput/Patch), and the settings page sends null when empty.
+      marketSession: z.string().nullish(),
 
       bidType: z.string().min(1),
 
@@ -574,7 +591,7 @@ export const matkaMutationResolvers = {
 
       priority: z.number().int().optional(),
 
-      notes: z.string().optional(),
+      notes: z.string().nullish(),
 
     }) })
 
@@ -604,7 +621,8 @@ export const matkaMutationResolvers = {
 
       marketName: z.string().optional(),
 
-      marketSession: z.string().optional(),
+      // GraphQL allows null for both (MatkaBidRuleInput/Patch), and the settings page sends null when empty.
+      marketSession: z.string().nullish(),
 
       bidType: z.string().optional(),
 
@@ -624,7 +642,7 @@ export const matkaMutationResolvers = {
 
       priority: z.number().int().optional(),
 
-      notes: z.string().optional(),
+      notes: z.string().nullish(),
 
     }) })
 
@@ -684,7 +702,7 @@ export const matkaMutationResolvers = {
 
     const created = await cloneMatkaDb(p.data.id, { name: p.data.name, code: p.data.code, actor: ctx?.user?.sub ?? 'admin' }, tenant)
 
-    await recordAuditDb({ actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'clone', resourceType: 'matka', resourceId: created.id, after: created })
+    await recordAuditDb({ tenant, actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'clone', resourceType: 'matka', resourceId: created.id, after: created })
 
     return { success: true, message: 'Matka cloned successfully', matka: { ...created, status: String(created.status || '').toUpperCase() } }
 
@@ -728,7 +746,7 @@ export const matkaMutationResolvers = {
 
     const res = await importMatkasCsvDb(p.data.csv, { dryRun: p.data.dryRun ?? true, actor: ctx?.user?.sub ?? 'admin' }, tenant)
 
-    await recordAuditDb({ actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'import', resourceType: 'matka', resourceId: '*', after: res })
+    await recordAuditDb({ tenant, actorId: ctx?.user?.sub ?? 'admin', domain: 'matka', action: 'import', resourceType: 'matka', resourceId: '*', after: res })
 
     return { inserted: res.inserted, updated: res.updated, errors: res.errors.map(e => ({ line: e.line, error: e.error })) }
 
@@ -1060,6 +1078,12 @@ export const matkaMutationResolvers = {
 
       
 
+      // The session's open page shows its status and whether Unlock may reopen it: push its view (best effort).
+
+      await publishWorliSessionView(pubsub, created.matkaId, created.date, created.type)
+
+
+
       // Calculate impact
 
       const impact = created.impact
@@ -1261,6 +1285,12 @@ export const matkaMutationResolvers = {
       }
 
       
+
+      // The session's open page shows its new status, and no Unlock as a result was declared for it: push its view (best effort).
+
+      await publishWorliSessionView(pubsub, rolledBack.matkaId, rolledBack.date, rolledBack.type)
+
+
 
       // Get full result for response
 

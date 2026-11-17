@@ -104,6 +104,19 @@ const PLAYER_BETS_QUERY = gql`
     }
   }
 `
+/**
+ * Every product's total under the current filters, in one request (one row per product), so the headline and the
+ * product tabs count all three up front. They used to fill in only as each tab was opened: a casino-only player
+ * showed "Total Bets 0" and "Casino (0)" on the Sports tab the page opens on.
+ */
+const PLAYER_BET_COUNTS_QUERY = gql`
+  query PlayerBetCounts($playerId: ID!, $sports: PlayerBetsFilter, $casino: PlayerBetsFilter, $matka: PlayerBetsFilter) {
+    sports: playerBets(playerId: $playerId, filter: $sports) { total }
+    casino: playerBets(playerId: $playerId, filter: $casino) { total }
+    matka: playerBets(playerId: $playerId, filter: $matka) { total }
+  }
+`
+const PRODUCT_TABS: readonly ProductTab[] = ['sports', 'casino', 'matka']
 
 function StatusBadge({ status }: { status: string }) {
   const value = status.toLowerCase()
@@ -734,6 +747,31 @@ export function BetsTab({ playerId, dateRange, dateFrom, dateTo }: BetsTabProps)
     }
   }, [error])
 
+  const countFilter = (product: ProductTab) => ({
+    product, status: statusFilter || null, walletType: walletTypeFilter || null, search: searchText.trim() || null,
+    dateFrom: resolvedDates.from || null, dateTo: resolvedDates.to || null, limit: 1, offset: 0,
+  })
+  const counts = useQuery<Record<ProductTab, { total: number } | null>>(PLAYER_BET_COUNTS_QUERY, {
+    variables: { playerId, sports: countFilter('sports'), casino: countFilter('casino'), matka: countFilter('matka') },
+    skip: networkErrorSkip,
+    errorPolicy: 'all',
+    fetchPolicy: 'cache-and-network',
+  })
+  const refetchCounts = counts.refetch
+  // Until the admin picks a product, the tab opens on the first one that has bets rather than an empty Sports tab.
+  const productPicked = useRef(false)
+  const pickProduct = useCallback((product: ProductTab) => { productPicked.current = true; setActiveProductTab(product) }, [])
+  useEffect(() => {
+    const loaded = counts.data
+    if (counts.loading || !loaded) return
+    const countOf = (product: ProductTab) => loaded[product]?.total
+    setTabTotals((prev) => ({ sports: countOf('sports') ?? prev.sports, casino: countOf('casino') ?? prev.casino, matka: countOf('matka') ?? prev.matka }))
+    if (!productPicked.current && !countOf(activeProductTab)) {
+      const first = PRODUCT_TABS.find((product) => (countOf(product) ?? 0) > 0)
+      if (first) setActiveProductTab(first)
+    }
+  }, [counts.loading, counts.data, activeProductTab])
+
   // Commit stable total once data has loaded (not mid-flight)
   useEffect(() => {
     if (!loading && data?.playerBets != null) {
@@ -753,8 +791,9 @@ export function BetsTab({ playerId, dateRange, dateFrom, dateTo }: BetsTabProps)
       setNetworkErrorSkip(false)
     } else {
       void refetch().catch(() => undefined)
+      void refetchCounts().catch(() => undefined)
     }
-  }, [networkErrorSkip, refetch])
+  }, [networkErrorSkip, refetch, refetchCounts])
 
   const setTabPage = useCallback((tab: ProductTab, page: number) => {
     setTabPages((prev) => ({ ...prev, [tab]: { ...prev[tab], page } }))
@@ -813,13 +852,13 @@ export function BetsTab({ playerId, dateRange, dateFrom, dateTo }: BetsTabProps)
   }
 
 
-  const handleRetry = () => { setLastNetworkError(null); if (networkErrorSkip) setNetworkErrorSkip(false); else void refetch().catch(() => undefined) }
+  const handleRetry = () => { setLastNetworkError(null); if (networkErrorSkip) setNetworkErrorSkip(false); else { void refetch().catch(() => undefined); void refetchCounts().catch(() => undefined) } }
   const columns = activeProductTab === 'sports' ? getSportsCols(formatDate, formatTime) : activeProductTab === 'casino' ? getCasinoCols(formatDate, formatTime) : getMatkaCols(formatDate, formatTime)
   const tableColumns: DataTableColumn<BetRow>[] = columns.map(column => ({ key: column.key, header: column.header, align: column.align, minWidth: Number.parseInt(column.minW ?? '') || undefined, cell: row => column.render(row, formatBetAmount) }))
   const errorState = Boolean(error || networkErrorSkip)
   return <div className={styles.stack}>
     {!errorState && <div className={styles.metrics}>
-      <Stat label="Total Bets" value={(tabTotals.sports + tabTotals.casino + tabTotals.matka).toLocaleString()} note={`Current-page stake: ${formatBetAmount(totalStake, defaultCurrency)}`} tooltip="Product totals populate when their tabs load; monetary totals are the currently filtered page." hue="blu" />
+      <Stat label="Total Bets" value={(tabTotals.sports + tabTotals.casino + tabTotals.matka).toLocaleString()} note={`Current-page stake: ${formatBetAmount(totalStake, defaultCurrency)}`} tooltip="Bet counts cover every product under the current filters; monetary totals are the currently filtered page." hue="blu" />
       <Stat label="Sports" value={tabTotals.sports.toLocaleString()} note="Exchange bets" hue="grn" />
       <Stat label="Casino" value={tabTotals.casino.toLocaleString()} note="Live & Slots" hue="amb" />
       <Stat label="Matka" value={tabTotals.matka.toLocaleString()} note="Worli / Starline" hue="vio" />
@@ -829,7 +868,7 @@ export function BetsTab({ playerId, dateRange, dateFrom, dateTo }: BetsTabProps)
       <Select label="Status" size="sm" value={statusFilter} onChange={setStatusFilter} options={[{value:'',label:'All Status'},...['pending','active','matched','won','lost','settled','void','cancelled'].map(value=>({value,label:value.charAt(0).toUpperCase()+value.slice(1)}))]} />
       <Select label="Wallet" size="sm" value={walletTypeFilter} onChange={setWalletTypeFilter} options={[{value:'',label:'All Wallet'},{value:'cash',label:'Cash'},{value:'bonus',label:'Bonus'},{value:'referralBonus',label:'Referral Bonus'}]} />
     </FilterBar>
-    <Card title="Player bets" body="table" tools={<><Tabs label="Bet product tabs" idPrefix="player-profile-bets" value={activeProductTab} onChange={setActiveProductTab}
+    <Card title="Player bets" body="table" tools={<><Tabs label="Bet product tabs" idPrefix="player-profile-bets" value={activeProductTab} onChange={pickProduct}
       items={(['sports','casino','matka'] as const).map(value=>({value,label:`${value.charAt(0).toUpperCase()+value.slice(1)} (${tabTotals[value] > 99999 ? '99999+' : tabTotals[value]})`}))} />
       <Button size="sm" loading={loading} onClick={handleRefresh}>Refresh bets</Button><Button size="sm" loading={exporting} onClick={() => void handleExport()}>Export</Button></>}>
       {errorState ? <Notice tone="error" title="Error loading bets" action={<Button onClick={handleRetry}>Retry</Button>}>{error?.message ?? lastNetworkError ?? 'A network error stopped automatic requests. Retry to reconnect.'}</Notice>

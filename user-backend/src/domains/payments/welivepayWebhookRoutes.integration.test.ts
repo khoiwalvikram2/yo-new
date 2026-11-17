@@ -1,123 +1,86 @@
-import test, { mock } from 'node:test'
+import test from 'node:test'
 import assert from 'node:assert/strict'
 import Fastify from 'fastify'
 import { registerWelivepayWebhookRoutes, type WelivepayWebhookDeps } from './welivepayWebhookRoutes.js'
 
-function baseDeps(over: Partial<WelivepayWebhookDeps> = {}): WelivepayWebhookDeps {
-  return {
-    findTenantByWebhookToken: mock.fn(async () => null),
-    findOrderByOrderId: mock.fn(async () => null),
-    creditOrderOnSuccess: mock.fn(async () => ({ credited: true })),
-    markOrderStatus: mock.fn(async () => {}),
-    ...over,
-  }
-}
-
-async function buildApp(deps: WelivepayWebhookDeps) {
+// Callbacks are triggers only: whatever the body says, the route hands the order to the authenticated
+// status check of the token's whitelabel and never credits, completes or refunds from the body itself.
+async function appFor(overrides: Partial<WelivepayWebhookDeps> = {}) {
   const app = Fastify({ logger: false })
+  const deps: WelivepayWebhookDeps = {
+    findTenantByWebhookToken: async token => token === 'valid' ? 'tenant_a' : null,
+    findPayin: async () => ({ tenant: 'tenant_a' }),
+    reconcilePayin: async () => ({ status: 'pending' }),
+    findPayout: async () => ({ status: 'processing' }),
+    reconcilePayout: async () => ({ status: 'processing' }),
+    ...overrides,
+  }
   await registerWelivepayWebhookRoutes(app, deps)
   return app
 }
 
-function post(app: Awaited<ReturnType<typeof buildApp>>, token: string, body: Record<string, unknown>) {
-  return app.inject({
-    method: 'POST',
-    url: `/wlp/${token}`,
-    payload: JSON.stringify(body),
-    headers: { 'content-type': 'application/json' },
-  })
-}
-
-test('400s on a non-JSON body (does not silently 200 a real payment)', async () => {
-  const credit = mock.fn(async () => ({ credited: true }))
-  const deps = baseDeps({
-    findTenantByWebhookToken: mock.fn(async () => 'tenantA'),
-    creditOrderOnSuccess: credit,
-  })
-  const app = await buildApp(deps)
-  const res = await app.inject({
-    method: 'POST',
-    url: '/wlp/goodtoken',
-    payload: 'orderid=ORDER_1_2_abc&status=success&amount=100',
-    headers: { 'content-type': 'text/plain' },
-  })
-  assert.equal(res.statusCode, 400)
-  assert.equal(credit.mock.calls.length, 0)
-})
-
-test('401s on unknown token', async () => {
-  const deps = baseDeps()
-  const app = await buildApp(deps)
-  const res = await post(app, 'badtoken', { orderid: 'ORDER_1_2_abc', status: 'success', amount: 100 })
-  assert.equal(res.statusCode, 401)
-})
-
-test('credits once on success with matching amount', async () => {
-  const credit = mock.fn(async () => ({ credited: true }))
-  const deps = baseDeps({
-    findTenantByWebhookToken: mock.fn(async () => 'tenantA'),
-    findOrderByOrderId: mock.fn(async () => ({ tenant: 'tenantA', orderid: 'ORDER_1_2_abc', status: 'pending', amount: '100.00' }) as any),
-    creditOrderOnSuccess: credit,
-  })
-  const app = await buildApp(deps)
-  const res = await post(app, 'goodtoken', { orderid: 'ORDER_1_2_abc', status: 'success', amount: 100, txn_ref: '412345678901' })
+test('an unsigned success payload cannot decide status, amount or UTR', async () => {
+  const calls: unknown[][] = []
+  const app = await appFor({ reconcilePayin: async (...args) => { calls.push(args); return { status: 'pending' } } })
+  const res = await app.inject({ method: 'POST', url: '/wlp/valid', payload: { orderid: 'PAYIN_TEST', status: 'success', amount: 100000, txn_ref: 'FORGED' } })
   assert.equal(res.statusCode, 200)
-  assert.equal(credit.mock.calls.length, 1)
-  assert.deepEqual(credit.mock.calls[0].arguments[0], { orderid: 'ORDER_1_2_abc', txnRef: '412345678901' })
+  assert.deepEqual(calls, [['PAYIN_TEST', 'tenant_a']], 'only the reference and the token tenant reach the status check')
+  await app.close()
 })
 
-test('returns 500 when credit throws so WeLivePay retries', async () => {
-  const credit = mock.fn(async () => { throw new Error('insufficient whitelabel credit') })
-  const deps = baseDeps({
-    findTenantByWebhookToken: mock.fn(async () => 'tenantA'),
-    findOrderByOrderId: mock.fn(async () => ({ tenant: 'tenantA', orderid: 'ORDER_1_2_abc', status: 'pending', amount: '100.00' }) as any),
-    creditOrderOnSuccess: credit,
-  })
-  const app = await buildApp(deps)
-  const res = await post(app, 'goodtoken', { orderid: 'ORDER_1_2_abc', status: 'success', amount: 100 })
-  assert.equal(res.statusCode, 500)
-  assert.equal(credit.mock.calls.length, 1)
-})
-
-test('does not credit on amount mismatch but returns 200', async () => {
-  const credit = mock.fn(async () => ({ credited: true }))
-  const deps = baseDeps({
-    findTenantByWebhookToken: mock.fn(async () => 'tenantA'),
-    findOrderByOrderId: mock.fn(async () => ({ tenant: 'tenantA', orderid: 'ORDER_1_2_abc', status: 'pending', amount: '100.00' }) as any),
-    creditOrderOnSuccess: credit,
-  })
-  const app = await buildApp(deps)
-  const res = await post(app, 'goodtoken', { orderid: 'ORDER_1_2_abc', status: 'success', amount: 99 })
+test('pay-in and payout notifications use their documented different order fields', async () => {
+  const calls: unknown[][] = []
+  const app = await appFor({ reconcilePayout: async (...args) => { calls.push(args) } })
+  await app.inject({ method: 'POST', url: '/wlp/valid/payout', payload: { orderid: 'WRONG', status: 'success' } })
+  assert.equal(calls.length, 0)
+  const res = await app.inject({ method: 'POST', url: '/wlp/valid/payout', payload: { order_id: 'PAYOUT_TEST', status: 'failed', amount: 100 } })
   assert.equal(res.statusCode, 200)
-  assert.equal(credit.mock.calls.length, 0)
+  assert.deepEqual(calls, [['PAYOUT_TEST', 'tenant_a']])
+  await app.close()
 })
 
-test('marks expired without crediting', async () => {
-  const credit = mock.fn(async () => ({ credited: true }))
-  const markStatus = mock.fn(async () => {})
-  const deps = baseDeps({
-    findTenantByWebhookToken: mock.fn(async () => 'tenantA'),
-    findOrderByOrderId: mock.fn(async () => ({ tenant: 'tenantA', orderid: 'ORDER_1_2_abc', status: 'pending', amount: '100.00' }) as any),
-    creditOrderOnSuccess: credit,
-    markOrderStatus: markStatus,
-  })
-  const app = await buildApp(deps)
-  const res = await post(app, 'goodtoken', { orderid: 'ORDER_1_2_abc', status: 'expired', amount: 100 })
-  assert.equal(res.statusCode, 200)
-  assert.equal(markStatus.mock.calls.length, 1)
-  assert.deepEqual(markStatus.mock.calls[0].arguments, ['ORDER_1_2_abc', 'expired', null])
-  assert.equal(credit.mock.calls.length, 0)
+test('unknown tokens and cross-tenant orders do not reconcile', async () => {
+  let calls = 0
+  const app = await appFor({ findPayin: async () => ({ tenant: 'other' }), reconcilePayin: async () => { calls++ } })
+  assert.equal((await app.inject({ method: 'POST', url: '/wlp/invalid', payload: { orderid: 'PAYIN_TEST' } })).statusCode, 401)
+  assert.equal((await app.inject({ method: 'POST', url: '/wlp/valid', payload: { orderid: 'PAYIN_TEST' } })).statusCode, 200)
+  assert.equal(calls, 0)
+  await app.close()
 })
 
-test('rejects order from a different tenant', async () => {
-  const credit = mock.fn(async () => ({ credited: true }))
-  const deps = baseDeps({
-    findTenantByWebhookToken: mock.fn(async () => 'tenantA'),
-    findOrderByOrderId: mock.fn(async () => ({ tenant: 'tenantB', orderid: 'ORDER_1_2_abc', status: 'pending', amount: '100.00' }) as any),
-    creditOrderOnSuccess: credit,
-  })
-  const app = await buildApp(deps)
-  const res = await post(app, 'goodtoken', { orderid: 'ORDER_1_2_abc', status: 'success', amount: 100 })
-  assert.equal(res.statusCode, 200)
-  assert.equal(credit.mock.calls.length, 0)
+test('a payout reference of another whitelabel is not reconciled', async () => {
+  let calls = 0
+  const app = await appFor({ findPayout: async () => null, reconcilePayout: async () => { calls++ } })
+  assert.equal((await app.inject({ method: 'POST', url: '/wlp/valid/payout', payload: { order_id: 'PAYOUT_ELSEWHERE' } })).statusCode, 200)
+  assert.equal(calls, 0)
+  await app.close()
+})
+
+test('transient verification failures are retryable and sanitized', async () => {
+  const app = await appFor({ reconcilePayin: async () => { throw new Error('PRIVATE_KEY') } })
+  const res = await app.inject({ method: 'POST', url: '/wlp/valid', payload: { orderid: 'PAYIN_TEST' } })
+  assert.equal(res.statusCode, 503)
+  assert.ok(!res.body.includes('PRIVATE_KEY'))
+  await app.close()
+})
+
+test('non-JSON bodies are rejected and the original pay-in URL keeps working', async () => {
+  let calls = 0
+  const app = await appFor({ reconcilePayin: async () => { calls++ } })
+  assert.equal((await app.inject({ method: 'POST', url: '/wlp/valid', headers: { 'content-type': 'text/plain' }, payload: 'orderid=TEST' })).statusCode, 400)
+  assert.equal(calls, 0, 'a body that is not JSON never reaches the status check')
+  assert.equal((await app.inject({ method: 'POST', url: '/wlp/valid', payload: { orderid: 'PAYIN_TEST' } })).statusCode, 200)
+  assert.equal((await app.inject({ method: 'POST', url: '/wlp/valid/payin', payload: { orderid: 'PAYIN_TEST' } })).statusCode, 200)
+  assert.equal(calls, 2)
+  await app.close()
+})
+
+test('a body without a usable reference is acknowledged and ignored', async () => {
+  let calls = 0
+  const app = await appFor({ reconcilePayin: async () => { calls++ } })
+  for (const payload of [{}, { orderid: '' }, { orderid: 42 }, { orderid: 'X'.repeat(129) }]) {
+    assert.equal((await app.inject({ method: 'POST', url: '/wlp/valid', payload })).statusCode, 200)
+  }
+  assert.equal(calls, 0)
+  await app.close()
 })

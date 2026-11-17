@@ -1,6 +1,5 @@
 import { AgentSettlementTransactionsRepo } from '../../../repos/settlements/AgentSettlementTransactionsRepo';
 import { CommissionPayoutsRepo } from '../../../repos/settlements/CommissionPayoutsRepo';
-import { PlayerCreditAdjustmentsRepo, type PlayerCreditAdjustment } from '../../../repos/settlements/PlayerCreditAdjustmentsRepo';
 import { AgentListStatsService } from '../../agents/services/AgentListStatsService';
 import { AgentsRepo } from '../../../repos/agents/AgentsRepo';
 import { AgentConfigsRepo } from '../../../repos/agents/AgentConfigsRepo';
@@ -9,8 +8,8 @@ import { CommissionCalculationService } from '../../agents/services/CommissionCa
 import { HybridGGRReader } from '../../agents/services/HybridGGRReader';
 import { deriveSinceLastPeriod, getWhitelabelTimezone } from '../../agents/services/SettlementPeriodUtils.js';
 import { db } from '@/db/client';
-import { agents, users, agentSettlementTransactions, commissionPayouts } from '@shared/db/schema.js';
-import { eq, and, inArray, sql, gte, lte, lt, desc } from 'drizzle-orm';
+import { agents, agentSettlementTransactions, commissionPayouts } from '@shared/db/schema.js';
+import { eq, and, inArray, gte, lte, lt, desc } from 'drizzle-orm';
 import { getEffectiveTenantForDirector, shouldSkipTenantFiltering } from '@src/domains/common/directorModeUtils.js';
 import { hasPermission } from '@src/domains/common/auth.js';
 import { createCommissionReportCalculator } from '../services/commissionReportCalculator.js';
@@ -57,10 +56,32 @@ function requireCommissionReadForAdmin(ctx: any): void {
 }
 
 /**
- * Refuses a caller with no session. For the remaining settlement reads that had
- * no check at all (transactions, payouts, player credit adjustments, cycle
- * readiness, cycles): an X-Whitelabel-ID header alone was enough to read them.
- * Authentication only — no permission is taken from any signed-in role here.
+ * Read gate for one commission agent's cycles and cycle readiness (commissionCyclesForAgent,
+ * commissionCycleReadiness). An admin needed only a session: one holding nothing but jackpots:read
+ * read any commission agent's paid, payable and calculated commission, week by week (SCO-09).
+ *
+ * An admin now needs the commission read its siblings ask (requireCommissionReadForAdmin), or
+ * settlements.center:view: the settlement centre is gated on it, and its Pending > Commission list
+ * (whitelabelCommissionSummaries, the same figures per agent) opens the Pay dialog that calls both.
+ * Measured on the live roles before gating: grandwinn-com/Finance Manager opens that screen holding
+ * settlements.center:view and no commission read, so the sibling gate alone would have taken the
+ * dialog's reads from it. An agent keeps its own branch (its subtree / its direct children) below.
+ */
+function requireCommissionCycleRead(ctx: any): void {
+  if (!ctx?.user) throw new Error('Unauthorized: authentication required');
+  if (ctx.user.type === 'agent') {
+    if (!ctx.user.agentId) throw new Error('Forbidden: insufficient permissions to view commission cycles');
+    return;
+  }
+  if (hasPermission(ctx?.permissions ?? [], 'settlements.center', 'view')) return;
+  requireCommissionReadForAdmin(ctx);
+}
+
+/**
+ * Refuses a caller with no session. For the settlement reads that had no check at
+ * all: an X-Whitelabel-ID header alone was enough to read them. Authentication
+ * only; commissionPayouts, its one caller now, checks its permission itself
+ * (transactions and the commission cycles have their own gates above).
  */
 function requireAuthenticated(ctx: any): void {
   if (!ctx?.user) throw new Error('Unauthorized: authentication required');
@@ -117,7 +138,6 @@ export const settlementsQueryResolvers = {
     }
 
     let pendingSharingSettlements = 0;
-    let pendingCreditSettlements = 0;
     let pendingCommissionPayouts = 0;
 
     // SHARING: what the caller still has to settle, from the settlement engine (the
@@ -150,11 +170,6 @@ export const settlementsQueryResolvers = {
     // with an unrelated ledger estimate.
     const payoutsRepo = new CommissionPayoutsRepo();
     const now = new Date();
-    const creditTargets = allAgents.filter(a => a.schemeType === 'CREDIT' && (loggedInAgentId || a.parentAgentId == null));
-    for (const agent of creditTargets) {
-      const balance = Number(agent.settlementBalance ?? 0);
-      if (Number.isFinite(balance)) pendingCreditSettlements += Math.abs(balance);
-    }
     const commissionTargets = allAgents.filter(a => a.schemeType === 'COMMISSION' && (loggedInAgentId || a.parentAgentId == null));
     if (commissionTargets.length) {
       const currency = await (await import('@src/shared/whitelabelConfig.js')).getWhitelabelCurrency(tenant);
@@ -167,50 +182,24 @@ export const settlementsQueryResolvers = {
 
     const activity = await readSettlementDashboardActivity(tenant, loggedInAgentId, activityRange);
 
-    // Count pending direct credit adjustments (WHITELABEL_CREDIT players needing attention)
-    // Count players with creditUsed > 0 (they have used credit and may need adjustment)
-    const pendingCreditPlayers = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(users)
-      .where(
-        and(
-          eq(users.playerType, 'WHITELABEL_CREDIT'),
-          eq(users.tenant, tenant),
-          sql`${users.agentId} IS NULL`,
-          sql`CAST(${users.creditUsed} AS NUMERIC) > 0`
-        )
-      );
-    const pendingDirectCreditAdjustments = Number(pendingCreditPlayers[0]?.count || 0);
-    
-    // Domain breakdown (CREDIT agents: sports, casino, matka balance)
-    let totalSports = 0;
-    let totalCasino = 0;
-    let totalMatka = 0;
-    for (const agent of creditTargets) {
-      totalSports += Number(agent.settlementBalanceSports ?? 0);
-      totalCasino += Number(agent.settlementBalanceCasino ?? 0);
-      totalMatka += Number(agent.settlementBalanceMatka ?? 0);
-    }
-    const domainBreakdown = [
-      { domain: 'sports' as const, settlementBalance: totalSports },
-      { domain: 'casino' as const, settlementBalance: totalCasino },
-      { domain: 'matka' as const, settlementBalance: totalMatka },
-    ];
-    
+    // CREDIT has left the settlement centre (spec §6, 2026-11-02): its chips move
+    // by Deposit / Withdraw, and what an account owes or is owed is its Ref P/L on
+    // the Chips pages. The dashboard's CREDIT fields (pending credit settlements,
+    // direct credit adjustments, the CREDIT domain breakdown) are gone from the schema.
     return {
       pendingSharingSettlements,
       pendingSharingToAgents: sharingSummaryDashboard.toAgents,
       pendingSharingFromAgents: sharingSummaryDashboard.fromAgents,
-      pendingCreditSettlements,
       pendingCommissionPayouts,
-      pendingDirectCreditAdjustments,
       ...activity,
-      domainBreakdown,
     };
   },
 
   agentSettlementTransactions: async (_: any, args: any, ctx: any) => {
-    requireAuthenticated(ctx);
+    // An admin needed only a session to list every agent settlement of its whitelabel (usernames,
+    // amounts). It now needs settlements.center:view, as settlementDashboard and the settlement-centre
+    // reads do; an agent passes on its agents.list:view and is then held to the branch below (SCO-09).
+    requireSettlementRead(ctx);
     // CRITICAL: For Director Admin, use effective tenant based on mode
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
@@ -311,8 +300,18 @@ export const settlementsQueryResolvers = {
       } else {
         args.agentId = loggedInAgentId;
       }
+    } else if (ctx?.user?.type === 'agent') {
+      // An agent session always carries its agent id. One without it is not an admin either: every agent derives
+      // agents.commission:view (flat agents:view), so the admin gate below would hand it the whole tenant's list.
+      throw new Error('Forbidden: insufficient permissions to view commission payouts');
+    } else {
+      // An admin needed only a session: measured, a support admin holding nothing but jackpots:read listed all
+      // 137 payouts of its whitelabel (agent usernames, amounts, periods) while settlementDashboard refused it.
+      // The payout table sits on the agent profile's Commission tab, so it takes that tab's read gate, as the
+      // tab's other reads do: settlements.commission:view (flat finance:read) or agents.commission:view (T078).
+      requireCommissionReadForAdmin(ctx);
     }
-    
+
     const repo = new CommissionPayoutsRepo();
     
     const fromDate = args.fromDate ? new Date(args.fromDate) : undefined;
@@ -654,7 +653,7 @@ export const settlementsQueryResolvers = {
   },
 
   commissionCyclesForAgent: async (_: any, args: any, ctx: any) => {
-    requireAuthenticated(ctx);
+    requireCommissionCycleRead(ctx);
     const directorTenant = getEffectiveTenantForDirector(ctx);
     const tenant = directorTenant ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default');
     const agentId = args.agentId as string;
@@ -764,7 +763,7 @@ export const settlementsQueryResolvers = {
   },
 
   commissionCycleReadiness: async (_: any, args: any, ctx: any) => {
-    requireAuthenticated(ctx);
+    requireCommissionCycleRead(ctx);
     const directorTenant = getEffectiveTenantForDirector(ctx);
     const tenant = directorTenant ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default');
     const agentId = args.agentId as string;
@@ -814,67 +813,6 @@ export const settlementsQueryResolvers = {
     };
   },
 
-  playerCreditAdjustments: async (_: any, args: any, ctx: any) => {
-    requireAuthenticated(ctx);
-    // CRITICAL: For Director Admin, use effective tenant based on mode
-    const directorTenant = getEffectiveTenantForDirector(ctx)
-    const tenant = directorTenant ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
-    // An agent reads one of its own players' adjustments (its subtree, plus
-    // players referred into it — PlayerAuthService covers both routes). Without
-    // this an agent could list every player's credit adjustments in the tenant.
-    if (ctx?.user?.type === 'agent') {
-      const playerIdNum = args.playerId ? Number(args.playerId) : NaN;
-      if (!ctx?.user?.agentId || !Number.isFinite(playerIdNum)) return [];
-      const { PlayerAuthService } = await import('../../players/services/PlayerAuthService.js');
-      if (!(await new PlayerAuthService().canAgentAccessPlayer(ctx.user.agentId, playerIdNum, tenant))) return [];
-    }
-    const repo = new PlayerCreditAdjustmentsRepo();
-
-    const fromDate = args.fromDate ? new Date(args.fromDate) : undefined;
-    const toDate = args.toDate ? new Date(args.toDate) : undefined;
-    
-    const adjustments = await repo.list({
-      tenant,
-      playerId: args.playerId ? Number(args.playerId) : undefined,
-      limit: args.limit,
-      offset: args.offset,
-      fromDate,
-      toDate,
-    });
-    
-    // Enrich with player data
-    const playerIds: number[] = [...new Set(adjustments.map((a: PlayerCreditAdjustment) => a.playerId))];
-    let playerMap = new Map();
-    if (playerIds.length > 0) {
-      const { users } = await import('@shared/db/schema/users');
-      const playerData = await db
-        .select({
-          id: users.id,
-          name: users.name,
-          username: users.username,
-        })
-        .from(users)
-        .where(inArray(users.id, playerIds as number[]));
-      
-      playerMap = new Map(
-        playerData.map(p => [
-          p.id,
-          {
-            id: String(p.id),
-            name: p.name,
-            username: p.username || null,
-          },
-        ])
-      );
-    }
-    
-    return adjustments.map((a: PlayerCreditAdjustment) => ({
-      ...a,
-      player: playerMap.get(a.playerId) || null,
-      createdAt: a.createdAt.toISOString(),
-    }));
-  },
-
   pendingSettlements: async (_: any, args: any, ctx: any) => {
     requireSettlementRead(ctx);
     // CRITICAL: For Director Admin, use effective tenant based on mode
@@ -898,15 +836,18 @@ export const settlementsQueryResolvers = {
         allAgents = [];
       }
     } else {
-      // Admin: keep SHARING/CREDIT at top-level, but include all COMMISSION agents
+      // Admin: keep SHARING at top-level, but include all COMMISSION agents
       // so pending commission payouts are not hidden for nested agents.
       allAgents = allAgents.filter(a => a.parentAgentId == null || a.schemeType === 'COMMISSION');
     }
-    
+    // CREDIT agents settle by moving chips (Deposit / Withdraw), never here.
+    allAgents = allAgents.filter(a => a.schemeType !== 'CREDIT');
+
     const filteredAgents = args.schemeType
       ? allAgents.filter(a => a.schemeType === args.schemeType)
       : allAgents;
-    
+
+    if (filteredAgents.length === 0) return [];
     const agentIds = filteredAgents.map(a => a.id);
     const statsMap = await statsService.getStatsForAgents(agentIds, tenant);
     
@@ -974,7 +915,7 @@ export const settlementsQueryResolvers = {
     // the posted SHARE/SETTLEMENT lines: positive = TO_AGENT (pay the agent),
     // negative = FROM_AGENT (collect from the agent); settlementDirection says so.
     const { createSharingSettlementEngine: createSharingEnginePending } = await import('../../agents/services/sharingSettlementWiring.js');
-    const { sharingPendingFields, creditSettlementDirection } = await import('../services/sharingPendingRows.js');
+    const { sharingPendingFields } = await import('../services/sharingPendingRows.js');
     const sharingEnginePending = createSharingEnginePending();
     const sharingAgents = filteredAgents.filter(a => a.schemeType === 'SHARING');
     const sharingPendingMap = new Map<string, Awaited<ReturnType<typeof sharingPendingFields>>>();
@@ -1002,17 +943,6 @@ export const settlementsQueryResolvers = {
         settlementType = 'P_L';
         // Don't show in pending list if remaining is effectively zero (fully settled for this period)
         if (Math.abs(pendingAmount) < 0.01) continue;
-      } else if (agent.schemeType === 'CREDIT') {
-        // For CREDIT agents, use settlementBalance instead of profitLoss
-        const agentCredit = await agentsRepo.getCreditFields(agent.id);
-        if (agentCredit && agentCredit.settlementBalance != null && agentCredit.settlementBalance !== 0) {
-          const bal = Number(agentCredit.settlementBalance);
-          // pendingAmount stays the absolute balance (compatibility); the
-          // direction executeSettleAgent will use is settlementDirection.
-          pendingAmount = Number.isFinite(bal) ? Math.abs(bal) : 0;
-          settlementDirection = creditSettlementDirection(bal);
-          settlementType = 'CREDIT';
-        }
       } else if (agent.schemeType === 'COMMISSION') {
         try {
           const unified = await commissionCalcServicePending.getUnifiedCommission(
@@ -1030,7 +960,7 @@ export const settlementsQueryResolvers = {
         if (pendingAmount > 0.01) settlementType = 'COMMISSION';
       }
       
-      if ((agent.schemeType === 'SHARING' && settlementType === 'P_L') || (agent.schemeType === 'CREDIT' && pendingAmount > 0) || (agent.schemeType === 'COMMISSION' && Number.isFinite(pendingAmount) && pendingAmount > 0.01)) {
+      if ((agent.schemeType === 'SHARING' && settlementType === 'P_L') || (agent.schemeType === 'COMMISSION' && Number.isFinite(pendingAmount) && pendingAmount > 0.01)) {
         const lastSettlement = lastSettlementMap.get(agent.id);
         const lastPayoutDatePending = agent.schemeType === 'COMMISSION' ? commissionLastPayoutDateMapPending.get(agent.id) : null;
         const lastSettlementDateSafe = lastSettlement != null
@@ -1039,26 +969,13 @@ export const settlementsQueryResolvers = {
         const lastDateDisplay = agent.schemeType === 'COMMISSION' && lastPayoutDatePending && !Number.isNaN(lastPayoutDatePending.getTime())
           ? lastPayoutDatePending.toISOString()
           : (lastSettlementDateSafe && !Number.isNaN(lastSettlementDateSafe.getTime()) ? lastSettlementDateSafe.toISOString() : null);
-        
-        // For CREDIT agents, include domain-specific settlement balances
-        let settlementBalanceByDomain: Array<{ domain: string; settlementBalance: number }> = [];
-        if (agent.schemeType === 'CREDIT') {
-          const agentCredit = await agentsRepo.getCreditFields(agent.id);
-          if (agentCredit) {
-            settlementBalanceByDomain = [
-              { domain: 'sports', settlementBalance: agentCredit.settlementBalanceSports },
-              { domain: 'casino', settlementBalance: agentCredit.settlementBalanceCasino },
-              { domain: 'matka', settlementBalance: agentCredit.settlementBalanceMatka },
-            ];
-          }
-        }
 
         // Build ratesByDomain from sharing or commission config per allowed domain
         const ratesByDomain: Array<{ domain: string; rate: number }> = [];
         const allowedDomains = (agent.allowedDomains ?? []) as Array<'sports' | 'casino' | 'matka'>;
         const configAt = (agent.schemeType === 'SHARING' && periodFromForRates) ? periodFromForRates : new Date();
         for (const domain of allowedDomains) {
-          if (agent.schemeType === 'SHARING' || agent.schemeType === 'CREDIT') {
+          if (agent.schemeType === 'SHARING') {
             const config = await configsRepo.getSharingConfig(agent.id, domain, configAt);
             if (config) {
               const rate = Number(config.shareRate);
@@ -1073,44 +990,21 @@ export const settlementsQueryResolvers = {
           }
         }
 
-        // Build settlementBreakdownByDomain: per-domain amount, % of total, cut amount and cut %
-        const rateByDomain = new Map<string, number>();
-        for (const r of ratesByDomain) rateByDomain.set(r.domain, r.rate);
+        // settlementBreakdownByDomain (SHARING) from the engine: amount = players' P/L
+        // (−GGR), agentShare = the share the settlement posts (positive = TO_AGENT),
+        // shareRate = effective rate. COMMISSION rows carry none.
         const settlementBreakdownByDomain: Array<{ domain: string; amount: number; percentage: number; shareRate: number; agentShare: number; cutAmount: number; cutPercentage: number }> = [];
         if (agent.schemeType === 'SHARING' && settlementType === 'P_L') {
-          // From the engine: amount = players' P/L (−GGR), agentShare = the share the
-          // settlement posts (positive = TO_AGENT), shareRate = effective rate.
           const sharingData = sharingPendingMap.get(agent.id);
           if (sharingData) settlementBreakdownByDomain.push(...sharingData.settlementBreakdownByDomain);
-        } else if (agent.schemeType === 'CREDIT' && settlementBalanceByDomain.length > 0) {
-          const total = settlementBalanceByDomain.reduce((s, x) => s + Math.abs(Number(x.settlementBalance)), 0);
-          for (const x of settlementBalanceByDomain) {
-            const amt = Number(x.settlementBalance);
-            const pct = total > 0 ? (Math.abs(amt) / total) * 100 : 0;
-            const rate = rateByDomain.get(x.domain) ?? 0;
-            const shareRatePct = Math.round(rate * 1000) / 10;
-            const agentShareAmt = amt * rate;
-            const cutPct = (1 - rate) * 100;
-            const cutAmt = Math.abs(amt) * (1 - rate);
-            settlementBreakdownByDomain.push({
-              domain: x.domain,
-              amount: amt,
-              percentage: Math.round(pct * 10) / 10,
-              shareRate: shareRatePct,
-              agentShare: Math.round(agentShareAmt * 100) / 100,
-              cutAmount: Math.round(cutAmt * 100) / 100,
-              cutPercentage: Math.round(cutPct * 10) / 10,
-            });
-          }
         }
-        
+
         pending.push({
           agentId: agent.id,
           agent: {
             id: agent.id,
             username: credentialMap.get(agent.id) || null,
             schemeType: agent.schemeType,
-            settlementBalanceByDomain: settlementBalanceByDomain.length > 0 ? settlementBalanceByDomain : undefined,
             ratesByDomain,
           },
           schemeType: agent.schemeType,
@@ -1153,15 +1047,17 @@ export const settlementsQueryResolvers = {
         allAgents = [];
       }
     } else {
-      // Admin: keep SHARING/CREDIT at top-level, but include all COMMISSION agents
+      // Admin: keep SHARING at top-level, but include all COMMISSION agents
       // so pending commission payouts are not hidden for nested agents.
       allAgents = allAgents.filter(a => a.parentAgentId == null || a.schemeType === 'COMMISSION');
     }
-    
+    // CREDIT agents settle by moving chips (Deposit / Withdraw), never here.
+    allAgents = allAgents.filter(a => a.schemeType !== 'CREDIT');
+
     const filteredAgents = args.schemeType
       ? allAgents.filter(a => a.schemeType === args.schemeType)
       : allAgents;
-    
+
     if (filteredAgents.length === 0) return [];
     // Get agent credentials for usernames
     const agentIds = filteredAgents.map(a => a.id);
@@ -1210,7 +1106,7 @@ export const settlementsQueryResolvers = {
     // SHARING: pending from the settlement engine (same window and maths as the
     // settle mutation). pendingAmount: positive = TO_AGENT, negative = FROM_AGENT.
     const { createSharingSettlementEngine: createSharingEngineEnhanced } = await import('../../agents/services/sharingSettlementWiring.js');
-    const { sharingPendingFields: sharingPendingFieldsEnhanced, creditSettlementDirection: creditDirectionEnhanced } = await import('../services/sharingPendingRows.js');
+    const { sharingPendingFields: sharingPendingFieldsEnhanced } = await import('../services/sharingPendingRows.js');
     const sharingEngineEnhanced = createSharingEngineEnhanced();
     const sharingAgents = filteredAgents.filter(a => a.schemeType === 'SHARING');
     const sharingStatsMap = new Map<string, Awaited<ReturnType<typeof sharingPendingFieldsEnhanced>>>();
@@ -1375,38 +1271,6 @@ export const settlementsQueryResolvers = {
             subAgents,
           });
         }
-      } else if (agent.schemeType === 'CREDIT') {
-        const agentCredit = await agentsRepo.getCreditFields(agent.id);
-        if (agentCredit && agentCredit.settlementBalance != null && agentCredit.settlementBalance !== 0) {
-          const rawPending = Math.abs(Number(agentCredit.settlementBalance));
-          const pendingAmount = Number.isFinite(rawPending) ? rawPending : 0;
-          const lastSettlement = lastSettlementMap.get(agent.id);
-          const lastSettlementDateSafe = lastSettlement && !Number.isNaN(lastSettlement.getTime()) ? lastSettlement.toISOString() : null;
-          enhanced.push({
-            agentId: agent.id,
-            agent: {
-              id: agent.id,
-              username: credentialMap.get(agent.id) || null,
-              schemeType: agent.schemeType,
-            },
-            schemeType: agent.schemeType,
-            pendingAmount,
-            // pendingAmount is the absolute balance; this is the direction executeSettleAgent uses.
-            settlementDirection: creditDirectionEnhanced(Number(agentCredit.settlementBalance)),
-            settledThisPeriod: 0,
-            totalShareForPeriod: null,
-            totalSettledToAgent: totalSettledMap.get(agent.id) ?? 0,
-            settlementType: 'CREDIT',
-            lastSettlementDate: lastSettlementDateSafe,
-            settlementBreakdownByDomain: [],
-            directPlayersContribution: 0,
-            subAgentsContribution: 0,
-            directPlayersCount: 0,
-            subAgentsCount: 0,
-            topPlayers: [],
-            subAgents: [],
-          });
-        }
       } else if (agent.schemeType === 'COMMISSION') {
         let pendingAmount = 0;
         let paid = commissionTotalPaidMapEnhanced.get(agent.id) ?? 0;
@@ -1461,7 +1325,9 @@ export const settlementsQueryResolvers = {
     }
     const agentsRepo = new AgentsRepo();
     const loggedInAgent = await agentsRepo.findById(ctx.user.agentId);
-    if (!loggedInAgent || loggedInAgent.schemeType === 'COMMISSION') {
+    // COMMISSION pays its children by payCommission; CREDIT moves chips to and from
+    // them (Deposit / Withdraw). Neither has sub-agent settlements here.
+    if (!loggedInAgent || loggedInAgent.schemeType === 'COMMISSION' || loggedInAgent.schemeType === 'CREDIT') {
       return [];
     }
     const directorTenant = getEffectiveTenantForDirector(ctx);
@@ -1471,7 +1337,7 @@ export const settlementsQueryResolvers = {
     let filteredAgents = schemeType
       ? children.filter((a: any) => a.schemeType === schemeType)
       : children;
-    filteredAgents = filteredAgents.filter((a: any) => a.tenantId === tenant);
+    filteredAgents = filteredAgents.filter((a: any) => a.tenantId === tenant && a.schemeType !== 'CREDIT');
     if (filteredAgents.length === 0) return [];
 
     const configsRepo = new AgentConfigsRepo();
@@ -1509,7 +1375,7 @@ export const settlementsQueryResolvers = {
     // SHARING: pending from the settlement engine (same window and maths as the
     // settle mutation). pendingAmount: positive = TO_AGENT, negative = FROM_AGENT.
     const { createSharingSettlementEngine: createSharingEngineSub } = await import('../../agents/services/sharingSettlementWiring.js');
-    const { sharingPendingFields: sharingPendingFieldsSub, creditSettlementDirection: creditDirectionSub } = await import('../services/sharingPendingRows.js');
+    const { sharingPendingFields: sharingPendingFieldsSub } = await import('../services/sharingPendingRows.js');
     const sharingEngineSub = createSharingEngineSub();
     const sharingAgents = filteredAgents.filter((a: any) => a.schemeType === 'SHARING');
     const sharingStatsMap = new Map<string, Awaited<ReturnType<typeof sharingPendingFieldsSub>>>();
@@ -1642,38 +1508,6 @@ export const settlementsQueryResolvers = {
           });
         } else {
           enhanced.push(emptyRow(agent, pendingAmount, 'P_L', sumSettledSub, totalShare));
-        }
-      } else if (agent.schemeType === 'CREDIT') {
-        const agentCredit = await agentsRepo.getCreditFields(agent.id);
-        const rawPending = agentCredit && agentCredit.settlementBalance !== 0
-          ? Math.abs(Number(agentCredit.settlementBalance))
-          : 0;
-        const pendingAmount = Number.isFinite(rawPending) ? rawPending : 0;
-        if (pendingAmount !== 0) {
-          const lastSettlement = lastSettlementMap.get(agent.id);
-          const lastSettlementDateSafe = lastSettlement && !Number.isNaN(lastSettlement.getTime()) ? lastSettlement.toISOString() : null;
-          enhanced.push({
-            agentId: agent.id,
-            agent: { id: agent.id, username: credentialMap.get(agent.id) || null, schemeType: agent.schemeType },
-            schemeType: agent.schemeType,
-            pendingAmount,
-            // pendingAmount is the absolute balance; this is the direction executeSettleAgent uses.
-            settlementDirection: creditDirectionSub(Number(agentCredit?.settlementBalance ?? 0)),
-            settledThisPeriod: 0,
-            totalShareForPeriod: null,
-            totalSettledToAgent: totalSettledMapSub.get(agent.id) ?? 0,
-            settlementType: 'CREDIT',
-            lastSettlementDate: lastSettlementDateSafe,
-            settlementBreakdownByDomain: [],
-            directPlayersContribution: 0,
-            subAgentsContribution: 0,
-            directPlayersCount: 0,
-            subAgentsCount: 0,
-            topPlayers: [],
-            subAgents: [],
-          });
-        } else {
-          enhanced.push(emptyRow(agent, 0, 'CREDIT'));
         }
       }
     }

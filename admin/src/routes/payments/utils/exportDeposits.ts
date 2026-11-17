@@ -2,6 +2,7 @@ import type ExcelJS from 'exceljs'
 import { loadExcelWriter } from '@/shared/utils/lazyExcel'
 import { formatInTimeZone, DEFAULT_ADMIN_TZ } from '@/shared/utils/date'
 import type { DepositRequest } from '../DepositRequests'
+import { depositMethodLabel, depositRowMethodLabel, depositRowStatusLabel } from '../depositRequestsModel'
 
 const COLORS = {
   titleBg: '4F46E5',
@@ -31,7 +32,7 @@ function statusLabel(status: string): string {
 }
 
 function methodLabel(method: string): string {
-  return method.replace(/_/g, ' ')
+  return depositMethodLabel(method)
 }
 
 function applyBorder(cell: ExcelJS.Cell) {
@@ -52,13 +53,18 @@ const COLUMNS = [
   { header: 'Currency', key: 'currency', width: 10 },
   { header: 'Method', key: 'method', width: 14 },
   { header: 'UTR / Reference', key: 'utr', width: 22 },
+  // Crypto deposits only (blank for the rest): the quote the player was given, and the bonus paid.
+  { header: 'USDT Amount', key: 'cryptoAmount', width: 14 },
+  { header: 'USDT Rate', key: 'cryptoRate', width: 12 },
+  { header: 'Network', key: 'cryptoNetwork', width: 12 },
+  { header: 'Crypto Bonus', key: 'cryptoBonusAmount', width: 14 },
   { header: 'Status', key: 'status', width: 12 },
   { header: 'Note', key: 'note', width: 28 },
   { header: 'Reviewed At', key: 'reviewedAt', width: 22 },
   { header: 'Created At', key: 'createdAt', width: 22 },
 ]
 
-const AMOUNT_COLS = new Set(['amount'])
+const AMOUNT_COLS = new Set(['amount', 'cryptoAmount', 'cryptoRate', 'cryptoBonusAmount'])
 
 export async function exportDepositsToExcel(requests: DepositRequest[], totalCount: number) {
   if (!requests.length) return
@@ -112,9 +118,13 @@ export async function exportDepositsToExcel(requests: DepositRequest[], totalCou
       req.user?.email || '',
       req.amount,
       req.currency || '',
-      methodLabel(req.method),
+      req.gateway ? depositRowMethodLabel(req) : methodLabel(req.method),
       req.utr || req.referenceId || '',
-      statusLabel(req.status),
+      req.cryptoAmount ?? '',
+      req.cryptoRate ?? '',
+      req.cryptoNetwork || '',
+      req.cryptoBonusAmount ?? '',
+      req.gateway ? depositRowStatusLabel(req) : statusLabel(req.status),
       req.note || '',
       fmtDate(req.reviewedAt),
       fmtDate(req.createdAt),
@@ -131,6 +141,8 @@ export async function exportDepositsToExcel(requests: DepositRequest[], totalCou
 
       if (key === 'amount') {
         cell.font = { name: 'Calibri', size: 10, bold: true }
+        cell.numFmt = '#,##0.00'
+      } else if (AMOUNT_COLS.has(key) && typeof cell.value === 'number') {
         cell.numFmt = '#,##0.00'
       }
 

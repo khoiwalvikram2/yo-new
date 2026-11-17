@@ -1,6 +1,6 @@
 /**
  * /notifications/:id mounted against MockedProvider and a MemoryRouter: the scoped MyNotification lookup
- * (one requested record, errorPolicy all), the RBAC requirement, the mark-read-on-view mutation and its store
+ * (one requested record, errorPolicy all), that no RBAC guard stands in front, the mark-read-on-view mutation and its store
  * update, every detail row and tag, the action navigation through resolveNotificationActionUrl, and the
  * loading, not-found and error states. Currency and the tenant date formatter are stubbed; the
  * notification store is the real zustand store.
@@ -199,14 +199,14 @@ describe('NotificationDetailPage', () => {
     assert.ok(screen.getByText('Player profile route'))
   })
 
-  test('is guarded by notifications.list view, and a denied caller starts no query', () => {
+  test('opens for any signed-in reader: no RBAC guard, the server scopes the read to its recipient', async () => {
+    // A caller the old notifications.list:view guard refused: a Whitelabel Admin or an agent opening its own alert.
     rbac.allowed = false
     renderPage([listMock([DEPOSIT])])
 
-    assert.deepEqual(rbac.calls[0], [{ domain: 'notifications.list', actions: ['view'] }])
-    assert.ok(screen.getByRole('alert'))
-    assert.equal(apollo.queries.length, 0)
-    assert.equal(apollo.mutations.length, 0)
+    assert.ok(await screen.findByRole('heading', { name: 'Deposit received' }))
+    assert.equal(rbac.calls.length, 0)
+    assert.equal(screen.queryByText('Access denied'), null)
   })
 
   test('marks an unread notification read on view and updates the store', async () => {

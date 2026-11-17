@@ -44,9 +44,7 @@ function normalizeUser(data?: Partial<User> | null): User | null {
     referralBalance: data.referralBalance != null ? Number(data.referralBalance) : undefined,
     referralBonusBalance: (data as any).referralBonusBalance != null ? Number((data as any).referralBonusBalance) : undefined,
     playerType: (data as any).playerType || 'REGULAR', // Preserve playerType for credit player detection
-    creditAvailable: Number((data as any).creditAvailable ?? 0),
-    creditLimit: Number((data as any).creditLimit ?? 0),
-    creditUsed: Number((data as any).creditUsed ?? 0),
+    creditLimit: Number((data as any).creditLimit ?? 0), // a credit player's credit reference
     requirePasswordReset: !!(data as any).requirePasswordReset,
   }
 }
@@ -63,6 +61,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [, setExposureState] = useState<number>(0)
   const [isHydrating, setIsHydrating] = useState(true)
+  const [signedInAt, setSignedInAt] = useState<number | null>(null)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login')
   const [_otpStore, setOtpStore] = useState<Record<string, string>>({})
@@ -208,12 +207,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           referralBonusBalance: (d as any).referralBonusBalance != null ? Number((d as any).referralBonusBalance) : prev.referralBonusBalance,
           // Preserve playerType - don't overwrite it
           playerType: prev.playerType || (d as any).playerType || 'REGULAR',
-          // Preserve credit fields - don't overwrite them (they come from UserProfile via getMe(), not userDetail)
-          // getUserDetail doesn't return credit fields, so always preserve from prev
-          // If prev has credit fields, use them; otherwise keep undefined (they'll be set by refreshUser/getMe)
-          creditAvailable: prev.creditAvailable,
+          // Preserve the credit reference - it comes from UserProfile via getMe(), not userDetail
           creditLimit: prev.creditLimit,
-          creditUsed: prev.creditUsed,
         }
         nextUser = next
         try { localStorage.setItem('stakex_user', JSON.stringify(next)) } catch (_) {}
@@ -259,6 +254,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           localStorage.setItem('stakex_user', JSON.stringify(u))
           seedTopbarWalletFromServerIfUnset(u.walletType)
           setUserAtom(u)
+          setSignedInAt(Date.now())
           updateExposureFromUserData()
         }
       setIsAuthModalOpen(false)
@@ -351,6 +347,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           localStorage.setItem('stakex_user', JSON.stringify(u))
           seedTopbarWalletFromServerIfUnset(u.walletType)
           setUserAtom(u)
+          setSignedInAt(Date.now())
           // Update exposure from getUserData in background
           updateExposureFromUserData()
         }
@@ -450,6 +447,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         localStorage.removeItem('token')
       } catch (_) {}
       setUserAtom(null)
+      setSignedInAt(null)
       setTokenAtom(null)
   }, [setUserAtom, setTokenAtom])
 
@@ -543,23 +541,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const adjustBalance = (delta: number) => {
     setUser(prev => {
       if (!prev) return prev
-      
-      // Check if user is a credit player
-      const playerType = (prev as any)?.playerType || 'REGULAR'
-      const isCreditPlayer = playerType === 'AGENT_CREDIT' || playerType === 'WHITELABEL_CREDIT'
-      
-      // For credit players, adjust creditAvailable instead of balance
-      // Note: This is optimistic update; server will reconcile with actual credit calculation
-      if (isCreditPlayer) {
-        const next = { 
-          ...prev, 
-          creditAvailable: Math.max(0, Number(prev.creditAvailable ?? 0) + Number(delta || 0))
-        }
-        try { localStorage.setItem('stakex_user', JSON.stringify(next)) } catch (_) {}
-        return next
-      }
-      
-      // For regular players, adjust balance as before
+
+      // Every player, credit players included (their chips are the wallet balance); server refresh reconciles
       const next = { ...prev, balance: Math.max(0, Number(prev.balance || 0) + Number(delta || 0)) }
       try { localStorage.setItem('stakex_user', JSON.stringify(next)) } catch (_) {}
       return next
@@ -580,6 +563,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     isAuthenticated: !!user,
     isHydrating,
+    signedInAt,
     isAuthModalOpen,
     authModalMode,
     login,

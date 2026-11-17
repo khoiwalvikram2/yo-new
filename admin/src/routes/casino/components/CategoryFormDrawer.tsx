@@ -56,6 +56,8 @@ export default function CategoryFormDrawer({
   const [values, setValues] = useState<CategoryFormValues>(() => categoryFormInitialValues(initial))
   const [iconPreview, setIconPreview] = useState<string | null>(() => initialIconState(initial?.iconData).preview)
   const [iconValue, setIconValue] = useState<string | null>(() => initialIconState(initial?.iconData).value)
+  // The admin removed the icon: the save then clears it (an unchanged icon is not sent at all).
+  const [iconRemoved, setIconRemoved] = useState(false)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [errorRevision, setErrorRevision] = useState(0)
   const [uploading, setUploading] = useState(false)
@@ -68,6 +70,7 @@ export default function CategoryFormDrawer({
     setValues(nextValues)
     setIconPreview(nextIcon.preview)
     setIconValue(nextIcon.value)
+    setIconRemoved(false)
     setErrors({})
   }
 
@@ -104,6 +107,7 @@ export default function CategoryFormDrawer({
       const dataUri = await compressImageToDataUrl(file, 'casinoIcon')
       setIconValue(dataUri)
       setIconPreview(dataUri)
+      setIconRemoved(false)
       setValue('iconData', dataUri)
       toast({ message: 'Icon ready to save', tone: 'ok', duration: MESSAGE_DURATION_MS })
     } catch (error) {
@@ -111,6 +115,13 @@ export default function CategoryFormDrawer({
     } finally {
       setUploading(false)
     }
+  }
+
+  const removeIcon = () => {
+    setIconValue(null)
+    setIconPreview(null)
+    setIconRemoved(true)
+    setValue('iconData', null)
   }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -131,7 +142,7 @@ export default function CategoryFormDrawer({
 
     setSaving(true)
     try {
-      await onSubmit(categorySubmitValues(parsed.data, iconValue))
+      await onSubmit(categorySubmitValues(parsed.data, iconValue, iconRemoved))
     } catch {
       // The page owns mutation feedback; keep the drawer open so the input can be retried.
     } finally {
@@ -265,6 +276,8 @@ export default function CategoryFormDrawer({
               meta: iconValue ? 'Ready to save' : undefined,
               src: iconPreview,
               alt: 'Category icon preview',
+              onRemove: removeIcon,
+              removeLabel: 'Remove category icon',
             }] : []}
             onFiles={([file]) => void handleFile(file)}
           />

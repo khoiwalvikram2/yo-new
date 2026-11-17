@@ -14,6 +14,7 @@ interface GuardCall {
 
 const apollo = vi.hoisted(() => ({
   document: undefined as DocumentNode | undefined,
+  options: undefined as unknown,
   mutate: vi.fn(),
   loading: false,
 }))
@@ -27,8 +28,9 @@ vi.mock('@apollo/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@apollo/client')>()
   return {
     ...actual,
-    useMutation: (document: DocumentNode) => {
+    useMutation: (document: DocumentNode, options?: unknown) => {
       apollo.document = document
+      apollo.options = options
       return [apollo.mutate, { loading: apollo.loading }]
     },
   }
@@ -145,6 +147,7 @@ function successResult(id = '91', message = 'Bonus campaign created successfully
 
 beforeEach(() => {
   apollo.document = undefined
+  apollo.options = undefined
   apollo.loading = false
   apollo.mutate.mockReset()
   apollo.mutate.mockResolvedValue(successResult())
@@ -180,6 +183,8 @@ describe('BonusCreatePage', () => {
     }
   }
 }`)
+    // The page toasts the outcome itself, so the global mutation toast stays quiet (MAR-06).
+    assert.deepEqual(apollo.options, { context: { skipNotification: true } })
 
     const currency = screen.getByRole('combobox', { name: /Currency/i }) as HTMLSelectElement
     await waitFor(() => assert.equal(currency.value, 'AED'))

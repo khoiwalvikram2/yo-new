@@ -33,9 +33,33 @@ export interface MatkaReportingFilter {
   tenant?: string;
   whitelabelId?: string;
   agentId?: string;
+  /**
+   * The Matka report's drill-down (a type, a market, a session, a player): its cards follow the level
+   * shown, as the sports report's do. Snapshots are not kept per type, market, session or player, so
+   * any of these reads live bets.
+   */
+  matkaType?: string;
+  matkaId?: string;
+  marketSession?: string;
+  playerId?: string | number;
   dateFrom?: Date | string;
   dateTo?: Date | string;
   currency?: string;
+}
+
+/** True when the filter narrows to part of the matka book (see MatkaReportingFilter). */
+function drilled(filter: MatkaReportingFilter): boolean {
+  return Boolean(filter.matkaType || filter.matkaId || filter.marketSession || filter.playerId);
+}
+
+/** The drill-down's narrowing on matka_bets, the same columns the breakdowns filter on (buildBetConditions). */
+function drillConditions(filter: MatkaReportingFilter): any[] {
+  const conditions: any[] = [];
+  if (filter.matkaType) conditions.push(eq(matkaBets.matkaType, filter.matkaType as any));
+  if (filter.matkaId) conditions.push(eq(matkaBets.matkaId, String(filter.matkaId)));
+  if (filter.marketSession) conditions.push(eq(matkaBets.marketSession, filter.marketSession));
+  if (filter.playerId) conditions.push(eq(matkaBets.userId, Number(filter.playerId)));
+  return conditions;
 }
 
 export interface MatkaDrillDownFilter {
@@ -112,7 +136,7 @@ async function rangeIncludesToday(filter: MatkaReportingFilter): Promise<boolean
 
 export async function getMatkaKPIs(filter: MatkaReportingFilter): Promise<MatkaKPIs> {
   // When range includes today, always use live data so GGR reflects latest settlements (snapshots are point-in-time and go stale)
-  if (await rangeIncludesToday(filter)) {
+  if (drilled(filter) || await rangeIncludesToday(filter)) {
     return await getMatkaKPIsFromBets(filter);
   }
 
@@ -197,6 +221,7 @@ async function getMatkaKPIsFromBets(filter: MatkaReportingFilter): Promise<Matka
   }
   if (filter.currency) betConditions.push(eq(matkaBets.currency, filter.currency));
   betConditions.push(inArray(matkaBets.status, ['won', 'lost']));
+  betConditions.push(...drillConditions(filter));
 
   let query = db
     .select({
@@ -245,6 +270,7 @@ export async function getCurrentOpenMatkaExposure(filter: MatkaReportingFilter):
   if (filter.whitelabelId) conditions.push(eq(matkaBets.whitelabelId, filter.whitelabelId));
   if (filter.currency) conditions.push(eq(matkaBets.currency, filter.currency));
   conditions.push(or(eq(matkaBets.status, 'pending'), eq(matkaBets.status, 'active')));
+  conditions.push(...drillConditions(filter));
 
   if (filter.agentId) {
     // Subtree + referral players, the canonical agent scope (agentPlayerScope.ts).
@@ -280,6 +306,7 @@ async function getMatkaTrendsFromBets(filter: MatkaReportingFilter): Promise<Mat
   }
   if (filter.currency) betConditions.push(eq(matkaBets.currency, filter.currency));
   betConditions.push(inArray(matkaBets.status, ['won', 'lost']));
+  betConditions.push(...drillConditions(filter));
 
   let query = db
     .select({
@@ -320,7 +347,7 @@ async function getMatkaTrendsFromBets(filter: MatkaReportingFilter): Promise<Mat
  * Get matka trends over time
  */
 export async function getMatkaTrends(filter: MatkaReportingFilter): Promise<MatkaTrendPoint[]> {
-  if (await rangeIncludesToday(filter)) {
+  if (drilled(filter) || await rangeIncludesToday(filter)) {
     return await getMatkaTrendsFromBets(filter);
   }
 

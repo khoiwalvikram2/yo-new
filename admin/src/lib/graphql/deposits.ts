@@ -13,12 +13,18 @@ export const ADMIN_DEPOSIT_REQUESTS = gql`
         utr
         referenceId
         proofKey
-        proofUrl
+        hasProof
         status
         reviewerId
         reviewedAt
         note
         walletTxnId
+        cryptoAmount
+        cryptoRate
+        cryptoNetwork
+        cryptoBonusPercent
+        cryptoBonusAmount
+        bonusWalletTxnId
         createdAt
         updatedAt
         user {
@@ -26,6 +32,15 @@ export const ADMIN_DEPOSIT_REQUESTS = gql`
           name
           email
           phone
+        }
+        gateway {
+          provider
+          gateway
+          gatewayName
+          orderId
+          status
+          txnRef
+          expiresAt
         }
       }
       total
@@ -103,6 +118,21 @@ export const WHITELABEL_PAYMENT_METHODS = gql`
         enabled
         vipTierIds
       }
+      cryptos {
+        id
+        network
+        walletAddress
+        displayName
+        qrKey
+        qrUrl
+        minAmount
+        maxAmount
+        weight
+        enabled
+        vipTierIds
+      }
+      cryptoRate
+      cryptoBonusPercent
       limits {
         min
         max
@@ -148,6 +178,12 @@ export const APPROVE_DEPOSIT_REQUEST = gql`
         reviewedAt
         note
         walletTxnId
+        cryptoAmount
+        cryptoRate
+        cryptoNetwork
+        cryptoBonusPercent
+        cryptoBonusAmount
+        bonusWalletTxnId
       }
     }
   }
@@ -204,6 +240,21 @@ export const UPSERT_WHITELABEL_PAYMENT_METHODS = gql`
           enabled
           vipTierIds
         }
+        cryptos {
+          id
+          network
+          walletAddress
+          displayName
+          qrKey
+          qrUrl
+          minAmount
+          maxAmount
+          weight
+          enabled
+          vipTierIds
+        }
+        cryptoRate
+        cryptoBonusPercent
         limits {
           min
           max
@@ -227,7 +278,7 @@ export const DEPOSIT_REQUEST_UPDATED_SUBSCRIPTION = gql`
       utr
       referenceId
       proofKey
-      proofUrl
+      hasProof
       status
       reviewerId
       reviewedAt
@@ -242,6 +293,16 @@ export const DEPOSIT_REQUEST_UPDATED_SUBSCRIPTION = gql`
         phone
       }
     }
+  }
+`
+
+/**
+ * One request's payment proof: its screenshot as a data URI, or a link; null when it has none. List rows carry only
+ * hasProof, so a page of requests never carries their screenshots: this is asked when a reviewer opens one.
+ */
+export const DEPOSIT_REQUEST_PROOF = gql`
+  query DepositRequestProof($id: ID!) {
+    depositRequestProof(id: $id)
   }
 `
 

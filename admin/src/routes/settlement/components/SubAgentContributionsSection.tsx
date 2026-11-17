@@ -46,7 +46,7 @@ export function SubAgentContributionsSection({ isAgent, agentSchemeType, settlem
   ];
   const pendingColumns: DataTableColumn<PendingSettlement>[] = [
     { key: 'agent', header: 'Agent', cell: row => <div className={styles.stack}><strong>{row.agent?.username || row.agentId || 'N/A'}</strong><span className={styles.muted}>{row.schemeType}</span></div> },
-    // Pending is signed for SHARING (positive = pay the agent) and absolute for CREDIT: its size plus who pays.
+    // Pending is signed for SHARING (positive = pay the agent): its size plus who pays.
     { key: 'pendingAmount', header: 'Pending Amount', cell: row => <div className={styles.stack}><span>{money(Math.abs(Number(row.pendingAmount) || 0))}</span><span className={styles.muted}>{settlerDirectionLabel(settlementDirectionOf(row.settlementDirection, row.pendingAmount))}</span></div>, sort: (a, b) => Math.abs(b.pendingAmount ?? 0) - Math.abs(a.pendingAmount ?? 0) },
     { key: 'directPlayersCount', header: 'Direct Players', cell: row => row.directPlayersCount ?? 0 },
     { key: 'subAgentsCount', header: 'Sub-Agents', cell: row => row.subAgentsCount ?? 0 },

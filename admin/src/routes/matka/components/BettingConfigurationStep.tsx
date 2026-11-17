@@ -32,7 +32,9 @@ export default function BettingConfigurationStep({ form }: { form: FormApi<Matka
       <div className={styles.configurationGrid}>
         <div className={styles.configurationColumn}>
           <FormSection title="Betting Limits" className={styles.configSection}>
-            <NumberField {...minBet} label="Min Bet Amount" min={0} prefix={currency} placeholder="10" required />
+            {/* The server needs a positive minimum, so the hint says so: min={0} printed "Minimum: 0." beside the
+                field's own "Value must be more than 0", and Next checks the rule before Review. */}
+            <NumberField {...minBet} label="Min Bet Amount" prefix={currency} placeholder="10" help="Must be more than 0." required />
             <NumberField {...maxBet} label="Max Bet Amount" min={0} prefix={currency} placeholder="10000" required />
           </FormSection>
 

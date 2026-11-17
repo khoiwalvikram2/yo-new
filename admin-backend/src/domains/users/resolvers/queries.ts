@@ -26,6 +26,7 @@ import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeU
 import { requireReadPermission } from '@src/domains/common/auth.js'
 import { AgentsRepo } from '@/repos/agents/AgentsRepo.js'
 import { maySeePlayer, visiblePlayerIds } from '@src/domains/players/services/playerVisibility.js'
+import { attachPlayerChips } from '@src/domains/agents/resolvers/chipResolvers.js'
 
 /** Build GraphQL Wallet shape from DB row; ensures updatedAt is never null. */
 function toWalletShape(w: any, userId: string): Record<string, unknown> {
@@ -644,7 +645,13 @@ export const usersQueryResolvers = {
     
     // Filter out any null items that resulted from errors or invalid data
     const validItems = items.filter((item: any) => item != null && typeof item === 'object')
-    
+
+    // Credit players' chip figures (User.chips, spec 2026-11-02 §7): one batch read for the whole page, scoped to
+    // the caller's tenant and, for an agent, to its own subtree. itemsWithStats reuses these same row objects.
+    if (isFieldRequested(info, 'chips')) {
+      await attachPlayerChips(validItems, ctx)
+    }
+
     const shouldComputeItemsWithStats = isFieldRequested(info, 'itemsWithStats')
     let itemsWithStats: any[] = []
     if (shouldComputeItemsWithStats) {
@@ -677,9 +684,11 @@ export const usersQueryResolvers = {
     
     return { items: validItems, itemsWithStats, total }
     } catch (error: any) {
-      // Return empty result instead of crashing
-      // itemsWithStats is required by GraphQL schema, must return empty array
-      return { items: [], itemsWithStats: [], total: 0 }
+      // A failure is not "0 players". This returned an empty page for every error, so an invalid registeredFrom
+      // and a real failure alike showed an empty list with no message (PLA-20). Logged, then the caller is told;
+      // a database error's SQL is masked on the way out (maskDatabaseErrors, index.ts).
+      ctx?.request?.log?.error?.({ err: error }, 'usersPage failed')
+      throw error
     }
   },
   checkPhoneAvailable: async (_: any, args: any, ctx: any) => {

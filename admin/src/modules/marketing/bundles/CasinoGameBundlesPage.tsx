@@ -132,6 +132,8 @@ export function BundleGamesList({ gameIds, domain, isExpanded = true, bundleId, 
   }, [original])
   useEffect(() => { if (!isExpanded) setSelected(new Set()) }, [isExpanded])
   const [updateWeights, { loading: saving }] = useMutation<{ updateCasinoGameBundle: MutationResult }>(UPDATE_BUNDLE_WEIGHTS_MUTATION, {
+    // Reported here; the global mutation toast said it a second time (MAR-06).
+    context: { skipNotification: true },
     onCompleted: (data) => {
       if (data.updateCasinoGameBundle.success) {
         toast({ title: 'Success', tone: 'ok', message: domain === 'matka' ? 'Market weights updated successfully' : 'Game weights updated successfully' })
@@ -204,6 +206,8 @@ function CasinoGameBundlesPageContent() {
     errorPolicy: 'all', fetchPolicy: 'cache-and-network',
   })
   const [deleteBundle, { loading: deleting }] = useMutation<{ deleteCasinoGameBundle: MutationResult }>(DELETE_BUNDLE_MUTATION, {
+    // Reported here; the global mutation toast said it a second time (MAR-06).
+    context: { skipNotification: true },
     onCompleted: (data) => {
       const result = data.deleteCasinoGameBundle
       toast({ title: result.success ? 'Success' : 'Error', tone: result.success ? 'ok' : 'error', message: result.message || (result.success ? 'Bundle deleted' : 'Failed to delete bundle') })

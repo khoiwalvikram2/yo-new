@@ -72,6 +72,27 @@ describe('form values and input', () => {
     assert.deepEqual(groupPermissionsByDomain([]), {})
   })
 
+  test('the retired permissions that gate nothing are not offered (notifications.list, Promotions campaigns/content)', () => {
+    assert.deepEqual(
+      groupPermissionsByDomain([
+        { domain: 'notifications.list', actions: ['view', 'update'] },
+        { domain: 'promotions.campaigns', actions: ['view', 'create', 'update', 'delete'] },
+        { domain: 'promotions.content', actions: ['view'] },
+        { domain: 'credit.management', actions: ['view'] },
+        { domain: 'bonuses.list', actions: ['view'] },
+      ]),
+      { 'credit.management': ['view'], 'bonuses.list': ['view'] },
+    )
+  })
+
+  test("a role's existing retired grant is kept, unseen, when the role is saved", () => {
+    const held: Permission[] = [
+      { domain: 'notifications.list', actions: ['view'] },
+      { domain: 'credit.management', actions: ['view'] },
+    ]
+    assert.deepEqual(buildUpdateRoleInput('7', { name: 'Reports Viewer', permissions: held }).permissions, held)
+  })
+
   test('the create and update inputs keep the legacy keys and order, without typenames, the name as typed', () => {
     const values = {
       name: '  Support Admin ',

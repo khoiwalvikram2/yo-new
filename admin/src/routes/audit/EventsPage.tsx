@@ -5,7 +5,7 @@ import { useAuditStore } from '@/state/auditStore'
 import { useAuthStore } from '@/shared/core/authStore'
 import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 import { AUDIT_EVENTS_QUERY, AUDIT_STATS_QUERY, AUDIT_EXPORT_CSV_QUERY } from '@/modules/audit/graphql/queries'
-import { useAuditSubscription } from '@/modules/audit/graphql/hooks'
+import { useAuditFilterOptions, useAuditSubscription } from '@/modules/audit/graphql/hooks'
 import { serializeFiltersToURL, deserializeFiltersFromURL, cleanAuditFilters, getDefaultFilters } from '@/modules/audit/utils/filterUtils'
 import type { AuditEventPage, AuditStats } from '@/modules/audit/types'
 import { FiltersBar } from './components/FiltersBar'
@@ -71,6 +71,7 @@ function AuditEventsContent() {
   const refetchStats = stats.refetch
   const refresh = useCallback(() => { void refetchEvents(); void refetchStats() }, [refetchEvents, refetchStats])
   useAuditSubscription({ filters: graphqlFilters, enabled: ready, onNewEvent: refresh })
+  const filterOptions = useAuditFilterOptions(ready)
   useEffect(() => {
     if (!ready || !autoRefresh) return
     const timer = setInterval(refresh, refreshInterval * 1000)
@@ -107,7 +108,7 @@ function AuditEventsContent() {
     <Button onClick={() => setJobsOpen(true)}>Export Jobs</Button>
   </div> : undefined} />
     <div className={styles.stack}>
-      <div data-audit-filters-bar tabIndex={-1}><FiltersBar filters={filters} onFiltersChange={setFilters} onReset={resetFilters} /></div>
+      <div data-audit-filters-bar tabIndex={-1}><FiltersBar filters={filters} onFiltersChange={setFilters} onReset={resetFilters} options={filterOptions} /></div>
       {count > 0 && <FilterChips filters={filters} onFiltersChange={setFilters} onClearAll={resetFilters} />}
       <AuditSectionBoundary><AuditStatsCards data={stats.data?.auditStats} loading={stats.loading || !ready} error={stats.error} activeFilterCount={count} /></AuditSectionBoundary>
       <AuditSectionBoundary><Card><AuditTable data={events.data?.auditEvents} loading={events.loading || !ready} error={events.error} filters={filters} onFiltersChange={setFilters} onRefresh={refresh} /></Card></AuditSectionBoundary>

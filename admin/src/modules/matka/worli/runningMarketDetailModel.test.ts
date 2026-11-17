@@ -7,7 +7,12 @@ import {
   activityStyle,
   badgeCount,
   betStatusTone,
+  bettingNote,
   bookBidTypes,
+  canVoidBet,
+  sessionControlEnabled,
+  worliBetsCsv,
+  worliBetsCsvName,
   clampPage,
   exposureLevel,
   exposureLevelTone,
@@ -17,6 +22,7 @@ import {
   formatStatisticValue,
   instanceView,
   isBookSort,
+  isSessionNotFound,
   isValidInstanceId,
   loadErrorText,
   operatorActionTitle,
@@ -60,6 +66,25 @@ describe('the route id and the page state', () => {
     assert.equal(loadErrorText('Network down'), 'Failed to load market details: Network down')
     assert.equal(loadErrorText(undefined), 'Failed to load market details: Unknown error')
     assert.equal(shortId(UUID), '3f2b8c1e...')
+  })
+
+  test("the server's 'Market session not found' is a not-found, not a failure; any other error still fails", () => {
+    // admin-backend answers an id with no session in this whitelabel with that error, not with null.
+    const failed = { isValidId: true, loading: false, hasError: true, hasData: false, hasInstance: false }
+    assert.equal(instanceView({ ...failed, errorMessage: 'Market session not found' }), 'not-found')
+    assert.equal(instanceView({ ...failed, errorMessage: '  Market session not found ' }), 'not-found')
+    assert.equal(instanceView({ ...failed, errorMessage: 'Network down' }), 'error')
+    assert.equal(instanceView({ ...failed, errorMessage: 'Select a whitelabel to view and manage Worli sessions' }), 'error')
+    assert.equal(instanceView({ ...failed, errorMessage: 'Forbidden' }), 'error')
+    assert.equal(instanceView({ ...failed, errorMessage: 'Market session not found: lookup timed out' }), 'error')
+    assert.equal(instanceView({ ...failed, errorMessage: undefined }), 'error')
+    assert.equal(instanceView(failed), 'error')
+    // A session that is there wins, and a bad id still waits for its redirect.
+    assert.equal(instanceView({ ...failed, hasInstance: true, errorMessage: 'Market session not found' }), 'ready')
+    assert.equal(instanceView({ ...failed, isValidId: false, errorMessage: 'Market session not found' }), 'loading')
+    assert.equal(isSessionNotFound('Market session not found'), true)
+    assert.equal(isSessionNotFound(null), false)
+    assert.equal(isSessionNotFound(''), false)
   })
 })
 
@@ -128,6 +153,8 @@ describe('figures', () => {
     assert.deepEqual(statuses.map(sessionStatusTone), ['ok', 'warn', 'neg', 'neutral', 'neutral'])
     assert.deepEqual(statuses.map(summaryStatusTone), ['ok', 'warn', 'neutral', 'neutral', 'neutral'])
     assert.deepEqual(['ACTIVE', 'VOID', 'WON', null].map(betStatusTone), ['ok', 'neg', 'neutral', 'neutral'])
+    // The API sends bet statuses lower-case.
+    assert.deepEqual(['active', 'void', 'won'].map(betStatusTone), ['ok', 'neg', 'neutral'])
   })
 })
 
@@ -290,5 +317,43 @@ describe('activity and operator controls', () => {
     assert.equal(reasonError('ok'), undefined)
     assert.equal(actionErrorText(new Error('Not allowed')), 'Not allowed')
     assert.equal(actionErrorText('x'), 'The action could not be completed. Please try again.')
+  })
+})
+
+describe('what the session allows', () => {
+  test('the Total Bets note follows the status, not the bet count', () => {
+    assert.deepEqual(bettingNote('OPEN', 3), { label: 'Live', tone: 'ok', text: 'Active betting', open: true })
+    assert.deepEqual(bettingNote('OPEN', 0), { label: 'Idle', tone: 'neutral', text: 'Active betting', open: true })
+    assert.deepEqual(bettingNote('PAUSED', 3), { label: 'Paused', tone: 'warn', text: 'Betting paused', open: false })
+    assert.deepEqual(bettingNote('SCHEDULED', 0), { label: 'Upcoming', tone: 'neutral', text: 'Betting not open yet', open: false })
+    for (const status of ['LOCKED', 'CLOSED', 'SETTLED']) assert.deepEqual(bettingNote(status, 3), { label: 'Closed', tone: 'neutral', text: 'Betting closed', open: false })
+  })
+
+  test('controls that can no longer change the session are off; an unknown status leaves them on', () => {
+    const controls = ['PAUSE', 'RESUME', 'LOCK', 'CLOSE', 'MESSAGE', 'SUSPEND_ADJUST'] as const
+    const row = (status: string | null) => controls.map((control) => sessionControlEnabled(status, control))
+    assert.deepEqual(row('OPEN'), [true, false, true, true, true, true])
+    assert.deepEqual(row('PAUSED'), [false, true, true, true, true, true])
+    assert.deepEqual(row('LOCKED'), [false, false, false, true, true, true])
+    assert.deepEqual(row('CLOSED'), [false, false, false, false, true, true])
+    assert.deepEqual(row('SETTLED'), [false, false, false, false, false, false])
+    assert.deepEqual(row(null), [true, true, true, true, true, true])
+  })
+
+  test('only pending and active bets can be voided, in either case', () => {
+    assert.deepEqual(['pending', 'active', 'ACTIVE', 'won', 'lost', 'void', 'cancelled', null].map(canVoidBet), [true, true, true, false, false, false, false, false])
+  })
+
+  test('the bets CSV quotes every cell and keeps the API amounts', () => {
+    const csv = worliBetsCsv([
+      { id: 'b1', userId: '42', bidType: 'SINGLE', betNumbers: '5', betAmount: 10, payoutMultiplier: 9.5, potentialWin: 95, status: 'active', currency: 'INR', createdAt: '2026-11-03T00:00:00.000Z' },
+      { id: 'b"2', userId: null, bidType: 'JODI', betNumbers: '05', betAmount: '20.50', payoutMultiplier: 90, potentialWin: null, status: 'void', currency: 'INR', createdAt: null },
+    ])
+    assert.deepEqual(csv.split('\n'), [
+      '"Bet ID","User ID","Bid Type","Selection","Stake","Rate","Potential Win","Status","Currency","Placed At"',
+      '"b1","42","SINGLE","5","10","9.5","95","active","INR","2026-11-03T00:00:00.000Z"',
+      '"b""2","","JODI","05","20.50","90","","void","INR",""',
+    ])
+    assert.equal(worliBetsCsvName('3f2b8c1e-9a4d-4e6b-8c2f-1a2b3c4d5e6f'), 'worli-bets-3f2b8c1e.csv')
   })
 })

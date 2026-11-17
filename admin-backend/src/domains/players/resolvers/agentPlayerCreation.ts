@@ -59,3 +59,21 @@ export function bettingFlagsFromAgentDomains(allowedDomains: readonly string[] |
     matkaBetAllowed: matka,
   }
 }
+
+/**
+ * The success message of a player creation, named by the player's type. Every type that was not a credit type
+ * used to be announced as a "Regular player", including a commission or sharing agent's player.
+ */
+export function playerCreatedMessage(playerType: string | null | undefined): string {
+  switch (playerType) {
+    case 'AGENT_CREDIT':
+    case 'WHITELABEL_CREDIT':
+      return 'Credit player created successfully'
+    case 'SHARING_AGENT_PLAYER':
+      return 'Sharing player created successfully'
+    case 'COMMISSION_AGENT_PLAYER':
+      return 'Commission player created successfully'
+    default:
+      return 'Regular player created successfully'
+  }
+}

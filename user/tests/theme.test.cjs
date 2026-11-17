@@ -125,3 +125,13 @@ test('legacy dark palette remains available when dark is explicitly selected', (
   assert.equal(environment.styles.get('--background'), '#090909');
   assert.equal(environment.styles.get('--text'), '#ffffff');
 });
+
+test('applyTheme hands the player theme to applyPlayerTheme, even without a legacy whitelabel theme', () => {
+  const environment = themeEnvironment();
+  const apply = settingsTheme(environment);
+  const playerTheme = { colors: { action: '#1D4ED8' } };
+  apply({ whitelabelTheme: null, playerTheme });
+  apply({ playerTheme: null });
+  apply({});
+  assert.deepEqual(apply.playerThemeCalls, [playerTheme, null, undefined]);
+});

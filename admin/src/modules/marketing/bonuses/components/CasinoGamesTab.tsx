@@ -4,6 +4,7 @@ import { Checkbox } from '@/ui/components/Checkbox'
 import { Button } from '@/ui/components/Button'
 import { DataTable, type DataTableColumn } from '@/ui/components/DataTable'
 import { SearchField } from '@/ui/components/SearchField'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { Combobox } from '@/ui/components/Combobox'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { Drawer } from '@/ui/components/Drawer'
@@ -126,6 +127,8 @@ export function CasinoGamesTab({
   }, [providerFilter, matchingData, allBundles, bundleMatchLoading])
 
   const [executesaveGames, { loading: saving }] = useMutation(SAVE_BONUS_CAMPAIGN_GAMES, {
+    // The tab reports the outcome itself; the global mutation toast said it twice (MAR-06).
+    context: { skipNotification: true },
     onCompleted: (data) => {
       if (data.saveBonusCampaignGames.success) {
         notification.success({
@@ -323,7 +326,7 @@ export function CasinoGamesTab({
   }
 
   const baseColumns: DataTableColumn<BonusGameRow>[] = [
-    { key: 'game', header: 'Game', cell: (record) => <div className={styles.game}>{record.thumbnailUrl ? <img src={record.thumbnailUrl} alt={record.name || ''} className={styles.thumbnail} /> : <span className={styles.noImage}>No Image</span>}<div><div className={styles.name}>{record.name}</div><div className={styles.muted}>{record.vendorName}</div></div></div> },
+    { key: 'game', header: 'Game', cell: (record) => <div className={styles.game}><StoredImage src={record.thumbnailUrl} alt={record.name || ''} className={styles.thumbnail} fallback={<span className={styles.noImage}>No Image</span>} /><div><div className={styles.name}>{record.name}</div><div className={styles.muted}>{record.vendorName}</div></div></div> },
     { key: 'vendor', header: 'Provider', cell: (row) => row.vendorName || '—' },
     { key: 'category', header: 'Category', cell: (row) => <StatusPill>{row.mainCategory || '—'}</StatusPill> },
   ]

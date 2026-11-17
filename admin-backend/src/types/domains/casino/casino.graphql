@@ -99,28 +99,7 @@ input LimitInput {
   currency: String!
 }
 
-type Content { 
-  id: ID!
-  tenant: String
-  name: String!
-  locale: String!
-  body: String!
-  status: String!
-  updatedAt: String!
-}
-
-input ContentCreateInput { 
-  name: String!
-  locale: String
-  body: String
-}
-
-input ContentUpdateInput { 
-  id: ID!
-  name: String
-  locale: String
-  body: String
-}
+# Content, ContentCreateInput and ContentUpdateInput served Promotions > Content, retired 2026-11-04 (MAR-14).
 
 # --- Casino Management Hierarchy ---
 
@@ -213,7 +192,7 @@ type CasinoGame {
 
 input GamesQueryInput {
   providerId: ID  # Optional: if not provided, fetch games from all providers (for whitelabel admin)
-  category: CasinoMainCategory!
+  category: CasinoMainCategory  # Optional: omitted for the "All" view, which pages all three on the server
   vendorId: ID
   vipTierId: ID
   search: String
@@ -351,6 +330,8 @@ type VendorAnalytics {
   ggr: Float!
   shareAmount: Float!
   transactionCount: Int!
+  # Sum of the settled stakes in the range (average bet = totalStake / transactionCount)
+  totalStake: Float
 }
 
 # --- Casino Custom Categories ---

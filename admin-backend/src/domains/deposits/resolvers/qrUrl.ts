@@ -1,34 +1,19 @@
-import { isDataUri } from '@shared/utils/dataUri.js'
+import { classifyStoredAsset, displayableAsset } from '@shared/utils/dataUri.js'
 
 /**
- * Attach a displayable `qrUrl` to each UPI payment-method entry.
+ * Attach a displayable `qrUrl` to each UPI or USDT payment-method entry.
  *
- * QR images are stored inline as base64 data URIs. A data URI is already
- * displayable and must never be handed to the S3 presigner: doing so produces a
- * signed URL for a key that does not exist, and the admin panel and both player
- * apps render a broken image. Legacy rows still hold an S3 object key and are
- * presigned as before until the backfill converts them.
+ * QR images are stored inline as base64 data URIs (owner decision 2026-11-04: S3 is gone), and a data URI is
+ * already displayable, so it is handed out as it is (a link too). A legacy S3 object key or S3 URL can no longer
+ * be fetched by anyone: both `qrUrl` and `qrKey` read as null for it, so the page shows no QR and a save of the
+ * method clears the dead key instead of carrying it on.
  */
 export async function attachQrUrls<T extends { qrKey?: string | null }>(
   upis: T[] | null | undefined,
 ): Promise<(T & { qrUrl: string | null })[]> {
-  const { generatePresignedGetUrl } = await import('@/services/storage/s3.js')
-
-  return Promise.all(
-    (upis || []).map(async (upi) => {
-      let qrUrl: string | null = null
-
-      if (isDataUri(upi.qrKey)) {
-        qrUrl = upi.qrKey as string
-      } else if (upi.qrKey) {
-        try {
-          qrUrl = await generatePresignedGetUrl(upi.qrKey, 3600)
-        } catch {
-          // A missing or unreachable object simply renders no QR.
-        }
-      }
-
-      return { ...upi, qrUrl }
-    }),
-  )
+  return (upis || []).map((upi) => {
+    const kind = classifyStoredAsset(upi.qrKey)
+    const legacy = kind === 's3-key' || kind === 's3-url'
+    return { ...upi, ...(legacy ? { qrKey: null } : {}), qrUrl: displayableAsset(upi.qrKey) }
+  })
 }

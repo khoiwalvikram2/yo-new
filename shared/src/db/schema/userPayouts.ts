@@ -24,6 +24,8 @@ export const userPayoutAccounts = pgTable('user_payout_accounts', {
   rejectionReason: text('rejection_reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  // FIN-05: a player's delete is a soft delete, so deleted accounts still count toward the auto-approval rule
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => [
   index('user_payout_accounts_approved_by_idx').on(table.approvedBy),
   index('user_payout_accounts_tenant_idx').on(table.tenant),

@@ -26,7 +26,7 @@ export interface SettlementSummary {
 }
 export interface PendingSettlement extends SettlementSummary {
   agentId: string; agent?: { id?: string; username?: string | null; schemeType?: string }; schemeType?: string;
-  /** SHARING: signed like settlementDue (positive = pay the agent). CREDIT: the absolute balance; see settlementDirection. */
+  /** SHARING: signed like settlementDue (positive = pay the agent); settlementDirection, when set, says who pays. */
   pendingAmount: number; settlementType: string; settledThisPeriod?: number | null; totalShareForPeriod?: number | null; totalSettledToAgent?: number | null;
   /** SHARING: the exact window [periodFrom, periodTo) the figures cover; settle with periodTo to post exactly them. */
   periodFrom?: string | null; periodTo?: string | null;
@@ -39,14 +39,14 @@ export interface SettlementHistoryRow {
 export interface SettlementDetails extends SettlementHistoryRow, SettlementSummary {
   domainBreakdown?: SettlementDomain[]; playerContributions?: PlayerContribution[]; subAgentContributions?: AgentContribution[];
 }
+/** The admin settlement dashboard. CREDIT is not in it since 2026-11-02 (its chips move by Deposit / Withdraw). */
 export interface SettlementDashboard {
   /** NET (to pay − to collect); can be negative. */
   pendingSharingSettlements?: number; pendingSharingToAgents?: number | null; pendingSharingFromAgents?: number | null;
-  pendingCreditSettlements?: number; pendingCommissionPayouts?: number; pendingDirectCreditAdjustments?: number;
+  pendingCommissionPayouts?: number;
   totalSettledThisMonth?: number; totalSettledLast30Days?: number; totalCommissionPaidThisMonth?: number;
   periodFrom?: string; periodTo?: string;
   totalSettledInPeriod?: number; totalPaidToAgentsInPeriod?: number; totalCollectedFromAgentsInPeriod?: number; totalCommissionPaidInPeriod?: number;
-  domainBreakdown?: Array<{ domain: string; settlementBalance: number }>;
   monthlyTrend?: Array<{ month: string; totalSettled: number; commissionPaid: number }>;
 }
 export interface CommissionSummary {

@@ -11,8 +11,8 @@ export const NOTIFICATION_STATS_QUERY = gql`
 `;
 
 export const MY_NOTIFICATIONS_QUERY = gql`
-  query MyNotifications($category: String, $limit: Int, $offset: Int) {
-    myNotifications(category: $category, limit: $limit, offset: $offset) {
+  query MyNotifications($category: String, $limit: Int, $offset: Int, $unreadOnly: Boolean) {
+    myNotifications(category: $category, limit: $limit, offset: $offset, unreadOnly: $unreadOnly) {
       id
       type
       category

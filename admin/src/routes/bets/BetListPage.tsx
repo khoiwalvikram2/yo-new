@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useQuery, useApolloClient } from '@apollo/client'
 import { IconRefresh } from '@tabler/icons-react'
 import { useAuthStore } from '@/shared/core/authStore'
@@ -6,7 +7,10 @@ import { RBACGuard } from '@/shared/core/RBACGuard'
 import { todayISTString } from '@/shared/utils/date'
 import { BETS_PAGE_QUERY } from '@/lib/graphql/bets'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
+import { usePaymentWhitelabelScope } from '@/routes/payments/usePaymentWhitelabelScope'
+import { SELECT_WHITELABEL_TITLE } from '@/routes/payments/paymentWhitelabelScope'
 import { Button } from '@/ui/components/Button'
+import { Notice } from '@/ui/components/Notice'
 import { Page } from '@/ui/components/Page'
 import { PageHeader } from '@/ui/components/PageHeader'
 import { Pagination } from '@/ui/components/Pagination'
@@ -20,6 +24,7 @@ import {
   BETS_EXPORT_BATCH,
   BET_PAGE_SIZE_OPTIONS,
   betExportCompleteMessage,
+  betListStateFromSearch,
   betsPageNumber,
   buildBetsFiltersPayload,
   clampBetsOffset,
@@ -43,22 +48,39 @@ const BET_LIST_ACCESS = [
 // antd's notification stayed 4.5 seconds; the kit toast keeps that timing.
 const NOTIFICATION_DURATION_MS = 4500
 
+const SELECT_WHITELABEL_FOR_BETS =
+  'Bets belong to one whitelabel. Switch to Whitelabel mode in the top bar and select the site whose bets you want to see.'
+
 export default function BetListPage() {
+  // A link with other filters (an alert, the global search) opens a fresh list even from the Bet List itself.
+  const { search } = useLocation()
+  // Bets belong to one whitelabel; a Super Admin with none selected read the platform's own tenant, which
+  // holds no bets, and saw every count at 0 as if the platform had none. No list query starts then.
+  const { selectionRequired } = usePaymentWhitelabelScope()
   return (
     <RBACGuard required={BET_LIST_ACCESS} requireAny bypassForAgents>
-      <BetListContent />
+      {selectionRequired ? <SelectWhitelabelNotice /> : <BetListContent key={search} search={search} />}
     </RBACGuard>
   )
 }
 
-function BetListContent() {
+function SelectWhitelabelNotice() {
+  const pageEyebrow = usePageEyebrow()
+  return (
+    <Page maxWidth="wide">
+      <PageHeader eyebrow={pageEyebrow} title="Bet List" sub="View and filter all bets across Sports, Casino, Matka" />
+      <Notice tone="info" title={SELECT_WHITELABEL_TITLE}>{SELECT_WHITELABEL_FOR_BETS}</Notice>
+    </Page>
+  )
+}
+
+function BetListContent({ search }: { search: string }) {
   const agent = useAuthStore((s) => s.agent)
   const pageEyebrow = usePageEyebrow()
-  const [domain, setDomain] = useState<BetDomain>('ALL')
-  const [filters, setFilters] = useState<BetsPageFilters>(() => {
-    const today = todayISTString()
-    return { dateFrom: today, dateTo: today }
-  })
+  // The URL sets the opening filters; a plain /bets opens on Today across every domain, as before.
+  const [initial] = useState(() => betListStateFromSearch(new URLSearchParams(search), todayISTString()))
+  const [domain, setDomain] = useState<BetDomain>(initial.domain)
+  const [filters, setFilters] = useState<BetsPageFilters>(initial.filters)
   const [offset, setOffset] = useState(0)
   const [limit, setLimit] = useState(50)
   const [exportLoading, setExportLoading] = useState(false)
@@ -202,6 +224,7 @@ function BetListContent() {
         <BetListFiltersBar
           domain={domain}
           filters={filters}
+          initialDatePreset={initial.datePreset}
           onDomainChange={setDomain}
           onFiltersChange={setFilters}
           onClear={() => setFilters({ dateFrom: todayISTString(), dateTo: todayISTString() })}

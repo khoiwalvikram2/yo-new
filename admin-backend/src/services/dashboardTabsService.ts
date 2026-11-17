@@ -7,7 +7,8 @@
  *             deposits, where players play, how they bet and deposit, the biggest stakers and depositors,
  *             and the period against the one before it.
  *   Agents  - the network (schemes, levels, players under agents), commission and settlement, an agent
- *             leaderboard on each agent's own players, and the credit agents' limits.
+ *             leaderboard on each agent's own players, and the credit agents' chips (CREDIT on Deposit/
+ *             Withdraw chips since 2026-11-02; figures from dashboardChipFigures).
  *   Time    - bets by IST weekday and hour (a heatmap), the hourly and weekday profiles, and this month's
  *             run rate against last month.
  *
@@ -25,6 +26,14 @@ import { sql, type SQL } from 'drizzle-orm'
 import { db } from '@/db/client.js'
 import { sportsPlayerProfitSql } from '@/shared/reportingSql.js'
 import { inTenant, isPlayer, istMidnight } from '@/services/dashboardOperationsService.js'
+import { chipCents } from '@/domains/agents/services/ChipService.js'
+import {
+  creditAgentsByChipUse,
+  creditShapeOf,
+  splitRefPnl,
+  topCreditAgents,
+  type CreditShape,
+} from '@/services/dashboardChipFigures.js'
 
 export interface DashboardTabsScope {
   /** undefined: director core mode, every whitelabel. */
@@ -256,8 +265,11 @@ export interface AgentsTab {
   }
   commissionTotal: number
   commissionByDomain: Array<{ domain: string; amount: number }>
+  /** Σ positive Ref P/L of the top CREDIT agents: what the whitelabel owes them. */
   settlementOwed: number
+  /** Σ negative Ref P/L of the top CREDIT agents, kept negative: what they owe the whitelabel. */
   settlementOwing: number
+  /** Top CREDIT agents whose Ref P/L is not 0. */
   agentsWithBalance: number
   settlementsPosted: number
   settlementsAmount: number
@@ -273,7 +285,9 @@ export interface AgentsTab {
     ggr: number
     commission: number
   }>
-  creditAgents: Array<{ agentId: string; username: string | null; creditLimit: number; creditUsed: number; creditAvailable: number; usedShare: number }>
+  /** CREDIT agents (any level) whose chips sit furthest below their credit reference, in the credit shape. */
+  creditAgents: CreditShape[]
+  /** Over the top CREDIT agents: Σ credit reference, and Σ how far their chips sit below it. */
   creditLimit: number
   creditUsed: number
 }
@@ -284,12 +298,13 @@ export async function getAgentsTab(scope: DashboardTabsScope, range: Range, now:
   const agentsIn = inTenant(sql`a.tenant_id`, scope.tenant)
   const usersIn = inTenant(sql`u.tenant`, scope.tenant)
 
-  const [network, commission, settlement, leaderboard, credit] = await Promise.all([
+  const [network, commission, settlement, leaderboard, creditList, creditTops] = await Promise.all([
     one(sql`
       SELECT
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE a.status = 'ACTIVE')::int AS active,
-        COUNT(*) FILTER (WHERE a.status <> 'ACTIVE')::int AS suspended,
+        -- SUSPENDED or BLOCKED only: an INACTIVE agent is read-only, not suspended (the tab names the rest inactive)
+        COUNT(*) FILTER (WHERE a.status IN ('SUSPENDED', 'BLOCKED'))::int AS suspended,
         COUNT(*) FILTER (WHERE a.scheme_type::text = 'SHARING')::int AS sharing,
         COUNT(*) FILTER (WHERE a.scheme_type::text = 'COMMISSION')::int AS commission,
         COUNT(*) FILTER (WHERE a.scheme_type::text = 'CREDIT')::int AS credit,
@@ -304,16 +319,14 @@ export async function getAgentsTab(scope: DashboardTabsScope, range: Range, now:
       FROM agent_ledger l JOIN agents a ON a.id = l.agent_id
       WHERE ${agentsIn} AND l.line_type::text = 'COMMISSION' AND l.created_at >= ${from} AND l.created_at <= ${to}
       GROUP BY 1 ORDER BY 2 DESC`),
+    // What is owed either way is the top CREDIT agents' Ref P/L (creditTops below); the retired
+    // agents.settlement_balance is not read.
     one(sql`
       SELECT
-        COALESCE(SUM(a.settlement_balance) FILTER (WHERE a.settlement_balance > 0), 0) AS owed,
-        COALESCE(SUM(a.settlement_balance) FILTER (WHERE a.settlement_balance < 0), 0) AS owing,
-        COUNT(*) FILTER (WHERE a.settlement_balance <> 0)::int AS with_balance,
         (SELECT COUNT(*)::int FROM agent_settlement_transactions t WHERE ${inTenant(sql`t.tenant`, scope.tenant)}
           AND t.created_at >= ${from} AND t.created_at <= ${to}) AS posted,
         (SELECT COALESCE(SUM(ABS(t.amount)), 0) FROM agent_settlement_transactions t WHERE ${inTenant(sql`t.tenant`, scope.tenant)}
-          AND t.created_at >= ${from} AND t.created_at <= ${to}) AS posted_amount
-      FROM agents a WHERE ${agentsIn}`),
+          AND t.created_at >= ${from} AND t.created_at <= ${to}) AS posted_amount`),
     rows(sql`
       WITH own AS (
         SELECT u.agent_id, u.id AS user_id FROM users u WHERE ${usersIn} AND u.agent_id IS NOT NULL
@@ -342,24 +355,15 @@ export async function getAgentsTab(scope: DashboardTabsScope, range: Range, now:
       WHERE ${agentsIn}
       ORDER BY turnover DESC, players DESC, ac.username ASC
       LIMIT 10`),
-    rows(sql`
-      SELECT a.id::text AS agent_id, ac.username, a.credit_limit, a.credit_used, a.credit_available,
-        a.credit_used::numeric / NULLIF(a.credit_limit::numeric, 0) AS used_share
-      FROM agents a
-      LEFT JOIN LATERAL (SELECT c.username FROM agent_credentials c WHERE c.agent_id = a.id LIMIT 1) ac ON TRUE
-      WHERE ${agentsIn} AND a.scheme_type::text = 'CREDIT'
-      ORDER BY used_share DESC NULLS LAST, a.credit_used DESC
-      LIMIT 8`),
+    creditAgentsByChipUse(scope, { limit: 8 }),
+    topCreditAgents(scope),
   ])
 
   const commissionByDomain = commission.map((r) => ({ domain: String(r.domain), amount: num(r.amount) }))
-  const creditAgents = credit.map((r) => ({
-    agentId: String(r.agent_id), username: text(r.username),
-    creditLimit: num(r.credit_limit), creditUsed: num(r.credit_used), creditAvailable: num(r.credit_available), usedShare: num(r.used_share),
-  }))
-  const totals = await one(sql`
-    SELECT COALESCE(SUM(a.credit_limit), 0) AS credit_limit, COALESCE(SUM(a.credit_used), 0) AS credit_used
-    FROM agents a WHERE ${agentsIn} AND a.scheme_type::text = 'CREDIT'`)
+  const creditAgents = creditList.map(creditShapeOf)
+  const position = splitRefPnl(creditTops)
+  const topShapes = creditTops.map(creditShapeOf)
+  const sumOf = (pick: (shape: CreditShape) => number) => topShapes.reduce((cents, shape) => cents + chipCents(pick(shape)), 0) / 100
 
   return {
     network: {
@@ -377,9 +381,9 @@ export async function getAgentsTab(scope: DashboardTabsScope, range: Range, now:
     },
     commissionTotal: commissionByDomain.reduce((sum, row) => sum + row.amount, 0),
     commissionByDomain,
-    settlementOwed: num(settlement.owed),
-    settlementOwing: num(settlement.owing),
-    agentsWithBalance: num(settlement.with_balance),
+    settlementOwed: position.owed,
+    settlementOwing: position.owing,
+    agentsWithBalance: position.withBalance,
     settlementsPosted: num(settlement.posted),
     settlementsAmount: num(settlement.posted_amount),
     leaderboard: leaderboard.map((r) => ({
@@ -395,8 +399,8 @@ export async function getAgentsTab(scope: DashboardTabsScope, range: Range, now:
       commission: num(r.commission),
     })),
     creditAgents,
-    creditLimit: num(totals.credit_limit),
-    creditUsed: num(totals.credit_used),
+    creditLimit: sumOf((shape) => shape.creditLimit),
+    creditUsed: sumOf((shape) => shape.creditUsed),
   }
 }
 

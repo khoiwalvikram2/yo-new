@@ -1,4 +1,4 @@
-import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, or } from 'drizzle-orm'
 import { db } from '../../../db/client.js'
 import {
   sportsBets,
@@ -7,8 +7,6 @@ import {
   sportsRunnersTable,
   users,
 } from '@shared/db/schema.js'
-import { getOpenCasinoStake } from '@shared/services/credit/casinoCredit.js'
-import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
 import { getWhitelabelCurrency, getCurrencySymbol } from '../../../shared/whitelabelConfig.js'
 
 /**
@@ -433,107 +431,14 @@ function calculateFancyMarketExposure(bets: BetData[]): number {
 }
 
 /**
- * Recalculate and update wallet exposure for a user.
- * For credit players, also set users.credit_used (= book-based exposure) and credit_available.
- * Pass tx when inside a transaction (e.g. bet placement).
+ * Recalculate and update wallet exposure for a user (wallets.exposure = book-based exposure
+ * of the open sports bets). Pass tx when inside a transaction (e.g. bet placement).
+ *
+ * Every player type, credit players (AGENT_CREDIT / WHITELABEL_CREDIT) included: their chips
+ * sit in wallets.cash, so their sports liability is held in wallets.exposure against cash
+ * exactly like a cash player's. users.credit_used is no longer maintained here, and nothing
+ * on the agent, the whitelabel or agent_player_credits is touched.
  */
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
-}
-
-function firstRow(result: any): any | null {
-  return result?.rows?.[0] ?? result?.[0] ?? null
-}
-
-/**
- * Credit left after a sports bet for a credit player:
- *   limit + settlement − (projected sports book exposure + open casino stake).
- * Negative means the bet must be refused. Casino stake counts because casino bets lock
- * credit (credit_used += stake) until they settle.
- */
-export function projectedCreditHeadroom(args: {
-  creditLimit: number
-  settlementBalance: number
-  projectedSportsExposure: number
-  openCasinoStake: number
-}): number {
-  return round2(
-    args.creditLimit + args.settlementBalance - (args.projectedSportsExposure + args.openCasinoStake)
-  )
-}
-
-/**
- * Credit players (AGENT_CREDIT / WHITELABEL_CREDIT): writes the player's whole open exposure.
- *
- *   credit_used      = sports book exposure + open casino stake
- *   credit_available = max(0, credit_limit − credit_used + settlement_balance)
- *
- * The casino part is the credit lockCasinoCreditForBet locked and releaseCasinoCreditForBet
- * has not released yet. Writing the sports figure alone (the old behaviour) erased those
- * locks, handing the credit back while the casino bets were still open.
- *
- * agent_player_credits follows the same figure. The agent's own row is NOT touched (plan
- * W7): an agent's credit_used is the credit it handed down (this player's whole limit is
- * already in it), so cascading the exposure into it counted the exposure twice.
- *
- * Must run inside a transaction; it takes the users row lock (FOR UPDATE), the same lock
- * the casino credit lock and sports placement take, so the sum cannot interleave with them.
- */
-export async function syncCreditPlayerOpenExposureInTx(
-  tx: any,
-  args: { userId: number; tenant: string; sportsExposure: number }
-): Promise<{ creditUsed: number; creditAvailable: number; openCasinoStake: number } | null> {
-  const { userId, tenant } = args
-  const userRes = await tx.execute(sql`
-    SELECT player_type, agent_id::text AS agent_id, credit_limit, settlement_balance
-    FROM users
-    WHERE id = ${userId} AND tenant = ${tenant}
-    FOR UPDATE
-  `)
-  const row = firstRow(userRes)
-  if (!row || !isCreditPlayer(row.player_type)) return null
-
-  const openCasinoStake = await getOpenCasinoStake(tx, userId, tenant, true)
-  const creditUsed = round2(Math.max(0, Number(args.sportsExposure) || 0) + openCasinoStake)
-  const creditLimit = Number(row.credit_limit ?? 0)
-  const settlement = Number(row.settlement_balance ?? 0)
-  const creditAvailable = round2(Math.max(0, creditLimit - creditUsed + settlement))
-
-  await tx.execute(sql`
-    UPDATE users
-    SET credit_used = ${creditUsed},
-        credit_available = ${creditAvailable}
-    WHERE id = ${userId} AND tenant = ${tenant}
-  `)
-
-  const agentId: string | null = row.agent_id ?? null
-  if (agentId) {
-    const apcRes = await tx.execute(sql`
-      SELECT credit_limit, current_balance, open_exposure
-      FROM agent_player_credits
-      WHERE agent_id = ${agentId} AND player_id = ${userId}
-      LIMIT 1
-      FOR UPDATE
-    `)
-    const apc = firstRow(apcRes)
-    if (apc) {
-      const apcLimit = Number(apc.credit_limit ?? 0)
-      const apcBalance = Number(apc.current_balance ?? 0)
-      const apcAvailable = round2(Math.max(0, apcLimit - creditUsed + apcBalance))
-      await tx.execute(sql`
-        UPDATE agent_player_credits
-        SET open_exposure = ${creditUsed},
-            credit_used = ${creditUsed},
-            credit_available = ${apcAvailable},
-            updated_at = now()
-        WHERE agent_id = ${agentId} AND player_id = ${userId}
-      `)
-    }
-  }
-
-  return { creditUsed, creditAvailable, openCasinoStake }
-}
-
 export async function recalculateAndUpdateExposure(
   userId: number,
   tenant: string,
@@ -541,12 +446,9 @@ export async function recalculateAndUpdateExposure(
 ): Promise<number> {
   const dbCtx = tx ?? db
 
-  // Get user and wallet info first
+  // Player details for the high exposure alert below
   const [userRow] = await dbCtx
     .select({
-      playerType: users.playerType,
-      creditLimit: users.creditLimit,
-      settlementBalance: users.settlementBalance,
       agentId: users.agentId,
       name: users.name,
       username: users.username,
@@ -555,22 +457,6 @@ export async function recalculateAndUpdateExposure(
     .from(users)
     .where(and(eq(users.id, userId), eq(users.tenant, tenant)))
     .limit(1)
-
-  const isCredit = Boolean(userRow && isCreditPlayer(userRow.playerType))
-
-  // Credit players: credit_used is rewritten from scratch below, so the whole
-  // read-modify-write runs under the users row lock (the lock the casino credit lock
-  // and sports placement take). Without a caller transaction, open one.
-  if (isCredit && !tx) {
-    return db.transaction((innerTx) => recalculateAndUpdateExposure(userId, tenant, innerTx))
-  }
-  if (isCredit) {
-    await dbCtx.execute(sql`
-      SELECT id FROM users
-      WHERE id = ${userId} AND tenant = ${tenant}
-      FOR UPDATE
-    `)
-  }
 
   const newExposure = await calculateUserExposure(userId, tenant, dbCtx)
 
@@ -595,10 +481,10 @@ export async function recalculateAndUpdateExposure(
     .set({ exposure: String(newExposure) })
     .where(and(eq(wallets.userId, userId), eq(wallets.tenant, tenant)))
 
-  // Check for high exposure alert (only for regular players, not credit players)
+  // Check for high exposure alert (every player type: credit players' chips are cash too)
   // Alert when exposure crosses 80% threshold (was below, now above)
   // Balance = cash only (bonus excluded)
-  if (walletRow && !isCredit) {
+  if (walletRow) {
     const balance = Number(walletRow.cash ?? 0)
     const currency = walletRow.currency || (await getWhitelabelCurrency(tenant))
     const currencySymbol = getCurrencySymbol(currency)
@@ -629,12 +515,6 @@ export async function recalculateAndUpdateExposure(
       } catch (err: any) {
       }
     }
-  }
-
-  // Credit players: credit_used = sports book exposure + open casino stake (see
-  // syncCreditPlayerOpenExposureInTx). The users row lock is already held here.
-  if (isCredit) {
-    await syncCreditPlayerOpenExposureInTx(dbCtx, { userId, tenant, sportsExposure: newExposure })
   }
 
   return newExposure

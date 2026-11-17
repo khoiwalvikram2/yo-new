@@ -39,20 +39,25 @@ import { getActiveCasinoBonusAwardId, getPlayerLimitsForUser } from '../../repos
 import { updateBonusWagering } from '@shared/services/bonusService.js'
 import { getWhitelabelCurrency, getWhitelabelTimezone } from '../../shared/whitelabelConfig.js'
 import { getStartOfDay, getStartOfWeek } from '../../shared/dateUtils.js'
-import {
-  getCasinoCreditBalance,
-  lockCasinoCreditForBet,
-  releaseCasinoCreditForBet,
-  creditCasinoSettlement,
-} from '@shared/services/credit/casinoCredit.js'
-import { mapCasinoSettlementToCredit } from './gapCasinoService.js'
+import { isCreditPlayer as isCreditPlayerType } from '@shared/services/credit/isCreditPlayer.js'
+import { casinoWalletTypeFor, isCasinoCreditPlayer } from './casinoCreditPlayer.js'
 import type { GmagAuthBody, GmagBalanceBody, GmagTransactionBody, GmagPayUpBody, GmagTransItem } from './gmagCallbackSchemas.js'
 import { getRgBlockState } from '@shared/services/rgEnforcement.js'
 import { checkPlayerAgentBettingGate } from '../userApp/services/agentBettingGate.js'
+import { CasinoGameAccessError, checkCasinoGameAccess, type CasinoGameAccessRefusal } from './casinoGameAccess.js'
 
 /** GMAG / Aviator-style casino API provider key (used by callbacks and bet-tool). */
 export const GMAG_PROVIDER_KEY = 'gmagcasino'
 const LOG_PREFIX = '[GmagCasino]'
+
+/**
+ * A refused per-game rule, in the codes GMAG already receives: the day's win cap is a
+ * limit (T_04, like the stake limits); the others refuse the player on this game (P_07,
+ * as for a blocked player).
+ */
+function gmagGameAccessError(refusal: CasinoGameAccessRefusal): { ok: false; error: GmagErrorCode; message: string } {
+  return { ok: false, error: refusal.reason === 'max_win_reached' ? 'T_04' : 'P_07', message: refusal.message }
+}
 
 export type GmagErrorCode =
   | '0'
@@ -125,19 +130,15 @@ export async function handleGmagAuth(body: GmagAuthBody): Promise<GmagCallbackRe
     const referralBonus = Number(wallet.referralBonus ?? 0)
     const exposure = Number(wallet.exposure ?? 0)
 
-    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) have no cash wallet; their
-    // spendable cash-wallet balance is their available credit. Bonus / referralBonus
-    // wallet types are left untouched (credit players won't hold those wallets).
-    const authPlayerType = (userRow as { playerType?: string }).playerType
-    const isAuthCreditPlayer = authPlayerType === 'AGENT_CREDIT' || authPlayerType === 'WHITELABEL_CREDIT'
+    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) hold their chips in cash and never
+    // play from a bonus wallet, so their balance is always spendable cash (cash - exposure).
+    const walletType = casinoWalletTypeFor(isCreditPlayerType(userRow.playerType), session.walletType)
 
     let balance: number
-    if (session.walletType === 'referralBonus') {
+    if (walletType === 'referralBonus') {
       balance = referralBonus
-    } else if (session.walletType === 'bonus') {
+    } else if (walletType === 'bonus') {
       balance = bonus
-    } else if (isAuthCreditPlayer) {
-      balance = (await getCasinoCreditBalance(txAny, session.userId, session.tenant)).creditAvailable
     } else {
       balance = cash - exposure
     }
@@ -170,7 +171,7 @@ export async function handleGmagBalance(body: GmagBalanceBody): Promise<GmagCall
     }
 
     const [userRowBal] = await txAny
-      .select({ phone: users.phone, status: users.status, casinoBetAllowed: users.casinoBetAllowed })
+      .select({ phone: users.phone, status: users.status, casinoBetAllowed: users.casinoBetAllowed, playerType: users.playerType })
       .from(users)
       .where(and(eq(users.id, session.userId), eq(users.tenant, session.tenant)))
       .limit(1)
@@ -191,17 +192,16 @@ export async function handleGmagBalance(body: GmagBalanceBody): Promise<GmagCall
     const referralBonus = Number(wallet.referralBonus ?? 0)
     const exposure = Number(wallet.exposure ?? 0)
 
-    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT): report available credit for the
-    // cash wallet type. getCasinoCreditBalance.creditPlayer is true iff the user is a
-    // credit type. Bonus / referralBonus wallet types are left untouched.
+    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) hold their chips in cash and never
+    // play from a bonus wallet, so their balance is always spendable cash (cash - exposure).
+    const walletType = casinoWalletTypeFor(isCreditPlayerType(userRowBal.playerType), session.walletType)
     let balance: number
-    if (session.walletType === 'referralBonus') {
+    if (walletType === 'referralBonus') {
       balance = referralBonus
-    } else if (session.walletType === 'bonus') {
+    } else if (walletType === 'bonus') {
       balance = bonus
     } else {
-      const creditBal = await getCasinoCreditBalance(txAny, session.userId, session.tenant)
-      balance = creditBal.creditPlayer ? creditBal.creditAvailable : cash - exposure
+      balance = cash - exposure
     }
     return successResponse(body.requestId, {
       playerId: body.playerId,
@@ -248,6 +248,11 @@ export async function assertGmagCashBetPlaceAllowed(
   }
   if (settings?.maxStake != null && amount > settings.maxStake) {
     throw new Error('Bet limit')
+  }
+  // The whitelabel's per-game rules: betting switched off, the day's win cap, premium and VIP tiers.
+  const gameAccess = await checkCasinoGameAccess(txAny, { tenant, userId, gameId, settings })
+  if (gameAccess) {
+    throw new CasinoGameAccessError(gameAccess.reason, gameAccess.message)
   }
 
   const playerLimits = await getPlayerLimitsForUser(userId, tenant)
@@ -343,23 +348,17 @@ async function processOneTrans(
 ): Promise<{ ok: boolean; error?: GmagErrorCode; message?: string; balance?: number }> {
   const userId = session.userId
   const tenant = session.tenant
-  const walletType: CasinoWalletType =
-    session.walletType === 'referralBonus' ? 'referralBonus' : session.walletType === 'bonus' ? 'bonus' : 'cash'
 
-  // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) have no cash wallet. They lock
-  // exposure on bet, release it on win/cancel, and report available credit instead of
-  // (cash - exposure). isCreditPlayer === false for cash players: every cash branch
-  // below stays byte-for-byte identical. Computed once per item; all credit mutations
-  // run inside the caller's txAny.
-  const isCreditPlayer = (await getCasinoCreditBalance(txAny, userId, tenant)).creditPlayer
+  // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) hold their chips in cash and play on the
+  // cash path like REGULAR players: the stake comes off cash, a win pays the gross return into
+  // cash and a cancel puts the stake back. They never use a bonus wallet, and they get no bonus
+  // wagering and no referral loss-share. Computed once per item, inside the caller's txAny.
+  const isCreditPlayer = await isCasinoCreditPlayer(txAny, userId, tenant)
+  const walletType: CasinoWalletType = casinoWalletTypeFor(isCreditPlayer, session.walletType)
 
-  // Reported wallet balance for the cash wallet type. For credit players this is their
-  // available credit (settlement-backed); for cash players it is the original
-  // (cash - exposure). Bonus / referralBonus paths never call this. Reads inside txAny.
+  // Reported balance for the cash wallet type: spendable cash (cash - exposure). Bonus /
+  // referralBonus paths never call this. Reads inside txAny.
   const reportCashBalance = async (): Promise<number> => {
-    if (isCreditPlayer) {
-      return (await getCasinoCreditBalance(txAny, userId, tenant)).creditAvailable
-    }
     const w = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
     return Number(w.cash ?? 0) - Number(w.exposure ?? 0)
   }
@@ -373,6 +372,9 @@ async function processOneTrans(
         if (!access.canBet) return { ok: false, error: 'P_07', message: access.message || 'Casino betting is unavailable' }
         const game = await getCasinoGameByExternalIdAndProviderKey(gameCode, GMAG_PROVIDER_KEY, txAny)
         if (!game) return { ok: false, error: 'G_01', message: 'Game not found' }
+        // A zero-stake round can still pay out, so the per-game rules refuse it like the domain gate does.
+        const gameAccess = await checkCasinoGameAccess(txAny, { tenant, userId, gameId: game.id })
+        if (gameAccess) return gmagGameAccessError(gameAccess)
         const existingByRound = await findBetsByTransactionAndRound(userId, item.transId, item.roundId, txAny)
         if (!existingByRound.length) {
           const bonusAwardId = walletType === 'bonus' ? await getActiveCasinoBonusAwardId(userId, tenant, txAny) : null
@@ -401,7 +403,6 @@ async function processOneTrans(
       const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
       const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
         : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-        : isCreditPlayer ? await reportCashBalance()
         : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
       return { ok: true, balance: Number(balNow.toFixed(2)) }
     }
@@ -501,9 +502,7 @@ async function processOneTrans(
     const exposure = Number(wallet.exposure ?? 0)
     const balance =
       walletType === 'referralBonus' ? referralBonusBal : walletType === 'bonus' ? bonus : cash - exposure
-    // Cash insufficient-funds gate applies to cash players only. Credit players are gated
-    // by lockCasinoCreditForBet below (fail-closed), so skip this cash check for them.
-    if (!isCreditPlayer && amount > balance) {
+    if (amount > balance) {
       console.warn(`${LOG_PREFIX} bet rejected`, {
         userId,
         transId: item.transId,
@@ -516,7 +515,6 @@ async function processOneTrans(
     }
     const isDup = await checkDuplicateTransactionId(userId, item.transId, txAny)
     if (isDup) {
-      // Credit players: report available credit; cash players: (cash - exposure).
       const balNow = walletType === 'referralBonus' || walletType === 'bonus'
         ? await (async () => {
             const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
@@ -542,31 +540,26 @@ async function processOneTrans(
       })
       return { ok: false, error: 'P_07', message: agentGate.message }
     }
-    const bonusAwardId = walletType === 'bonus' ? await getActiveCasinoBonusAwardId(userId, tenant, txAny) : null
-    // Credit players: lock exposure against available credit (fail-closed) instead of
-    // debiting a cash wallet. The lock lives in this tx alongside the createCasinoBet
-    // insert below, so they commit/roll back together. On insufficient credit, return the
-    // SAME T_01 insufficient-funds shape the cash path returns and create NO bet.
-    if (isCreditPlayer) {
-      const lock = await lockCasinoCreditForBet(txAny, { userId, tenant, betAmount: amount })
-      if (!lock.ok) {
-        console.warn(`${LOG_PREFIX} bet rejected`, {
-          userId,
-          transId: item.transId,
-          roundId: item.roundId,
-          stake: amount,
-          available: Number(lock.creditAvailable.toFixed(2)),
-          reason: 'insufficient_credit',
-        })
-        return { ok: false, error: 'T_01', message: 'Player Insufficient Funds', balance: Number(lock.creditAvailable.toFixed(2)) }
-      }
-    } else {
-      await debitWalletForCasino(txAny, userId, tenant, amount, walletType, {
-        type: 'casino_bet',
-        transactionId: item.transId,
+    // The whitelabel's per-game rules: betting switched off, the day's win cap, premium and VIP
+    // tiers. After the duplicate check, like the gates above, so an accepted bet's retry succeeds.
+    const gameAccess = await checkCasinoGameAccess(txAny, { tenant, userId, gameId: game.id, settings })
+    if (gameAccess) {
+      console.warn(`${LOG_PREFIX} bet rejected`, {
+        userId,
+        transId: item.transId,
         roundId: item.roundId,
-      }, currency)
+        stake: amount,
+        reason: gameAccess.reason,
+      })
+      return gmagGameAccessError(gameAccess)
     }
+    const bonusAwardId = walletType === 'bonus' ? await getActiveCasinoBonusAwardId(userId, tenant, txAny) : null
+    // A credit player's chips are cash, so this takes their stake too.
+    await debitWalletForCasino(txAny, userId, tenant, amount, walletType, {
+      type: 'casino_bet',
+      transactionId: item.transId,
+      roundId: item.roundId,
+    }, currency)
     await createCasinoBet(
       {
         tenant,
@@ -611,9 +604,7 @@ async function processOneTrans(
         ? Number(walletAfter.referralBonus ?? 0)
         : walletType === 'bonus'
           ? bonusAfterDebit
-          : isCreditPlayer
-            ? await reportCashBalance()
-            : Number(walletAfter.cash ?? 0) - Number(walletAfter.exposure ?? 0)
+          : Number(walletAfter.cash ?? 0) - Number(walletAfter.exposure ?? 0)
     return { ok: true, balance: Number(balanceAfter.toFixed(2)) }
   }
 
@@ -716,7 +707,6 @@ async function processOneTrans(
         const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
         const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
           : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-          : isCreditPlayer ? await reportCashBalance()
           : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
         console.warn(`${LOG_PREFIX} result rejected`, {
           userId,
@@ -733,7 +723,6 @@ async function processOneTrans(
         const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
         const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
           : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-          : isCreditPlayer ? await reportCashBalance()
           : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
         return { ok: true, balance: Number(balNow.toFixed(2)) }
       }
@@ -747,7 +736,6 @@ async function processOneTrans(
         const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
         const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
           : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-          : isCreditPlayer ? await reportCashBalance()
           : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
         return { ok: true, balance: Number(balNow.toFixed(2)) }
       }
@@ -757,7 +745,6 @@ async function processOneTrans(
         const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
         const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
           : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-          : isCreditPlayer ? await reportCashBalance()
           : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
         return { ok: true, balance: Number(balNow.toFixed(2)) }
       }
@@ -785,26 +772,7 @@ async function processOneTrans(
         anyBetTransitioned = true
       }
 
-      if (anyBetTransitioned && isCreditPlayer) {
-        // Credit player per-bet settlement. The gross credit for THIS bet is creditAmount.
-        // Normal settle (bet had locked exposure): release that exposure and book net P&L.
-        // A loss (creditAmount=0) still releases exposure. Additional-win on an
-        // already-settled bet has NO exposure to release (betStake=0) — book it as a pure
-        // positive settlement credit instead.
-        if (targetAlreadySettled) {
-          await creditCasinoSettlement(txAny, { userId, tenant, amount: creditAmount, betId: targetBet.id })
-        } else {
-          const { betResult, payoutAmount } = mapCasinoSettlementToCredit(betStake, creditAmount)
-          await releaseCasinoCreditForBet(txAny, {
-            userId,
-            tenant,
-            betAmount: betStake,
-            betResult,
-            payoutAmount,
-            betId: targetBet.id,
-          })
-        }
-      } else if (anyBetTransitioned) {
+      if (anyBetTransitioned) {
         const totalStake = betStake
         const bonusAwardId = targetBet.bonusAwardId
         const isReferralBonus = walletType === 'referralBonus'
@@ -853,12 +821,13 @@ async function processOneTrans(
           }
         }
 
-        if (!isReferralBonus && !isInstantOtpBonus) {
+        // Credit players get no bonuses (nothing to wager) and pay no referral loss-share.
+        if (!isReferralBonus && !isInstantOtpBonus && !isCreditPlayer) {
           const gameIdForWagering = targetBet.gameId ? String(targetBet.gameId) : undefined
           await updateBonusWagering(userId, tenant, totalStake, 'casino', gameIdForWagering, walletType, txAny)
         }
 
-        if (pl < 0) {
+        if (pl < 0 && !isCreditPlayer) {
           const netAmountForReferral = pl
           const referralCurrency = (targetBet.currency ?? currency) as string
           const betSnapshot = targetBet
@@ -885,9 +854,7 @@ async function processOneTrans(
         ? Number(walletAfter.referralBonus ?? 0)
         : walletType === 'bonus'
           ? Number(walletAfter.bonus ?? 0)
-          : isCreditPlayer
-            ? await reportCashBalance()
-            : Number(walletAfter.cash ?? 0) - Number(walletAfter.exposure ?? 0)
+          : Number(walletAfter.cash ?? 0) - Number(walletAfter.exposure ?? 0)
       return { ok: true, balance: Number(balanceAfter.toFixed(2)) }
     }
 
@@ -901,7 +868,6 @@ async function processOneTrans(
         const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
         const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
           : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-          : isCreditPlayer ? await reportCashBalance()
           : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
         console.warn(`${LOG_PREFIX} result rejected`, {
           userId,
@@ -917,7 +883,6 @@ async function processOneTrans(
           const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
           const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
             : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-            : isCreditPlayer ? await reportCashBalance()
             : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
           return { ok: true, balance: Number(balNow.toFixed(2)) }
         }
@@ -932,7 +897,6 @@ async function processOneTrans(
       const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
       const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
         : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-        : isCreditPlayer ? await reportCashBalance()
         : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
       return { ok: true, balance: Number(balNow.toFixed(2)) }
     }
@@ -942,7 +906,6 @@ async function processOneTrans(
       const walletNow = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
       const balNow = walletType === 'referralBonus' ? Number(walletNow.referralBonus ?? 0)
         : walletType === 'bonus' ? Number(walletNow.bonus ?? 0)
-        : isCreditPlayer ? await reportCashBalance()
         : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
       return { ok: true, balance: Number(balNow.toFixed(2)) }
     }
@@ -970,21 +933,6 @@ async function processOneTrans(
         )
         if (updated) {
           anyBetTransitioned = true
-          // Credit players: release THIS bet's locked exposure and book its net P&L.
-          // grossCreditForThatBet = winPerBet (the per-bet gross split, same value the
-          // cash path credits). A loss (winPerBet=0) still releases exposure.
-          if (isCreditPlayer) {
-            const betStake = Number(bet.stake ?? 0)
-            const { betResult, payoutAmount } = mapCasinoSettlementToCredit(betStake, winPerBet)
-            await releaseCasinoCreditForBet(txAny, {
-              userId,
-              tenant,
-              betAmount: betStake,
-              betResult,
-              payoutAmount,
-              betId: bet.id,
-            })
-          }
         }
       }
     }
@@ -992,17 +940,11 @@ async function processOneTrans(
       // Additional win for an already-settled round (e.g. live casino jackpot/multi-win).
       // No bet row update needed; just credit the wallet below.
       anyBetTransitioned = true
-      // Credit players: pure positive settlement credit (exposure already released at the
-      // first settle — nothing to release here). creditAmount is the additional win.
-      if (isCreditPlayer && creditAmount > 0) {
-        await creditCasinoSettlement(txAny, { userId, tenant, amount: creditAmount, betId: bets[0]?.id })
-      }
     }
 
     // Cash settlement (referral / instant-OTP / cash credit + wagering + referral trigger).
-    // Credit players are settled per-bet above (release / creditCasinoSettlement) and their
-    // winnings land in settlement_balance, NOT a cash wallet — skip this entire block.
-    if (anyBetTransitioned && !isCreditPlayer) {
+    // Credit players take the cash credit too; they skip only the wagering and referral hooks.
+    if (anyBetTransitioned) {
     const bonusAwardId = bets[0].bonusAwardId
     const isReferralBonus = walletType === 'referralBonus'
     const instantOtpBonusRow = await (async () => {
@@ -1127,13 +1069,14 @@ async function processOneTrans(
       }
     }
 
-    if (!isReferralBonus && !isInstantOtpBonus) {
+    // Credit players get no bonuses (nothing to wager) and pay no referral loss-share.
+    if (!isReferralBonus && !isInstantOtpBonus && !isCreditPlayer) {
       const gameIdForWagering = bets[0]?.gameId ? String(bets[0].gameId) : undefined
       await updateBonusWagering(userId, tenant, totalStake, 'casino', gameIdForWagering, walletType, txAny)
     }
 
     const netAmountSnapshot = netPerBet
-    if (Number(netAmountSnapshot) < 0) {
+    if (Number(netAmountSnapshot) < 0 && !isCreditPlayer) {
       const referralCurrency = (bets[0]?.currency ?? currency) as string
       const betsSnapshot = [...bets]
       const tenantSnapshot = tenant
@@ -1163,9 +1106,7 @@ async function processOneTrans(
         ? Number(walletAfter.referralBonus ?? 0)
         : walletType === 'bonus'
           ? Number(walletAfter.bonus ?? 0)
-          : isCreditPlayer
-            ? await reportCashBalance()
-            : Number(walletAfter.cash ?? 0) - Number(walletAfter.exposure ?? 0)
+          : Number(walletAfter.cash ?? 0) - Number(walletAfter.exposure ?? 0)
     return { ok: true, balance: Number(balanceAfter.toFixed(2)) }
   }
 
@@ -1241,7 +1182,6 @@ async function processOneTrans(
             ? Number(walletNow.referralBonus ?? 0)
             : walletType === 'bonus'
               ? Number(walletNow.bonus ?? 0)
-              : isCreditPlayer ? await reportCashBalance()
               : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
         return { ok: true, balance: Number(balNow.toFixed(2)) }
       }
@@ -1266,14 +1206,13 @@ async function processOneTrans(
           ? Number(walletNow.referralBonus ?? 0)
           : walletType === 'bonus'
             ? Number(walletNow.bonus ?? 0)
-            : isCreditPlayer ? await reportCashBalance()
             : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
       return { ok: true, balance: Number(balNow.toFixed(2)) }
     }
     const hasDup = await checkDuplicateRollbackTransactionId(userId, item.roundId, item.transId, txAny)
     if (hasDup) return { ok: false, error: 'T_02', message: 'Duplicate Transaction Id' }
     const rollbackAmount = bets.reduce((s, b) => s + Number(b.stake ?? 0), 0)
-    const wType = (bets[0].walletType === 'referralBonus' ? 'referralBonus' : bets[0].walletType === 'bonus' ? 'bonus' : 'cash') as CasinoWalletType
+    const wType = casinoWalletTypeFor(isCreditPlayer, bets[0].walletType)
 
     // Instant OTP bonus rollback: no wallet credit
     let isInstantOtpRollback = false
@@ -1295,25 +1234,13 @@ async function processOneTrans(
       const updated = await updateBetRollback(bet.id, item.transId, txAny)
       if (updated) {
         anyRollbackTransitioned = true
-        // Credit players: release THIS voided bet's locked exposure with no settlement
-        // change (void). The lock from the bet is the exact inverse, so available credit
-        // returns to its pre-bet value. Skip the cash stake-back below.
-        if (isCreditPlayer) {
-          await releaseCasinoCreditForBet(txAny, {
-            userId,
-            tenant,
-            betAmount: Number(bet.stake ?? 0),
-            betResult: 'void',
-            payoutAmount: 0,
-            betId: bet.id,
-          })
-        }
       }
     }
     const betsSnapshot = [...bets]
     const tenantSnapshot = tenant
     const userIdSnapshot = userId
-    if (anyRollbackTransitioned) {
+    // A credit player's losses never paid a referral loss-share, so there is nothing to reverse.
+    if (anyRollbackTransitioned && !isCreditPlayer) {
     setImmediate(async () => {
       const { triggerReferralBetSettlementReversal } = await import('../../services/referralBetSettlementTrigger.js')
       for (const bet of betsSnapshot) {
@@ -1330,9 +1257,8 @@ async function processOneTrans(
     })
     }
 
-    // Credit players: exposure was already released per-bet (void) in the loop above;
-    // there is no cash stake to credit back, so skip this cash credit for them.
-    if (anyRollbackTransitioned && !isInstantOtpRollback && !isCreditPlayer) {
+    // The stake goes back to the wallet it came from (cash for a credit player's chips).
+    if (anyRollbackTransitioned && !isInstantOtpRollback) {
       await creditWalletForCasino(txAny, userId, tenant, rollbackAmount, wType, {
         type: 'casino_rollback',
         // Must be the id the ORIGINAL debit ledger row was written under (item.transId at
@@ -1351,9 +1277,7 @@ async function processOneTrans(
         ? Number(walletAfter.referralBonus ?? 0)
         : wType === 'bonus'
           ? Number(walletAfter.bonus ?? 0)
-          : isCreditPlayer
-            ? await reportCashBalance()
-            : Number(walletAfter.cash ?? 0) - Number(walletAfter.exposure ?? 0)
+          : Number(walletAfter.cash ?? 0) - Number(walletAfter.exposure ?? 0)
     return { ok: true, balance: Number(balanceAfter.toFixed(2)) }
   }
 
@@ -1376,7 +1300,7 @@ export async function handleGmagTransaction(body: GmagTransactionBody): Promise<
     }
 
     const [userRowTx] = await txAny
-      .select({ phone: users.phone, status: users.status, casinoBetAllowed: users.casinoBetAllowed })
+      .select({ phone: users.phone, status: users.status, casinoBetAllowed: users.casinoBetAllowed, playerType: users.playerType })
       .from(users)
       .where(and(eq(users.id, session.userId), eq(users.tenant, session.tenant)))
       .limit(1)
@@ -1392,10 +1316,9 @@ export async function handleGmagTransaction(body: GmagTransactionBody): Promise<
 
     const currency = await getWhitelabelCurrency(session.tenant)
 
-    // Credit player flag for the batch-level balance reads (error fallback + final
-    // success). Per-item credit logic lives inside processOneTrans. Cash players unaffected.
-    const txCreditInfo = await getCasinoCreditBalance(txAny, session.userId, session.tenant)
-    const isTxCreditPlayer = txCreditInfo.creditPlayer
+    // Wallet for the batch-level balance reads (error fallback + final success). A credit
+    // player's chips are cash whatever the session names; processOneTrans applies the same rule.
+    const reportWalletType = casinoWalletTypeFor(isCreditPlayerType(userRowTx.playerType), session.walletType)
 
     for (let i = 0; i < body.trans.length; i++) {
       const item = body.trans[i]
@@ -1411,13 +1334,11 @@ export async function handleGmagTransaction(body: GmagTransactionBody): Promise<
         let errBalance = result.balance
         if (errBalance == null) {
           const walletNow = await ensureWalletWithExecutor(txAny, session.userId, session.tenant, currency)
-          const rawBal = session.walletType === 'referralBonus'
+          const rawBal = reportWalletType === 'referralBonus'
             ? Number(walletNow.referralBonus ?? 0)
-            : session.walletType === 'bonus'
+            : reportWalletType === 'bonus'
               ? Number(walletNow.bonus ?? 0)
-              : isTxCreditPlayer
-                ? (await getCasinoCreditBalance(txAny, session.userId, session.tenant)).creditAvailable
-                : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
+              : Number(walletNow.cash ?? 0) - Number(walletNow.exposure ?? 0)
           errBalance = Number(rawBal.toFixed(2))
         }
         console.warn(`${LOG_PREFIX} transaction batch stopped (item failed)`, {
@@ -1445,13 +1366,11 @@ export async function handleGmagTransaction(body: GmagTransactionBody): Promise<
     const referralBonus = Number(wallet.referralBonus ?? 0)
     const exposure = Number(wallet.exposure ?? 0)
     const balance =
-      session.walletType === 'referralBonus'
+      reportWalletType === 'referralBonus'
         ? referralBonus
-        : session.walletType === 'bonus'
+        : reportWalletType === 'bonus'
           ? bonus
-          : isTxCreditPlayer
-            ? (await getCasinoCreditBalance(txAny, session.userId, session.tenant)).creditAvailable
-            : cash - exposure
+          : cash - exposure
     const finalPayload = {
       playerId: body.playerId,
       playerSessionId: body.playerSessionId,
@@ -1487,9 +1406,8 @@ export async function handleGmagPayUp(body: GmagPayUpBody): Promise<GmagCallback
     const tenant = userRow.tenant
     const currency = await getWhitelabelCurrency(tenant)
 
-    // REPLAY GUARD. payUp had none: the cash path credits the wallet unconditionally and the
-    // credit path only mutates balance columns, leaving nothing that references this transId —
-    // so a redelivery (routine for this provider; CS-22135 shows 36 retries of one call) paid
+    // REPLAY GUARD. payUp had none: the wallet credit leaves nothing that references this
+    // transId — so a redelivery (routine for this provider; CS-22135 shows 36 retries of one call) paid
     // the player again. Settlement callbacks dedupe on casino_bets.result_transaction_id;
     // payUp has no bet, hence the dedicated receipt.
     //
@@ -1511,14 +1429,8 @@ export async function handleGmagPayUp(body: GmagPayUpBody): Promise<GmagCallback
     if (claimed.length === 0) {
       // Already applied. Acknowledge with the CURRENT balance and credit nothing — returning an
       // error here would make the provider retry forever against a payment we already made.
-      const payUpPlayerTypeDup = (userRow as { playerType?: string }).playerType
-      const isDupCreditPlayer = payUpPlayerTypeDup === 'AGENT_CREDIT' || payUpPlayerTypeDup === 'WHITELABEL_CREDIT'
-      const dupBalance = isDupCreditPlayer
-        ? (await getCasinoCreditBalance(txAny, userId, tenant)).creditAvailable
-        : await (async () => {
-            const w = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
-            return Number(w.cash ?? 0) - Number(w.exposure ?? 0)
-          })()
+      const dupWallet = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
+      const dupBalance = Number(dupWallet.cash ?? 0) - Number(dupWallet.exposure ?? 0)
       console.warn(`${LOG_PREFIX} payUp replay ignored (already credited)`, {
         userId,
         transId: body.transId,
@@ -1531,24 +1443,15 @@ export async function handleGmagPayUp(body: GmagPayUpBody): Promise<GmagCallback
       })
     }
 
-    // A payUp (manual jackpot) has NO exposure to release — it is a pure positive
-    // settlement credit. Credit players book it into settlement_balance_casino via
-    // creditCasinoSettlement and report available credit; cash players are unchanged.
-    const payUpPlayerType = (userRow as { playerType?: string }).playerType
-    const isPayUpCreditPlayer = payUpPlayerType === 'AGENT_CREDIT' || payUpPlayerType === 'WHITELABEL_CREDIT'
-    let balance: number
-    if (isPayUpCreditPlayer) {
-      await creditCasinoSettlement(txAny, { userId, tenant, amount })
-      balance = (await getCasinoCreditBalance(txAny, userId, tenant)).creditAvailable
-    } else {
-      await creditWalletForCasino(txAny, userId, tenant, amount, 'cash', {
-        type: 'casino_payup',
-        transactionId: body.transId,
-        roundId: '',
-      })
-      const wallet = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
-      balance = Number(wallet.cash ?? 0) - Number(wallet.exposure ?? 0)
-    }
+    // A payUp (manual jackpot) is a pure positive credit with no bet behind it. It lands in
+    // cash for every player: a credit player's chips are cash too.
+    await creditWalletForCasino(txAny, userId, tenant, amount, 'cash', {
+      type: 'casino_payup',
+      transactionId: body.transId,
+      roundId: '',
+    })
+    const wallet = await ensureWalletWithExecutor(txAny, userId, tenant, currency)
+    const balance = Number(wallet.cash ?? 0) - Number(wallet.exposure ?? 0)
     const payUpPayload = {
       playerId: body.playerId,
       currency: body.currency ?? currency,

@@ -600,3 +600,18 @@ test('AuthProvider retains referral metadata across the two registration endpoin
   assert.equal(JSON.stringify(registerUser.calls[1]), '[{"username":"fixture-player","phone":"+919876543210","password":"fixture-pass1","confirmPassword":"fixture-pass1","affiliateCode":"url-fixture","otp":"1234"}]');
   assert.deepEqual(loginWithPassword.calls[0], ['+919876543210', 'fixture-pass1']);
 });
+
+test('signedInAt is set by a sign-in made on this page, not by a restored session', async () => {
+  localStorage.setItem('token', 'saved-token');
+  const view = authProviderHarness({
+    getMe: spy(async () => ({ id: 'p1', name: 'Restored' })),
+    loginWithPassword: spy(async () => ({ token: 'fresh-token', user: { id: 'p1', name: 'Fresh' } })),
+  });
+  await waitFor(() => assert.equal(view.auth.isHydrating, false));
+  assert.equal(view.auth.isAuthenticated, true);
+  assert.equal(view.auth.signedInAt, null, 'a restored session is not a sign-in');
+  const before = Date.now();
+  await act(async () => { await view.auth.login('player', 'secret'); });
+  assert.equal(typeof view.auth.signedInAt, 'number');
+  assert.ok(view.auth.signedInAt >= before);
+});

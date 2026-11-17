@@ -13,6 +13,9 @@ import { getEffectiveTenantForDirector, shouldSkipTenantFiltering } from '@src/d
 import { requireReadPermission } from '@src/domains/common/auth.js'
 import { runningMatkaTenant, listRunningMatkaMarkets, listRunningMatkaBets } from '../services/runningMarkets.js'
 
+/** matkas.id is a uuid. Any other id (the audit trail's '*' or 'bulk', a typo in the URL) names no matka. */
+const MATKA_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export const matkaQueryResolvers = {
   matkaRunningMarkets: (_: any, args: any, ctx: any) => listRunningMatkaMarkets(runningMatkaTenant(ctx), args.filters),
   matkaRunningBets: (_: any, args: any, ctx: any) => listRunningMatkaBets(runningMatkaTenant(ctx), args.filters),
@@ -110,6 +113,9 @@ export const matkaQueryResolvers = {
     const skipFiltering = shouldSkipTenantFiltering(ctx)
     const tenant = skipFiltering ? undefined : (getEffectiveTenantForDirector(ctx) ?? ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
     if (!hasPermission(ctx?.permissions ?? [], 'matka.management', 'view')) throw new Error('Forbidden')
+    // Not found, as for a uuid of no matka: Postgres refuses a malformed uuid, which reached the Matka Details
+    // page as INTERNAL_SERVER_ERROR ("Failed to load").
+    if (typeof args.id !== 'string' || !MATKA_ID.test(args.id)) return null
     const m = await getMatkaDb(args.id, tenant)
     if (!m) return null
     return {
@@ -126,7 +132,10 @@ export const matkaQueryResolvers = {
     const tenant = skipFiltering ? undefined : (getEffectiveTenantForDirector(ctx) ?? ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
     if (!hasPermission(ctx?.permissions ?? [], 'matka.management', 'view')) throw new Error('Forbidden')
     const { getMatkasByIdsDb } = await import('@/repos/matka/matkaRepo.js')
-    const matkaIds = args.matkaIds.map(id => String(id))
+    // Only uuids reach the read: Postgres refuses a malformed one in the uuid column, which failed the whole list the
+    // way matka(id) failed. Any other id names no matka, so it is left out, like an id of no matka.
+    const matkaIds = (Array.isArray(args.matkaIds) ? args.matkaIds : []).map(id => String(id)).filter(id => MATKA_ID.test(id))
+    if (!matkaIds.length) return []
     const rows = await getMatkasByIdsDb(matkaIds, tenant)
     return rows.map((m: any) => ({
       ...m,
@@ -220,13 +229,22 @@ export const matkaQueryResolvers = {
     }
 
     const bets = await getMatkaBets(filter as any)
-    
+
+    // Each bet's player as the bets page names one (name, else username): one read for the whole page, in the bets' own
+    // tenant. userName was never filled, so the /matka/live player views listed every player as "User #<id>"; a player
+    // not found there keeps userName null, and the views fall back to "User #<id>".
+    const userIds = [...new Set(bets.map((bet: any) => Number(bet.userId)).filter((id: number) => Number.isSafeInteger(id) && id > 0))]
+    const { getUsersByIdsBasicDb } = await import('@src/repos/users/usersRepo.js')
+    const players = userIds.length ? await getUsersByIdsBasicDb(userIds, tenant) : []
+    const userNames = new Map(players.map((player) => [player.id, player.name || player.username || null]))
+
     // Format the response
     return bets.map((bet: any) => ({
       id: bet.id,
       tenant: bet.tenant,
       whitelabelId: bet.whitelabelId,
       userId: bet.userId,
+      userName: userNames.get(Number(bet.userId)) ?? null,
       matkaId: bet.matkaId,
       matkaName: bet.matkaName ?? null,
       matkaType: bet.matkaType,
@@ -268,17 +286,17 @@ export const matkaQueryResolvers = {
     const page = await listMatkaResults(filters)
     
     // Get pending bets count and user names for each result
-    const { countPendingBetsForMatkaDate } = await import('@src/repos/matka/matkaBetsRepo.js')
+    const { countOpenMatkaBets } = await import('@src/domains/matka/services/runningMarkets.js')
     const { getUserDb } = await import('@src/repos/users/usersRepo.js')
-    
+
     const itemsWithBets = await Promise.all(
       page.items.map(async (item: any) => {
-        // Count pending bets for this matka/date/type combination
-        const pendingBets = await countPendingBetsForMatkaDate(
+        // The open bets this result session still has to settle (a rolled-back result re-opens its bets)
+        const pendingBets = await countOpenMatkaBets(
+          tenant,
           item.matkaId,
-          item.date,
+          String(item.date),
           item.type === 'open' ? 'open' : 'close',
-          tenant
         )
         
         // Resolve user names

@@ -6,6 +6,7 @@ import { getEndOfDayForDate, parseDateFrom, parseDateTo } from '@src/shared/date
 import { sportsMarketsTable, sportsRunnersTable, sportsLeaguesTable, sportsEventsTable, sportsTable } from '@shared/db/schema.js'
 import { users, wallets, ledgerEntries } from '@shared/db/schema.js'
 import { currencyService } from '@src/services/currencyService.js'
+import { inAgentPlayers } from '@src/repos/reporting/agentPlayerScope.js'
 
 export type CreateSportsBetInput = {
   tenant: string
@@ -607,7 +608,8 @@ export async function getBetsForSettlement(
  * - NO cash change (nothing to refund)
  * - Logs audit ledger entry (amount 0)
  * - Recalculates wallet exposure from remaining open bets
- * - Releases credit for AGENT_CREDIT / WHITELABEL_CREDIT players
+ * Every player type, credit players included: their chips sit in wallets.cash and their
+ * liability in wallets.exposure, so the exposure recalculation is the whole release.
  */
 export async function cancelBet(
   betId: string,
@@ -635,7 +637,7 @@ export async function cancelBet(
 
     // Transition-guarded status flip: only flip if still open (matched/unmatched).
     // RETURNING the row guarantees a single winner under concurrency — a second
-    // concurrent cancel/void finds no open row and skips credit release (no double-release).
+    // concurrent cancel/void finds no open row and writes nothing.
     const [transitioned] = await tx
       .update(sportsBets)
       .set({
@@ -653,7 +655,7 @@ export async function cancelBet(
       )
       .returning();
 
-    // Lost the race (already cancelled/voided/settled by another tx): no-op, no release.
+    // Lost the race (already cancelled/voided/settled by another tx): no-op.
     if (!transitioned) {
       return;
     }
@@ -694,35 +696,6 @@ export async function cancelBet(
       } as any,
     });
 
-    // Release credit for credit players INSIDE the same tx so the status flip and
-    // credit release commit/rollback atomically (no separate self-tx, no double-release).
-    const [player] = await tx
-      .select({ playerType: users.playerType, agentId: users.agentId })
-      .from(users)
-      .where(eq(users.id, bet.userId))
-      .limit(1);
-
-    if (player && (player.playerType === 'AGENT_CREDIT' || player.playerType === 'WHITELABEL_CREDIT')) {
-      const betAmount = bet.side === 'back' ? Number(bet.stake || 0) : Number(bet.liability || 0);
-      const { BetCreditValidationService } = await import('@src/domains/agents/services/BetCreditValidationService.js');
-      const { AgentsRepo } = await import('@src/repos/agents/AgentsRepo.js');
-      const { AgentPlayerCreditsRepo } = await import('@src/repos/agents/AgentPlayerCreditsRepo.js');
-      const agentsRepo = new AgentsRepo();
-      const playerCreditsRepo = new AgentPlayerCreditsRepo();
-      const betCreditService = new BetCreditValidationService(agentsRepo, playerCreditsRepo);
-
-      await betCreditService.releaseCreditForBet(
-        bet.userId,
-        betAmount,
-        'void',
-        0,
-        tenant,
-        bet.id,
-        'sports',
-        tx
-      );
-    }
-
     // Recalculate exposure from remaining open bets (this bet now excluded)
     try {
       const { recalculateUserExposure } = await import('@src/services/sports/sportsSettlementService.js');
@@ -739,7 +712,7 @@ export async function cancelBet(
  * - NO cash change (nothing to refund)
  * - Logs audit ledger entry (amount 0)
  * - Recalculates wallet exposure from remaining open bets
- * - Releases credit for AGENT_CREDIT / WHITELABEL_CREDIT players
+ * Every player type, credit players included (see cancelBet).
  */
 export async function voidBetWithRefund(betId: string, _reason: string, tenant: string): Promise<void> {
   await db.transaction(async (tx) => {
@@ -763,7 +736,7 @@ export async function voidBetWithRefund(betId: string, _reason: string, tenant: 
 
     // Transition-guarded status flip: only flip if still open (matched/unmatched).
     // RETURNING guarantees a single winner under concurrency — a second concurrent
-    // void/cancel finds no open row and skips credit release (no double-release).
+    // void/cancel finds no open row and writes nothing.
     const [transitioned] = await tx
       .update(sportsBets)
       .set({
@@ -781,7 +754,7 @@ export async function voidBetWithRefund(betId: string, _reason: string, tenant: 
       )
       .returning()
 
-    // Lost the race (already voided/cancelled/settled by another tx): no-op, no release.
+    // Lost the race (already voided/cancelled/settled by another tx): no-op.
     if (!transitioned) {
       return
     }
@@ -816,34 +789,6 @@ export async function voidBetWithRefund(betId: string, _reason: string, tenant: 
       } as any,
     })
 
-    // Release credit for credit players INSIDE the same tx so the status flip and
-    // credit release commit/rollback atomically (no separate self-tx, no double-release).
-    const [player] = await tx
-      .select({ playerType: users.playerType, agentId: users.agentId })
-      .from(users)
-      .where(eq(users.id, bet.userId))
-      .limit(1)
-
-    if (player && (player.playerType === 'AGENT_CREDIT' || player.playerType === 'WHITELABEL_CREDIT')) {
-      const { BetCreditValidationService } = await import('@src/domains/agents/services/BetCreditValidationService.js')
-      const { AgentsRepo } = await import('@src/repos/agents/AgentsRepo.js')
-      const { AgentPlayerCreditsRepo } = await import('@src/repos/agents/AgentPlayerCreditsRepo.js')
-      const agentsRepo = new AgentsRepo()
-      const playerCreditsRepo = new AgentPlayerCreditsRepo()
-      const betCreditService = new BetCreditValidationService(agentsRepo, playerCreditsRepo)
-      const heldAmount = bet.side === 'back' ? Number(bet.stake || 0) : Number(bet.liability || 0)
-      await betCreditService.releaseCreditForBet(
-        bet.userId,
-        heldAmount,
-        'void',
-        0,
-        betTenant,
-        betId,
-        'sports',
-        tx
-      )
-    }
-
     // Recalculate exposure from remaining open bets (this bet now excluded)
     try {
       const { recalculateUserExposure } = await import('@src/services/sports/sportsSettlementService.js')
@@ -855,10 +800,25 @@ export async function voidBetWithRefund(betId: string, _reason: string, tenant: 
 }
 
 /**
+ * Whose open bets the declare-result pickers read: one whitelabel, and for an agent only its own players
+ * (subtree + referral, agentPlayerScope). Absent, every whitelabel's: the platform's global declaration.
+ */
+export type OpenBetsScope = { tenant: string; whitelabelId: string; agentId?: string }
+
+function openBetsScopeConditions(scope: OpenBetsScope | undefined) {
+  if (!scope) return []
+  return [
+    eq(sportsBets.tenant, scope.tenant),
+    eq(sportsBets.whitelabelId, scope.whitelabelId),
+    scope.agentId ? inAgentPlayers(sportsBets.userId, scope.agentId, scope.tenant) : undefined,
+  ]
+}
+
+/**
  * Leagues that have at least one open bet (matched/unmatched) for the given sport.
  * Used by declare-result flow to show only leagues with open bets.
  */
-export async function getLeaguesWithOpenBets(sportId: string): Promise<
+export async function getLeaguesWithOpenBets(sportId: string, scope?: OpenBetsScope): Promise<
   Array<{ id: string; name: string; sportId: string; sort: number; status: string | null; updatedAt: Date | null }>
 > {
   const leagueIds = await db
@@ -867,7 +827,8 @@ export async function getLeaguesWithOpenBets(sportId: string): Promise<
     .where(
       and(
         eq(sportsBets.sportId, sportId),
-        inArray(sportsBets.status, [...OPEN_BET_STATUSES])
+        inArray(sportsBets.status, [...OPEN_BET_STATUSES]),
+        ...openBetsScopeConditions(scope),
       )
     )
   const ids = leagueIds.map((r) => r.leagueId)
@@ -898,7 +859,7 @@ export async function getLeaguesWithOpenBets(sportId: string): Promise<
  * Events that have at least one open bet for the given league.
  * Used by declare-result flow to show only events with open bets.
  */
-export async function getEventsWithOpenBets(leagueId: string): Promise<
+export async function getEventsWithOpenBets(leagueId: string, scope?: OpenBetsScope): Promise<
   Array<{ id: string; name: string; leagueId: string; startTime: Date | null; status: string | null; updatedAt: Date | null }>
 > {
   const eventIds = await db
@@ -907,7 +868,8 @@ export async function getEventsWithOpenBets(leagueId: string): Promise<
     .where(
       and(
         eq(sportsBets.leagueId, leagueId),
-        inArray(sportsBets.status, [...OPEN_BET_STATUSES])
+        inArray(sportsBets.status, [...OPEN_BET_STATUSES]),
+        ...openBetsScopeConditions(scope),
       )
     )
   const ids = eventIds.map((r) => r.eventId)
@@ -938,7 +900,7 @@ export async function getEventsWithOpenBets(leagueId: string): Promise<
  * Markets that have at least one open bet for the given event.
  * Used by declare-result flow to show only markets with open bets.
  */
-export async function getMarketsWithOpenBets(eventId: string): Promise<
+export async function getMarketsWithOpenBets(eventId: string, scope?: OpenBetsScope): Promise<
   Array<{ id: string; name: string; eventId: string; type: string; status: string | null; updatedAt: Date | null }>
 > {
   const marketIds = await db
@@ -947,7 +909,8 @@ export async function getMarketsWithOpenBets(eventId: string): Promise<
     .where(
       and(
         eq(sportsBets.eventId, eventId),
-        inArray(sportsBets.status, [...OPEN_BET_STATUSES])
+        inArray(sportsBets.status, [...OPEN_BET_STATUSES]),
+        ...openBetsScopeConditions(scope),
       )
     )
   const ids = marketIds.map((r) => r.marketId)

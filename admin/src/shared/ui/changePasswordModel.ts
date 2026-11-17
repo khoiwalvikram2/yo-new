@@ -140,6 +140,10 @@ export function passwordChangedMessage(message: string | null | undefined): stri
   return message || 'Your password has been updated successfully'
 }
 
+/** After an admin's own change: changeAdminPassword moves users.token_version on, which ends every session of
+ *  that admin, the one that made the change included, so the panel signs out and says what comes next. */
+export const ADMIN_PASSWORD_CHANGED_MESSAGE = 'Sign in with your new password.'
+
 /** The first GraphQL error's message, the only failure the legacy dialog reported; anything else
  *  (a network failure, an error without GraphQL errors) stayed silent. */
 export function graphQLErrorMessage(error: unknown): string | null {

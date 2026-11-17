@@ -32,7 +32,7 @@ export interface VIPMemberStats {
 
 export interface VIPDepositPolicy {
   enabled: boolean
-  methods: Array<'BANK_TRANSFER' | 'UPI' | 'GATEWAY'>
+  methods: Array<'BANK_TRANSFER' | 'UPI' | 'GATEWAY' | 'CRYPTO'>
   min: number | null
   max: number | null
   daily: number | null

@@ -6,6 +6,8 @@ import {
   PNL_PAGE_SIZE_OPTIONS,
   calculatePnlMetrics,
   calculateTotalPnl,
+  commissionPnlRows,
+  commissionTotal,
   filterPnlRows,
   formatPnlChange,
   formatPnlSearchDate,
@@ -16,9 +18,12 @@ import {
   paginatePnlRows,
   pnlActiveFilterCount,
   pnlCopy,
+  pnlDailyTotals,
+  pnlDomainRows,
   pnlDomainTone,
   pnlExportColumns,
   pnlExportTitle,
+  pnlKpiSkips,
   pnlRangeDays,
   pnlRefusedTotalsText,
   pnlStatusLabel,
@@ -157,20 +162,21 @@ describe('filterPnlRows', () => {
     assert.notEqual(result, rows)
   })
 
-  test('a domain keeps its own rows and the server All rows, in any case', () => {
+  test('a domain keeps its own rows only, in any case (an All row is no domain’s: F-REP-07)', () => {
     const mixed = [...rows, row('2026-01-05T10:00:00.000Z', 'SPORTS', 1), row('2026-01-06T10:00:00.000Z', 'all', 2)]
     assert.deepStrictEqual(
       filterPnlRows(mixed, { ...options, domain: 'sports', search: '' }).map((r) => r.dimension),
-      ['all', 'SPORTS', 'All', 'Sports'],
+      ['SPORTS', 'Sports'],
     )
     assert.deepStrictEqual(
       filterPnlRows(rows, { ...options, domain: 'casino', search: '' }).map((r) => r.dimension),
-      ['All', 'Casino'],
+      ['Casino'],
     )
     assert.deepStrictEqual(
       filterPnlRows(rows, { ...options, domain: 'matka', search: '' }).map((r) => r.dimension),
-      ['All', 'Matka'],
+      ['Matka'],
     )
+    assert.deepStrictEqual(pnlDomainRows(rows, 'all'), rows)
   })
 
   test('searches the domain, the local day and the converted amount; spaces alone do not search', () => {
@@ -259,6 +265,37 @@ describe('figures', () => {
     })
   })
 
+  test('the cards read the tab’s days: a day’s domain rows add up, oldest first (F-REP-17)', () => {
+    const days = pnlDailyTotals([
+      row('2026-01-02T00:00:00.000Z', 'sports', 100),
+      row('2026-01-01T00:00:00.000Z', 'matka', -30),
+      row('2026-01-02T00:00:00.000Z', 'casino', -40),
+      row('2026-01-01T00:00:00.000Z', 'sports', 10),
+    ])
+    assert.deepStrictEqual(days, [
+      row('2026-01-01T00:00:00.000Z', 'All', -20),
+      row('2026-01-02T00:00:00.000Z', 'All', 60),
+    ])
+    assert.deepStrictEqual(calculatePnlMetrics(days), {
+      avgPnl: 20,
+      maxPnl: 60,
+      pnlChange: 400,
+      positiveDays: 1,
+      negativeDays: 1,
+      winRate: 50,
+    })
+    // one domain's days keep their label
+    assert.deepStrictEqual(pnlDailyTotals([row('2026-01-01T00:00:00.000Z', 'sports', 5)]), [row('2026-01-01T00:00:00.000Z', 'sports', 5)])
+  })
+
+  test('a COMMISSION agent’s rows are its posted commission days, the total their sum (F-REP-13)', () => {
+    const days = [{ date: '2026-01-02', commission: 40 }, { date: '2026-01-03', commission: 0 }, { date: 'bad', commission: 9 }]
+    assert.deepStrictEqual(commissionPnlRows(days, 'all'), [row('2026-01-02T00:00:00.000Z', 'All', 40)])
+    assert.deepStrictEqual(commissionPnlRows(days, 'casino'), [row('2026-01-02T00:00:00.000Z', 'casino', 40)])
+    assert.deepStrictEqual(commissionPnlRows(null, 'all'), [])
+    assert.equal(commissionTotal([row('a', 'All', 40), row('b', 'All', 60)], double), 200)
+  })
+
   test('keeps the legacy change rules for one row and a zero first row', () => {
     assert.equal(calculatePnlMetrics([row('d', 'x', 40)]).pnlChange, 0)
     assert.equal(calculatePnlMetrics([row('d', 'x', 0), row('d', 'x', 5)]).pnlChange, 100)
@@ -315,6 +352,23 @@ describe('totals that did not load', () => {
       pnlTotalsIssues('all', { sports: undefined, casino: null, matka: undefined }),
       { refused: [], failed: [] },
     )
+  })
+
+  test('an agent asks only for its allowed domains\' totals, and a COMMISSION agent for none (SCO-07)', () => {
+    const none = { sports: false, casino: false, matka: false }
+    // an admin asks for all three, whatever list it is handed
+    assert.deepStrictEqual(pnlKpiSkips(false, false, ['casino']), none)
+    assert.deepStrictEqual(pnlKpiSkips(false, false, []), none)
+    // SHARING / CREDIT agents: a domain the agent lacks is never asked for
+    assert.deepStrictEqual(pnlKpiSkips(false, true, ['sports', 'casino', 'matka']), none)
+    assert.deepStrictEqual(pnlKpiSkips(false, true, ['sports', 'matka']), { sports: false, casino: true, matka: false })
+    assert.deepStrictEqual(pnlKpiSkips(false, true, ['casino']), { sports: true, casino: false, matka: true })
+    assert.deepStrictEqual(pnlKpiSkips(false, true, []), { sports: true, casino: true, matka: true })
+    // no list reads as every domain, as the tabs do
+    assert.deepStrictEqual(pnlKpiSkips(false, true, undefined), none)
+    assert.deepStrictEqual(pnlKpiSkips(false, true, null), none)
+    // a COMMISSION agent reads its posted commission instead
+    assert.deepStrictEqual(pnlKpiSkips(true, true, ['sports', 'casino', 'matka']), { sports: true, casino: true, matka: true })
   })
 
   test('the refusal sentence names the reports and the persona total', () => {

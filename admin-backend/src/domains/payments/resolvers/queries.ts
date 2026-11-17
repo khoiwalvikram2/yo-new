@@ -1,11 +1,16 @@
 import { hasPermission } from '@/domains/common/auth.js'
-import { listWithdrawalRequests, getPayoutAccount, getUserBasic, getWithdrawalHistory, getWithdrawalRequestById } from '@/repos/payments/withdrawalRequestsRepo.js'
+import { listWithdrawalRequests, getPayoutAccount, getUserBasic, getWithdrawalHistory, getWithdrawalRequestById, isRequestId } from '@/repos/payments/withdrawalRequestsRepo.js'
 import { listPayoutAccounts as listPayoutAccountsAdmin } from '@/repos/payments/payoutAccountsRepo.js'
 import { listAuditDb } from '@/repos/audit/auditRepo.js'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { parseDateFrom, parseDateTo } from '@src/shared/dateUtils.js'
 import { getWhitelabelTimezone } from '@src/shared/whitelabelConfig.js'
 import { pgSettingsQueryResolvers } from './pgSettings.js'
+import { paymentWhitelabelSelectionRequired, resolvePaymentTenant } from '../paymentTenant.js'
+import { db } from '@/db/client.js'
+import { welivepayPayouts, whitelabelPgSettings } from '@shared/db/schema.js'
+import { and, eq, inArray } from 'drizzle-orm'
+import { payoutView } from '@shared/services/welivepay/welivepayPayoutService.js'
 
 /** List / history / payout accounts: any withdrawal-scoped action is enough (approve-only roles can work the queue). */
 function canAccessWithdrawalAdminData(perms: { domain: string; actions: string[] }[] | undefined): boolean {
@@ -50,6 +55,15 @@ export const paymentsQueryResolvers = {
     const tenant = getEffectiveTenantForDirector(ctx) ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
     return readPayoutAccountStats(tenant)
   },
+  /** Whether the withdrawal drawer may offer "Pay via WeLivePay" for the payment whitelabel in scope. */
+  withdrawalGatewayConfig: async (_: unknown, __: unknown, ctx: any) => {
+    if (!canAccessWithdrawalAdminData(ctx?.permissions)) throw new Error('Forbidden')
+    if (paymentWhitelabelSelectionRequired(ctx)) return { tenant: null, payoutEnabled: false }
+    const tenant = resolvePaymentTenant(ctx)
+    const [settings] = await db.select({ enabled: whitelabelPgSettings.payoutEnabled, key: whitelabelPgSettings.secretSiteKeyEncrypted })
+      .from(whitelabelPgSettings).where(eq(whitelabelPgSettings.tenant, tenant)).limit(1)
+    return { tenant, payoutEnabled: Boolean(settings?.enabled && settings.key) }
+  },
   ...pgSettingsQueryResolvers,
   adminWithdrawalRequests: async (_: any, args: any, ctx: any) => {
     // CRITICAL: For Director Admin, use effective tenant based on mode
@@ -60,9 +74,11 @@ export const paymentsQueryResolvers = {
     const input = args.input || {}
     const tz = await getWhitelabelTimezone(tenant)
     const filter = {
+      id: input.id != null ? Number(input.id) : undefined,
       status: input.status,
       userId: input.userId ? Number(input.userId) : undefined,
       accountId: input.accountId ? Number(input.accountId) : undefined,
+      query: typeof input.query === 'string' ? input.query : undefined,
       fromDate: input.fromDate ? parseDateFrom(input.fromDate, tz) : undefined,
       toDate: input.toDate ? parseDateTo(input.toDate, tz) : undefined,
     }
@@ -71,18 +87,24 @@ export const paymentsQueryResolvers = {
       limit: input.limit ?? 100,
     })
 
-    const [people, accounts] = await Promise.all([
+    const [people, accounts, gatewayPayouts] = await Promise.all([
       getUsersByIdsForExclusion([...new Set(items.map(item => item.userId))], tenant).catch(() => []),
       getPayoutAccountsByIds([...new Set(items.flatMap(item => item.payoutAccountId ? [item.payoutAccountId] : []))], tenant),
+      items.length
+        ? db.select().from(welivepayPayouts).where(and(eq(welivepayPayouts.tenant, tenant), inArray(welivepayPayouts.withdrawalRequestId, items.map(item => item.id))))
+        : Promise.resolve([]),
     ])
     const peopleById = new Map(people.map(person => [person.id, person]))
     const accountsById = new Map(accounts.map(account => [account.id, account]))
+    const payoutsByWithdrawal = new Map(gatewayPayouts.map(payout => [payout.withdrawalRequestId, payout]))
     const enriched = await Promise.all(
       items.map(async (item) => {
         const account = item.payoutAccountId ? (accountsById.get(item.payoutAccountId) ?? null) : null
         const user = peopleById.get(item.userId) ?? null
+        const gatewayPayout = payoutsByWithdrawal.get(item.id)
         return {
           id: String(item.id),
+          gatewayPayout: gatewayPayout ? payoutView(gatewayPayout) : null,
           userId: String(item.userId),
           amount: Number(item.amount ?? 0),
           currency: item.currency,
@@ -100,6 +122,8 @@ export const paymentsQueryResolvers = {
                 ifscCode: account.ifscCode,
                 bankName: account.bankName,
                 accountHolderName: account.accountHolderName,
+                // The withdrawal's own account is shown even when the player deleted it, marked by this.
+                deletedAt: account.deletedAt ? account.deletedAt.toISOString() : null,
               }
             : null,
           user: user
@@ -181,21 +205,32 @@ export const paymentsQueryResolvers = {
     }
     
     const withdrawalId = Number(args.id)
-    
-    // Fetch audit log entries for this withdrawal
+    if (!isRequestId(withdrawalId)) return []
+
+    // This request's own status changes, oldest first. The tenant's newest 100 changes used to be read
+    // and filtered here, so a request reviewed before them lost its history and showed one invented row,
+    // and the newest change was taken for the first. resource_id is shared by every resource type, so
+    // the domain, action and type filters stay.
     const auditEntries = await listAuditDb({
       domain: 'payments',
       action: 'withdrawal_status_update',
+      resourceType: 'withdrawal_request',
+      resourceId: String(withdrawalId),
       tenant,
+      sort: 'timestamp:asc',
       limit: 100,
     })
 
-    const filteredAudits = auditEntries.items.filter((e: any) => e.resourceType === 'withdrawal_request' && e.resourceId === String(withdrawalId))
-    
+    const filteredAudits = auditEntries.items
+
     // Get initial state from first audit entry's "before" status, or from base entry if no audits
     const base = await getWithdrawalRequestById(withdrawalId, tenant)
     let initialEntry: Array<{ status: string; reviewerId: string | null; reviewedAt: string | null; note: string | null }> = []
-    
+    // A player creates every request PENDING; with no audited "before", that creation is the first row.
+    const creationEntry = base
+      ? [{ status: 'PENDING', reviewerId: null, reviewedAt: base.createdAt.toISOString(), note: null }]
+      : []
+
     if (filteredAudits.length > 0) {
       // Use first audit entry's "before" status as initial state
       const firstAudit = filteredAudits[0]
@@ -207,21 +242,23 @@ export const paymentsQueryResolvers = {
           reviewedAt: beforeStatus.reviewedAt || (base?.createdAt ? base.createdAt.toISOString() : null),
           note: beforeStatus.note ?? null,
         }]
-      } else if (base) {
-        // Fallback to base entry if before status not available
-        initialEntry = [{
-          status: String(base.status || '').toUpperCase(),
-          reviewerId: base.reviewerId ? String(base.reviewerId) : null,
-          reviewedAt: base.createdAt ? base.createdAt.toISOString() : null,
-          note: base.note ?? null,
-        }]
+      } else {
+        initialEntry = creationEntry
       }
-    } else if (base) {
-      // No audit entries, use base entry
-      initialEntry = [{
-        status: String(base.status || '').toUpperCase(),
+    } else {
+      initialEntry = creationEntry
+    }
+
+    // A change made outside setWithdrawalStatus (a WeLivePay settlement, which writes no audit) is only on
+    // the row: when the row has moved past the last audited status, its own last review closes the history.
+    const lastAuditedStatus = filteredAudits.length
+      ? String((filteredAudits[filteredAudits.length - 1].after as any)?.status || '').toUpperCase()
+      : 'PENDING'
+    if (base && String(base.status).toUpperCase() !== lastAuditedStatus) {
+      initialEntry = [...initialEntry, {
+        status: String(base.status).toUpperCase(),
         reviewerId: base.reviewerId ? String(base.reviewerId) : null,
-        reviewedAt: base.createdAt ? base.createdAt.toISOString() : null,
+        reviewedAt: (base.reviewedAt ?? base.updatedAt).toISOString(),
         note: base.note ?? null,
       }]
     }

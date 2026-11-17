@@ -60,13 +60,9 @@ import {
   type PlayerActivityRow,
 } from './playerActivityReportModel';
 import {
-  ACTIVE_PLAYERS_QUERY,
-  CASINO_KPIS_QUERY,
   CASINO_PLAYER_BREAKDOWN_QUERY,
-  MATKA_KPIS_QUERY,
   MATKA_PLAYER_BREAKDOWN_QUERY,
   PLAYER_ACTIVITY_DEPOSIT_WITHDRAWAL_STATS_QUERY,
-  SPORTS_KPIS_QUERY,
   SPORTS_PLAYER_BREAKDOWN_QUERY,
   USERS_BY_IDS_QUERY,
 } from './playerActivityReportQueries';
@@ -146,22 +142,10 @@ function PlayerActivityReportPageContent() {
     }
   );
 
-  const { data: sportsKPIData, loading: sportsKPILoading, refetch: refetchSportsKPI } = useQuery(
-    SPORTS_KPIS_QUERY,
-    { variables: { filter: { dateFrom, dateTo } }, errorPolicy: 'all', fetchPolicy: 'network-only' }
-  );
-  const { data: casinoKPIData, loading: casinoKPILoading, refetch: refetchCasinoKPI } = useQuery(
-    CASINO_KPIS_QUERY,
-    { variables: { filter: { dateFrom, dateTo } }, errorPolicy: 'all', fetchPolicy: 'network-only' }
-  );
-  const { data: matkaKPIData, loading: matkaKPILoading, refetch: refetchMatkaKPI } = useQuery(
-    MATKA_KPIS_QUERY,
-    { variables: { filter: { dateFrom, dateTo } }, errorPolicy: 'all', fetchPolicy: 'network-only' }
-  );
-  const { data: activePlayersData, loading: activePlayersLoading, refetch: refetchActivePlayers } = useQuery(
-    ACTIVE_PLAYERS_QUERY,
-    { variables: { dateRange: { dateFrom, dateTo } }, errorPolicy: 'all', fetchPolicy: 'network-only' }
-  );
+  /* The cards describe the players listed (the tab's breakdowns, then the search), so they are summed
+     from those rows. The three domains' KPI documents and the dashboard's active-player count they
+     read summed every domain whatever the tab and divided by the listed players (Avg 124,833 bets per
+     player for one matka player: F-REP-16); they are no longer asked for. */
 
   // Extract player IDs from breakdown data (sports, casino, matka)
   const breakdownPlayerIds = useMemo(
@@ -227,7 +211,7 @@ function PlayerActivityReportPageContent() {
     [players, depositWithdrawalData],
   );
 
-  const isLoading = sportsLoading || casinoLoading || matkaLoading || usersLoading || depositWithdrawalLoading || sportsKPILoading || casinoKPILoading || matkaKPILoading || activePlayersLoading;
+  const isLoading = sportsLoading || casinoLoading || matkaLoading || usersLoading || depositWithdrawalLoading;
 
   // Filter players by search query
   const filteredPlayers = useMemo(
@@ -235,17 +219,7 @@ function PlayerActivityReportPageContent() {
     [playersWithDepositWithdrawal, searchQuery],
   );
 
-  const totals = useMemo(
-    () => playerActivityTotals(
-      {
-        sports: sportsKPIData?.sportsKPIs,
-        casino: casinoKPIData?.casinoKPIs,
-        matka: matkaKPIData?.matkaKPIs,
-      },
-      filteredPlayers.length,
-    ),
-    [sportsKPIData, casinoKPIData, matkaKPIData, filteredPlayers.length],
-  );
+  const totals = useMemo(() => playerActivityTotals(filteredPlayers), [filteredPlayers]);
 
   const money = (value: number) => formatAmount(convertFromWhitelabelCurrency(value));
   /* Money in (deposits) reads green and money out (withdrawals) red, as on the Nth D/W report; a zero
@@ -413,10 +387,6 @@ function PlayerActivityReportPageContent() {
     if (activeTab === 'sports' || activeTab === 'all') refetchSports();
     if (activeTab === 'casino' || activeTab === 'all') refetchCasino();
     if (activeTab === 'matka' || activeTab === 'all') refetchMatka();
-    refetchSportsKPI();
-    refetchCasinoKPI();
-    refetchMatkaKPI();
-    refetchActivePlayers();
     refetchUsers();
     refetchDepositWithdrawal();
   };
@@ -471,7 +441,7 @@ function PlayerActivityReportPageContent() {
           <div className={styles.stats} role="group" aria-label="Player activity statistics">
             <Stat
               label="Active Players"
-              value={activePlayersData?.overviewKPIs?.activePlayers ?? filteredPlayers.length}
+              value={totals.totalPlayers}
               note={`${paginatedPlayers.length} showing`}
               icon={<IconUsers size={18} stroke={strokeFor(18)} />}
               hue="blu"

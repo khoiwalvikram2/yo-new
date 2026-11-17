@@ -23,6 +23,8 @@ interface ServerCall {
   operationName: string
   variables: Record<string, unknown>
   document: string
+  /** What the app's global mutation toast reads from the operation context. */
+  skipNotification: unknown
 }
 
 interface StoredRule {
@@ -178,6 +180,7 @@ const serverLink = new ApolloLink((operation) => new Observable<FetchResult>((ob
     operationName: operation.operationName,
     variables: { ...operation.variables },
     document: print(operation.query).replace(/\s+/g, ' '),
+    skipNotification: operation.getContext().skipNotification,
   })
   Promise.resolve()
     .then(() => answer(operation))
@@ -359,6 +362,8 @@ describe('RulesManagementPage', () => {
     })
     assert.deepEqual(Object.keys(input), ['ruleType', 'payoutType', 'splitRatio', 'escrow', 'isActive', 'fixedAmounts'])
     assert.match(calls('UpsertReferralRule')[0].document, /mutation UpsertReferralRule\(\$input: ReferralRuleInput!\)/)
+    // The page toasts the outcome itself, so the global mutation toast stays quiet (MAR-06).
+    assert.equal(calls('UpsertReferralRule')[0].skipNotification, true)
 
     await waitFor(() => assert.ok(screen.queryByRole('dialog') === null))
     assert.deepEqual(feedback.toast.mock.calls[0][0], { message: 'Rule saved', tone: 'ok', duration: 3000 })

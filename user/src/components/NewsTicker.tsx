@@ -22,8 +22,8 @@ export default function NewsTicker() {
   </ul>
   const label = t('nova.news', { defaultValue: 'News' })
 
-  return <section className="nova-news-ticker" aria-label={label}>
-    <span className="nova-news-label" aria-hidden="true"><Megaphone />{label}</span>
+  return <section className="nova-news-ticker" aria-label={label} data-ui-radius="square">
+    <span className="nova-news-label" aria-hidden="true" data-ui-radius="square"><Megaphone />{label}</span>
     <div className="nova-news-viewport" tabIndex={0}>
       {/* eslint-disable-next-line no-restricted-syntax -- a CSS variable carrying the scroll duration (the rule's stated exception) */}
       <div className="nova-news-track" style={{ '--news-duration': `${seconds}s` } as CSSProperties}>

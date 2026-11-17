@@ -118,7 +118,8 @@ export const TopPlayersTable: React.FC<TopPlayersTableProps> = ({ sortBy = 'wage
 
     // Calculate derived metrics
     const result: PlayerStats[] = Array.from(playerMap.values()).map(stats => {
-      stats.exposure = Math.max(0, stats.wagered - stats.payouts)
+      // `payouts` here is the open bets' potential win: exposure is that less the stake, never below 0 (MAT-13).
+      stats.exposure = Math.max(0, stats.payouts - stats.wagered)
       stats.avgBet = stats.bets > 0 ? stats.wagered / stats.bets : 0
       stats.matkasPlayed = matkaSetMap.get(stats.userId)?.size || 0
       stats.marketsPlayed = marketSetMap.get(stats.userId)?.size || 0

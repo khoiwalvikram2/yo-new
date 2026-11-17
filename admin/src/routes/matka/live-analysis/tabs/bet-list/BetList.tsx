@@ -19,6 +19,8 @@ import dayjs from 'dayjs'
 import { useMatkaLiveStore } from '@/state/matkaLiveStore'
 import { useAuthStore } from '@/shared/core/authStore'
 import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
+import { usePaymentWhitelabelScope } from '@/routes/payments/usePaymentWhitelabelScope'
+import { SelectWhitelabelForBets } from '@/routes/bets/SelectWhitelabelForBets'
 
 const MATKA_BETS_QUERY = gql`
   query MatkaLiveBetsPage($filters: BetsPageFilters, $offset: Int, $limit: Int) {
@@ -28,6 +30,11 @@ const MATKA_BETS_QUERY = gql`
     betsFilterOptions(domain: MATKA, filters: $filters) { matkaNames marketNames bidTypes }
   }
 `
+
+/** With no status chosen the list shows the open bets. Placement stores them as active (and a rollback
+ *  re-opens them as active), so a pending-only default listed nothing. */
+const OPEN_BET_STATUSES = ['pending', 'active']
+const OPEN_BETS_LABEL = 'Open (pending + active)'
 
 
 export const BetList: React.FC = () => {
@@ -53,13 +60,15 @@ export const BetList: React.FC = () => {
   const client = useApolloClient()
   const queryVariables = useMemo(() => {
     const [min, max] = (betAmountRange || '').replace('+','').split('-').map(Number)
-    return { filters: { status: [statusFilter || 'pending'], search: searchQuery.trim() || undefined,
+    return { filters: { status: statusFilter ? [statusFilter] : OPEN_BET_STATUSES, search: searchQuery.trim() || undefined,
       matkaName: matkaFilter, marketName: marketFilter, bidType: bidTypeFilter,
       stakeMin: betAmountRange && Number.isFinite(min) ? min : undefined,
       stakeMax: betAmountRange?.includes('-') && Number.isFinite(max) ? max : undefined,
     }, offset: (currentPage-1)*pageSize, limit: pageSize }
   }, [statusFilter, searchQuery, matkaFilter, marketFilter, bidTypeFilter, betAmountRange, currentPage, pageSize])
-  const { data, loading, error, refetch } = useQuery<{ betsPage: {items: MatkaBet[]; total: number}; betsFilterOptions: {matkaNames: string[]; marketNames: string[]; bidTypes: string[]} }>(MATKA_BETS_QUERY, { variables: queryVariables, pollInterval: 5000, fetchPolicy: 'network-only', notifyOnNetworkStatusChange: true })
+  // Bets belong to one whitelabel: with none selected (a Super Admin in core mode) nothing is queried or polled.
+  const { selectionRequired } = usePaymentWhitelabelScope()
+  const { data, loading, error, refetch } = useQuery<{ betsPage: {items: MatkaBet[]; total: number}; betsFilterOptions: {matkaNames: string[]; marketNames: string[]; bidTypes: string[]} }>(MATKA_BETS_QUERY, { variables: queryVariables, skip: selectionRequired, pollInterval: selectionRequired ? 0 : 5000, fetchPolicy: 'network-only', notifyOnNetworkStatusChange: true })
   const paginatedBets = data?.betsPage?.items ?? []
   const total = data?.betsPage?.total ?? 0
   const uniqueMatkas = data?.betsFilterOptions?.matkaNames ?? []
@@ -146,11 +155,13 @@ export const BetList: React.FC = () => {
   // A loaded saved view stays selected, as it does when its filters are edited by hand.
   const clearFilters = () => { setSearchQuery(''); setStatusFilter(undefined); setMatkaFilter(undefined); setMarketFilter(undefined); setBidTypeFilter(undefined); setBetAmountRange(undefined); setTableStatus('') }
   const saveCurrentView = () => { const id = `betlist-${Date.now()}`; const name = `Bet List View ${savedViews.filter(view => view.view === 'betList').length + 1}`; saveView({ id, name, createdAt: new Date().toISOString(), view: 'betList', filters: { statusFilter, matkaFilter, marketFilter, bidTypeFilter, betAmountRange, searchQuery } }); setSelectedView(id) }
+  // No Export CSV either: its pages would read the platform's own tenant too.
+  if (selectionRequired) return <div className={styles.stack}><Card title="Live Bet List" sub="Search and page the complete matching Matka bet history"><SelectWhitelabelForBets /></Card></div>
   return <div className={styles.stack}><Card title="Live Bet List" sub="Search and page the complete matching Matka bet history" tools={<div className={styles.inline}><Button size="sm" onClick={saveCurrentView}>Save View</Button>{selectedView && <Button size="sm" variant="danger" onClick={() => { deleteView(selectedView); setSelectedView(undefined) }}>Delete View</Button>}<Button size="sm" onClick={() => void refetch()}>Refresh</Button><Button size="sm" loading={exporting} onClick={() => void handleExportCsv()}>Export CSV</Button></div>}>
     <div className={styles.stack}>
       <FilterBar label="Matka bet filters" activeCount={activeFiltersCount} onClearAll={clearFilters} search={<TextField label="Search Matka bets" hideLabel size="sm" value={searchQuery} onChange={setSearchQuery} clearable placeholder="Search by user, matka, bet numbers, or market..." />}>
         <Select label="Saved views" size="sm" value={selectedView || ''} onChange={loadView} options={[{ label: 'Select saved view', value: '' }, ...savedViews.filter(view => view.view === 'betList').map(view => ({ label: view.name, value: view.id }))]} />
-        <Select label="Status" size="sm" value={statusFilter || ''} onChange={value => setStatusFilter(value || undefined)} options={[{ label: 'Default: pending', value: '' }, ...['pending', 'active', 'won', 'lost', 'cancelled', 'void'].map(value => ({ label: value.charAt(0).toUpperCase() + value.slice(1), value }))]} />
+        <Select label="Status" size="sm" value={statusFilter || ''} onChange={value => setStatusFilter(value || undefined)} options={[{ label: OPEN_BETS_LABEL, value: '' }, ...['pending', 'active', 'won', 'lost', 'cancelled', 'void'].map(value => ({ label: value.charAt(0).toUpperCase() + value.slice(1), value }))]} />
         <Combobox label="Matka" size="sm" value={matkaFilter || null} onChange={value => setMatkaFilter(value || undefined)} clearable options={uniqueMatkas.map(value => ({ label: value, value }))} />
         <Select label="Market" size="sm" value={marketFilter || ''} onChange={value => setMarketFilter(value || undefined)} options={[{ label: 'All markets', value: '' }, ...uniqueMarkets.map(value => ({ label: value, value }))]} />
         <Select label="Bid Type" size="sm" value={bidTypeFilter || ''} onChange={value => setBidTypeFilter(value || undefined)} options={[{ label: 'All bid types', value: '' }, ...uniqueBidTypes.map(value => ({ label: value, value }))]} />
@@ -159,7 +170,7 @@ export const BetList: React.FC = () => {
         {advancedFiltersOpen && <>
           <TextField id="matka-bet-amount" label="Bet Amount Range" size="sm" value={betAmountRange || ''} onChange={value => setBetAmountRange(value || undefined)} placeholder="e.g., 100-500 or 1000+" />
           {/* The help line sits below the bar (a cell is one row high); it still describes this select. */}
-          <Select id="matka-bet-table-status" label="Table status" size="sm" value={tableStatus} onChange={setTableStatus} options={[{ label: 'Default: pending', value: '' }, ...['pending', 'active', 'won', 'lost', 'cancelled'].map(value => ({ label: value.charAt(0).toUpperCase() + value.slice(1), value }))]} aria-describedby="matka-bet-table-status-help" />
+          <Select id="matka-bet-table-status" label="Table status" size="sm" value={tableStatus} onChange={setTableStatus} options={[{ label: OPEN_BETS_LABEL, value: '' }, ...['pending', 'active', 'won', 'lost', 'cancelled'].map(value => ({ label: value.charAt(0).toUpperCase() + value.slice(1), value }))]} aria-describedby="matka-bet-table-status-help" />
         </>}
       </FilterBar>
       {advancedFiltersOpen && <p id="matka-bet-table-status-help" className={styles.muted}>Status applies to the complete list and CSV export.</p>}

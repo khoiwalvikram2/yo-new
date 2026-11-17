@@ -70,6 +70,8 @@ export default function RolesManagementPage() {
   const [deleteRole, { loading: deleting }] = useMutation<DeleteRoleResult, { id: string }>(
     DELETE_RBAC_ROLE_MUTATION,
     {
+      // The outcome is toasted below; the global notification link stays quiet (it toasted it twice).
+      context: { skipNotification: true },
       onCompleted: (data) => {
         if (data.deleteRBACRole?.success) {
           notify.success(data.deleteRBACRole.message || 'Role deleted successfully!')
@@ -191,6 +193,7 @@ export default function RolesManagementPage() {
 
       <RolesTable
         roles={paginatedRoles}
+        allRoles={filteredRoles}
         fetching={rolesLoading}
         onEdit={(role) => navigate(roleEditPath(role.id))}
         onView={setRoleToView}

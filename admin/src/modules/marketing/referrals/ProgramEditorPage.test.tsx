@@ -197,9 +197,11 @@ describe('ProgramEditorPage', () => {
     assert.deepEqual(query.options, { errorPolicy: 'all' })
     assert.equal(sourceOf(mutation.mutation), UPSERT_TEXT)
     assert.equal(print(mutation.mutation as DocumentNode), print(parse(UPSERT_TEXT)))
-    const options = mutation.options as { onCompleted?: unknown; onError?: unknown }
+    const options = mutation.options as { onCompleted?: unknown; onError?: unknown; context?: unknown }
     assert.equal(typeof options.onCompleted, 'function')
     assert.equal(typeof options.onError, 'function')
+    // The page toasts the outcome itself, so the global mutation toast stays quiet (MAR-06).
+    assert.deepEqual(options.context, { skipNotification: true })
   })
 
   test('the header, the attribution notice, the fields with their legacy help, and the stored values', async () => {

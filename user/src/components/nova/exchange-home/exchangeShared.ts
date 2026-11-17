@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { EventItem, SportType } from '@/types'
 import { generateEventId } from '@/lib/sportsHelpers'
+import { getSportsIconSlug, type SportsIconStyle } from '../../../../../shared/src/theme/sportsIcons'
 
 export const RACING: SportType[] = ['horseracing', 'greyhoundracing']
 /** Display order for sports everywhere (tabs, sections, quick leagues): cricket leads. */
@@ -43,7 +44,23 @@ export const eventUrl = (event: EventItem) => {
 
 const SPORT_ICON_FILES = import.meta.glob('../../../assets/images/*.png', { eager: true, import: 'default' }) as Record<string, string>
 const SPORT_ICON_NAMES: Partial<Record<SportType, string>> = { horseracing: 'horse-racing', greyhoundracing: 'greyhound-racing', hockey: 'ice-hockey' }
-export const sportIcon = (sport: string) => SPORT_ICON_FILES[`../../../assets/images/${SPORT_ICON_NAMES[sport as SportType] ?? sport}.png`]
+const STYLED_SPORT_ICON_FILES = import.meta.glob('../../../assets/images/{flat,3d}/*.png', { eager: true, import: 'default' }) as Record<string, string>
+/** The colourful icon's module key in the whitelabel's chosen set, or null (default set, Live, Politics, unknown sports). */
+export const styledSportIconKey = (sport: string, style: SportsIconStyle): string | null => {
+  if (style === 'default') return null
+  const slug = getSportsIconSlug(SPORT_ICON_NAMES[sport as SportType] ?? sport)
+  return slug ? `../../../assets/images/${style}/${slug}.png` : null
+}
+const styledSportIcon = (sport: string, style: SportsIconStyle) => {
+  const key = styledSportIconKey(sport, style)
+  return key ? STYLED_SPORT_ICON_FILES[key] : undefined
+}
+export const sportIcon = (sport: string, style: SportsIconStyle = 'default') =>
+  styledSportIcon(sport, style) ?? SPORT_ICON_FILES[`../../../assets/images/${SPORT_ICON_NAMES[sport as SportType] ?? sport}.png`]
+/** Colourful icons keep their own colours: this class turns off the tint filters the single-colour set uses. */
+export const COLORFUL_SPORT_ICON_CLASS = 'mb-sport-icon-colorful'
+export const sportIconClass = (sport: string, style: SportsIconStyle, base = ''): string | undefined =>
+  [base, styledSportIcon(sport, style) ? COLORFUL_SPORT_ICON_CLASS : ''].filter(Boolean).join(' ') || undefined
 export const rankSport = (sport: string) => {
   const index = BOARD_ORDER.indexOf(sport as SportType)
   return index < 0 ? BOARD_ORDER.length : index
@@ -55,6 +72,11 @@ export const waysFor = (sport: string): Ways => RACING.includes(sport as SportTy
 export function splitTeams(name: string): [string, string] {
   const parts = name.split(/\s+(?:v|vs\.?|versus)\s+|\s+-\s+/i)
   return parts.length === 2 ? [parts[0].trim(), parts[1].trim()] : [name, '']
+}
+
+/** A price a punter can take: a finite number above zero. Anything else is shown as a locked box. */
+export function hasPrice(price?: unknown): price is number {
+  return typeof price === 'number' && Number.isFinite(price) && price > 0
 }
 
 export function formatPrice(price?: number) {

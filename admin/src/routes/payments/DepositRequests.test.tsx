@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import {
   ADMIN_DEPOSIT_REQUESTS,
+  DEPOSIT_REQUEST_PROOF,
   DEPOSIT_REQUEST_UPDATED_SUBSCRIPTION,
 } from '@/lib/graphql/deposits'
 import DepositRequestsPage from './DepositRequests'
@@ -179,6 +180,15 @@ vi.mock('./components/DepositRequestsStatsCards', () => ({
   DepositRequestsStatsCards: () => <section aria-label="Deposit request statistics" />,
 }))
 
+// The drawer's proof reads its screenshot itself (components/DepositRequestsProof.test.tsx); here it names its request.
+const proofPreviews = vi.hoisted(() => [] as string[])
+vi.mock('./components/DepositRequestsProof', () => ({
+  DepositRequestsProofPreview: ({ requestId }: { requestId: string }) => {
+    proofPreviews.push(requestId)
+    return <div role="img" aria-label={`Payment proof of ${requestId}`} />
+  },
+}))
+
 vi.mock('./components/DepositRequestsFiltersBar', () => ({
   DepositRequestsFiltersBar: (props: FilterProps) => (
     <section aria-label="Mock deposit filters">
@@ -234,8 +244,8 @@ function makeRequest(overrides: Partial<DepositRequest> = {}): DepositRequest {
     method: 'UPI',
     utr: 'UTR-101',
     referenceId: 'REF-101',
-    proofKey: 'deposits/dep-1.png',
-    proofUrl: 'https://cdn.test/dep-1.png',
+    proofKey: 'inline',
+    hasProof: true,
     status: 'PENDING',
     reviewerId: null,
     reviewedAt: null,
@@ -255,18 +265,27 @@ function makeRequest(overrides: Partial<DepositRequest> = {}): DepositRequest {
 
 let queryData: { adminDepositRequests: { items: DepositRequest[]; total: number } }
 let queryLoading = false
+/** The task-link lookup (newest requests of any status), answered apart from the list. */
+let linkData: { adminDepositRequests: { items: DepositRequest[]; total: number } } | undefined
+let latestLinkOptions: { variables: { input: Record<string, unknown> }; skip: boolean; fetchPolicy: string } | undefined
 let latestQueryOptions: QueryOptions | undefined
 let latestSubscriptionOptions: SubscriptionOptions | undefined
 let approveOptions: MutationOptions | undefined
 let rejectOptions: MutationOptions | undefined
 let refetchSnapshots: Array<QueryOptions['variables']>
 
-function renderPage() {
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location-search">{location.search}</output>
+}
+
+function renderPage(entry = '/payments/deposits') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}>
       <PageEyebrowProvider value="Payment operations">
         <DepositRequestsPage />
       </PageEyebrowProvider>
+      <LocationProbe />
     </MemoryRouter>,
   )
 }
@@ -281,6 +300,8 @@ function dialogButton(dialog: HTMLElement, label: string): HTMLButtonElement {
 beforeEach(() => {
   queryData = { adminDepositRequests: { items: [makeRequest()], total: 25 } }
   queryLoading = false
+  linkData = undefined
+  latestLinkOptions = undefined
   latestQueryOptions = undefined
   latestSubscriptionOptions = undefined
   approveOptions = undefined
@@ -288,6 +309,7 @@ beforeEach(() => {
   refetchSnapshots = []
   rbacCalls.length = 0
   rbacState.allowed = true
+  proofPreviews.length = 0
 
   hooks.useQuery.mockReset()
   hooks.useMutation.mockReset()
@@ -302,7 +324,11 @@ beforeEach(() => {
     if (latestQueryOptions) refetchSnapshots.push(latestQueryOptions.variables)
     return Promise.resolve({ data: queryData })
   })
-  hooks.useQuery.mockImplementation((_document: unknown, options: QueryOptions) => {
+  hooks.useQuery.mockImplementation((_document: unknown, options: QueryOptions & { skip?: boolean }) => {
+    if (options.skip !== undefined) {
+      latestLinkOptions = options as unknown as typeof latestLinkOptions
+      return options.skip ? { data: undefined, loading: false } : { data: linkData, loading: false }
+    }
     latestQueryOptions = options
     return { data: queryData, loading: queryLoading, refetch: hooks.refetch }
   })
@@ -340,6 +366,7 @@ describe('DepositRequestsPage query and access contracts', () => {
           query: undefined,
           fromDate: getDepositRangeForPreset('today')?.from,
           toDate: getDepositRangeForPreset('today')?.to,
+          includeGatewayOrders: true,
           offset: 0,
           limit: 10,
         },
@@ -466,7 +493,8 @@ describe('DepositRequestsPage drawer and mutations', () => {
     assert.ok(screen.getByText('Asha Player'))
     assert.equal(screen.getByRole('link', { name: 'View Profile' }).getAttribute('href'), '/players/profile/user-1')
     assert.equal(screen.queryByRole('link', { name: /undefined/i }), null)
-    assert.ok(screen.getByRole('button', { name: 'View payment proof: Payment proof' }))
+    const proofSection = screen.getByRole('heading', { level: 3, name: 'Payment Proof' }).closest('section') as HTMLElement
+    assert.ok(within(proofSection).getByRole('img', { name: 'Payment proof of dep-1' }))
 
     const approveField = screen.getByRole('textbox', { name: /^Remark/ }) as HTMLTextAreaElement
     const rejectField = screen.getByRole('textbox', { name: 'Rejection note' }) as HTMLTextAreaElement
@@ -486,13 +514,13 @@ describe('DepositRequestsPage drawer and mutations', () => {
     assert.ok(dialog)
   })
 
-  test('renders settled requests read-only and rejects placeholder proof without /undefined links', async () => {
+  test('renders settled requests read-only and shows no proof for a manual one, without /undefined links', async () => {
     queryData = {
       adminDepositRequests: {
         items: [makeRequest({
           status: 'APPROVED',
           proofKey: 'manual',
-          proofUrl: 'https://cdn.test/not-a-persisted-proof.png',
+          hasProof: false,
           user: null,
         })],
         total: 1,
@@ -507,9 +535,44 @@ describe('DepositRequestsPage drawer and mutations', () => {
     assert.equal([...dialog.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'Reject'), false)
     assert.equal([...dialog.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'Approve Deposit'), false)
     assert.equal(screen.queryByRole('textbox'), null)
-    assert.equal(screen.queryByRole('button', { name: /payment proof/i }), null)
+    assert.equal(screen.queryByRole('heading', { name: 'Payment Proof' }), null)
+    assert.deepEqual(proofPreviews, [], 'no proof is read for a request without one')
     assert.equal(screen.queryByRole('link', { name: 'View Profile' }), null)
     assert.equal(document.querySelector('a[href*="undefined"]'), null)
+  })
+
+  test("reads a proof only for the request the drawer shows, when it shows it; none without one", async () => {
+    queryData = {
+      adminDepositRequests: {
+        items: [
+          makeRequest({ id: 'dep-1' }),
+          makeRequest({ id: 'dep-2' }),
+          makeRequest({ id: 'dep-3', proofKey: 'proof-missing', hasProof: false }),
+          makeRequest({ id: 'dep-4', proofKey: 'welivepay', hasProof: false }),
+          makeRequest({ id: 'dep-5', proofKey: 'manual', hasProof: false }),
+        ],
+        total: 5,
+      },
+    }
+    renderPage()
+    assert.deepEqual(proofPreviews, [], 'the list reads no proof')
+    assert.ok(hooks.useQuery.mock.calls.every(([document]) => document !== DEPOSIT_REQUEST_PROOF), 'the page reads no proof itself')
+
+    fireEvent.click(screen.getByRole('button', { name: 'View request dep-2' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Deposit Request - #dep-2' })
+    assert.ok(within(dialog).getByRole('img', { name: 'Payment proof of dep-2' }))
+    assert.equal(within(dialog).queryByRole('img', { name: 'Payment proof of dep-1' }), null)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close dialog' }))
+    await waitFor(() => assert.ok(screen.queryByRole('dialog') === null, 'the drawer closes'))
+
+    for (const id of ['dep-3', 'dep-4', 'dep-5']) {
+      fireEvent.click(screen.getByRole('button', { name: `View request ${id}` }))
+      const drawer = await screen.findByRole('dialog', { name: `Deposit Request - #${id}` })
+      assert.equal(within(drawer).queryByRole('heading', { name: 'Payment Proof' }), null, `${id} shows no proof section`)
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Close dialog' }))
+      await waitFor(() => assert.ok(screen.queryByRole('dialog') === null, 'the drawer closes'))
+    }
+    assert.ok(proofPreviews.length > 0 && proofPreviews.every((id) => id === 'dep-2'), `proofs read for ${proofPreviews.join(', ')}`)
   })
 
   test('approves with trimmed required note, exact confirmation/payload and fallback toast', async () => {
@@ -702,5 +765,196 @@ describe('DepositRequestsPage drawer and mutations', () => {
       'retain rejection',
     )
     assert.equal(feedback.toast.mock.calls.length, 0)
+  })
+})
+
+describe('DepositRequestsPage crypto deposits', () => {
+  const HASH = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90'
+
+  function cryptoRequest(overrides: Partial<DepositRequest> = {}): DepositRequest {
+    return makeRequest({
+      amount: 10000,
+      method: 'CRYPTO',
+      utr: HASH,
+      referenceId: HASH,
+      proofKey: 'proof-missing',
+      hasProof: false,
+      note: null,
+      cryptoAmount: 108.11,
+      cryptoRate: 92.5,
+      cryptoNetwork: 'TRC20',
+      cryptoBonusPercent: 5,
+      cryptoBonusAmount: 500,
+      bonusWalletTxnId: null,
+      ...overrides,
+    })
+  }
+
+  function cryptoSection(): HTMLElement {
+    return screen.getByRole('heading', { level: 3, name: 'Crypto Payment' }).closest('section') as HTMLElement
+  }
+
+  test('shows what to check on the chain: USDT, network, rate, bonus and the TxID with its explorer link', async () => {
+    queryData = { adminDepositRequests: { items: [cryptoRequest()], total: 1 } }
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'View request dep-1' }))
+    const dialog = await screen.findByRole('dialog')
+
+    assert.ok(within(dialog).getByText('Crypto (USDT)'))
+    const section = cryptoSection()
+    for (const [term, value] of [
+      ['USDT to Receive', '108.11 USDT'],
+      ['Network', 'TRC20 (Tron)'],
+      ['Rate', '1 USDT = INR 92.50'],
+      ['Bonus', '5% · INR 500.00 paid on approval'],
+      ['TxID', HASH],
+    ]) {
+      assert.ok(within(section).getByText(term), term)
+      assert.ok(within(section).getByText(value), value)
+    }
+    assert.ok(within(section).getByRole('button', { name: 'Copy TxID' }))
+    const explorer = within(section).getByRole('link', { name: 'View on explorer' })
+    assert.equal(explorer.getAttribute('href'), `https://tronscan.org/#/transaction/${HASH}`)
+    assert.equal(explorer.getAttribute('target'), '_blank')
+    assert.equal(explorer.getAttribute('rel'), 'noopener noreferrer')
+    // The TxID is not repeated as a UTR or reference in the transaction details.
+    assert.equal(within(dialog).queryByText('UTR Number'), null)
+    assert.equal(within(dialog).queryByText('Reference ID'), null)
+  })
+
+  test('approving a crypto deposit with a bonus names the bonus in the confirmation', async () => {
+    queryData = { adminDepositRequests: { items: [cryptoRequest()], total: 1 } }
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'View request dep-1' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(screen.getByRole('textbox', { name: /^Remark/ }), { target: { value: 'seen on tronscan' } })
+    fireEvent.click(dialogButton(dialog, 'Approve Deposit'))
+
+    await waitFor(() => assert.equal(feedback.confirm.mock.calls.length, 1))
+    assert.equal(
+      (feedback.confirm.mock.calls[0]?.[0] as ConfirmOptions).description,
+      "This will credit the player's wallet with the deposit and a INR 500.00 crypto bonus. Are you sure?",
+    )
+  })
+
+  test('a settled crypto deposit says the bonus was credited and shows its ledger entry; no bonus, no row', async () => {
+    queryData = {
+      adminDepositRequests: {
+        items: [
+          cryptoRequest({ status: 'APPROVED', walletTxnId: 'wl-1', bonusWalletTxnId: 'wl-2' }),
+          cryptoRequest({ id: 'dep-2', cryptoNetwork: 'ARBITRUM', cryptoBonusAmount: 0, cryptoBonusPercent: null }),
+        ],
+        total: 2,
+      },
+    }
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'View request dep-1' }))
+    const dialog = await screen.findByRole('dialog')
+    assert.ok(within(cryptoSection()).getByText('5% · INR 500.00 credited'))
+    assert.ok(within(dialog).getByText('Bonus Txn ID'))
+    assert.ok(within(dialog).getByText('wl-2'))
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close dialog' }))
+    await waitFor(() => assert.equal(screen.queryByRole('dialog'), null))
+    fireEvent.click(screen.getByRole('button', { name: 'View request dep-2' }))
+    await screen.findByRole('dialog')
+    assert.equal(within(cryptoSection()).queryByText('Bonus'), null)
+    assert.ok(within(cryptoSection()).getByText('ARBITRUM'), 'an unknown network is shown as stored')
+    assert.equal(within(cryptoSection()).queryByRole('link', { name: 'View on explorer' }), null)
+  })
+})
+
+describe('DepositRequestsPage gateway deposits', () => {
+  const gatewayRow = (status: string, overrides: Partial<DepositRequest> = {}) => makeRequest({
+    id: 'GW-7',
+    method: 'UPI',
+    utr: null,
+    referenceId: 'ORD_7_abc',
+    proofKey: 'welivepay',
+    hasProof: false,
+    gateway: { provider: 'WELIVEPAY', gateway: 'QPC', gatewayName: 'QuickPayCash', orderId: 'ORD_7_abc', status, txnRef: null, expiresAt: null },
+    ...overrides,
+  })
+
+  test('a pay-in awaiting payment shows its gateway and offers no Approve or Reject', async () => {
+    queryData = { adminDepositRequests: { items: [gatewayRow('pending', { status: 'PENDING' })], total: 1 } }
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'View request GW-7' }))
+    const dialog = await screen.findByRole('dialog')
+    const section = screen.getByRole('heading', { level: 3, name: 'Payment Gateway' }).closest('section') as HTMLElement
+    assert.ok(within(section).getByText('WeLivePay'))
+    assert.ok(within(section).getByText('QuickPayCash'))
+    assert.ok(within(section).getAllByText('ORD_7_abc').length >= 1)
+    assert.ok(within(section).getByText('Awaiting payment'))
+    assert.equal(within(dialog).queryByRole('button', { name: /Approve Deposit/ }), null)
+    assert.equal(within(dialog).queryByRole('button', { name: /^Reject/ }), null)
+    assert.ok(within(dialog).getByText(/cannot be approved or rejected by hand/))
+  })
+
+  test('a credited pay-in reads as approved with the gateway UTR', async () => {
+    queryData = { adminDepositRequests: { items: [gatewayRow('success', { id: '41', status: 'APPROVED', gateway: { provider: 'WELIVEPAY', gateway: 'IRISPAY', gatewayName: 'Iris Pay', orderId: 'ORD_8', status: 'success', txnRef: 'UTR998877', expiresAt: null } })], total: 1 } }
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'View request 41' }))
+    const dialog = await screen.findByRole('dialog')
+    assert.ok(within(dialog).getByText('UTR998877'))
+    assert.ok(within(dialog).getByText('Paid'))
+    assert.equal(within(dialog).queryByRole('button', { name: /Approve Deposit/ }), null)
+  })
+})
+
+describe('DepositRequestsPage task links', () => {
+  test('?depositId opens that request over the list, and closing it drops the link', async () => {
+    linkData = {
+      adminDepositRequests: {
+        items: [makeRequest({ id: '2776', status: 'APPROVED', createdAt: '2026-11-01T09:00:00.000Z' })],
+        total: 1,
+      },
+    }
+    renderPage('/payments/deposits?depositId=2776')
+
+    const dialog = await screen.findByRole('dialog', { name: 'Deposit Request - #2776' })
+    // FIN-04: the lookup names the request by its id, so an old one is found too (it searched the 100 newest)
+    assert.deepStrictEqual(latestLinkOptions, {
+      variables: { input: { id: '2776', offset: 0, limit: 1 } },
+      skip: false,
+      fetchPolicy: 'network-only',
+    })
+    assert.equal(latestQueryOptions?.variables.input.status, 'PENDING', 'the list keeps its own filters')
+
+    fireEvent.click(dialogButton(dialog, 'Close'))
+    await waitFor(() => assert.equal(screen.queryByRole('dialog'), null))
+    await waitFor(() => assert.equal(screen.getByTestId('location-search').textContent, ''))
+  })
+
+  test('a link to a request that does not exist (or is another tenant\'s) says so and is dropped', async () => {
+    linkData = { adminDepositRequests: { items: [], total: 0 } }
+    renderPage('/payments/deposits?depositId=12')
+
+    await waitFor(() => assert.deepStrictEqual(feedback.toast.mock.calls[0]?.[0], {
+      message: 'Deposit request #12 was not found',
+      tone: 'warn',
+    }))
+    // asked for by its id (the link is dropped after, so the lookup is skipped again)
+    assert.ok(hooks.useQuery.mock.calls.some(([, options]) => options?.skip === false
+      && JSON.stringify(options.variables) === JSON.stringify({ input: { id: '12', offset: 0, limit: 1 } })))
+    assert.equal(latestLinkOptions?.skip, true)
+    assert.equal(screen.queryByRole('dialog'), null)
+    await waitFor(() => assert.equal(screen.getByTestId('location-search').textContent, ''))
+  })
+
+  test('opens only the request the link names, never another row of the answer', async () => {
+    linkData = { adminDepositRequests: { items: [makeRequest({ id: '2775' })], total: 1 } }
+    renderPage('/payments/deposits?depositId=2776')
+
+    await waitFor(() => assert.deepStrictEqual(feedback.toast.mock.calls[0]?.[0], {
+      message: 'Deposit request #2776 was not found',
+      tone: 'warn',
+    }))
+    assert.equal(screen.queryByRole('dialog'), null)
+  })
+
+  test('without a link the lookup is skipped', () => {
+    renderPage()
+    assert.equal(latestLinkOptions?.skip, true)
   })
 })

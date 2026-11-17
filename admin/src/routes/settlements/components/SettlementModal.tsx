@@ -5,15 +5,19 @@ import { Dialog } from '@/ui/components/Dialog'
 import { Button } from '@/ui/components/Button'
 import { NumberField } from '@/ui/components/NumberField'
 import { Textarea } from '@/ui/components/Textarea'
-import { RadioGroup } from '@/ui/components/RadioGroup'
 import { Notice } from '@/ui/components/Notice'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { DescriptionList } from '@/ui/components/DescriptionList'
 import styles from './SettlementModal.module.css'
 import { remainingAfterSettlement, settlementModalDirection } from './settlementModalModel'
 
+/**
+ * A SHARING agent's P/L settlement. SHARING is the only scheme settled here: COMMISSION is paid by payCommission,
+ * and since 2026-11-02 a CREDIT agent settles by moving chips (Deposit / Withdraw of its Ref P/L), so the old
+ * fixed-amount CREDIT settle with a free direction is gone.
+ */
 interface SettlementAgent {
-  /** SHARING: signed, positive = TO_AGENT (you pay the agent), negative = FROM_AGENT. CREDIT: the absolute balance. */
+  /** Signed, positive = TO_AGENT (you pay the agent), negative = FROM_AGENT. */
   pendingAmount?: number | null
   /** Who pays (backend): TO_AGENT, FROM_AGENT or NONE. Wins over the sign of pendingAmount. */
   settlementDirection?: string | null
@@ -39,8 +43,7 @@ export function SettlementModal({ visible, agent, onCancel, onSubmit, formatCurr
   const [refreshing, setRefreshing] = useState(false)
   const [values, setValues] = useState<SettlementValues>({ amount: null, direction: '', notes: '' })
   const [review, setReview] = useState<SettlementValues | null>(null)
-  const [errors, setErrors] = useState<{ amount?: string; direction?: string; notes?: string }>({})
-  const isSharing = agent?.agent?.schemeType === 'SHARING' || agent?.schemeType === 'SHARING'
+  const [errors, setErrors] = useState<{ amount?: string; notes?: string }>({})
   const pending = Number(agent?.pendingAmount || 0)
   // positive pending = TO_AGENT (you pay the agent its share), negative = FROM_AGENT; the backend's direction wins.
   const derivedDirection = settlementModalDirection(agent?.settlementDirection, pending)
@@ -51,13 +54,13 @@ export function SettlementModal({ visible, agent, onCancel, onSubmit, formatCurr
     }
   }, [visible, agent])
   const validate = () => {
+    // The direction is derived, never entered, so only the amount and the notes are checked.
     const next = {
       amount: values.amount == null ? 'Please enter settlement amount' : values.amount < .01 ? 'Amount must be greater than 0' : undefined,
-      direction: !values.direction ? 'Please select direction' : undefined,
       notes: !values.notes ? 'Please enter notes for audit trail' : values.notes.length < 3 ? 'Notes must be at least 3 characters' : undefined,
     }
     setErrors(next)
-    return !next.amount && !next.direction && !next.notes
+    return !next.amount && !next.notes
   }
   const cancel = () => { setValues({ amount: null, direction: '', notes: '' }); setReview(null); setStep(1); setErrors({}); onCancel() }
   const submit = async () => {
@@ -66,7 +69,8 @@ export function SettlementModal({ visible, agent, onCancel, onSubmit, formatCurr
     try {
       const input = { ...(step === 2 && review ? review : values) }
       if (input.amount == null || (Math.abs(pending) > 0 && Number(input.amount) <= 0)) input.amount = Math.abs(pending) || 0
-      if (isSharing) input.direction = derivedDirection
+      // The direction follows the P/L (the backend's, else the sign); it is never picked by hand.
+      input.direction = derivedDirection
       input.notes ??= ''
       await onSubmit({ ...input, amount: Number(input.amount) })
     } catch (error) { notify.error(error instanceof Error ? error.message : 'An error occurred while processing the settlement', 'Settlement Failed') }
@@ -92,10 +96,9 @@ export function SettlementModal({ visible, agent, onCancel, onSubmit, formatCurr
           const share = item.agentShare != null ? Number(item.agentShare) : null
           return <div key={item.domain} className={styles.domain}><span>{item.domain[0].toUpperCase() + item.domain.slice(1)}</span><strong>{playersPl >= 0 ? '+' : '-'}{formatCurrency(Math.abs(playersPl))}</strong><span className={styles.note}>Players' P/L · {item.percentage}% of total</span>{share != null && <span className={share > 0 ? styles.positive : share < 0 ? styles.negative : styles.note}>Agent share {share >= 0 ? '+' : '-'}{formatCurrency(Math.abs(share))}</span>}<span className={styles.note}>Platform cut {formatCurrency(Number(item.cutAmount ?? 0))} ({Number(item.cutPercentage ?? 0)}%)</span></div>
         })}</div></section>}
-        <Notice title="Pending balance"><strong className={derivedDirection === 'FROM_AGENT' ? styles.positive : styles.negative}>{formatCurrency(Math.abs(pending))}</strong><span className={styles.note}>{owedLabel}</span><span className={styles.note}>Direction is auto-calculated from this balance. {isSharing ? 'You may settle a partial amount below.' : 'Amount is fixed from settlement balance.'}</span></Notice>
-        <div className={styles.stack}><NumberField label="Settlement Amount" min={.01} step={100} grouping="en-US" prefix={getCurrencySymbol()} value={values.amount} onChange={amount => setValues(previous => ({ ...previous, amount }))} disabled={!isSharing || loading} error={errors.amount} />{isSharing && <Button variant="link" onClick={() => setValues(previous => ({ ...previous, amount: Math.abs(pending) }))}>Full Amount</Button>}</div>
-        {!isSharing && <Notice tone="info">Amount and direction are read-only and calculated from the agent's settlement balance when you confirm.</Notice>}
-        {isSharing ? <Notice title="Direction">{collecting ? 'Collect FROM Agent (Agent pays you)' : 'Pay TO Agent (You pay agent)'}<span className={styles.note}>{owedLabel} — derived from P/L; not editable for sharing agents.</span></Notice> : <RadioGroup label="Direction" options={[{ value: 'FROM_AGENT', label: 'Collect FROM Agent', description: 'Agent pays you' }, { value: 'TO_AGENT', label: 'Pay TO Agent', description: 'You pay agent' }]} value={values.direction} onChange={direction => setValues(previous => ({ ...previous, direction }))} orientation="vertical" error={errors.direction} disabled={loading} />}
+        <Notice title="Pending balance"><strong className={derivedDirection === 'FROM_AGENT' ? styles.positive : styles.negative}>{formatCurrency(Math.abs(pending))}</strong><span className={styles.note}>{owedLabel}</span><span className={styles.note}>Direction is auto-calculated from this balance. You may settle a partial amount below.</span></Notice>
+        <div className={styles.stack}><NumberField label="Settlement Amount" min={.01} step={100} grouping="en-US" prefix={getCurrencySymbol()} value={values.amount} onChange={amount => setValues(previous => ({ ...previous, amount }))} disabled={loading} error={errors.amount} /><Button variant="link" onClick={() => setValues(previous => ({ ...previous, amount: Math.abs(pending) }))}>Full Amount</Button></div>
+        <Notice title="Direction">{collecting ? 'Collect FROM Agent (Agent pays you)' : 'Pay TO Agent (You pay agent)'}<span className={styles.note}>{owedLabel} — derived from P/L; not editable for sharing agents.</span></Notice>
         <Textarea label="Notes" required rows={3} placeholder="Enter settlement reason/notes (required for audit trail)" maxLength={500} showCount value={values.notes} onChange={notes => setValues(previous => ({ ...previous, notes }))} error={errors.notes} disabled={loading} />
       </> : <>
         <Notice tone="warn" title="This action CANNOT be undone">You are about to: <strong>{collecting ? 'COLLECT' : 'PAY'} {formatCurrency(amount)} {collecting ? 'FROM' : 'TO'} {agent.agent?.username || 'Agent'}</strong></Notice>

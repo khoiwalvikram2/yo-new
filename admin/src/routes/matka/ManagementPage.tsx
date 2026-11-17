@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { IconInfoCircle, IconPercentage, IconPlus } from '@tabler/icons-react'
 import {
   useMatkaDefaultRates,
@@ -9,9 +9,11 @@ import {
   useUpdateMatkaSettings,
 } from '../../modules/matka'
 import type { Matka } from '../../modules/matka/types'
+import { MatkaWhitelabelGate } from '../../modules/matka/MatkaWhitelabelGate'
 import { MATKAS_QUERY } from '../../lib/graphql/matka'
 import { RBACGuard } from '@/shared/core/RBACGuard'
 import { useSearch } from '@/shared/hooks/useSearch'
+import { useSearchParamUpdates } from '@/shared/hooks/useSearchParamUpdates'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { Button } from '@/ui/components/Button'
 import { buttonClassName } from '@/ui/components/buttonClassName'
@@ -22,6 +24,7 @@ import { PageHeader } from '@/ui/components/PageHeader'
 import { Pagination } from '@/ui/components/Pagination'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { strokeFor } from '@/ui/components/icons'
+import { toast } from '@/ui/components/toast'
 import { ActionsDrawer } from './components/ActionsDrawer'
 import { FiltersBar } from './components/FiltersBar'
 import { MatkasTable } from './components/MatkasTable'
@@ -35,6 +38,7 @@ import {
   buildMatkaFilters,
   defaultRatesInput,
   hydrateRateRows,
+  matkaErrorText,
   reorderMutationInput,
   sortMatkasByPriority,
   toggleCurrentPageSelection,
@@ -143,9 +147,13 @@ function RatesDrawer({ open, entries, saving, onClose, onSave }: RatesDrawerProp
 }
 
 export default function MatkaManagementPage() {
+  // A Super Admin in core mode is asked for a whitelabel: no catalog, totals or default rates are read for the
+  // platform's own tenant, and no "rates are not configured" warning is shown for it.
   return (
     <RBACGuard required={ACCESS_REQUIREMENT}>
-      <MatkaManagementPageContent />
+      <MatkaWhitelabelGate title="Matka Management">
+        <MatkaManagementPageContent />
+      </MatkaWhitelabelGate>
     </RBACGuard>
   )
 }
@@ -154,7 +162,10 @@ function MatkaManagementPageContent() {
   const navigate = useNavigate()
   const pageEyebrow = usePageEyebrow()
   const ratesTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const { query, setQuery, debouncedQuery } = useSearch({ minLength: 2 })
+  // A link may carry the search (?search=, the global search's "See all Matka").
+  const [searchParams] = useSearchParams()
+  const { query, setQuery, debouncedQuery } = useSearch({ minLength: 2, initialQuery: searchParams.get('search') ?? '' })
+  useSearchParamUpdates(setQuery)
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -330,7 +341,15 @@ function MatkaManagementPageContent() {
         saving={savingDefaults}
         onClose={() => setRatesDrawerOpen(false)}
         onSave={async (rows) => {
-          await updateDefaultRates({ variables: { entries: defaultRatesInput(rows) } })
+          // The mutation answers the saved rates, not a { success, message } payload, so the notification
+          // link says nothing either way; a refusal keeps the drawer open with the server's reason.
+          try {
+            await updateDefaultRates({ variables: { entries: defaultRatesInput(rows) } })
+          } catch (error) {
+            toast({ message: matkaErrorText(error, 'The default rates could not be saved.'), tone: 'error' })
+            return
+          }
+          toast({ message: 'Default rates saved', tone: 'ok' })
           setRatesDrawerOpen(false)
           refetch()
         }}

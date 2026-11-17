@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, memo } from 'react'
-import { MoveUp, MoveDown } from 'lucide-react'
+import { MoveUp, MoveDown, Lock } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { hasPrice } from '../nova/exchange-home/exchangeShared'
 
 interface OddsButtonProps {
     value: number
@@ -20,6 +22,7 @@ type ChangeDirection = 'up' | 'down' | null
     onClick,
     isVisible
   }: OddsButtonProps) {
+  const { t } = useTranslation()
   const prevValueRef = useRef<number>(value)
   const [changeDirection, setChangeDirection] = useState<ChangeDirection>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -55,6 +58,20 @@ type ChangeDirection = 'up' | 'down' | null
     if (vol >= 1000000) return `${(vol / 1000000).toFixed(1)}M`
     if (vol >= 1000) return `${(vol / 1000).toFixed(0)}K`
     return vol.toFixed(0)
+    }
+
+    // No price: a locked box that keeps its side tint and cannot open the bet slip.
+    if (!hasPrice(value)) {
+      const label = t('exchangeHome.suspended', { defaultValue: 'Suspended' })
+      return (
+        <span
+          role="img"
+          aria-label={label}
+          title={label}
+          data-locked="true"
+          className={`${tone} is-locked relative overflow-hidden w-16 h-12 flex-col items-center justify-center ${!isVisible ? 'hidden sm:flex' : 'flex'}`}
+        ><Lock aria-hidden="true" /></span>
+      )
     }
 
     return (

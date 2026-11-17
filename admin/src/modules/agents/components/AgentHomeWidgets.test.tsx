@@ -5,7 +5,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { ApolloClient, ApolloLink, ApolloProvider, InMemoryCache, Observable } from '@apollo/client'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/shared/core/authStore'
-import CreditMeter from './CreditMeter'
 import AgentAlerts from './AgentAlerts'
 import PlayerQuickView from './PlayerQuickView'
 import SubAgentPerformance from './SubAgentPerformance'
@@ -27,26 +26,18 @@ function mount(content: ReactNode) {
 }
 beforeEach(() => { state = {}; calls = []; useAuthStore.setState({ agent: agentHomeAccount(), user: undefined, roles: [], permissions: [] }) })
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.stop()) })
-test('credit request invokes only a supplied handler while preserving raw figures and query agent', async () => {
-  const request = vi.fn(); mount(<CreditMeter agentId="target-agent" onRequestCredit={request} />)
-  await screen.findByText('₹100,000.00'); assert.ok(screen.getByText('INR 200000')); assert.ok(screen.getByText('85.0%'))
-  fireEvent.click(screen.getByRole('button', { name: 'Request More Credit' })); assert.equal(request.mock.calls.length, 1)
-  assert.deepEqual(calls.find(call => call.name === 'CreditAllocation')?.variables, { agentId: 'target-agent' })
-})
-test('non-credit scheme does not query or show credit controls', () => {
-  useAuthStore.setState({ agent: agentHomeAccount('SHARING') }); mount(<CreditMeter agentId="preview-agent" />)
-  assert.equal(calls.length, 0); assert.equal(Boolean(screen.queryByText('Credit Status')), false)
-})
-test('critical credit alert cannot be dismissed; activity dismissals stay local and preserve scopes', async () => {
-  state.overLimit = true; mount(<AgentAlerts agentId="target-agent" autoRefresh={false} />)
-  await screen.findByText('New Player Registered'); const critical = screen.getByText('Credit Limit Exceeded').closest('li')!
-  assert.equal(Boolean(within(critical).queryByRole('button', { name: 'Dismiss' })), false)
+// Chips have no limit to run out of (spec 2026-11-02): the alerts are activity only, with no credit-limit read.
+test('alerts carry activity only: no credit-limit alert or query, and dismissals stay local and preserve scopes', async () => {
+  // The fixture answers no credit-limit read any more: one would fail the test, not just show up in calls.
+  mount(<AgentAlerts agentId="target-agent" autoRefresh={false} />)
+  await screen.findByText('New Player Registered')
+  for (const gone of ['Credit Limit Exceeded', 'Credit Usage High']) assert.equal(screen.queryByText(gone), null, gone)
   const activity = screen.getByText('New Player Registered').closest('li')!
   fireEvent.click(within(activity).getByRole('button', { name: 'Dismiss' }))
   await waitFor(() => assert.equal(Boolean(screen.queryByText('New Player Registered')), false))
-  assert.ok(screen.getByText('Credit Limit Exceeded'))
+  assert.ok(screen.getByText('Large Bet Detected'))
   assert.deepEqual(calls.find(call => call.name === 'AgentActivity')?.variables, { agentId: 'target-agent', limit: 5 })
-  assert.ok(calls.every(call => ['CreditAllocation', 'AgentActivity'].includes(call.name)))
+  assert.deepEqual(calls.map(call => call.name), ['AgentActivity'])
 })
 test('top player table keeps six columns, top-five calculation, period and profile navigation', async () => {
   mount(<PlayerQuickView agentId="preview-agent" />); const table = await screen.findByRole('table', { name: 'Top players' }); await screen.findByText('Asha Sharma')

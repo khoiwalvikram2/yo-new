@@ -198,7 +198,18 @@ export function getAgentNavigation(
 		filtered.finance = {
 			label: 'Finance',
 			icon: 'fa-solid fa-landmark',
-			items: [
+			// A CREDIT agent's finance is its Chips page (/agent/credit): its balance, its downline with Deposit /
+			// Withdraw, and its chip statement (spec 2026-11-02 §8). It has no Settlement Center: CREDIT settles
+			// nothing since then, its Ref P/L is settled by a Deposit / Withdraw (spec §6).
+			items: agent.schemeType === 'CREDIT' ? [
+				{
+					key: 'credit',
+					to: '/agent/credit',
+					icon: 'fa-solid fa-coins',
+					label: 'Chips',
+					subtitle: 'Deposit & Withdraw',
+				},
+			] : [
 				{
 					key: 'settlements',
 					to: '/settlement',
@@ -207,14 +218,6 @@ export function getAgentNavigation(
 					subtitle: 'Ledger & Payments',
 					// Single clickable button (no children) - agent goes to unified settlement page
 				},
-				// A CREDIT agent's own credit: limit, usage, history and settlements (/agent/credit).
-				...(agent.schemeType === 'CREDIT' ? [{
-					key: 'credit',
-					to: '/agent/credit',
-					icon: 'fa-solid fa-credit-card',
-					label: 'Credit',
-					subtitle: 'Limit & Usage',
-				}] : []),
 			],
 		}
 	}
@@ -338,48 +341,54 @@ export function filterNavItemsByPermissions(
 	userPermissions: UserPermission[],
 	userRoles: string[] = []
 ): NavItem[] {
-	return items
-		.filter(item => {
-			// Check permissions
-			if (!hasRequiredPermissions(item.permissions, userPermissions)) {
+	const childVisible = (child: NavChild) => {
+		// Check permissions
+		if (!hasRequiredPermissions(child.permissions, userPermissions)) {
+			return false
+		}
+		// Check if hidden for user's roles
+		if (child.hideForRoles && userRoles.some(role => child.hideForRoles?.includes(role))) {
+			return false
+		}
+		// Check if shown only for specific roles (e.g. Super Admin only)
+		if (child.showOnlyForRoles && child.showOnlyForRoles.length > 0) {
+			if (!userRoles.some(role => child.showOnlyForRoles?.includes(role))) {
 				return false
 			}
+		}
+		// The linked page's own role-or-permission rule (T068: the Chips page)
+		if (child.access && !child.access(userRoles, userPermissions)) {
+			return false
+		}
+		// Hide Hierarchy for all admins (it's agent-only, agents use getAgentNavigation)
+		if (child.to && child.to.includes('/agents/hierarchy')) {
+			return false
+		}
+		return true
+	}
+
+	return items
+		.map(item => {
 			// Check if hidden for user's roles
 			if (item.hideForRoles && userRoles.some(role => item.hideForRoles?.includes(role))) {
-				return false
+				return null
 			}
 			// Check if shown only for specific roles (e.g. Super Admin only)
 			if (item.showOnlyForRoles && item.showOnlyForRoles.length > 0) {
 				if (!userRoles.some(role => item.showOnlyForRoles?.includes(role))) {
-					return false
+					return null
 				}
 			}
-			return true
-		})
-		.map(item => {
+			// Check permissions. A group the user's permissions leave out still shows the children whose own access
+			// rule admits the user, and only those (T068: a Finance Manager without agent access reaches the Chips page
+			// under Agents, and no agent page).
+			if (!hasRequiredPermissions(item.permissions, userPermissions)) {
+				const admitted = (item.children ?? []).filter(child => child.access !== undefined && childVisible(child))
+				return admitted.length > 0 ? { ...item, children: admitted } : null
+			}
 			// Filter children if they exist
 			if (item.children) {
-				const filteredChildren = item.children.filter(child => {
-					// Check permissions
-					if (!hasRequiredPermissions(child.permissions, userPermissions)) {
-						return false
-					}
-					// Check if hidden for user's roles
-					if (child.hideForRoles && userRoles.some(role => child.hideForRoles?.includes(role))) {
-						return false
-					}
-					// Check if shown only for specific roles (e.g. Super Admin only)
-					if (child.showOnlyForRoles && child.showOnlyForRoles.length > 0) {
-						if (!userRoles.some(role => child.showOnlyForRoles?.includes(role))) {
-							return false
-						}
-					}
-					// Hide Hierarchy for all admins (it's agent-only, agents use getAgentNavigation)
-					if (child.to && child.to.includes('/agents/hierarchy')) {
-						return false
-					}
-					return true
-				})
+				const filteredChildren = item.children.filter(childVisible)
 				// Only include item if it has visible children
 				if (filteredChildren.length === 0) return null
 				return { ...item, children: filteredChildren }

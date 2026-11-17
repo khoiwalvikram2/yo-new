@@ -49,7 +49,7 @@ export function AuditTable({ data, loading, error, filters, onFiltersChange, onR
   }
   function cell(key: string, row: AuditEvent) {
     const actorNav = row.actor ? getActorNavigationPath(row.actor.type, row.actor.id) : null
-    const resourceNav = getResourceNavigationPath(row.resourceType, row.resourceId)
+    const resourceNav = getResourceNavigationPath(row.resourceType, row.resourceId, row)
     if (key === 'expand') return auditHasChanges(row) ? <Button size="xs" aria-label={`${expanded.has(row.id) ? 'Collapse' : 'Expand'} ${row.id}`} aria-expanded={expanded.has(row.id)} icon={expanded.has(row.id) ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />} onClick={() => toggle(row.id)} /> : null
     if (key === 'id') return <Button variant="link" size="xs" aria-label={`Copy Event ID ${row.id}`} onClick={() => copy(row.id, 'Event ID copied!')}><code className={styles.code}>{row.id}</code></Button>
     if (key === 'timestamp') return <div className={styles.stack}><Button size="xs" variant="link" aria-label={`Open audit event ${row.id}`} onClick={() => navigate(`/audit/events/${row.id}`)}>{row.timestamp ? formatDate(row.timestamp, 'MMM d, yyyy') : '—'}</Button>

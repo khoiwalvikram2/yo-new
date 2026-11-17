@@ -66,8 +66,10 @@ async function publishAuditEvent(event: {
   }
 }
 
-export async function recordAuditDb(input: { tenant?: string; actorId: string; domain: string; action: string; resourceType: string; resourceId: string; before?: any; after?: any; pubsub?: any }) {
-  const tenant = (input as any).tenant ?? 'default'
+// tenant is required (SYS-22): a caller that leaves it out fails the typecheck instead of
+// silently filing its rows under 'default', where its own whitelabel's Audit Trail never sees them.
+export async function recordAuditDb(input: { tenant: string; actorId: string; domain: string; action: string; resourceType: string; resourceId: string; before?: any; after?: any; pubsub?: any }) {
+  const tenant = input.tenant
   const result = await recordAudit(db, {
     tenant,
     actorId: input.actorId,
@@ -93,6 +95,24 @@ export async function recordAuditDb(input: { tenant?: string; actorId: string; d
     }, input.pubsub)
   }
   return result?.id ?? null
+}
+
+/** The free-text search: actor, domain, action, resource type or id contain the text, or it is the event id. */
+function searchCondition(search: string | undefined): any {
+  if (!search || !String(search).trim()) return undefined
+  const searchTerm = `%${String(search).trim()}%`
+  const searchConditions: any[] = [
+    ilike(auditLogs.actorId, searchTerm),
+    ilike(auditLogs.domain, searchTerm),
+    ilike(auditLogs.action, searchTerm),
+    ilike(auditLogs.resourceType, searchTerm),
+    ilike(auditLogs.resourceId, searchTerm),
+  ]
+  const numericId = Number(search)
+  if (Number.isFinite(numericId) && numericId > 0) {
+    searchConditions.push(eq(auditLogs.id, numericId))
+  }
+  return or(...searchConditions)
 }
 
 export async function listAuditDb(filters: AuditListFilter = {}): Promise<{ items: any[]; total: number }> {
@@ -142,21 +162,8 @@ export async function listAuditDb(filters: AuditListFilter = {}): Promise<{ item
     whereClauses.push(lte(auditLogs.createdAt, new Date(filters.to)))
   }
 
-  if (filters.search && String(filters.search).trim()) {
-    const searchTerm = `%${String(filters.search).trim()}%`
-    const searchConditions: any[] = [
-      ilike(auditLogs.actorId, searchTerm),
-      ilike(auditLogs.domain, searchTerm),
-      ilike(auditLogs.action, searchTerm),
-      ilike(auditLogs.resourceType, searchTerm),
-      ilike(auditLogs.resourceId, searchTerm),
-    ]
-    const numericId = Number(filters.search)
-    if (Number.isFinite(numericId) && numericId > 0) {
-      searchConditions.push(eq(auditLogs.id, numericId))
-    }
-    whereClauses.push(or(...searchConditions))
-  }
+  const search = searchCondition(filters.search)
+  if (search) whereClauses.push(search)
 
   if (filters.agentId) {
     const { PlayerAuthService } = await import('../../domains/players/services/PlayerAuthService.js')
@@ -270,7 +277,52 @@ function buildStatsWhereConditions(filters: AuditListFilter): any {
   if (filters.resourceId) conditions.push(eq(auditLogs.resourceId, filters.resourceId))
   if (filters.from) conditions.push(gte(auditLogs.createdAt, new Date(filters.from)))
   if (filters.to) conditions.push(lte(auditLogs.createdAt, new Date(filters.to)))
+  const search = searchCondition(filters.search)
+  if (search) conditions.push(search)
   return conditions.length > 0 ? and(...conditions) : undefined
+}
+
+export interface AuditFilterOptions {
+  domains: string[]
+  actions: string[]
+  resourceTypes: string[]
+}
+
+const FILTER_OPTIONS_TTL_MS = 60_000
+const filterOptionsCache = new Map<string, { at: number; value: AuditFilterOptions }>()
+
+/**
+ * The domains, actions and resource types a tenant's trail holds, for the Audit Trail's filter lists.
+ *
+ * The lists were constants that had drifted from what recordAuditDb callers write ('users' where the trail
+ * says 'users.security', 'approve' where it says 'approve_deposit'), so most events could not be selected.
+ * One grouped read of the tenant's rows (an agent's: its players' rows, as listAuditDb scopes them), kept
+ * for a minute per tenant.
+ */
+export async function getAuditFilterOptions(tenant: string, agentId?: string): Promise<AuditFilterOptions> {
+  const key = `${tenant}\u0000${agentId ?? ''}`
+  const cached = filterOptionsCache.get(key)
+  if (cached && Date.now() - cached.at < FILTER_OPTIONS_TTL_MS) return cached.value
+
+  const conditions: any[] = [eq(auditLogs.tenant, tenant)]
+  if (agentId) {
+    const { PlayerAuthService } = await import('../../domains/players/services/PlayerAuthService.js')
+    const agentPlayerIds = await new PlayerAuthService().getAgentPlayerIds(agentId, tenant)
+    if (agentPlayerIds.length === 0) return { domains: [], actions: [], resourceTypes: [] }
+    conditions.push(inArray(auditLogs.actorId, agentPlayerIds.map(String)))
+  }
+  const rows = await db
+    .selectDistinct({ domain: auditLogs.domain, action: auditLogs.action, resourceType: auditLogs.resourceType })
+    .from(auditLogs)
+    .where(and(...conditions))
+  const sorted = (values: Iterable<string>) => [...new Set(values)].filter(Boolean).sort((a, b) => a.localeCompare(b))
+  const value = {
+    domains: sorted(rows.map((r) => r.domain)),
+    actions: sorted(rows.map((r) => r.action)),
+    resourceTypes: sorted(rows.map((r) => r.resourceType)),
+  }
+  filterOptionsCache.set(key, { at: Date.now(), value })
+  return value
 }
 
 export async function getAuditStats(filters: AuditListFilter = {}): Promise<AuditStatsResult> {

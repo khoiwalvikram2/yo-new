@@ -490,6 +490,27 @@ export async function getReferralAttributionsByRefereeIdsDb(
   return rows.map((r) => ({ refereeId: r.refereeId, referrerId: r.referrerId }))
 }
 
+/**
+ * Who referred `refereeId`: the referrer of its attribution in the tenant, or null. One step up a referral upline
+ * (RewardsCalculatorService walks it for tiered rules). Counted like every other referral read: a confirmed
+ * attribution to a user (referrerId > 0); an agent referral (referrer 0) is not a user upline.
+ */
+export async function getConfirmedReferrerOfDb(refereeId: number, tenant: string): Promise<number | null> {
+  const rows = await db
+    .select({ referrerId: referralAttributions.referrerId })
+    .from(referralAttributions)
+    .where(
+      and(
+        eq(referralAttributions.refereeId, refereeId),
+        eq(referralAttributions.tenant, tenant),
+        gt(referralAttributions.referrerId, 0),
+        eq(referralAttributions.status, 'confirmed')
+      )
+    )
+    .limit(1)
+  return rows[0]?.referrerId ?? null
+}
+
 export async function createReferralAttributionDb(
   tenant: string,
   data: {

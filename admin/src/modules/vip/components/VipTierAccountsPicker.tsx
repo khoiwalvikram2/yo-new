@@ -8,6 +8,7 @@ export type ReceivingAccountOption = { id: string; label: string; enabled: boole
 
 type Bank = { id: string; bankName?: string | null; accountName?: string | null; accountNumber?: string | null; enabled?: boolean | null; vipTierIds?: string[] | null }
 type Upi = { id: string; upiId?: string | null; displayName?: string | null; enabled?: boolean | null; vipTierIds?: string[] | null }
+type Crypto = { id: string; network?: string | null; walletAddress?: string | null; enabled?: boolean | null; vipTierIds?: string[] | null }
 
 /** null = every tier, [] = none; the same rule the server applies. */
 const allowsTier = (ids: string[] | null, tierId: string) => ids == null || ids.includes(tierId)
@@ -23,13 +24,16 @@ export function VipTierAccountsPicker({ tierId, value, onChange, onAccounts }: {
   onChange: (ids: string[]) => void
   onAccounts?: (accounts: ReceivingAccountOption[]) => void
 }) {
-  const { data, loading, error } = useQuery<{ whitelabelPaymentMethods: { banks?: Bank[] | null; upis?: Upi[] | null } | null }>(
+  const { data, loading, error } = useQuery<{ whitelabelPaymentMethods: { banks?: Bank[] | null; upis?: Upi[] | null; cryptos?: Crypto[] | null } | null }>(
     WHITELABEL_PAYMENT_METHODS, { fetchPolicy: 'network-only' })
   const accounts = useMemo<ReceivingAccountOption[]>(() => [
     ...(data?.whitelabelPaymentMethods?.banks || []).map(bank => ({ id: bank.id, enabled: bank.enabled !== false, vipTierIds: bank.vipTierIds ?? null,
       label: `Bank · ${bank.bankName || bank.accountName || 'Account'}${bank.accountNumber ? ` ••${String(bank.accountNumber).slice(-4)}` : ''}` })),
     ...(data?.whitelabelPaymentMethods?.upis || []).map(upi => ({ id: upi.id, enabled: upi.enabled !== false, vipTierIds: upi.vipTierIds ?? null,
       label: `UPI · ${upi.displayName || upi.upiId || 'Account'}` })),
+    // A wallet is named by its coin and network, as players see it, plus the end of its address.
+    ...(data?.whitelabelPaymentMethods?.cryptos || []).map(crypto => ({ id: crypto.id, enabled: crypto.enabled !== false, vipTierIds: crypto.vipTierIds ?? null,
+      label: `Crypto · USDT (${crypto.network || '—'})${crypto.walletAddress ? ` ••${String(crypto.walletAddress).slice(-4)}` : ''}` })),
   ], [data])
 
   useEffect(() => {
@@ -46,10 +50,10 @@ export function VipTierAccountsPicker({ tierId, value, onChange, onAccounts }: {
     <legend>Receiving accounts</legend>
     {loading ? <p role="status">Loading receiving accounts…</p> : null}
     {error ? <Notice tone="error">Unable to load receiving accounts. Saving keeps their current tier access.</Notice> : null}
-    {!loading && !error && !accounts.length ? <p>No bank or UPI accounts yet. Add them in Payment Methods.</p> : null}
+    {!loading && !error && !accounts.length ? <p>No bank accounts, UPI IDs or crypto wallets yet. Add them in Payment Methods.</p> : null}
     {value !== null ? accounts.map(account => <Checkbox key={account.id} label={`${account.label}${account.enabled ? '' : ' — inactive'}`}
       checked={value.includes(account.id)} onChange={checked => onChange(checked ? [...value, account.id] : value.filter(id => id !== account.id))} />) : null}
     {value !== null && accounts.length > 0 && !value.length
-      ? <Notice tone="warn">No account selected: players on this tier cannot deposit by bank transfer or UPI.</Notice> : null}
+      ? <Notice tone="warn">No account selected: players on this tier cannot deposit by bank transfer, UPI or crypto.</Notice> : null}
   </fieldset>
 }

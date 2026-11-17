@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useQuery, useLazyQuery, gql } from "@apollo/client";
+import { useQuery, useLazyQuery, useApolloClient, gql } from "@apollo/client";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/ui/components/Button";
 import { Page } from "@/ui/components/Page";
@@ -16,6 +16,7 @@ import { Pagination } from "@/ui/components/Pagination";
 import { usePlayersUiStore } from "@/state/playersUiStore";
 import { useAuthStore } from "@/shared/core/authStore";
 import { useSearch } from "@/shared/hooks/useSearch";
+import { useSearchParamUpdates } from "@/shared/hooks/useSearchParamUpdates";
 import { useAgentSubtree } from "@/shared/hooks/useAgentSubtree";
 
 
@@ -27,7 +28,6 @@ import { PlayersTable } from "./components/PlayersTable";
 import { RecentActivity } from "./components/RecentActivity";
 import { ActionsDrawer } from "./components/ActionsDrawer";
 import { BalanceAdjustmentModal } from "./components/BalanceAdjustmentModal";
-import { CreditAdjustmentModal } from "./components/CreditAdjustmentModal";
 import { SpecialBonusModal } from "./components/SpecialBonusModal";
 import type { Player } from "@/shared/types/player";
 import { RBACGuard } from "@/shared/core/RBACGuard";
@@ -96,16 +96,27 @@ const UsersPageQuery = gql`
         agentId
         playerType
         creditLimit
-        creditUsed
-        creditAvailable
-        settlementBalance
-        settlementBalanceSports
-        settlementBalanceCasino
-        settlementBalanceMatka
         parentAgent {
           id
           username
           schemeType
+        }
+        chips {
+          accountType
+          id
+          username
+          name
+          status
+          parentAgentId
+          playerType
+          currency
+          creditReference
+          balance
+          exposure
+          available
+          downlineBalance
+          refPnl
+          downlineCount
         }
         referredBy {
           id
@@ -165,6 +176,9 @@ const AGENTS_FOR_SELECTOR_QUERY = gql`
 
 // Mutations moved into ActionsDrawer component
 
+/** Rows per request when Export Excel loads the whole list (usersPage serves at most 100). */
+const EXPORT_PAGE_SIZE = 100;
+
 export default function PlayersListPage() {
   return (
     <RBACGuard required={[{ domain: 'players.list', actions: ['view'] }]} bypassForAgents>
@@ -197,7 +211,9 @@ function PlayersListPageContent() {
   const [parentType, setParentType] = useState(initialParentType);
   const [agentId, setAgentId] = useState<string | undefined>(undefined);
 
-  const { query, setQuery, debouncedQuery } = useSearch({ minLength: 2 });
+  // A link may carry the search (?search=, the global search's "See all Players").
+  const { query, setQuery, debouncedQuery } = useSearch({ minLength: 2, initialQuery: searchParams.get('search') ?? '' });
+  useSearchParamUpdates(setQuery);
   const [mainLoaded, setMainLoaded] = useState(false);
   const [secondaryReady, setSecondaryReady] = useState(false);
 
@@ -220,9 +236,6 @@ function PlayersListPageContent() {
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [selectedPlayerForBalance, setSelectedPlayerForBalance] = useState<Player | null>(null);
-  const [creditModalOpen, setCreditModalOpen] = useState(false);
-  const [selectedPlayerForCredit, setSelectedPlayerForCredit] = useState<Player | null>(null);
-  const [creditModalInitialTab, setCreditModalInitialTab] = useState<'limit' | 'adjust' | 'settle'>('limit');
   const [specialBonusModalOpen, setSpecialBonusModalOpen] = useState(false);
   const [selectedPlayerForSpecialBonus, setSelectedPlayerForSpecialBonus] = useState<Player | null>(null);
   
@@ -456,6 +469,34 @@ function PlayersListPageContent() {
   const paginatedPlayers = players; // server-side paginated
   const totalPlayers = data?.usersPage?.total ?? 0;
 
+  // Export Excel writes the whole list under the current filters, not the page on screen (it used to write the
+  // 10 rows shown under a title claiming every player): every page of usersPage, then the rows' stats.
+  const apolloClient = useApolloClient();
+  const loadAllPlayersForExport = async (): Promise<SearchPlayer[]> => {
+    const rows: SearchPlayer[] = [];
+    let total = Number.POSITIVE_INFINITY;
+    while (rows.length < total) {
+      const { data: pageData } = await apolloClient.query({
+        query: UsersPageQuery,
+        variables: { ...queryVariables, offset: rows.length, limit: EXPORT_PAGE_SIZE },
+        fetchPolicy: "network-only",
+      });
+      const batch: SearchPlayer[] = pageData?.usersPage?.items ?? [];
+      total = Number(pageData?.usersPage?.total ?? 0);
+      if (batch.length === 0) break;
+      rows.push(...batch);
+    }
+    const exportStats = new Map<string, SearchPlayerStats | undefined>();
+    for (let i = 0; i < rows.length; i += EXPORT_PAGE_SIZE) {
+      const ids = rows.slice(i, i + EXPORT_PAGE_SIZE).map((row) => row.id);
+      const { data: statsPage } = await apolloClient.query({ query: PlayerStatsByIdsQuery, variables: { ids }, fetchPolicy: "network-only" });
+      for (const row of (statsPage?.playersStatsByIds ?? []) as StatsRow[]) {
+        if (row?.playerId) exportStats.set(String(row.playerId), row.stats ?? undefined);
+      }
+    }
+    return rows.map((row) => ({ ...row, stats: exportStats.get(String(row.id)) }));
+  };
+
   // Fullscreen functionality
   const handleFullscreen = () => {
     if (!compactMode && pageContainerRef.current) {
@@ -567,19 +608,10 @@ function PlayersListPageContent() {
           openDrawer(u);
         }}
         onRefetch={() => refetch()}
+        loadAllForExport={loadAllPlayersForExport}
         onAdjustBalance={(u) => {
           setSelectedPlayerForBalance(u);
           setBalanceModalOpen(true);
-        }}
-        onAdjustCredit={(u) => {
-          setSelectedPlayerForCredit(u);
-          setCreditModalInitialTab('adjust');
-          setCreditModalOpen(true);
-        }}
-        onSettleCredit={(u) => {
-          setSelectedPlayerForCredit(u);
-          setCreditModalInitialTab('settle');
-          setCreditModalOpen(true);
         }}
         onSpecialBonus={(u) => {
           setSelectedPlayerForSpecialBonus(u);
@@ -640,20 +672,6 @@ function PlayersListPageContent() {
         }}
       />
 
-      {/* Credit Adjustment Modal */}
-      <CreditAdjustmentModal
-        open={creditModalOpen}
-        player={selectedPlayerForCredit}
-        initialTab={creditModalInitialTab}
-        onClose={() => {
-          setCreditModalOpen(false);
-          setSelectedPlayerForCredit(null);
-          setCreditModalInitialTab('limit');
-        }}
-        onSuccess={() => {
-          refetch();
-        }}
-      />
       </Page>
     </div>
   );

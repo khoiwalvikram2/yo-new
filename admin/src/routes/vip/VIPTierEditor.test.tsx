@@ -46,21 +46,32 @@ async function next(title: string) {
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
   await waitFor(() => assert.ok(screen.getByRole('heading', { name: title })))
 }
-const DEPOSIT_POLICY = { enabled: true, methods: ['BANK_TRANSFER', 'UPI', 'GATEWAY'], min: null, max: null, daily: null, monthly: null }
+const DEPOSIT_POLICY = { enabled: true, methods: ['BANK_TRANSFER', 'UPI', 'GATEWAY', 'CRYPTO'], min: null, max: null, daily: null, monthly: null }
 
 describe('VIP create/edit wizard', () => {
   test('edits real deposit methods and limits and includes them in the save', async () => {
     page(true)
     fireEvent.change(screen.getByLabelText('Daily deposit limit'), { target: { value: '25000' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: 'UPI', exact: true }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'UPI' }))
     await next('Tier Benefits'); await next('Exclusive Perks'); await next('Review')
     // Limits are entered in the whitelabel currency and shown converted, like the monthly deposit.
     assert.ok(screen.getByText('INR 50000')); assert.ok(screen.getByText('INR 200'))
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() => assert.equal(mocks.update.mock.calls.length, 1))
     assert.deepEqual(mocks.update.mock.calls[0][0].variables.input.depositPolicy, {
-      ...DEPOSIT_POLICY, methods: ['BANK_TRANSFER', 'GATEWAY'], daily: 25000,
+      ...DEPOSIT_POLICY, methods: ['BANK_TRANSFER', 'GATEWAY', 'CRYPTO'], daily: 25000,
     })
+  })
+  test('a tier allows crypto deposits by default and can refuse them', async () => {
+    page(true)
+    const crypto = screen.getByRole('checkbox', { name: 'Crypto (USDT)' }) as HTMLInputElement
+    assert.equal(crypto.checked, true)
+    fireEvent.click(crypto)
+    await next('Tier Benefits'); await next('Exclusive Perks'); await next('Review')
+    assert.ok(screen.getByText('BANK_TRANSFER, UPI, GATEWAY'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => assert.equal(mocks.update.mock.calls.length, 1))
+    assert.deepEqual(mocks.update.mock.calls[0][0].variables.input.depositPolicy.methods, ['BANK_TRANSFER', 'UPI', 'GATEWAY'])
   })
   test('create validates required details, preserves array fields across steps and exact payloads', async () => {
     page(); fireEvent.click(screen.getByRole('button', { name: 'Next' }))

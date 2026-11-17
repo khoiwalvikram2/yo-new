@@ -8,9 +8,11 @@ enum WithdrawalStatus {
 }
 
 input AdminWithdrawalFilter {
+  id: ID # One request by its id (task links); combine with no status or dates to find it whatever its age
   status: WithdrawalStatus
   userId: ID
   accountId: ID
+  query: String # 2+ characters: the player's name, username, phone or email, or the request id
   fromDate: String
   toDate: String
   offset: Int
@@ -24,6 +26,7 @@ type WithdrawalAccount {
   ifscCode: String
   bankName: String
   accountHolderName: String
+  deletedAt: String # set when the player deleted the account; the withdrawal still shows it, marked Deleted
 }
 
 type WithdrawalUser {
@@ -46,6 +49,23 @@ type AdminWithdrawalRequest {
   updatedAt: String!
   account: WithdrawalAccount
   user: WithdrawalUser
+  gatewayPayout: WelivepayPayoutStatus # Set once the withdrawal was sent to WeLivePay; it then settles only through the gateway
+}
+
+# A WeLivePay IMPS payout of one withdrawal, as last read from the gateway.
+type WelivepayPayoutStatus {
+  orderId: String!
+  status: String! # pending | requested | processing | success | failed | rejected
+  amount: Float!
+  utr: String
+  failureReason: String
+  merchantTransactionId: String
+  canReject: Boolean! # true only while WeLivePay has not taken the payout (unsent, or refused for project balance)
+}
+
+type WithdrawalGatewayConfig {
+  tenant: String
+  payoutEnabled: Boolean! # payouts switched on and a merchant key saved for the payment whitelabel
 }
 
 type AdminWithdrawalRequestList {
@@ -73,12 +93,16 @@ type SetWithdrawalStatusResponse {
 }
 
 extend type Mutation {
+  sendWelivepayPayout(id: ID!): WelivepayPayoutStatus!
+  refreshWelivepayPayout(id: ID!): WelivepayPayoutStatus!
+  rejectWelivepayPayout(id: ID!, note: String!): WelivepayPayoutStatus!
   setWithdrawalStatus(input: SetWithdrawalStatusInput!): SetWithdrawalStatusResponse!
   approvePayoutAccount(input: ApprovePayoutAccountInput!): PayoutAccountActionResponse!
   rejectPayoutAccount(input: RejectPayoutAccountInput!): PayoutAccountActionResponse!
 }
 
 extend type Query {
+  withdrawalGatewayConfig: WithdrawalGatewayConfig!
   adminWithdrawalRequests(input: AdminWithdrawalFilter): AdminWithdrawalRequestList!
   adminWithdrawalHistory(id: ID!): [WithdrawalHistoryItem!]!
   adminPayoutAccounts(input: AdminPayoutAccountFilter): AdminPayoutAccountList!

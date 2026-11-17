@@ -48,8 +48,10 @@ function toAdditionalLegs(validatedLegs: SportsPlacementValidatedLeg[]): Additio
 }
 
 /**
- * Cash players only: lock wallet row and ensure cash covers book-based projected exposure
- * (same logic as placeSportsBetForUser in-transaction check).
+ * Lock the wallet row and ensure cash covers book-based projected exposure (same logic as
+ * placeSportsBetForUser in-transaction check). Every player type: credit players
+ * (AGENT_CREDIT / WHITELABEL_CREDIT) hold their chips in wallets.cash, so they are checked
+ * against cash − exposure like cash players; their credit limit is only a reference.
  */
 export async function assertCashWalletCoversProjectedBookExposureInTx(
   tx: any,

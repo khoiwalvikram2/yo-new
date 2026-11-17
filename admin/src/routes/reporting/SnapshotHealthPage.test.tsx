@@ -11,6 +11,7 @@ import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { useApolloClient } from '@apollo/client'
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
+import { GraphQLError } from 'graphql'
 import {
   ENQUEUE_SNAPSHOT_BACKFILL_RANGE_MUTATION,
   ENQUEUE_SNAPSHOT_FOR_REPORTING_DAY_MUTATION,
@@ -425,6 +426,35 @@ describe('SnapshotHealthPage', () => {
     assert.equal(end.value, '')
     // the range form never asked for a confirmation, and still does not
     assert.equal(feedback.confirm.mock.calls.length, 0)
+  })
+
+  test('a backfill the server refuses shows its reason in the form and keeps the range (F-REP-11)', async () => {
+    renderPage([
+      summaryMock(),
+      missingMock(GAPS),
+      staleMock(STALE),
+      {
+        request: {
+          query: ENQUEUE_SNAPSHOT_BACKFILL_RANGE_MUTATION,
+          variables: { tenant: 'core', whitelabelId: 'wl-1', dateFrom: '2026-07-01', dateTo: '2026-10-31', currency: 'INR' },
+        },
+        result: { errors: [new GraphQLError('Range too large (max 31 days)')] },
+      },
+    ])
+    await loaded()
+
+    const form = screen.getByRole('form', { name: 'Backfill range' })
+    // the form says which book it backfills, since it has no tenant picker
+    within(form).getByText(/^Backfills core \/ wl-1 \(INR\), the first tenant listed below; at most 31 days at a time\.$/)
+    const start = within(form).getByLabelText('Start date') as HTMLInputElement
+    const end = within(form).getByLabelText('End date') as HTMLInputElement
+    fireEvent.change(start, { target: { value: '2026-10-31' } })
+    fireEvent.change(end, { target: { value: '2026-07-01' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Backfill range' }))
+
+    await waitFor(() => assert.equal(within(form).getByRole('alert').textContent, 'Range too large (max 31 days)'))
+    assert.equal(start.value, '2026-10-31')
+    assert.equal(end.value, '2026-07-01')
   })
 
   test('Reset clears the range and its message', async () => {

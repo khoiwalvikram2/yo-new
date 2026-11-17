@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Clock, Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { EventItem, SportType } from '@/types'
-import { useFeatureFlags, useLogo, useParsedSettings } from '../../../hooks/useAppSettings'
+import { useFeatureFlags, useLogo, useParsedSettings, useSportsIconStyle } from '../../../hooks/useAppSettings'
 import { useSportsEventsData } from '../../sports/useSportsEventsData'
 import CasinoLounge from './CasinoLounge'
 import FeaturedGameRail from './FeaturedGameRail'
@@ -24,6 +24,7 @@ import {
   rankSport,
   splitTeams,
   sportIcon,
+  sportIconClass,
   sportTitle,
   startOf,
   useDayLabel,
@@ -68,10 +69,11 @@ function SportRail({ sport, total, children }: { sport: SportType; total: number
     el.scrollBy({ left: direction * width, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
   const headingId = `nova-ex-section-${sport}`
-  const icon = sportIcon(sport)
+  const iconStyle = useSportsIconStyle()
+  const icon = sportIcon(sport, iconStyle)
 
   return <section className="nova-ex-sport-section" aria-labelledby={headingId}>
-    <SectionHeader icon={icon ? <img src={icon} alt="" /> : undefined} title={sportTitle(sport)} titleId={headingId} count={total}>
+    <SectionHeader icon={icon ? <img src={icon} alt="" className={sportIconClass(sport, iconStyle)} /> : undefined} title={sportTitle(sport)} titleId={headingId} count={total}>
       <Link to={`/sports?sport=${sport}`} className="nova-ex-section-all">{t('exchangeHome.seeAll', { defaultValue: 'See All' })}</Link>
       {!(edges.start && edges.end) && <span className="nova-ex-section-arrows">
         <button type="button" disabled={edges.start} onClick={() => step(-1)} aria-label={t('nova.scrollLeft')}><ChevronLeft aria-hidden="true" /></button>
@@ -83,7 +85,7 @@ function SportRail({ sport, total, children }: { sport: SportType; total: number
 }
 
 /**
- * Home shows live sports only, falling back to upcoming matches when none are live.
+ * Home shows live sports only, falling back to the open matches (started today, then upcoming) when none are live.
  * Real events only: an empty feed says so, a failed request says so and offers a retry.
  */
 function SportsGames({ events, loading, error, onRetry }: { events: EventItem[]; loading: boolean; error: string | null; onRetry: () => void }) {
@@ -136,6 +138,7 @@ const UP_NEXT_LIMIT = 4
 
 /** Competitions one tap from their market list: priority sports first (cricket leads), busiest within each. */
 function QuickLeagues({ fixtures }: { fixtures: Fixture[] }) {
+  const iconStyle = useSportsIconStyle()
   const { t } = useTranslation()
   const leagues = useMemo(() => {
     const counts = new Map<string, { sport: SportType; league: string; count: number }>()
@@ -156,10 +159,10 @@ function QuickLeagues({ fixtures }: { fixtures: Fixture[] }) {
     <SectionHeader icon={<Star className="nova-ex-strip-icon" aria-hidden="true" />} title={t('exchangeHome.quickLeagues', { defaultValue: 'Quick leagues' })} titleId="nova-ex-leagues-title" />
     <ul className="nova-ex-widget-list">
       {leagues.map(entry => {
-        const icon = sportIcon(entry.sport)
+        const icon = sportIcon(entry.sport, iconStyle)
         return <li key={`${entry.sport}|${entry.league}`}>
           <Link to={`/sports?sport=${entry.sport}&league=${encodeURIComponent(entry.league)}`} className="nova-ex-league">
-            {icon && <img className="sport-img" src={icon} alt="" />}
+            {icon && <img className={sportIconClass(entry.sport, iconStyle, 'sport-img')} src={icon} alt="" />}
             <span className="nova-ex-league-name">{entry.league}</span>
             <span className="nova-ex-league-count">{entry.count}</span>
             <ChevronRight aria-hidden="true" />
@@ -272,7 +275,7 @@ export default function NovaExchangeHome() {
   const { events, loading, error, reload } = useSportsEventsData()
   const features = useFeatureFlags()
   const { t } = useTranslation()
-  return <div className="nova-ex-grid">
+  return <div className="nova-ex-grid nova-ex-home">
     <div className="nova-ex-main">
       <PromotionFolio />
       <PopularNavigation onInPlay={reload} />
@@ -285,8 +288,10 @@ export default function NovaExchangeHome() {
       {/* Matka sits after the slots row (owner 2026-10-30); the game providers stay last. */}
       {features.matkaEnabled && <MatkaStrip />}
       {features.casinoEnabled && <ProviderShowcase />}
-      <HomeFaq />
     </div>
     <SideColumn events={events} loading={loading} />
+    {/* The FAQ closes the page: under the main column on desktop, after the side column (Quick leagues, Up next)
+        once the columns stack (owner 2026-11-02 polish). */}
+    <div className="nova-ex-main nova-ex-foot"><HomeFaq /></div>
   </div>
 }

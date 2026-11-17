@@ -12,6 +12,7 @@ import {
   IconRefresh,
 } from '@tabler/icons-react'
 import { useAuthStore } from '@/shared/core/authStore'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 import { useFormatDate } from '@/shared/core/useFormatDate'
 import { RBACGuard } from '@/shared/core/RBACGuard'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
@@ -128,6 +129,7 @@ function ExportsPageContent() {
   const agent = useAuthStore((s) => s.agent)
   const isAgent = !!agent
   const userRoles = useAuthStore((s) => s.roles) || NO_ROLES
+  const userPermissions = useAuthStore((s) => s.permissions)
   const agentSchemeType = agent?.schemeType?.toLowerCase()
   const allowedDomains = agent?.allowedDomains || DEFAULT_AGENT_DOMAINS
   const client = useApolloClient()
@@ -149,7 +151,7 @@ function ExportsPageContent() {
   const [exportEstimates, setExportEstimates] = useState<Record<string, ExportEstimate>>({})
   const [loadingEstimates, setLoadingEstimates] = useState<Record<string, boolean>>({})
 
-  // Filter export types based on user role, agent type, domain, and search
+  // Filter export types based on user role, the admin's export permissions, agent type, domain, and search
   const availableTypes = useMemo(
     () => availableExportTypes({
       roles: userRoles,
@@ -158,8 +160,9 @@ function ExportsPageContent() {
       allowedDomains,
       category: selectedCategory,
       search: searchQuery,
+      can: (domain, action) => hasPermissionWithNested(userPermissions ?? undefined, domain, action),
     }),
-    [userRoles, searchQuery, selectedCategory, isAgent, agentSchemeType, allowedDomains],
+    [userRoles, userPermissions, searchQuery, selectedCategory, isAgent, agentSchemeType, allowedDomains],
   )
 
   // Group exports by category

@@ -3,7 +3,7 @@ import * as sportsReportingRepo from '@/repos/reporting/sportsReportingRepo.js';
 import * as casinoReportingRepo from '@/repos/reporting/casinoReportingRepo.js';
 import * as matkaReportingRepo from '@/repos/reporting/matkaReportingRepo.js';
 import * as agentReportingRepo from '@/repos/reporting/agentReportingRepo.js';
-import { getPostedPerformanceCommissions } from '@/repos/reporting/agentPerformanceReads.js';
+import { getPostedPerformanceCommissions, getPostedCommissionSum, getPostedTenantCommissionSum, reportingDomain } from '@/repos/reporting/agentPerformanceReads.js';
 import * as bonusReportingRepo from '@/repos/reporting/bonusReportingRepo.js';
 import * as exposureReportingRepo from '@/repos/reporting/exposureReportingRepo.js';
 import * as pnlReportingRepo from '@/repos/reporting/pnlReportingRepo.js';
@@ -20,7 +20,7 @@ import {
 import { eq, and, desc, gte, lte, sql, isNotNull, isNull, inArray } from 'drizzle-orm';
 import { sportsEventsTable, sportsLeaguesTable, sportsTable } from '@shared/db/schema.js';
 import { normalizeCreatedByForReporting } from './reportingResolverUtils.js';
-import { generatePresignedGetUrl } from '@/services/storage/s3.js';
+import { exportFileDownload } from '@/services/storage/exportFile.js';
 import { requireReadPermission, hasPermission } from '@src/domains/common/auth.js'
 import { resolveAgentPerformanceParent } from './agentReportScope.js'
 import { inAgentPlayers } from '@/repos/reporting/agentPlayerScope.js'
@@ -61,6 +61,20 @@ function applyAgentFilter(filter: any, ctx: any) {
 }
 
 /**
+ * An agent reads a domain's report only when that domain is one of its allowed domains (SCO-07).
+ * The flat reporting:read grant gives every agent reporting.sports / casino / matka view, so the
+ * permission check alone answered a casino-only agent's sports and matka reports. Same rule as
+ * allowedBetDomains in bets/resolvers/queries.ts; admins are not affected.
+ * The message reads as a permission refusal on purpose: the admin UI's error link and the P&L
+ * page's totals test for that wording, so the refusal stays quiet instead of toasting as a failure.
+ */
+export function requireAgentDomain(ctx: any, domain: 'sports' | 'casino' | 'matka') {
+  if (ctx?.user?.type !== 'agent') return
+  const allowed = Array.isArray(ctx.user.agentAllowedDomains) ? ctx.user.agentAllowedDomains.map((d: unknown) => String(d).toLowerCase()) : []
+  if (!allowed.includes(domain)) throw new Error(`Forbidden: insufficient permissions: the ${domain} domain is not enabled for this agent`)
+}
+
+/**
  * Parse dateFrom / dateTo from filter using tenant timezone (IST-safe).
  * Returns { dateFrom?: Date; dateTo?: Date } suitable for spreading into repo params.
  */
@@ -81,6 +95,12 @@ function agentOutsideCallerTenant(ctx: any, agentTenant: string | null | undefin
   if (ctx?.user?.type === 'agent') return false
   if (hasPermission(ctx?.permissions ?? [], 'all', '*')) return false
   return !!agentTenant && agentTenant.trim() !== requestTenant
+}
+
+/** The Agent type a report filter names, or undefined for every type. */
+function agentSchemeType(value: unknown): 'COMMISSION' | 'SHARING' | 'CREDIT' | undefined {
+  const scheme = typeof value === 'string' ? value.trim().toUpperCase() : ''
+  return scheme === 'COMMISSION' || scheme === 'SHARING' || scheme === 'CREDIT' ? scheme : undefined
 }
 
 // Legacy resolvers (kept for backward compatibility)
@@ -161,6 +181,7 @@ export const reportingQueryResolvers = {
   // Sports Reporting
   sportsKPIs: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     const tenant = filter.tenant || ctx?.tenant || 'default';
     const whitelabelId = filter.whitelabelId || ctx?.whitelabel?.id;
@@ -193,6 +214,7 @@ export const reportingQueryResolvers = {
 
   sportsTrends: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await sportsReportingRepo.getSportsTrends({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -208,6 +230,7 @@ export const reportingQueryResolvers = {
 
   sportsBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     const dimension = args.dimension as 'sport' | 'league' | 'event';
     return await sportsReportingRepo.getSportsBreakdown(
@@ -227,6 +250,7 @@ export const reportingQueryResolvers = {
 
   topSportsEvents: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     const limit = args.limit || 10;
     return await sportsReportingRepo.getTopSportsEvents(
@@ -244,14 +268,18 @@ export const reportingQueryResolvers = {
     );
   },
 
-  // Casino Reporting
+  // Casino Reporting (the provider / vendor / game narrow the figures to the drill-down level shown)
   casinoKPIs: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.casino', 'view')
+    requireAgentDomain(ctx, 'casino')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await casinoReportingRepo.getCasinoKPIs({
       tenant: filter.tenant || ctx?.tenant || 'default',
       whitelabelId: filter.whitelabelId || ctx?.whitelabel?.id,
       agentId: filter.agentId,
+      providerId: filter.providerId,
+      vendorId: filter.vendorId,
+      gameId: filter.gameId,
       ...(await parseDatesFromFilter(filter, ctx)),
       currency: filter.currency,
     });
@@ -259,24 +287,33 @@ export const reportingQueryResolvers = {
 
   casinoTrends: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.casino', 'view')
+    requireAgentDomain(ctx, 'casino')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await casinoReportingRepo.getCasinoTrends({
       tenant: filter.tenant || ctx?.tenant || 'default',
       whitelabelId: filter.whitelabelId || ctx?.whitelabel?.id,
       agentId: filter.agentId,
+      providerId: filter.providerId,
+      vendorId: filter.vendorId,
+      gameId: filter.gameId,
       ...(await parseDatesFromFilter(filter, ctx)),
       currency: filter.currency,
     });
   },
 
-  // Matka Reporting
+  // Matka Reporting (the type / market / session / player narrow the figures to the drill-down level shown)
   matkaKPIs: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.matka', 'view')
+    requireAgentDomain(ctx, 'matka')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await matkaReportingRepo.getMatkaKPIs({
       tenant: filter.tenant || ctx?.tenant || 'default',
       whitelabelId: filter.whitelabelId || ctx?.whitelabel?.id,
       agentId: filter.agentId,
+      matkaType: filter.matkaType,
+      matkaId: filter.matkaId,
+      marketSession: filter.marketSession,
+      playerId: filter.playerId,
       ...(await parseDatesFromFilter(filter, ctx)),
       currency: filter.currency,
     });
@@ -284,11 +321,16 @@ export const reportingQueryResolvers = {
 
   matkaTrends: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.matka', 'view')
+    requireAgentDomain(ctx, 'matka')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await matkaReportingRepo.getMatkaTrends({
       tenant: filter.tenant || ctx?.tenant || 'default',
       whitelabelId: filter.whitelabelId || ctx?.whitelabel?.id,
       agentId: filter.agentId,
+      matkaType: filter.matkaType,
+      matkaId: filter.matkaId,
+      marketSession: filter.marketSession,
+      playerId: filter.playerId,
       ...(await parseDatesFromFilter(filter, ctx)),
       currency: filter.currency,
     });
@@ -298,28 +340,46 @@ export const reportingQueryResolvers = {
   agentKPIs: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.agent-overview', 'view')
     const filter = applyAgentFilter(args.filter || {}, ctx);
+    const domain = reportingDomain(filter.domain);
     const result = await agentReportingRepo.getAgentKPIs({
       tenant: filter.tenant || ctx?.tenant || 'default',
       whitelabelId: filter.whitelabelId || ctx?.whitelabel?.id,
       agentId: filter.agentId,
+      // The Agent type picker narrows the whitelabel-wide figures; one agent's
+      // own KPIs (its subtree is a single scheme) never narrow by it.
+      schemeType: filter.agentId ? undefined : agentSchemeType(filter.schemeType),
       ...(await parseDatesFromFilter(filter, ctx)),
-      domain: filter.domain as 'sports' | 'casino' | 'matka' | undefined,
+      domain,
       currency: filter.currency,
     });
     if (filter.agentId && result) {
       const { AgentsRepo } = await import('@/repos/agents/AgentsRepo.js');
-      const { AgentLedgerRepo } = await import('@/repos/agents/AgentLedgerRepo.js');
       const { getWhitelabelCurrency } = await import('@src/shared/whitelabelConfig.js');
       const agent = await new AgentsRepo().findById(filter.agentId);
-      if (agent?.schemeType === 'COMMISSION') {
+      // Not for another whitelabel's agent: the figures above are tenant-filtered, the ledger read is not.
+      if (agent?.schemeType === 'COMMISSION' && !agentOutsideCallerTenant(ctx, agent.tenantId, filter.tenant || ctx?.tenant || 'default')) {
         const tenant = filter.tenant || ctx?.tenant || 'default';
         const currency = filter.currency || await getWhitelabelCurrency(tenant);
         const periodTz = await getWhitelabelTimezone(tenant);
         const periodFrom = filter.dateFrom ? parseDateFrom(filter.dateFrom, periodTz) : new Date(0);
         const periodTo = filter.dateTo ? parseDateTo(filter.dateTo, periodTz) : new Date();
-        // This column displays posted ledger earnings, not calculated payable.
-        result.commissionEarned = await new AgentLedgerRepo().getEarnedPostedSum(filter.agentId, { from: periodFrom, to: periodTo, currency });
+        // This column displays posted ledger earnings, not calculated payable,
+        // of the chosen domain tab only.
+        result.commissionEarned = await getPostedCommissionSum(filter.agentId, { from: periodFrom, to: periodTo, currency, domain });
       }
+    } else if (result) {
+      // The whitelabel's Commission Earned card: the posted COMMISSION lines of its agents (of the chosen Agent type and
+      // domain tab), the source the per-agent Commission and Activity Trends on the same page read. It summed the
+      // snapshots' agent_commission estimate, which disagreed with them and could be negative.
+      const { getWhitelabelCurrency } = await import('@src/shared/whitelabelConfig.js');
+      const tenant = filter.tenant || ctx?.tenant || 'default';
+      const currency = filter.currency || await getWhitelabelCurrency(tenant);
+      const periodTz = await getWhitelabelTimezone(tenant);
+      const periodFrom = filter.dateFrom ? parseDateFrom(filter.dateFrom, periodTz) : new Date(0);
+      const periodTo = filter.dateTo ? parseDateTo(filter.dateTo, periodTz) : new Date();
+      result.commissionEarned = await getPostedTenantCommissionSum(tenant, {
+        from: periodFrom, to: periodTo, currency, domain, schemeType: agentSchemeType(filter.schemeType),
+      });
     }
     return result;
   },
@@ -354,7 +414,8 @@ export const reportingQueryResolvers = {
         const periodTz = await getWhitelabelTimezone(tenant);
         const periodFrom = filter.dateFrom ? parseDateFrom(filter.dateFrom, periodTz) : new Date(0);
         const periodTo = filter.dateTo ? parseDateTo(filter.dateTo, periodTz) : new Date();
-        const posted = await getPostedPerformanceCommissions(tenant, commissionAgents.map(row => row.agentId), currency, periodFrom, periodTo);
+        // The domain tab's lines only: without it every tab showed the all-domain commission.
+        const posted = await getPostedPerformanceCommissions(tenant, commissionAgents.map(row => row.agentId), currency, periodFrom, periodTo, reportingDomain(filter.domain));
         for (const row of commissionAgents) row.commissionEarned = posted.get(row.agentId) ?? 0;
         if (result.totals) {
           result.totals.commissionEarned = result.agents.reduce((s: number, a: any) => s + (a.commissionEarned ?? 0), 0);
@@ -371,8 +432,10 @@ export const reportingQueryResolvers = {
       tenant: filter.tenant || ctx?.tenant || 'default',
       whitelabelId: filter.whitelabelId || ctx?.whitelabel?.id,
       agentId: filter.agentId,
+      // As agentKPIs: the Agent type narrows the whitelabel's agents, never one agent's own subtree.
+      schemeType: filter.agentId ? undefined : agentSchemeType(filter.schemeType),
       ...(await parseDatesFromFilter(filter, ctx)),
-      domain: filter.domain as 'sports' | 'casino' | 'matka' | undefined,
+      domain: reportingDomain(filter.domain),
       currency: filter.currency,
     });
   },
@@ -481,15 +544,9 @@ export const reportingQueryResolvers = {
     if (createdBy !== undefined && job.createdBy !== createdBy) {
       throw new Error('Export job not found');
     }
-    const fileUrl = job.fileUrl;
-    if (!fileUrl) {
-      throw new Error('Export file is not available');
-    }
-    // If stored value is S3 key (new jobs), return fresh presigned URL; else return as-is (legacy full URL)
-    if (fileUrl.startsWith('exports/')) {
-      return await generatePresignedGetUrl(fileUrl, 3600);
-    }
-    return fileUrl;
+    // The file itself, as the data URI the job row stores (S3 is gone, owner decision 2026-11-04). A job
+    // uploaded to S3 before that is refused by name: nothing can read its file any more.
+    return exportFileDownload(job);
   },
 
   // The Export Center's row estimate for an agent: the COUNT of the same agent-scoped SQL the
@@ -503,6 +560,7 @@ export const reportingQueryResolvers = {
   // Sports Drill-Down Queries
   sportsLeagueBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await sportsReportingRepo.getSportsLeagueBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -518,6 +576,7 @@ export const reportingQueryResolvers = {
 
   sportsEventBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await sportsReportingRepo.getSportsEventBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -533,6 +592,7 @@ export const reportingQueryResolvers = {
 
   sportsMarketBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     if (!filter.eventId) return [];
     try {
@@ -555,6 +615,7 @@ export const reportingQueryResolvers = {
 
   sportsAgentBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return sportsReportingRepo.getSportsAgentBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -570,6 +631,7 @@ export const reportingQueryResolvers = {
 
   sportsPlayerBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.sports', 'view')
+    requireAgentDomain(ctx, 'sports')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await sportsReportingRepo.getSportsPlayerBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -587,6 +649,7 @@ export const reportingQueryResolvers = {
   casinoProviderBreakdown: async (_: any, args: any, ctx: any) => {
     // The one casino drill-down that checked nothing; the rest demand this.
     requireReadPermission(ctx, 'reporting.casino', 'view')
+    requireAgentDomain(ctx, 'casino')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await casinoReportingRepo.getCasinoProviderBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -602,6 +665,7 @@ export const reportingQueryResolvers = {
 
   casinoVendorBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.casino', 'view')
+    requireAgentDomain(ctx, 'casino')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await casinoReportingRepo.getCasinoVendorBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -617,6 +681,7 @@ export const reportingQueryResolvers = {
 
   casinoGameBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.casino', 'view')
+    requireAgentDomain(ctx, 'casino')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await casinoReportingRepo.getCasinoGameBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -632,6 +697,7 @@ export const reportingQueryResolvers = {
 
   casinoAgentBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.casino', 'view')
+    requireAgentDomain(ctx, 'casino')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await casinoReportingRepo.getCasinoAgentBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -647,6 +713,7 @@ export const reportingQueryResolvers = {
 
   casinoPlayerBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.casino', 'view')
+    requireAgentDomain(ctx, 'casino')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await casinoReportingRepo.getCasinoPlayerBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -663,6 +730,7 @@ export const reportingQueryResolvers = {
   // Matka Drill-Down Queries
   matkaTypeBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.matka', 'view')
+    requireAgentDomain(ctx, 'matka')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await matkaReportingRepo.getMatkaTypeBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -678,6 +746,7 @@ export const reportingQueryResolvers = {
 
   matkaMarketBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.matka', 'view')
+    requireAgentDomain(ctx, 'matka')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await matkaReportingRepo.getMatkaMarketBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -693,6 +762,7 @@ export const reportingQueryResolvers = {
 
   matkaSessionBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.matka', 'view')
+    requireAgentDomain(ctx, 'matka')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await matkaReportingRepo.getMatkaSessionBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -708,6 +778,7 @@ export const reportingQueryResolvers = {
 
   matkaAgentBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.matka', 'view')
+    requireAgentDomain(ctx, 'matka')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await matkaReportingRepo.getMatkaAgentBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -723,6 +794,7 @@ export const reportingQueryResolvers = {
 
   matkaPlayerBreakdown: async (_: any, args: any, ctx: any) => {
     requireReadPermission(ctx, 'reporting.matka', 'view')
+    requireAgentDomain(ctx, 'matka')
     const filter = applyAgentFilter(args.filter || {}, ctx);
     return await matkaReportingRepo.getMatkaPlayerBreakdown({
       tenant: filter.tenant || ctx?.tenant || 'default',
@@ -1238,8 +1310,20 @@ async function loadExportJobsPage(args: any, context: any) {
       failed: sql<number>`count(*) filter (where status='failed')::int`,
       average: sql<number>`coalesce(avg(floor(extract(epoch from (completed_at-created_at))/60)) filter (where status='completed' and completed_at is not null),0)::float8`,
     }).from(reportingExportJobs).where(and(...conditions.filter(Boolean)));
+    // Every column the list shows, and not file_data: a completed job holds its whole file there (up to 40 MB),
+    // which only exportJobDownloadUrl reads.
     const jobs = await db
-      .select()
+      .select({
+        id: reportingExportJobs.id,
+        reportType: reportingExportJobs.reportType,
+        exportFormat: reportingExportJobs.exportFormat,
+        status: reportingExportJobs.status,
+        fileUrl: reportingExportJobs.fileUrl,
+        errorMessage: reportingExportJobs.errorMessage,
+        scheduledAt: reportingExportJobs.scheduledAt,
+        completedAt: reportingExportJobs.completedAt,
+        createdAt: reportingExportJobs.createdAt,
+      })
       .from(reportingExportJobs)
       .where(and(...conditions.filter(Boolean)))
       .orderBy(desc(reportingExportJobs.createdAt), desc(reportingExportJobs.id))

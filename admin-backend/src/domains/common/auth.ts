@@ -29,7 +29,7 @@ export type JwtPayload = {
 	agentAllowedDomains?: string[];
 	/** True when agent status is INACTIVE (view-only, no mutations) */
 	isReadOnly?: boolean;
-	/** Token version for force-logout; must match agents.token_version when type === 'agent' */
+	/** Token version for force-logout; must match agents.token_version (agents) or users.token_version (admins) */
 	v?: number;
 }
 
@@ -80,9 +80,82 @@ import { checkIpAllowed, listIpAllowlist } from '@/repos/adminSecurityRepo.js'
 import { AgentsRepo } from '@/repos/agents/AgentsRepo.js'
 import { deriveAgentPermissions, isAgentActive, canAgentLogin, agentAccessVerdict } from '@/domains/agents/services/AgentPermissionsService.js'
 
-export async function buildAuthContext(req: any, tenant?: string): Promise<{ user?: JwtPayload; permissions?: { domain: string; actions: string[] }[]; directorMode?: 'core' | 'whitelabel' | null; directorWhitelabelId?: string | null }> {
+/**
+ * Why a token that was presented is not honoured.
+ *
+ * buildAuthContext answered every refusal of a presented token with `{}`, the same answer as no token at all, so
+ * each resolver then refused in its own words ("Forbidden: insufficient permissions to access agents") and the
+ * panel could not tell a revoked session from a missing permission: a suspended agent's open tab kept navigating
+ * on refusals until a reload. The tenant and IP refusals threw instead, inside the GraphQL context function, which
+ * the HTTP layer answered with a bare 500 (and mercurius ran the context a second time, auditing twice).
+ * guardAdminSurface (domains/crmSurfaceGuard.ts) gives every admin-surface field one answer for either kind.
+ *
+ * - `session_ended`: the session no longer exists: signed out, forced out, password changed, suspended,
+ *   deactivated or deleted, or an agent under a suspended parent. Its message is one the panel already treats
+ *   as "Session ended" (admin/src/shared/core/api.ts).
+ * - `access_denied`: a live session used from where it may not be (another tenant, an address outside the IP
+ *   allowlist). Its message says which.
+ */
+export type AuthRejection = { reason: 'session_ended' | 'access_denied'; message: string }
+
+export const SESSION_ENDED_MESSAGE = 'Unauthorized: session invalid. Please sign in again.'
+
+const sessionEnded = (): { authRejected: AuthRejection } => ({
+  authRejected: { reason: 'session_ended', message: SESSION_ENDED_MESSAGE },
+})
+const accessDenied = (message: string): { authRejected: AuthRejection } => ({
+  authRejected: { reason: 'access_denied', message },
+})
+
+/**
+ * The columns that decide whether an admin's session still stands, read by id: users.status, users.token_version
+ * (moved on by Logout, Force Logout and a password change) and users.require_password_reset (Reset Password).
+ * Null when the row is gone.
+ */
+export async function readAdminSessionState(
+  userId: number
+): Promise<{ tenant: string | null; status: string; tokenVersion: number; requirePasswordReset: boolean } | null> {
+  const { db } = await import('@/db/client.js')
+  const { users } = await import('@/db/schema.js')
+  const { eq } = await import('drizzle-orm')
+  const rows = await db
+    .select({ tenant: users.tenant, status: users.status, tokenVersion: users.tokenVersion, requirePasswordReset: users.requirePasswordReset })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+  const row = rows[0]
+  if (!row) return null
+  const tenant = typeof row.tenant === 'string' && row.tenant.trim() !== '' ? row.tenant.trim() : null
+  return { tenant, status: String(row.status), tokenVersion: Number(row.tokenVersion) || 0, requirePasswordReset: row.requirePasswordReset === true }
+}
+
+/**
+ * Ends every session of an admin: the version its tokens carry no longer matches. By id alone, because the id
+ * comes from the caller's own session, and a platform Super Admin's row lives in `default` while `ctx.tenant` is
+ * whichever whitelabel it is working in (a tenant-scoped bump was a no-op for it).
+ */
+export async function endAdminSessions(userId: number): Promise<void> {
+  const { db } = await import('@/db/client.js')
+  const { users } = await import('@/db/schema.js')
+  const { eq, sql } = await import('drizzle-orm')
+  await db.update(users).set({ tokenVersion: sql`${users.tokenVersion} + 1` }).where(eq(users.id, userId))
+}
+
+/** Clears Reset Password's flag once the admin has chosen a new password (guardAdminSurface calls it). */
+export async function clearRequiredPasswordChange(userId: number): Promise<void> {
+  const { db } = await import('@/db/client.js')
+  const { users } = await import('@/db/schema.js')
+  const { eq } = await import('drizzle-orm')
+  await db.update(users).set({ requirePasswordReset: false }).where(eq(users.id, userId))
+}
+
+export async function buildAuthContext(req: any, tenant?: string): Promise<{ user?: JwtPayload; permissions?: { domain: string; actions: string[] }[]; directorMode?: 'core' | 'whitelabel' | null; directorWhitelabelId?: string | null; authRejected?: AuthRejection; passwordChangeRequired?: boolean }> {
   const base = getAuthFromRequest(req)
-  if (!base.user) return {}
+  if (!base.user) {
+    // No token is an anonymous caller. A token that was sent but does not verify (expired, or not one of ours)
+    // is a session that has ended, as surely as a revoked one.
+    return req?.headers?.authorization ? sessionEnded() : {}
+  }
 
   // A CRM token is not an admin identity. Without this it would fall through to
   // the admin branch, where Number(sub) on a uuid is NaN and the function
@@ -100,29 +173,29 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
     const agent = await agentsRepo.findById(base.user.agentId)
     
     if (!agent) {
-      return {} // Invalid agent token
+      return sessionEnded() // Invalid agent token (the agent is gone)
     }
-    
+
     // Verify tenant matches (if tenant is provided)
     // Normalize agent tenantId for comparison (trim whitespace)
     const agentTenant = (agent.tenantId && typeof agent.tenantId === 'string') ? agent.tenantId.trim() : null
     if (effectiveTenant && agentTenant && agentTenant !== effectiveTenant) {
-      return {} // Agent not authorized for this tenant
+      return sessionEnded() // Agent not authorized for this tenant; signing in again sets the panel's tenant
     }
     if (effectiveTenant && !agentTenant) {
-      return {} // Agent has no tenant configured
-    }
-    
-    // Only SUSPENDED (and BLOCKED) cannot access; INACTIVE can access in read-only mode
-    if (!canAgentLogin(agent.status)) {
-      return {} // Agent suspended or blocked
+      return sessionEnded() // Agent has no tenant configured
     }
 
-    // Force-logout: if JWT token version does not match DB, reject (e.g. after suspend)
+    // Only SUSPENDED (and BLOCKED) cannot access; INACTIVE can access in read-only mode
+    if (!canAgentLogin(agent.status)) {
+      return sessionEnded() // Agent suspended or blocked
+    }
+
+    // Force-logout: if JWT token version does not match DB, reject (e.g. after suspend or Sign out)
     const agentTokenVersion = Number((agent as any).tokenVersion) || 0
     const jwtVersion = Number((base.user as any)?.v)
     if (Number.isFinite(jwtVersion) && jwtVersion !== agentTokenVersion) {
-      return {} // Token invalidated (e.g. agent was suspended)
+      return sessionEnded() // Token invalidated (e.g. agent was suspended or signed out)
     }
 
     // Owner decision 1: a SUSPENDED/BLOCKED ancestor blocks the whole subtree, and
@@ -133,7 +206,7 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
     const ancestorStatuses = await agentsRepo.listNonActiveAncestorStatuses(String(agent.id))
     const access = agentAccessVerdict(agent.status, ancestorStatuses)
     if (!access.allowed) {
-      return {} // An ancestor agent is suspended or blocked
+      return sessionEnded() // An ancestor agent is suspended or blocked
     }
 
     const isReadOnly = access.isReadOnly
@@ -157,8 +230,21 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
   
   // Admin user flow (existing logic)
   const userIdNum = Number(base.user.sub)
-  if (!Number.isFinite(userIdNum)) return { user: base.user }
-  
+  // Only the login mutation mints admin tokens, always with the numeric users.id as sub; anything else names no
+  // admin. (This returned the user with no permissions, which a resolver checking only for a session accepted.)
+  if (!Number.isSafeInteger(userIdNum) || userIdNum <= 0) return sessionEnded()
+
+  // An admin's session stands only while its users row does, as an agent's does (above). None of this was read,
+  // so Deactivate, Force Logout and Sign out changed nothing for a live token, and the token of a deleted admin
+  // still read every commission payout of its whitelabel. One indexed read, Super Admin included.
+  const session = await readAdminSessionState(userIdNum)
+  if (!session || session.status !== 'active') return sessionEnded()
+  // A token minted before admin tokens carried a version has no `v` and counts as version 0. Honouring it instead
+  // would leave Force Logout and Sign out with no effect on such a token until it expired (seven days by default).
+  // The cost is one more sign-in, once, for an admin whose version has already moved on.
+  const jwtVersion = Number(base.user.v ?? 0)
+  if (jwtVersion !== session.tokenVersion) return sessionEnded()
+
   // CRITICAL: Check if user is Super Admin
   const roleNames = base.user.roles || []
   const isSuperAdmin = hasSuperAdminRoleName(roleNames)
@@ -235,33 +321,26 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
     }
   }
   
-  // For non-Super Admin users, fetch actual tenant from DB for permission loading
+  // For non-Super Admin users, use the actual tenant from DB (read with the session above) for permission loading
   // This ensures permissions are always loaded from the tenant where roles were assigned
-  const { db } = await import('@/db/client.js')
-  const { users } = await import('@/db/schema.js')
-  const { eq } = await import('drizzle-orm')
-  
   let userDbTenant: string = effectiveTenant
   if (!isSuperAdmin) {
-    const userRow = await db.select({ tenant: users.tenant })
-      .from(users)
-      .where(eq(users.id, userIdNum))
-      .limit(1)
-    
-    if (userRow.length > 0 && userRow[0].tenant && typeof userRow[0].tenant === 'string' && userRow[0].tenant.trim() !== '') {
-      userDbTenant = userRow[0].tenant.trim()
+    if (session.tenant) {
+      userDbTenant = session.tenant
     }
 
     // CRITICAL SECURITY: For Whitelabel Admins, verify user's actual tenant matches effective tenant
-    const isWhitelabelAdmin = roleNames.some(r => 
+    const isWhitelabelAdmin = roleNames.some(r =>
       r === 'Whitelabel Admin' || r.toLowerCase() === 'whitelabel_admin' || r.toLowerCase().includes('whitelabel')
     )
-    
+
     if (isWhitelabelAdmin) {
       const auditIp = getClientIp(req)
       const auditUserAgent = getClientUserAgent(req)
 
-      if (!userRow.length || !userRow[0].tenant || typeof userRow[0].tenant !== 'string' || userRow[0].tenant.trim() === '') {
+      // These refusals used to be thrown, which the HTTP layer turned into a 500 the panel could not read; they
+      // are returned now, and guardAdminSurface answers every field with the message (SCO-10).
+      if (!session.tenant) {
         const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
         recordAuditDb({
           tenant: effectiveTenant,
@@ -270,10 +349,10 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
           action: 'invalid_user_tenant',
           resourceType: 'user',
           resourceId: String(userIdNum),
-          before: { userFound: userRow.length > 0, tenant: userRow[0]?.tenant || null, effectiveTenant, ipAddress: auditIp, userAgent: auditUserAgent },
+          before: { userFound: true, tenant: null, effectiveTenant, ipAddress: auditIp, userAgent: auditUserAgent },
         }).catch(() => {})
-        
-        throw new Error('Access denied: Invalid user or tenant configuration')
+
+        return accessDenied('Access denied: Invalid user or tenant configuration')
       }
       
       // SECURITY: Whitelabel Admin can ONLY access their own tenant
@@ -288,8 +367,8 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
           resourceId: String(userIdNum),
           before: { userTenant: userDbTenant, effectiveTenant, attemptedAccess: true, ipAddress: auditIp, userAgent: auditUserAgent },
         }).catch(() => {})
-        
-        throw new Error('Access denied: Whitelabel Admins can only access their own tenant')
+
+        return accessDenied('Access denied: Whitelabel Admins can only access their own tenant')
       }
       
       const requestedTenantRaw = req.headers?.['x-tenant'] || req.headers?.['X-Tenant']
@@ -305,8 +384,8 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
           resourceId: String(userIdNum),
           before: { requestedTenant, effectiveTenant, ipAddress: auditIp, userAgent: auditUserAgent },
         }).catch(() => {})
-        
-        throw new Error('Access denied: Whitelabel Admins cannot switch tenants')
+
+        return accessDenied('Access denied: Whitelabel Admins cannot switch tenants')
       }
     }
   }
@@ -347,8 +426,8 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
             resourceId: String(userIdNum),
             before: { ip: clientIp },
           }).catch(() => {})
-          
-          throw new Error('Access denied: IP address not in allowlist')
+
+          return accessDenied('Access denied: IP address not in allowlist')
         }
       }
       // If no entries, allow (default off behavior)
@@ -357,7 +436,15 @@ export async function buildAuthContext(req: any, tenant?: string): Promise<{ use
   
   // Return auth context with Super Admin mode info
   const result: any = { user: base.user, permissions: aggregatePermissionPairs(pairs) }
-  
+
+  // Reset Password (Support Admins) sets require_password_reset, and nothing read it: the admin kept working and
+  // signed straight back in. Until the admin chooses a new password the session may do only that
+  // (guardAdminSurface lets changeAdminPassword and logout through), so it carries no permissions.
+  if (session.requirePasswordReset) {
+    result.permissions = []
+    result.passwordChangeRequired = true
+  }
+
   // Only include Super Admin mode fields if user is Super Admin
   if (isSuperAdmin) {
     result.directorMode = directorMode

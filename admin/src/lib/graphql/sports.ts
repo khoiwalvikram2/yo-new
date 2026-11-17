@@ -437,6 +437,34 @@ export const LIST_SPORTS_AUDIT = gql`
   }
 `
 
+/* The Sports Builder's history: each builder action asked for by name in the sports domain, in one request,
+ * each alias named after its action. `audit` takes a single action and reads the newest rows of the whole
+ * tenant, so ListSportsAudit with action: null, filtered to the builder's actions in the browser, found none
+ * once a hundred logins and other changes had followed the last builder change: the Audits tab read "No data". */
+export const LIST_SPORTS_BUILDER_AUDIT = gql`
+  query ListSportsBuilderAudit($limit: Int) {
+    persistSportsSelections: audit(domain: "sports", action: "persistSportsSelections", limit: $limit) { ...BuilderAuditEvent }
+    seedSportsFromProvider: audit(domain: "sports", action: "seedSportsFromProvider", limit: $limit) { ...BuilderAuditEvent }
+    upsertAutoSportsConfig: audit(domain: "sports", action: "upsertAutoSportsConfig", limit: $limit) { ...BuilderAuditEvent }
+    createAutoSportsConfig: audit(domain: "sports", action: "createAutoSportsConfig", limit: $limit) { ...BuilderAuditEvent }
+    deleteAutoSportsConfig: audit(domain: "sports", action: "deleteAutoSportsConfig", limit: $limit) { ...BuilderAuditEvent }
+    runAutoSportsIngestion: audit(domain: "sports", action: "runAutoSportsIngestion", limit: $limit) { ...BuilderAuditEvent }
+    deleteAutoRuns: audit(domain: "sports", action: "deleteAutoRuns", limit: $limit) { ...BuilderAuditEvent }
+  }
+  fragment BuilderAuditEvent on AuditEvent {
+    id
+    domain
+    action
+    actorId
+    actor { name type }
+    resourceType
+    resourceId
+    before
+    after
+    timestamp
+  }
+`
+
 export const LIST_RUNNING_EVENTS = gql`
   query RunningEvents($sport: String, $from: String, $to: String) {
     runningEvents(sport: $sport, from: $from, to: $to) {

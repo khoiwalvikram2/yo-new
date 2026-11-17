@@ -8,11 +8,13 @@ type Props = {
   active: string
   onSelect: (id: string) => void
   label: string
+  /** The categories or counts are not known yet: the strip shows placeholder tabs only. */
+  loading?: boolean
 }
 
 /** The lobby's category strip in the home page tab style (white, counts, red active tab). Edge arrows
  *  appear only while the strip overflows on that side; touch users swipe, keyboard users tab. */
-export default function LobbyTabs({ tabs, active, onSelect, label }: Props) {
+export default function LobbyTabs({ tabs, active, onSelect, label, loading = false }: Props) {
   const track = useRef<HTMLDivElement>(null)
   const [edges, setEdges] = useState({ start: true, end: true })
   const syncEdges = useCallback(() => {
@@ -23,7 +25,7 @@ export default function LobbyTabs({ tabs, active, onSelect, label }: Props) {
     syncEdges()
     window.addEventListener('resize', syncEdges)
     return () => window.removeEventListener('resize', syncEdges)
-  }, [syncEdges, tabs.length])
+  }, [syncEdges, tabs.length, loading])
   // Keep the active tab visible inside the strip; the page itself does not move.
   useEffect(() => {
     const el = track.current
@@ -38,8 +40,8 @@ export default function LobbyTabs({ tabs, active, onSelect, label }: Props) {
 
   return <div className="nova-ex-sport-tabs-wrap nova-lobby-tabs">
     {!edges.start && <button type="button" className="nova-ex-tabs-arrow is-prev" tabIndex={-1} aria-hidden="true" onClick={() => scrollBy(-1)}><ChevronLeft /></button>}
-    <div className="nova-ex-sport-tabs" ref={track} onScroll={syncEdges} role="group" aria-label={label}>
-      {tabs.map(tab => <button
+    <div className="nova-ex-sport-tabs" ref={track} onScroll={syncEdges} role="group" aria-label={label} aria-busy={loading || undefined}>
+      {loading ? Array.from({ length: 7 }, (_, index) => <span key={index} className="nova-lobby-tab-skeleton" aria-hidden="true" />) : tabs.map(tab => <button
         key={tab.id}
         type="button"
         data-tab={tab.id}

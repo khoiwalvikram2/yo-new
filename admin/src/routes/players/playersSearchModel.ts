@@ -1,6 +1,8 @@
 import type { Player, PlayerListStats } from '@/shared/types/player'
+import type { ChipAccount } from '@/lib/graphql/chips'
 export interface SearchPlayerStats extends PlayerListStats { manualDepositCount?: number | null; manualWithdrawalCount?: number | null }
-export interface SearchPlayer extends Omit<Player, 'stats'> { stats?: SearchPlayerStats }
+/** A list row; a credit player also carries its chips account (spec 2026-11-02 §7: Player.chips, batch-resolved). */
+export interface SearchPlayer extends Omit<Player, 'stats'> { stats?: SearchPlayerStats; chips?: ChipAccount | null }
 export interface StatsRow { playerId: string; stats?: SearchPlayerStats }
 export const EMPTY_PLAYERS: SearchPlayer[] = []
 export function playerQueryScope(parentType: string, isAgent: boolean) {
@@ -12,14 +14,15 @@ export function playerTabOptions(scheme?: string) {
     { label: 'All Players', value: 'ALL' }, { label: 'Direct Players', value: 'DIRECT' }, { label: 'Sharing Agent Players', value: 'SHARING' }, { label: 'Credit Agent Players', value: 'CREDIT' }, { label: 'Commission Agent Players', value: 'COMMISSION' },
   ]
 }
-  // Get all possible column headers
+  // Get all possible column headers. A credit player is on chips (spec 2026-11-02 §2): its Balance is its chips,
+  // with its Credit Ref and Ref P/L beside it (the old Credit limit/used and Settlement columns are gone).
   export const getAllHeaders = () => {
     return [
       'Player',
       'Status',
       'Balance',
-      'Credit',
-      'Settlement',
+      'Credit Ref',
+      'Ref P/L',
       'Deposits/Withdrawals',
       'Performance',
       'Commission',
@@ -40,8 +43,8 @@ export function playerTabOptions(scheme?: string) {
           return ['Player', 'Status', 'Balance', 'Deposits/Withdrawals', 'Performance', 'Exposure', 'Last Activity', 'Actions'].includes(column)
         
         case 'CREDIT':
-          // CREDIT Agent: Credit, Settlement, Performance, Exposure
-          return ['Player', 'Status', 'Credit', 'Settlement', 'Performance', 'Exposure', 'Last Activity', 'Actions'].includes(column)
+          // CREDIT Agent: its players' chips (Balance, Credit Ref, Ref P/L), Performance, Exposure
+          return ['Player', 'Status', 'Balance', 'Credit Ref', 'Ref P/L', 'Performance', 'Exposure', 'Last Activity', 'Actions'].includes(column)
         
         case 'COMMISSION':
           // COMMISSION Agent: Balance, Deposits/Withdrawals, Performance, Commission, Turnover, Exposure
@@ -62,16 +65,16 @@ export function playerTabOptions(scheme?: string) {
     switch (parentType) {
       case 'DIRECT':
         // DIRECT players: REGULAR or WHITELABEL_CREDIT
-        // Show both Balance and Credit (for WHITELABEL_CREDIT), Settlement (for WHITELABEL_CREDIT), Deposits/Withdrawals (for REGULAR), Performance, Exposure, Last Activity
-        return ['Player', 'Status', 'Balance', 'Credit', 'Settlement', 'Deposits/Withdrawals', 'Performance', 'Exposure', 'Last Activity', 'Actions'].includes(column)
+        // Balance for both (a whitelabel credit player's is its chips), Credit Ref and Ref P/L (WHITELABEL_CREDIT), Deposits/Withdrawals (REGULAR), Performance, Exposure, Last Activity
+        return ['Player', 'Status', 'Balance', 'Credit Ref', 'Ref P/L', 'Deposits/Withdrawals', 'Performance', 'Exposure', 'Last Activity', 'Actions'].includes(column)
       
       case 'SHARING':
         // SHARING_AGENT_PLAYER: Balance, Deposits/Withdrawals, Performance, Exposure, Last Activity
         return ['Player', 'Status', 'Balance', 'Deposits/Withdrawals', 'Performance', 'Exposure', 'Last Activity', 'Actions'].includes(column)
       
       case 'CREDIT':
-        // AGENT_CREDIT: Credit, Settlement, Performance, Exposure, Last Activity (NO Balance, NO Deposits/Withdrawals)
-        return ['Player', 'Status', 'Credit', 'Settlement', 'Performance', 'Exposure', 'Last Activity', 'Actions'].includes(column)
+        // AGENT_CREDIT: chips (Balance, Credit Ref, Ref P/L), Performance, Exposure, Last Activity (NO Deposits/Withdrawals)
+        return ['Player', 'Status', 'Balance', 'Credit Ref', 'Ref P/L', 'Performance', 'Exposure', 'Last Activity', 'Actions'].includes(column)
       
       case 'COMMISSION':
         // COMMISSION_AGENT_PLAYER: Balance, Deposits/Withdrawals, Performance, Commission, Turnover, Last Activity
@@ -92,15 +95,14 @@ export function playerTabOptions(scheme?: string) {
     
     switch (column) {
       case 'Balance':
-        // Show for REGULAR, SHARING_AGENT_PLAYER, COMMISSION_AGENT_PLAYER
-        // Hide for AGENT_CREDIT, WHITELABEL_CREDIT
-        return playerType !== 'AGENT_CREDIT' && playerType !== 'WHITELABEL_CREDIT'
-      
-      case 'Credit':
+        // Every player: the cash wallet, or a credit player's chips
+        return true
+
+      case 'Credit Ref':
         // Show only for AGENT_CREDIT, WHITELABEL_CREDIT
         return playerType === 'AGENT_CREDIT' || playerType === 'WHITELABEL_CREDIT'
-      
-      case 'Settlement':
+
+      case 'Ref P/L':
         // Show only for AGENT_CREDIT, WHITELABEL_CREDIT
         return playerType === 'AGENT_CREDIT' || playerType === 'WHITELABEL_CREDIT'
       

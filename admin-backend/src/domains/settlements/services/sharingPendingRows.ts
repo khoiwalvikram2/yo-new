@@ -49,14 +49,4 @@ export async function sharingPendingFields(
 	};
 }
 
-/**
- * Direction of a CREDIT agent's settlement balance, exactly as executeSettleAgent
- * derives it (balance >= 0 → TO_AGENT). The CREDIT rows keep `pendingAmount` as
- * the absolute balance for compatibility; the direction is this field.
- */
-export function creditSettlementDirection(balance: number): SharingDirection {
-	if (!Number.isFinite(balance) || Math.abs(balance) < 0.005) return 'NONE';
-	return balance >= 0 ? 'TO_AGENT' : 'FROM_AGENT';
-}
-
 export { sharingDirection };

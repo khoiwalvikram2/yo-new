@@ -43,6 +43,34 @@ function dashboardRangeArg(args: any): { dateFrom?: string; dateTo?: string } {
   return { dateFrom: text(args?.dateRange?.dateFrom), dateTo: text(args?.dateRange?.dateTo) }
 }
 
+/** Who may read the brand's own chip pool: its credit line and the pool ledger. */
+const POOL_STANDING: Array<[string, string]> = [['credit.management', 'view'], ['agents.credit', 'view']]
+/** Who may read the brand's platform sharing terms (the Whitelabel type's sharingRates asks the same). */
+const SHARING_STANDING: Array<[string, string]> = [['agents.sharing', 'view']]
+/** Who may read the brand's own settlements (its root agents' and its own with the platform): the settlement centre's read. */
+const SETTLEMENT_STANDING: Array<[string, string]> = [['settlements.center', 'view']]
+
+/**
+ * The gate on a whitelabel's own pool figures and sharing terms.
+ *
+ * These read only `ctx.tenant`, which comes from the X-Whitelabel-ID header with or without a session, and
+ * checked nothing else. Measured: a request carrying only that header paged all 3,100 rows of grandwinn's pool
+ * ledger, 3,086 of them naming a player and a phone number, and every agent (sub-agents and commission agents
+ * included) read the same. The panel shows these only to the brand's own operators (the topbar wallet, the
+ * /credit pool statement, the sports book's sharing rate), so that is who may read them: a session, never an
+ * agent, and the standing the Whitelabel type's money fields ask for (mayReadWhitelabelMoney in index.ts).
+ * Agents are refused by principal first because their flat `agents:view` grants the nested permissions below.
+ */
+function requireWhitelabelPoolReader(ctx: any, standing: Array<[string, string]>, what = 'the whitelabel pool'): void {
+  if (!ctx?.user) throw new Error('Unauthorized: authentication required')
+  if (ctx.user.type === 'agent') throw new Error(`Forbidden: ${what} is not available to agents`)
+  const perms = ctx?.permissions ?? []
+  if (hasPermission(perms, 'all', '*')) return
+  if (!standing.some(([domain, action]) => hasPermission(perms, domain, action))) {
+    throw new Error(`Forbidden: insufficient permissions to view ${what}`)
+  }
+}
+
 export const commonQueryResolvers = {
   health: async () => 'ok',
   whitelabelCurrent: async (_: any, __: any, ctx: any) => getCurrentWhitelabel(ctx),
@@ -66,9 +94,10 @@ export const commonQueryResolvers = {
   },
 
   myWhitelabelCredit: async (_parent: any, _args: any, ctx: any) => {
+    requireWhitelabelPoolReader(ctx, POOL_STANDING)
     const tenant = ctx.tenant;
     if (!tenant) throw new Error('Tenant not found in context');
-    
+
     const { WhitelabelCreditRepo } = await import('@src/repos/common/whitelabelCreditRepo.js');
     const whitelabelCreditRepo = new WhitelabelCreditRepo();
     const credit = await whitelabelCreditRepo.getCreditFields(tenant);
@@ -88,6 +117,7 @@ export const commonQueryResolvers = {
   },
 
   myWhitelabelCreditHistory: async (_parent: any, args: any, ctx: any) => {
+    requireWhitelabelPoolReader(ctx, POOL_STANDING)
     const tenant = ctx.tenant;
     if (!tenant) throw new Error('Tenant not found in context');
     
@@ -303,10 +333,11 @@ export const commonQueryResolvers = {
   },
 
   myWhitelabelSettlements: async (_parent: any, args: any, ctx: any) => {
-    // Scoped to the caller's own tenant and holds no permission on purpose,
-    // but it never checked there was a caller: with no session `ctx.tenant`
-    // falls back to the default whitelabel and the rows come back anyway.
-    if (!ctx?.user) throw new Error('Unauthorized: authentication required')
+    // Scoped to the caller's own tenant. With no session `ctx.tenant` fell back to the default whitelabel and the
+    // rows came back anyway; after that, any session read them, every agent included (SCO-09). It lists the root
+    // agents' settlements (usernames, amounts) and the brand's own with the platform, so it asks what its siblings
+    // ask: a session, never an agent, and the settlement centre's read. No admin page calls it (measured).
+    requireWhitelabelPoolReader(ctx, SETTLEMENT_STANDING, 'the whitelabel settlements')
     const tenant = ctx.tenant;
     if (!tenant) throw new Error('Tenant not found in context');
     
@@ -434,232 +465,6 @@ export const commonQueryResolvers = {
       totalAgentSettled, 
       totalWhitelabelSettled 
     };
-  },
-
-  myAgentCredit: async (_parent: any, _args: any, ctx: any) => {
-    // Check if user is agent
-    if (ctx?.user?.type !== 'agent' || !ctx?.user?.agentId) {
-      throw new Error('Unauthorized: Only agents can access their credit information');
-    }
-    
-    const agentId = ctx.user.agentId;
-    
-    // Get credit allocation using CreditService directly
-    const { CreditService } = await import('@src/domains/agents/services/CreditService.js');
-    const { AgentsRepo } = await import('@src/repos/agents/AgentsRepo.js');
-    const agentsRepo = new AgentsRepo();
-    const creditService = new CreditService(agentsRepo);
-    
-    // Validate agent is CREDIT type
-    const agent = await agentsRepo.findById(agentId);
-    if (!agent) {
-      throw new Error('Agent not found');
-    }
-    if (agent.schemeType !== 'CREDIT') {
-      throw new Error('Credit information is only available for CREDIT scheme agents');
-    }
-    
-    const creditAllocation = await creditService.getCreditAllocation(agentId);
-    
-    if (!creditAllocation) {
-      throw new Error('Agent credit allocation not found');
-    }
-    
-    // Use usagePercentage from creditAllocation (already calculated)
-    const usagePercentage = creditAllocation.usagePercentage;
-    const isNearLimit = creditAllocation.isNearThreshold;
-    
-    return { 
-      creditLimit: creditAllocation.creditLimit,
-      creditUsed: creditAllocation.creditUsed,
-      creditAvailable: creditAllocation.creditAvailable,
-      creditAlertThreshold: creditAllocation.creditAlertThreshold,
-      settlementBalance: creditAllocation.settlementBalance,
-      settlementBalanceSports: creditAllocation.settlementBalanceSports,
-      settlementBalanceCasino: creditAllocation.settlementBalanceCasino,
-      settlementBalanceMatka: creditAllocation.settlementBalanceMatka,
-      usagePercentage: Math.round(usagePercentage * 100) / 100,
-      isNearLimit 
-    };
-  },
-
-  myAgentCreditHistory: async (_parent: any, args: any, ctx: any) => {
-    // Check if user is agent
-    if (ctx?.user?.type !== 'agent' || !ctx?.user?.agentId) {
-      throw new Error('Unauthorized: Only agents can access their credit history');
-    }
-    
-    // Validate and normalize pagination parameters
-    const limitNum = Number(args.limit ?? 50);
-    const offsetNum = Number(args.offset ?? 0);
-    if (!Number.isFinite(limitNum) || !Number.isInteger(limitNum) || limitNum < 1) {
-      throw new Error('limit must be a positive integer');
-    }
-    if (!Number.isFinite(offsetNum) || !Number.isInteger(offsetNum) || offsetNum < 0) {
-      throw new Error('offset must be a non-negative integer');
-    }
-    const validatedLimit = Math.min(Math.max(limitNum, 1), 1000); // Between 1 and 1000
-    const validatedOffset = Math.max(offsetNum, 0); // Non-negative
-    
-    const agentId = ctx.user.agentId;
-    
-    // Get tenant for data isolation
-    const { getEffectiveTenantForDirector } = await import('@src/domains/common/directorModeUtils.js');
-    const directorTenant = getEffectiveTenantForDirector(ctx);
-    const tenant = directorTenant ?? ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default';
-    
-    // Use AgentCreditLedgerRepo directly with transactionTypes filter for efficient querying
-    const { AgentCreditLedgerRepo } = await import('@src/repos/agents/AgentCreditLedgerRepo.js');
-    const ledgerRepo = new AgentCreditLedgerRepo();
-    
-    // Every credit movement on this agent: deposits, withdrawals, transfers and credit-used
-    // changes as well as adjustments, allocations and releases (a CREDIT agent's statement hid
-    // the first four). The repo's direction rules still decide which side sees each row — e.g. a
-    // CREDIT_LIMIT_ADJUSTMENT shows only for the agent whose limit changed.
-    const transactions = await ledgerRepo.getTransactionsByEntity({
-      entityType: 'agent',
-      entityId: agentId,
-      limit: validatedLimit,
-      offset: validatedOffset,
-      tenantId: tenant,
-    });
-    
-    // Resolve createdBy IDs to usernames
-    const createdByIds = transactions
-      .map(t => t.createdBy)
-      .filter((id): id is string => id !== null && id !== undefined);
-    
-    // Also extract UUIDs from reason fields for resolution
-    const reasonUuids: string[] = [];
-    transactions.forEach(t => {
-      if (t.reason) {
-        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-        const matches = t.reason.match(uuidRegex);
-        if (matches) {
-          reasonUuids.push(...matches);
-        }
-      }
-    });
-    
-    // Combine all IDs that need resolution
-    const allIdsToResolve = [...new Set([...createdByIds, ...reasonUuids])];
-    const usernameMap = new Map<string, string>();
-    
-    if (allIdsToResolve.length > 0) {
-      // Try to resolve as agents first (username is in agentCredentials table)
-      try {
-        const { inArray, eq } = await import('drizzle-orm');
-        const { agents, agentCredentials } = await import('@shared/db/schema.js');
-        const { db } = await import('@/db/client.js');
-        
-        const agentData = await db
-          .select({
-            id: agents.id,
-            username: agentCredentials.username,
-          })
-          .from(agents)
-          .leftJoin(agentCredentials, eq(agents.id, agentCredentials.agentId))
-          .where(inArray(agents.id, allIdsToResolve));
-        
-        agentData.forEach(agent => {
-          if (agent.username) {
-            usernameMap.set(agent.id, agent.username);
-          }
-        });
-      } catch (err) {
-      }
-      
-      // Try to resolve remaining IDs as users
-      const unresolvedIds = allIdsToResolve.filter(id => !usernameMap.has(id));
-      if (unresolvedIds.length > 0) {
-        try {
-          const { users } = await import('@shared/db/schema.js');
-          const { db } = await import('@/db/client.js');
-          const { inArray, eq, and } = await import('drizzle-orm');
-          
-          // Try to parse as UUID and query users table
-          const userData = await db
-            .select({
-              id: users.id,
-              username: users.username,
-            })
-            .from(users)
-            .where(
-              and(
-                eq(users.tenant, tenant),
-                inArray(users.id, unresolvedIds.map((id: string | number) => {
-                  // Try to parse as number (user ID) or UUID
-                  const numId = Number(id);
-                  return Number.isFinite(numId) ? numId : Number(id);
-                }).filter((id): id is number => typeof id === 'number' && Number.isFinite(id)))
-              )
-            );
-          
-          userData.forEach(user => {
-            const userId = String(user.id);
-            if (user.username) {
-              usernameMap.set(userId, user.username);
-            }
-          });
-        } catch (err) {
-        }
-      }
-    }
-    
-    // Get current logged-in agent's username for "You" replacement
-    let currentUserUsername: string | null = null;
-    try {
-      const { AgentsRepo } = await import('@/repos/agents/AgentsRepo.js');
-      const agentsRepo = new AgentsRepo();
-      const currentAgent = await agentsRepo.findById(agentId);
-      if (currentAgent?.username) {
-        currentUserUsername = currentAgent.username;
-      }
-    } catch (err) {
-    }
-    
-    return transactions.map(t => {
-      // Resolve createdBy to username
-      let createdByDisplay = t.createdBy || 'System';
-      if (t.createdBy && usernameMap.has(t.createdBy)) {
-        createdByDisplay = usernameMap.get(t.createdBy)!;
-        // Replace with "You" if it's the current user's own action
-        if (currentUserUsername && createdByDisplay === currentUserUsername) {
-          createdByDisplay = 'You';
-        }
-      }
-      
-      // Clean up reason field - replace agent IDs with usernames
-      let reasonDisplay = t.reason || null;
-      if (reasonDisplay) {
-        // Replace UUIDs in reason with usernames (already resolved above)
-        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-        reasonDisplay = reasonDisplay.replace(uuidRegex, (match) => {
-          return usernameMap.get(match) || match;
-        });
-      }
-      
-      return {
-        id: t.id,
-        fromEntityType: t.fromEntityType,
-        fromEntityId: t.fromEntityId,
-        toEntityType: t.toEntityType,
-        toEntityId: t.toEntityId,
-        transactionType: t.transactionType,
-        amount: Number(t.amount),
-        currency: t.currency,
-        balanceBefore: Number(t.balanceBefore),
-        balanceAfter: Number(t.balanceAfter),
-        reason: reasonDisplay,
-        createdBy: createdByDisplay,
-        betId: t.betId,
-        settlementId: t.settlementId,
-        cashoutId: t.cashoutId,
-        createdByType: t.createdByType,
-        metadata: t.metadata ? (typeof t.metadata === 'string' ? t.metadata : JSON.stringify(t.metadata)) : null,
-        createdAt: typeof t.createdAt === 'string' ? t.createdAt : t.createdAt.toISOString(),
-      };
-    });
   },
 
   myAgentSettlements: async (_parent: any, args: any, ctx: any) => {
@@ -943,6 +748,7 @@ export const commonQueryResolvers = {
   },
 
   myWhitelabelSharing: async (_parent: any, _args: any, ctx: any) => {
+    requireWhitelabelPoolReader(ctx, SHARING_STANDING)
     // CRITICAL: For Director Admin, use effective tenant based on mode
     const { getEffectiveTenantForDirector } = await import('@src/domains/common/directorModeUtils.js');
     const directorTenant = getEffectiveTenantForDirector(ctx);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useApolloClient, useMutation } from '@apollo/client'
+import { useQuery, useApolloClient, useLazyQuery, useMutation } from '@apollo/client'
 import clsx from 'clsx'
 import {
   IconAlertTriangle,
@@ -38,6 +38,7 @@ import {
 } from './gql'
 import { StatusChip } from './components/StatusChip'
 import { ReasonModal } from './components/ReasonModal'
+import { MatkaWhitelabelGate } from '../MatkaWhitelabelGate'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { useFormatDate } from '@/shared/core/useFormatDate'
 import { RBACGuard } from '@/shared/core/RBACGuard'
@@ -67,16 +68,20 @@ import { strokeFor } from '@/ui/components/icons'
 import { tabId, tabPanelId } from '@/ui/components/tabIds'
 import { toast } from '@/ui/components/toast'
 import {
+  BET_EXPORT_PAGE_SIZE,
   BET_PAGE_SIZES,
   BET_TYPE_OPTIONS,
   BOOK_SORT_OPTIONS,
   DEFAULT_BET_PAGE_SIZE,
   DETAIL_TITLE,
   LIST_PATH,
+  actionErrorText,
   activityStyle,
   badgeCount,
   betStatusTone,
+  bettingNote,
   bookBidTypes,
+  canVoidBet,
   exposureLevelTone,
   filterBookGroups,
   formatRate,
@@ -92,6 +97,8 @@ import {
   shortUserId,
   summaryStatusTone,
   topRiskSelections,
+  worliBetsCsv,
+  worliBetsCsvName,
   type ActivityHue,
   type BookSort,
   type WorliActivityData,
@@ -136,11 +143,27 @@ const HUE_CLASS: Record<ActivityHue, string> = {
 }
 
 export default function RunningMarketDetailPage() {
+  // A Super Admin in core mode is asked for a whitelabel, as the Worli list asks: the server refuses a session in
+  // that mode, which showed as a failed load with a toast before the page went back to the list.
   return (
     <RBACGuard required={[{ domain: 'matka.worli', actions: ['view', 'update'] }]}>
-      <RunningMarketDetailPageContent />
+      <MatkaWhitelabelGate title={DETAIL_TITLE}>
+        <RunningMarketDetailPageContent />
+      </MatkaWhitelabelGate>
     </RBACGuard>
   )
+}
+
+/** Hands the browser a CSV file to save, as the live Matka bet list's export does. */
+function downloadCsv(filename: string, csv: string) {
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 /** The operator message notice. Closing it hides it until the message is cleared and set again, as the legacy
@@ -199,6 +222,10 @@ function RunningMarketDetailPageContent() {
     skip: !isValidId
   })
   const inst = data?.worliInstance
+  // The live feeds start once the lookup has found the session. For an id with no session the server refused each
+  // feed with the same "Market session not found" the lookup reports, so three identical toasts went up at once.
+  // A feed that fails after the session was found still reaches the error link, which shows it.
+  const sessionFound = Boolean(inst)
 
   // Redirect if instance not found (after query completes) or on error
   useEffect(() => {
@@ -214,7 +241,7 @@ function RunningMarketDetailPageContent() {
 
   // Real-time subscription for instance updates
   useEffect(() => {
-    if (!isValidId) return
+    if (!isValidId || !sessionFound) return
     const sub = client.subscribe({
       query: WORLI_INSTANCE_UPDATED,
       variables: { id }
@@ -223,11 +250,11 @@ function RunningMarketDetailPageContent() {
       error: () => {},
     })
     return () => sub.unsubscribe()
-  }, [id, isValidId, client, refetch])
+  }, [id, isValidId, sessionFound, client, refetch])
 
   // Real-time subscription for new bets
   useEffect(() => {
-    if (!isValidId) return
+    if (!isValidId || !sessionFound) return
     const sub = client.subscribe<WorliBetCreatedData>({
       query: WORLI_BET_CREATED,
       variables: { instanceId: id }
@@ -244,7 +271,7 @@ function RunningMarketDetailPageContent() {
       error: () => {},
     })
     return () => sub.unsubscribe()
-  }, [id, isValidId, client])
+  }, [id, isValidId, sessionFound, client])
 
   if (!inst) {
     const view = instanceView({
@@ -253,6 +280,7 @@ function RunningMarketDetailPageContent() {
       hasError: Boolean(error),
       hasData: Boolean(data),
       hasInstance: false,
+      errorMessage: error?.message,
     })
     if (view === 'loading') {
       return (
@@ -278,6 +306,7 @@ function RunningMarketDetailPageContent() {
   const figures = sessionFigures(inst)
   const levelTone = exposureLevelTone(figures.level)
   const symbol = getCurrencySymbol()
+  const betting = bettingNote(inst.status, figures.betCount)
 
   const selectTab = (next: DetailTab) => {
     setTab(next)
@@ -331,12 +360,10 @@ function RunningMarketDetailPageContent() {
                 hue="blu"
                 note={(
                   <span className={styles.statNote}>
-                    <StatusPill tone={figures.betCount > 0 ? 'ok' : 'neutral'}>
-                      {figures.betCount > 0 ? 'Live' : 'Idle'}
-                    </StatusPill>
+                    <StatusPill tone={betting.tone}>{betting.label}</StatusPill>
                     <span className={styles.activeBetting}>
-                      <IconTrendingUp size={13} stroke={strokeFor(13)} aria-hidden="true" />
-                      Active betting
+                      {betting.open ? <IconTrendingUp size={13} stroke={strokeFor(13)} aria-hidden="true" /> : null}
+                      {betting.text}
                     </span>
                   </span>
                 )}
@@ -423,7 +450,7 @@ function RunningMarketDetailPageContent() {
         </Card>
 
         <Card title="Operator Controls">
-          <OperatorControls id={id} onDone={() => refetch()} />
+          <OperatorControls id={id} status={inst.status} canUnlock={inst.canUnlock} onDone={() => refetch()} />
         </Card>
 
         {liveBets.length > 0 ? (
@@ -748,7 +775,9 @@ function BetsTable({ instanceId, onRefetch }: { instanceId: string; onRefetch?: 
     variables: { instanceId, filters: { bidType: bidType || undefined, search: searchQuery.trim() || undefined }, page, limit: pageSize },
     pollInterval: 5000
   })
-  const [voidBet] = useMutation(VOID_BET)
+  const [voidBet] = useMutation<{ voidMatkaBet?: { success: boolean; message: string } | null }>(VOID_BET)
+  const [fetchBetsPage] = useLazyQuery<WorliBetsData>(WORLI_BETS, { fetchPolicy: 'network-only' })
+  const [exporting, setExporting] = useState(false)
   const items = useMemo(() => data?.worliBets?.items || [], [data])
 
   const total = data?.worliBets?.total ?? 0
@@ -756,6 +785,31 @@ function BetsTable({ instanceId, onRefetch }: { instanceId: string; onRefetch?: 
   const pageItems = items
   useEffect(() => { setPage(1) }, [instanceId, bidType, searchQuery])
   const money = (value: number) => formatAmount(convertFromWhitelabelCurrency(value))
+
+  // Every bet the filters match, not just this page: the server hands them out 100 at a time.
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const filters = { bidType: bidType || undefined, search: searchQuery.trim() || undefined }
+      const all: WorliBet[] = []
+      for (let next = 1; ; next += 1) {
+        const result = await fetchBetsPage({ variables: { instanceId, filters, page: next, limit: BET_EXPORT_PAGE_SIZE } })
+        if (result.error) throw result.error
+        const batch = result.data?.worliBets?.items ?? []
+        all.push(...batch)
+        if (!batch.length || all.length >= (result.data?.worliBets?.total ?? 0)) break
+      }
+      if (!all.length) {
+        toast({ message: 'No bets to export', tone: 'info', duration: 3000 })
+        return
+      }
+      downloadCsv(worliBetsCsvName(instanceId), worliBetsCsv(all))
+    } catch (error) {
+      toast({ title: 'Export failed', message: actionErrorText(error), tone: 'error' })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns: DataTableColumn<WorliBet>[] = [
     {
@@ -804,7 +858,7 @@ function BetsTable({ instanceId, onRefetch }: { instanceId: string; onRefetch?: 
           variant="danger"
           size="xs"
           icon={<IconBan size={13} stroke={strokeFor(13)} />}
-          disabled={bet.status === 'VOID'}
+          disabled={!canVoidBet(bet.status)}
           onClick={() => setModalFor(bet.id)}
         >
           Void
@@ -822,7 +876,8 @@ function BetsTable({ instanceId, onRefetch }: { instanceId: string; onRefetch?: 
           <Button
             size="sm"
             icon={<IconDownload size={16} stroke={strokeFor(16)} />}
-            onClick={() => toast({ message: 'Export feature coming soon', tone: 'info', duration: 3000 })}
+            loading={exporting}
+            onClick={() => void exportCsv()}
           >
             Export CSV
           </Button>
@@ -901,8 +956,12 @@ function BetsTable({ instanceId, onRefetch }: { instanceId: string; onRefetch?: 
         onCancel={() => setModalFor(null)}
         onOk={async (reason) => {
           if (modalFor) {
-            await voidBet({ variables: { id: modalFor, reason } })
-            toast({ message: 'Bet voided successfully', tone: 'ok', duration: 3000 })
+            // A refusal is a { success: false } answer, not a GraphQL error: it keeps the prompt open with the
+            // server's reason. The page reports the answer itself, once (the notification link is skipped).
+            const result = await voidBet({ variables: { id: modalFor, reason }, context: { skipNotification: true } })
+            const answer = result.data?.voidMatkaBet
+            if (!answer?.success) throw new Error(answer?.message || 'The bet could not be voided')
+            toast({ message: answer.message, tone: 'ok', duration: 3000 })
           }
           setModalFor(null)
           void refetch()

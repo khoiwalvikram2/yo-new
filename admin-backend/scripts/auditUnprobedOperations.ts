@@ -23,6 +23,8 @@
 import 'dotenv/config'
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { AGENT_NAMESPACES, OPEN_AGENT_MUTATIONS, namespaceFields } from './agentNamespaceFields.js'
+import { extensionFields } from './schemaExtensionFields.js'
 
 /** Copied from probeAdminAuthz.ts. Keep the two in step. */
 const EXTERNALLY_EFFECTFUL = [
@@ -46,6 +48,10 @@ const SELF_SCOPED: Record<string, string> = {
   crmChangeOwnPassword: "requireCrmUser, and changes only the caller's own password",
   crmMarkNotificationsRead: "requireCrmUser, and marks only the caller's own notifications",
   crmMyNotifications: "requireCrmUser, and returns only the caller's own notifications",
+  // Declared in notifications.graphql. Their bodies are assigned through a const, which the splitter below cannot
+  // locate; notifications/resolvers/index.ts refuses a caller without a session before either runs.
+  markNotificationRead: "a session (notifications/resolvers/index.ts), and marks only the caller's own inbox",
+  markAllNotificationsRead: 'the same, for every notification of that inbox',
 }
 
 /** How a refusal can be spelled anywhere in this codebase. */
@@ -53,6 +59,16 @@ const GATES = [
   /requirePermission\(/,
   /requireReadPermission\(/,
   /requireDiagnosticAccess\(/,
+  // Domain helpers that throw "Forbidden" before anything else: payments.pgsettings, and the settle permission
+  // (executeSettleAgent calls requireSettleAgentPermission first; settleAgent's whole body is that call).
+  /requirePgPermission\(/,
+  /requireSettleAgentPermission\(/,
+  /executeSettleAgent\(/,
+  // The whitelabel's own pool, sharing and settlement reads (common/resolvers/queries.ts): a session, never an agent,
+  // and the standing named at the call. myWhitelabelSettlements has gone through it since SCO-09 (2026-11-03).
+  /requireWhitelabelPoolReader\(/,
+  // A Super Admin check by role name that throws. Only the platform can mint such a name (ensureMayUseRoleName).
+  /throw new Error\('Unauthorized: Only Super Admin/,
   /requireAny\(/,
   /requireCrmPermission\(/,
   /requireCrmWrite\(/,
@@ -147,13 +163,59 @@ function resolverBodies(): Map<string, { file: string; body: string }> {
   return out
 }
 
+/**
+ * The per-field tables guardMutationMap wraps, by domain. A resolver can live outside its map's own mutations.ts and
+ * still be wrapped: a domain may spread another file's mutations into its map (marketing did so with promotions.ts
+ * until Promotions was retired on 2026-11-04), and such a field is gated by its table rather than in its body.
+ * mutationPermissionMaps.test.ts keeps every entry pointing at a real resolver of that map, so a name a table carries,
+ * found in that table's domain, is a wrapped field.
+ */
+const WRAPPED_TABLES: ReadonlyArray<readonly [domain: string, table: string]> = [
+  ['casino', 'CASINO_MUTATION_PERMISSIONS'],
+  ['marketing', 'MARKETING_MUTATION_PERMISSIONS'],
+  ['referrals', 'REFERRALS_MUTATION_PERMISSIONS'],
+  ['reporting', 'REPORTING_MUTATION_PERMISSIONS'],
+  ['sports', 'SPORTS_MUTATION_PERMISSIONS'],
+]
+
+/** Each name the WRAPPED_TABLES carry, with its domain, read from the tables' source like the agents table below. */
+function wrappedTableNames(): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const [domain, table] of WRAPPED_TABLES) {
+    const src = readFileSync(join('src', 'domains', domain, 'resolvers', 'index.ts'), 'utf8')
+    const declared = src.indexOf(`${table}:`)
+    if (declared < 0) continue
+    const open = src.indexOf('{', src.indexOf('=', declared))
+    const close = src.indexOf('\n}', open)
+    for (const m of src.slice(open + 1, close).matchAll(/^\s+([a-zA-Z][A-Za-z0-9_]*)\s*:/gm)) out.set(m[1], domain)
+  }
+  return out
+}
+
+/** The mutations AGENT_MUTATION_PERMISSIONS names, read from the guard's source like every other check here. */
+function agentMutationPermissionNames(): Set<string> {
+  const src = readFileSync(join('src', 'domains', 'agents', 'resolvers', 'guardAgentMutations.ts'), 'utf8')
+  const open = src.indexOf('{', src.indexOf('AGENT_MUTATION_PERMISSIONS'))
+  const close = src.indexOf('\n}', open)
+  return new Set([...src.slice(open + 1, close).matchAll(/^\s+([a-zA-Z][A-Za-z0-9_]*)\s*:/gm)].map((m) => m[1]))
+}
+
 async function main(): Promise<void> {
   const names = [
     ...fieldsOf('mutations.graphql', 'Mutation'),
     ...fieldsOf('queries.graphql', 'Query'),
+    // The `extend type Mutation` fields of the domain files, which probe:admin-authz now enumerates too: the ones it
+    // declines to execute (payouts, settlements, voids, password resets) are read here like every other. Their Query
+    // fields are not added: the probe executes every Query it can build arguments for.
+    ...extensionFields('Mutation').map((f) => f.name),
   ]
   const unprobed = names.filter((n) => EXTERNALLY_EFFECTFUL.some((r) => r.test(n)))
   const bodies = resolverBodies()
+  const tableNames = wrappedTableNames()
+  const inWrappedTable = (name: string, file: string) => {
+    const domain = tableNames.get(name)
+    return domain !== undefined && file.includes(`/domains/${domain}/`)
+  }
 
   const gated: string[] = []
   const wrapped: string[] = []
@@ -164,19 +226,46 @@ async function main(): Promise<void> {
   for (const name of unprobed) {
     const found = bodies.get(name)
     if (!found) {
-      missing.push(name)
+      // A documented self-scoped operation whose body the splitter cannot locate is still documented.
+      if (SELF_SCOPED[name]) selfScoped.push(name)
+      else missing.push(name)
       continue
     }
     if (GATES.some((g) => g.test(found.body))) gated.push(name)
-    else if (WRAPPED_FILES.some((r) => r.test(found.file))) wrapped.push(name)
+    else if (WRAPPED_FILES.some((r) => r.test(found.file)) || inWrappedTable(name, found.file)) wrapped.push(name)
     else if (SELF_SCOPED[name]) selfScoped.push(name)
     else ungated.push({ name, file: found.file })
   }
 
-  console.log(`read ${unprobed.length} operation(s) the probe will not execute`)
+  // The agents namespace (agents.graphql): its fields are not in types/operations, and every one of them is
+  // gated before its body runs: AgentsQuery by Query.agents, AgentsMutation by guardAgentMutations, apart from
+  // the sign-in it deliberately leaves open. The probe executes the rest of them through the namespace.
+  const byNamespace: string[] = []
+  const mappedAgentMutations = agentMutationPermissionNames()
+  let namespacedRead = 0
+  for (const ns of AGENT_NAMESPACES) {
+    for (const f of namespaceFields(ns.type)) {
+      if (!EXTERNALLY_EFFECTFUL.some((r) => r.test(f.name))) continue
+      namespacedRead++
+      const label = `${ns.field}.${f.name}`
+      if (ns.type === 'AgentsMutation' && OPEN_AGENT_MUTATIONS[f.name]) {
+        selfScoped.push(label)
+        SELF_SCOPED[label] = OPEN_AGENT_MUTATIONS[f.name]
+      } else if (ns.type === 'AgentsMutation' && !mappedAgentMutations.has(f.name)) {
+        // The guard refuses an unmapped field at runtime, but an unmapped field is still a decision nobody made.
+        ungated.push({ name: label, file: 'src/domains/agents/resolvers/guardAgentMutations.ts (no entry)' })
+      } else {
+        byNamespace.push(label)
+      }
+    }
+  }
+
+  console.log(`read ${unprobed.length + namespacedRead} operation(s) the probe will not execute`)
   console.log('')
   console.log(`  gated in the resolver body : ${gated.length}`)
   console.log(`  gated by a wrapper map     : ${wrapped.length}`)
+  console.log(`  gated by its namespace     : ${byNamespace.length}`)
+  for (const ns of AGENT_NAMESPACES) console.log(`      - ${ns.type}: ${ns.gate}`)
   console.log(`  authenticated, self-scoped : ${selfScoped.length}`)
   for (const n of selfScoped) console.log(`      - ${n} — ${SELF_SCOPED[n]}`)
   if (missing.length) {

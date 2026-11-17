@@ -18,6 +18,17 @@ test('wallet excludes all three betting domains while retaining correctly signed
   const page=await read('WALLET');assert.equal(page.meta.total,2);assert.equal(page.data.length,2)
   assert.deepEqual(page.walletTypes,['Manual Deposit','Manual Withdrawal']);assert.deepEqual(page.data.map((row:any)=>row.amount).sort((a:number,b:number)=>a-b),[-100,1000])
 }))
+test('wallet shows a credit player\'s Deposit/Withdraw chips from the upline as Chip Deposit / Chip Withdrawal',async()=>scenario(async(f,read,tx)=>{
+  // Written the way admin-backend ChipRepo.insertPlayerStatement records an upline chip move.
+  for(const [type,category,amount] of [['CHIP_DEPOSIT','chip_deposit',500],['CHIP_WITHDRAW','chip_withdraw',-200]] as const){
+    await tx.insert(t.ledgerEntries).values({tenant:f.tenant,walletId:f.wallet.id,type,amount:String(Math.abs(amount)),balanceBefore:'10000',balanceAfter:String(10000+amount),meta:{type:category,originalAmount:amount,status:'completed',description:'Chips moved by the upline'},createdAt:f.now})
+  }
+  const page=await read('WALLET');assert.equal(page.meta.total,4)
+  assert.deepEqual(page.walletTypes,['Chip Deposit','Chip Withdrawal','Manual Deposit','Manual Withdrawal'])
+  const chips=page.data.filter((row:any)=>/^CHIP_/.test(row.type)).map((row:any)=>[row.transactionType,row.amount]).sort()
+  assert.deepEqual(chips,[['Chip Deposit',500],['Chip Withdrawal',-200]])
+  assert.equal((await read('WALLET',{type:'Chip Withdrawal'})).meta.total,1)
+}))
 test('Matka statements expose market, selection, session, multiplier and separate gross payout from net P/L',async()=>scenario(async(f,read)=>{
   const page=await read('MATKA');assert.equal(page.meta.total,4)
   const won=page.data.find((row:any)=>row.status==='won'),lost=page.data.find((row:any)=>row.status==='lost'),active=page.data.find((row:any)=>row.status==='active'),voided=page.data.find((row:any)=>row.status==='void')

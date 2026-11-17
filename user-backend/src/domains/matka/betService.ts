@@ -5,13 +5,14 @@ import { DateTime } from 'luxon'
 import { appConfigs, matkaBetBatches, matkaBets, matkaBidRules, matkaResults, matkaWorliInstances, playerLimits, users, wallets } from '@shared/db/schema.js'
 import { db } from '../../db/client.js'
 import { assertPlayerCanStake } from '@shared/services/rgEnforcement.js'
+import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
 import { assertPlayerAgentAllowsBetting } from '../userApp/services/agentBettingGate.js'
 import { activeMatkaBonus } from '@shared/matka/bonus.js'
 import { effectiveMatkaRates, ensureMatkaInstance, matkaRateFingerprint } from '@shared/matka/catalogue.js'
 import { lockMatkaMarket, refreshMatkaCounters } from '@shared/matka/settlement.js'
 import { cutoffSession, matkaKind, moneyDecimal, moneyMinor, normalizeBid, normalizeSelection, payoutMinor, settlementSession, type MatkaBid, type MatkaSession } from '@shared/matka/rules.js'
-import { matkaSchedule } from '@shared/matka/schedule.js'
-import { changeMatkaCredit, changeMatkaWallet, creditPlayer, type MatkaWallet } from '@shared/matka/wallet.js'
+import { matkaSchedule, matkaSessionResults } from '@shared/matka/schedule.js'
+import { changeMatkaWallet, type MatkaWallet } from '@shared/matka/wallet.js'
 
 export type MatkaEntryInput = { bidType: string; selection: string; session: 'OPEN' | 'CLOSE'; amount: number }
 export type PlaceMatkaInput = { marketId: string; runDate: string; requestKey: string; quoteVersion?: string; accountId?: string; walletType: 'CASH' | 'BONUS' | 'REFERRAL_BONUS'; entries: MatkaEntryInput[] }
@@ -61,15 +62,18 @@ export async function placeMatkaEntries(userId: number, tenant: string, input: P
     if (!wallet) throw new Error('Wallet not found')
     const currency = wallet.currency
     if (config?.baseCurrency && currency !== config.baseCurrency) throw new Error('Wallet currency does not match this site')
-    const walletType: MatkaWallet = creditPlayer(player.playerType) ? 'credit' : input.walletType === 'BONUS' ? 'bonus' : input.walletType === 'REFERRAL_BONUS' ? 'referralBonus' : 'cash'
-    if (walletType === 'credit' && input.walletType !== 'CASH') throw new Error('Credit players use the main wallet')
+    // Credit players stake their chips from the cash wallet like any player (balance - exposure must
+    // cover the stake), but they have no bonus or referral wallets: chips come only from the upline.
+    if (isCreditPlayer(player.playerType) && input.walletType !== 'CASH') throw new Error('Credit players use the main wallet')
+    const walletType: MatkaWallet = input.walletType === 'BONUS' ? 'bonus' : input.walletType === 'REFERRAL_BONUS' ? 'referralBonus' : 'cash'
     const base = matkaSchedule(market, now)
     if (base.runDate !== input.runDate) throw new Error('The market date changed. Refresh before placing entries.')
     const instances = await tx.select().from(matkaWorliInstances).where(and(eq(matkaWorliInstances.marketId, market.id), eq(matkaWorliInstances.runDate, base.runDate))).for('update')
-    const results = await tx.select().from(matkaResults).where(and(eq(matkaResults.tenant, tenant), eq(matkaResults.matkaId, market.id), eq(matkaResults.date, base.runDate), isNull(matkaResults.rolledBackAt)))
-    const published: Partial<Record<MatkaSession, string>> = {}
-    for (const result of results) published[result.type as MatkaSession] = result.result
-    const schedule = matkaSchedule(market, now, instances, published)
+    // Every result of the day, rolled back or not: a session that ever had one takes no entries (owner, 2026-11-04),
+    // also when it has no row for a rollback to re-lock.
+    const results = await tx.select().from(matkaResults).where(and(eq(matkaResults.tenant, tenant), eq(matkaResults.matkaId, market.id), eq(matkaResults.date, base.runDate)))
+    const { published, declared } = matkaSessionResults(results)
+    const schedule = matkaSchedule(market, now, instances, published, declared)
     if ((market.visibility as any)?.hidden) throw new Error('This Matka market is unavailable')
     const rates = await effectiveMatkaRates(tx, tenant, market.id, kind, now)
     if (input.quoteVersion && input.quoteVersion !== matkaRateFingerprint(rates)) throw new Error('Payout rates changed. Review the updated rates before confirming.')
@@ -88,7 +92,7 @@ export async function placeMatkaEntries(userId: number, tenant: string, input: P
     for (const entry of entries) {
       const cutoff = cutoffSession(entry.bid, kind, entry.session), session = settlementSession(entry.bid, kind, entry.session)
       if (session !== entry.session) throw new Error('Invalid session for this game type')
-      if (!schedule[cutoff].accepting || published[session]) throw new Error(`${cutoff === 'open' ? 'Open' : 'Close'} betting is closed for these entries`)
+      if (!schedule[cutoff].accepting || declared[session]) throw new Error(`${cutoff === 'open' ? 'Open' : 'Close'} betting is closed for these entries`)
       const rate = rates.find(rate => rate.bidType === entry.bid)
       if (!rate) throw new Error(`Payout rate is not configured for ${entry.bid}`)
       const rule = ruleRows.find((rule: any) => {
@@ -134,7 +138,7 @@ export async function placeMatkaEntries(userId: number, tenant: string, input: P
       if (Number(marketLimits.exposureDaily) > 0 && moneyMinor(periods.daily) + added > moneyMinor(marketLimits.exposureDaily)) throw new Error('Daily market exposure limit reached')
       if (Number(marketLimits.exposureWeekly) > 0 && moneyMinor(periods.weekly) + added > moneyMinor(marketLimits.exposureWeekly)) throw new Error('Weekly market exposure limit reached')
     }
-    const finalSchedule = matkaSchedule(market, new Date(), instances, published)
+    const finalSchedule = matkaSchedule(market, new Date(), instances, published, declared)
     if (finalSchedule.runDate !== schedule.runDate || prepared.some(entry => !finalSchedule[cutoffSession(entry.bid, kind, entry.session)].accepting)) throw new Error('Betting closed while your entries were being checked. Refresh the market.')
     const batchId = randomUUID()
     await tx.insert(matkaBetBatches).values({ id: batchId, tenant, userId, matkaId: market.id, requestKey: input.requestKey, fingerprint: hash, walletType, totalStake: moneyDecimal(totalStake), runDate: schedule.runDate })
@@ -143,7 +147,7 @@ export async function placeMatkaEntries(userId: number, tenant: string, input: P
     for (const entry of prepared) {
       const instance = await ensureMatkaInstance(tx, market, schedule, entry.session, entry.rule?.versionId), id = randomUUID()
       const movement = { tenant, userId, referenceId: id, category: 'matka_bet', description: `Matka ${market.name}: ${entry.bid} ${entry.selection}` }
-      const changed = walletType === 'credit' ? await changeMatkaCredit(tx, { ...movement, exposureDelta: entry.stake, profitDelta: 0n, checkHeadroom: true }) : await changeMatkaWallet(tx, { ...movement, walletType, delta: -entry.stake })
+      const changed = await changeMatkaWallet(tx, { ...movement, walletType, delta: -entry.stake })
       balance = changed.balance
       const [bet] = await tx.insert(matkaBets).values({ id, tenant, whitelabelId: tenant, userId, matkaId: market.id, matkaType: kind, marketName: market.name, marketSession: entry.session,
         bidType: entry.bid, betNumbers: entry.selection, betAmount: moneyDecimal(entry.stake), payoutMultiplier: entry.rate.payoutMultiplier, potentialWin: moneyDecimal(entry.payout),

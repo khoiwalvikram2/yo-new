@@ -2,7 +2,7 @@ import { financialSnapshotsAreCurrent } from './snapshotFreshness.js'
 import { sportsPayoutAggregateSql } from '@src/shared/reportingSql.js'
 import { db } from '@/db/client.js';
 import { reportingDailySnapshots, sportsBets, matkaBets, casinoBets, users, agentHierarchyClosure } from '@shared/db/schema.js';
-import { eq, and, gte, lte, sql, or, isNotNull, isNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNotNull, isNull, inArray } from 'drizzle-orm';
 import { inAgentPlayers } from './agentPlayerScope.js';
 import { getEndOfDayForDate, parseDateFrom, parseDateTo } from '@src/shared/dateUtils.js';
 import { DateTime } from 'luxon';
@@ -36,22 +36,39 @@ export interface PNLDataPoint {
   date: string;
 }
 
+type PNLDomain = 'sports' | 'casino' | 'matka';
+
 /**
- * Get P&L data points for a date range
+ * Get P&L data points for a date range: one row per domain per IST day, labelled with its domain.
  * P&L = Gross Gaming Revenue (GGR) = Total Stakes - Total Payouts
+ *
+ * Each domain is read as its KPI card reads it (the sports, casino and matka repos' rangeIncludesToday):
+ * live bets for a range that reaches today or a domain whose snapshots are out of date, snapshots
+ * otherwise. Deciding for the three domains at once read an up-to-date domain's archived days from live
+ * bets, so a past range's table could miss what its Total card counted (F-REP-18); and the live rows
+ * were one combined "All" row per day, which no domain tab could filter (F-REP-07).
  */
 export async function getPNLData(filter: PNLReportingFilter): Promise<PNLDataPoint[]> {
-  const conditions = [];
   const tz = await getTenantTimezone(filter.tenant);
   const dateFrom = filter.dateFrom ? parseDateFrom(String(filter.dateFrom), tz) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const dateTo = filter.dateTo ? parseDateTo(String(filter.dateTo), tz) : new Date();
 
   // An older snapshot must not hide intraday settlements from a mixed date range.
-  if (DateTime.fromJSDate(dateTo, { zone: tz }).toISODate()! >= DateTime.now().setZone(tz).toISODate()!) {
-    return getPNLFromLiveBets(filter);
-  }
-  const domains = filter.domain && filter.domain !== 'all' ? [filter.domain] : ['sports', 'casino', 'matka'] as const;
-  if (!(await Promise.all(domains.map(domain => financialSnapshotsAreCurrent(filter, domain, tz)))).every(Boolean)) return getPNLFromLiveBets(filter);
+  const reachesToday = DateTime.fromJSDate(dateTo, { zone: tz }).toISODate()! >= DateTime.now().setZone(tz).toISODate()!;
+  const domains: readonly PNLDomain[] = filter.domain && filter.domain !== 'all' ? [filter.domain] : ['sports', 'casino', 'matka'];
+  const perDomain = await Promise.all(domains.map(async (domain) => {
+    if (!reachesToday && await financialSnapshotsAreCurrent(filter, domain, tz)) {
+      const rows = await getPNLFromSnapshots(filter, domain, dateFrom, dateTo, tz);
+      if (rows.length > 0) return rows;
+    }
+    return getPNLFromLiveBets({ ...filter, domain });
+  }));
+  return perDomain.flat().sort((a, b) => a.date.localeCompare(b.date) || a.dimension.localeCompare(b.dimension));
+}
+
+/** One domain's daily P&L from the snapshots (the global rows, or an agent's players' rows). */
+async function getPNLFromSnapshots(filter: PNLReportingFilter, domain: PNLDomain, dateFrom: Date, dateTo: Date, tz: string): Promise<PNLDataPoint[]> {
+  const conditions = [];
   const snapshotDay = sqlDateBucketText(reportingDailySnapshots.snapshotDate, tz);
 
   if (filter.tenant) {
@@ -79,44 +96,24 @@ export async function getPNLData(filter: PNLReportingFilter): Promise<PNLDataPoi
   // Filter by date range
   conditions.push(gte(reportingDailySnapshots.snapshotDate, dateFrom));
   conditions.push(lte(reportingDailySnapshots.snapshotDate, dateTo));
+  conditions.push(eq(reportingDailySnapshots.domain, domain));
 
-  // Filter by domain
-  if (filter.domain && filter.domain !== 'all') {
-    conditions.push(eq(reportingDailySnapshots.domain, filter.domain));
-  } else {
-    // For 'all', include all gaming domains
-    conditions.push(
-      or(
-        eq(reportingDailySnapshots.domain, 'sports'),
-        eq(reportingDailySnapshots.domain, 'casino'),
-        eq(reportingDailySnapshots.domain, 'matka'),
-      ),
-    );
-  }
-
-  // Group by date and domain to get daily P&L (GGR)
+  // Group by date to get the domain's daily P&L (GGR)
   const results = await db
     .select({
       date: snapshotDay,
-      domain: reportingDailySnapshots.domain,
       grossGamingRevenue: sql<number>`COALESCE(SUM(${reportingDailySnapshots.grossGamingRevenue}::numeric), 0)`,
       netRevenue: sql<number>`COALESCE(SUM(${reportingDailySnapshots.netRevenue}::numeric), 0)`,
     })
     .from(reportingDailySnapshots)
     .where(and(...conditions, isNotNull(reportingDailySnapshots.grossGamingRevenue)))
-    .groupBy(snapshotDay, reportingDailySnapshots.domain)
+    .groupBy(snapshotDay)
     .orderBy(snapshotDay);
 
-  if (results.length === 0) {
-    return await getPNLFromLiveBets(filter);
-  }
-
-  // Return separate rows per domain with correct dimension values
-  // This allows frontend to filter by domain properly
   return results.map((r) => {
     const pnl = r.netRevenue != null ? Number(r.netRevenue) : Number(r.grossGamingRevenue) || 0;
     return {
-      dimension: r.domain || 'All', // Use actual domain value (sports, casino, matka)
+      dimension: domain,
       value: pnl,
       date: new Date(r.date).toISOString(),
     };
@@ -124,17 +121,17 @@ export async function getPNLData(filter: PNLReportingFilter): Promise<PNLDataPoi
 }
 
 /**
- * Fallback: Get PNL data directly from bets table (real-time)
+ * One domain's daily P&L straight from the bets table (real-time), labelled with the domain.
  */
-async function getPNLFromLiveBets(filter: PNLReportingFilter): Promise<PNLDataPoint[]> {
+async function getPNLFromLiveBets(filter: PNLReportingFilter & { domain: PNLDomain }): Promise<PNLDataPoint[]> {
   const tz = await getTenantTimezone(filter.tenant);
   const dateFrom = filter.dateFrom ? parseDateFrom(String(filter.dateFrom), tz) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const dateToEnd = filter.dateTo ? parseDateTo(String(filter.dateTo), tz) : new Date();
 
   const dateMap = new Map<string, number>();
 
-  // Get sports PNL if domain is 'all' or 'sports'
-  if (!filter.domain || filter.domain === 'all' || filter.domain === 'sports') {
+  // Sports PNL when the domain is sports
+  if (filter.domain === 'sports') {
     const sportsConditions: any[] = [];
     
     // Always require tenant and whitelabelId
@@ -181,8 +178,8 @@ async function getPNLFromLiveBets(filter: PNLReportingFilter): Promise<PNLDataPo
     });
   }
 
-  // Get matka PNL if domain is 'all' or 'matka'
-  if (!filter.domain || filter.domain === 'all' || filter.domain === 'matka') {
+  // Matka PNL when the domain is matka
+  if (filter.domain === 'matka') {
     const matkaConditions: any[] = [];
     
     // Always require tenant and whitelabelId
@@ -228,8 +225,8 @@ async function getPNLFromLiveBets(filter: PNLReportingFilter): Promise<PNLDataPo
     });
   }
 
-  // Get casino PNL if domain is 'all' or 'casino'
-  if (!filter.domain || filter.domain === 'all' || filter.domain === 'casino') {
+  // Casino PNL when the domain is casino
+  if (filter.domain === 'casino') {
     const casinoConditions: any[] = [];
 
     if (filter.tenant) {
@@ -276,7 +273,7 @@ async function getPNLFromLiveBets(filter: PNLReportingFilter): Promise<PNLDataPo
   }
 
   return Array.from(dateMap.entries()).map(([date, value]) => ({
-    dimension: 'All',
+    dimension: filter.domain,
     value: Number(value) || 0,
     date: new Date(date).toISOString(),
   }));

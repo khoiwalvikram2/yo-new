@@ -24,28 +24,32 @@ afterEach(cleanup);
 test('last settlement retains the Never state, posted amount and both contribution counts/values', () => {
   const view = render(<LastSettlementCard />); assert.ok(screen.getByText('Never')); view.rerender(<LastSettlementCard settlement={{ lastSettlementDate: '2026-10-01', lastSettlementAmount: 50, directPlayersCount: 3, subAgentsCount: 2, directPlayersContribution: 20, subAgentsContribution: 30 }} />); assert.ok(screen.getByText('POSTED')); assert.ok(screen.getByText('₹100.00')); assert.ok(screen.getByText('3 players')); assert.ok(screen.getByText('2 sub-agents')); assert.ok(screen.getByText('Contribution: ₹40.00')); assert.ok(screen.getByText('Contribution: ₹60.00'));
 });
-test('admin dashboard retains all six financial figures including last30 days and commission MTD', () => {
-  render(<MemoryRouter><SettlementDashboardTab isAgent={false} dashboard={{ pendingSharingSettlements: 10, pendingCreditSettlements: 20, pendingCommissionPayouts: 30, totalSettledThisMonth: 40, totalSettledLast30Days: 50, totalCommissionPaidThisMonth: 60 }} /></MemoryRouter>);
-  for (const value of [20, 40, 60, 80, 100, 120]) assert.ok(screen.getByText(`₹${value.toFixed(2)}`)); for (const name of ['Pending Sharing', 'Pending Credit', 'Pending Commission', 'Total Settled (This Month)', 'Total Settled (Last 30 Days)', 'Commission Paid (MTD)']) assert.ok(screen.getByText(name));
+test('admin dashboard retains its five financial figures including last30 days and commission MTD, with no CREDIT pending', () => {
+  // CREDIT left the settlement centre (spec 2026-11-02 §6): its chips move by Deposit / Withdraw on the Chips pages.
+  render(<MemoryRouter><SettlementDashboardTab isAgent={false} dashboard={{ pendingSharingSettlements: 10, pendingCommissionPayouts: 30, totalSettledThisMonth: 40, totalSettledLast30Days: 50, totalCommissionPaidThisMonth: 60 }} /></MemoryRouter>);
+  for (const value of [20, 60, 80, 100, 120]) assert.ok(screen.getByText(`₹${value.toFixed(2)}`)); for (const name of ['Pending Sharing', 'Pending Commission', 'Total Settled (This Month)', 'Total Settled (Last 30 Days)', 'Commission Paid (MTD)']) assert.ok(screen.getByText(name));
+  assert.equal(screen.queryByText('Pending Credit'), null);
 });
 test('admin dashboard shows the net sharing pending as a size with its direction, and to pay / to collect separately', () => {
   // NET = to pay − to collect, here negative: the agents owe more than they are owed. Neither part drops out of the chart.
-  render(<MemoryRouter><SettlementDashboardTab isAgent={false} dashboard={{ pendingSharingSettlements: -20, pendingSharingToAgents: 30, pendingSharingFromAgents: 50, pendingCreditSettlements: 0, pendingCommissionPayouts: 0 }} /></MemoryRouter>);
+  render(<MemoryRouter><SettlementDashboardTab isAgent={false} dashboard={{ pendingSharingSettlements: -20, pendingSharingToAgents: 30, pendingSharingFromAgents: 50, pendingCommissionPayouts: 0 }} /></MemoryRouter>);
   assert.ok(screen.getByText('₹40.00')); assert.ok(screen.getByText('Net to collect · To pay ₹60.00 · To collect ₹100.00'));
   assert.ok(screen.getByText('Sharing to pay 38%')); assert.ok(screen.getByText('Sharing to collect 63%'));
 });
 test('agent dashboard shows pending as a size with who pays, signed P&L, share rounding and no-summary state', () => {
   // settlementDue −25 = FROM_AGENT: the agent pays its upline.
-  const view = render(<MemoryRouter><SettlementDashboardTab isAgent agentSchemeType="CREDIT" settlement={{ settlementDue: -25, netPL: -50, sharePercentage: 33.33 }} /></MemoryRouter>); assert.ok(screen.getByText('₹50.00')); assert.ok(screen.getByText('You pay · since last settlement')); assert.ok(screen.getByText('₹-100.00')); assert.ok(screen.getByText('33.3%'));
+  const view = render(<MemoryRouter><SettlementDashboardTab isAgent agentSchemeType="SHARING" settlement={{ settlementDue: -25, netPL: -50, sharePercentage: 33.33 }} /></MemoryRouter>); assert.ok(screen.getByText('₹50.00')); assert.ok(screen.getByText('You pay · since last settlement')); assert.ok(screen.getByText('₹-100.00')); assert.ok(screen.getByText('33.3%'));
   view.rerender(<MemoryRouter><SettlementDashboardTab isAgent agentSchemeType="SHARING" settlement={{ settlementDue: 25, netPL: -50, sharePercentage: 33.33 }} /></MemoryRouter>); assert.ok(screen.getByText('You receive · since last settlement'));
   view.rerender(<MemoryRouter><SettlementDashboardTab isAgent agentSchemeType="SHARING" /></MemoryRouter>); assert.ok(screen.getByText('No settlement summary available'));
 });
 test('dashboard error/loading/empty and Commission CTA remain real accessible states', () => {
-  const view = render(<MemoryRouter><SettlementDashboardTab isAgent={false} loading /></MemoryRouter>); assert.equal(screen.getByText('Pending Sharing').closest('[aria-busy="true"]') !== null, true); assert.equal(screen.getAllByText('Loading').length, 6); assert.equal(screen.queryByText('No settlement data available'), null); view.rerender(<MemoryRouter><SettlementDashboardTab isAgent={false} error={new Error('Read failed')} /></MemoryRouter>); assert.ok(screen.getByText('Read failed')); view.rerender(<MemoryRouter><SettlementDashboardTab isAgent={false} /></MemoryRouter>); assert.ok(screen.getByText('No settlement data available')); view.rerender(<MemoryRouter><SettlementDashboardTab isAgent agentSchemeType="COMMISSION" /></MemoryRouter>); assert.ok(screen.getByRole('button', { name: 'Go to Commission' }));
+  const view = render(<MemoryRouter><SettlementDashboardTab isAgent={false} loading /></MemoryRouter>); assert.equal(screen.getByText('Pending Sharing').closest('[aria-busy="true"]') !== null, true); assert.equal(screen.getAllByText('Loading').length, 5); assert.equal(screen.queryByText('No settlement data available'), null); view.rerender(<MemoryRouter><SettlementDashboardTab isAgent={false} error={new Error('Read failed')} /></MemoryRouter>); assert.ok(screen.getByText('Read failed')); view.rerender(<MemoryRouter><SettlementDashboardTab isAgent={false} /></MemoryRouter>); assert.ok(screen.getByText('No settlement data available')); view.rerender(<MemoryRouter><SettlementDashboardTab isAgent agentSchemeType="COMMISSION" /></MemoryRouter>); assert.ok(screen.getByRole('button', { name: 'Go to Commission' }));
 });
-test('already-converted domain/trend chart values format once at non-unit exchange rates, including negatives and zero', () => {
-  render(<MemoryRouter><SettlementDashboardTab isAgent={false} dashboard={{ pendingSharingSettlements: 100, domainBreakdown: [{ domain: 'sports', settlementBalance: 100 }], monthlyTrend: [{ month: 'October', totalSettled: -50, commissionPaid: 0 }] }} /></MemoryRouter>);
-  assert.ok(screen.getByText('balance: ₹200.00')); assert.ok(screen.getByText('settled: ₹-100.00')); assert.ok(screen.getByText('commission: ₹0.00')); assert.equal(screen.queryByText('balance: ₹400.00'), null); assert.ok(screen.getByText('₹200.00'));
+test('already-converted trend chart values format once at non-unit exchange rates, including negatives and zero', () => {
+  render(<MemoryRouter><SettlementDashboardTab isAgent={false} dashboard={{ pendingSharingSettlements: 100, monthlyTrend: [{ month: 'October', totalSettled: -50, commissionPaid: 0 }] }} /></MemoryRouter>);
+  assert.ok(screen.getByText('settled: ₹-100.00')); assert.ok(screen.getByText('commission: ₹0.00')); assert.equal(screen.queryByText('settled: ₹-200.00'), null); assert.ok(screen.getByText('₹200.00'));
+  // The pending chart and the trend sit side by side; the credit balance by domain went with CREDIT settlement.
+  assert.ok(screen.getByText('Pending by type')); assert.ok(screen.getByText('Settled & Commission over time')); assert.equal(screen.queryByText('Credit balance by domain'), null);
 });
 test('agent domain table retains signed totals, all cut/share columns and absolute contribution denominator', () => {
   // Players lost 100 on sports (the agent earns 80, the platform keeps 20) and won 50 on casino (the agent pays 40).
@@ -82,24 +86,21 @@ test('admin direct-agent contributions preserve nested agents, selected domain s
   fireEvent.click(table.querySelector('button[aria-expanded]')!); assert.ok(screen.getByText('Nested sub-agents')); assert.ok(screen.getByText('Nested Partner')); assert.equal(exports.calls.at(-1)?.filename, 'Agent-Contributions-Pending'); assert.deepEqual(exports.calls.at(-1)?.data, [pending]);
 });
 
-test('zero credit balances show an explicit state, separate from all-week pending commission', () => {
-  render(<MemoryRouter><SettlementDashboardTab isAgent={false} dashboard={{
-    pendingCommissionPayouts: 636215.5, pendingCreditSettlements: 0,
-    domainBreakdown: [{ domain: 'sports', settlementBalance: 0 }, { domain: 'casino', settlementBalance: 0 }, { domain: 'matka', settlementBalance: 0 }],
-  }} /></MemoryRouter>);
-  assert.ok(screen.getByText('Credit balance by domain'));
-  assert.ok(screen.getByText('No pending credit balance'));
+test('CREDIT has left the dashboard: no pending credit, no credit chart, and pending commission stays all-week', () => {
+  render(<MemoryRouter><SettlementDashboardTab isAgent={false} dashboard={{ pendingCommissionPayouts: 636215.5 }} /></MemoryRouter>);
+  for (const gone of ['Pending Credit', 'Credit balance by domain', 'No pending credit balance', 'Credit']) assert.equal(screen.queryByText(gone), null, gone);
+  assert.ok(screen.getByText('Commission 100%'));
   assert.ok(screen.getByText('All unpaid weeks'));
   assert.equal(screen.getAllByText('Paid and collected').length, 2);
 });
 
 test('filtered activity uses the selected-period totals and leaves current pending balances live', () => {
   render(<MemoryRouter><SettlementDashboardTab isAgent={false} activityPeriodLabel="01 Sep 2026 – 30 Sep 2026" dashboard={{
-    pendingSharingSettlements: 11, pendingCreditSettlements: 22, pendingCommissionPayouts: 33,
+    pendingSharingSettlements: 11, pendingCommissionPayouts: 33,
     totalPaidToAgentsInPeriod: 44, totalCollectedFromAgentsInPeriod: 55, totalCommissionPaidInPeriod: 66,
     totalSettledThisMonth: 9999, totalSettledLast30Days: 8888, totalCommissionPaidThisMonth: 7777,
   }} /></MemoryRouter>);
-  for (const value of [22, 44, 66, 88, 110, 132]) assert.ok(screen.getByText(`₹${value.toFixed(2)}`));
+  for (const value of [22, 66, 88, 110, 132]) assert.ok(screen.getByText(`₹${value.toFixed(2)}`));
   for (const label of ['Paid to Agents', 'Collected from Agents', 'Commission Paid']) assert.ok(screen.getByText(label));
   assert.equal(screen.getAllByText('01 Sep 2026 – 30 Sep 2026').length, 3);
   assert.equal(screen.queryByText('₹19998.00'), null);

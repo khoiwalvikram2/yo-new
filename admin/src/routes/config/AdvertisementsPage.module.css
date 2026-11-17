@@ -11,7 +11,8 @@
 .title { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
 .sub { color: var(--ink-3); font-size: 12px; overflow-wrap: anywhere; }
 .thumbnail { display: block; width: 64px; height: 40px; object-fit: cover; border-radius: var(--ui-radius); background: var(--surf-3); }
-.imageFallback { display: grid; place-items: center; width: 64px; min-height: 40px; color: var(--ink-3); font-size: 11px; background: var(--surf-3); border-radius: var(--ui-radius); }
+/* The image's placeholder (StoredImage) keeps the tile's box; two classes so it outranks the placeholder's own rule. */
+.thumbnail[data-image-placeholder] { display: flex; padding: 2px 4px; }
 .form { display: grid; gap: 20px; }
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }

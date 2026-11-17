@@ -3,10 +3,16 @@ type WhitelabelPgSettings {
   tenant: String!
   provider: String!
   enabled: Boolean!
+  payinGateway: String!
+  payoutEnabled: Boolean!
+  payoutGateway: String!
+  minPayout: Float
+  maxPayout: Float
   displayName: String!
   secretSiteKeyMasked: String
   hasSecretSiteKey: Boolean!
   webhookUrl: String!
+  payoutWebhookUrl: String!
   minDeposit: Float
   maxDeposit: Float
   redirectSuccessUrl: String
@@ -16,6 +22,11 @@ type WhitelabelPgSettings {
 
 input UpsertPgSettingsInput {
   enabled: Boolean
+  payinGateway: String
+  payoutEnabled: Boolean
+  payoutGateway: String
+  minPayout: Float
+  maxPayout: Float
   displayName: String
   secretSiteKey: String
   minDeposit: Float
@@ -24,8 +35,22 @@ input UpsertPgSettingsInput {
   redirectFailureUrl: String
 }
 
+# Gateways WeLivePay reports as assigned to the merchant project and active (POST /api/get-available-gateways).
+# `code` is the value stored in payinGateway / payoutGateway.
+type WelivepayGatewayOption {
+  code: String!
+  key: String!
+  label: String!
+}
+
+type WelivepayAvailableGateways {
+  payin: [WelivepayGatewayOption!]!
+  payout: [WelivepayGatewayOption!]!
+}
+
 extend type Query {
   whitelabelPgSettings: WhitelabelPgSettings!
+  welivepayAvailableGateways: WelivepayAvailableGateways!
 }
 
 extend type Mutation {

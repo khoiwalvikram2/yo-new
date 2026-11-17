@@ -32,7 +32,7 @@ export function AuditDetailsDrawer({ open, onClose, event }: { open: boolean; on
   const relatedActor = (actor.data?.auditEvents?.items ?? []).filter((row) => row.id !== event.id)
   const changes = event.before && event.after ? countChanges(computeDiff(event.before, event.after)) : { added: 0, removed: 0, modified: 0 }
   const diff = event.before && event.after ? getUnifiedDiff(event.before, event.after) : ''
-  const resourceNav = getResourceNavigationPath(event.resourceType, event.resourceId)
+  const resourceNav = getResourceNavigationPath(event.resourceType, event.resourceId, event)
   const actorNav = event.actor ? getActorNavigationPath(event.actor.type, event.actor.id) : null
   const copy = (value: unknown, message: string) => { void copyToClipboard(JSON.stringify(value, null, 2), message) }
   const related = tab === 'relatedResource' ? relatedResource : relatedActor

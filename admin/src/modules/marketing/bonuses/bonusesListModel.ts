@@ -1,4 +1,5 @@
 import type { TableExportColumn } from '@/shared/utils/tableExport'
+import { OFFERED_BONUS_TYPES } from './bonusCreateModel'
 
 /* The pure model behind /bonuses (W6 Task 170). The legacy antd page and its three components
  * (pre-images in .backups/page-migration-2026-09-22/task-170) are the contract: the query variables,
@@ -78,12 +79,12 @@ export const DOMAIN_FILTER_OPTIONS: readonly FilterOption[] = [
   { label: 'Global', value: 'global' },
 ]
 
+/* Every type the create form offers, labelled as the table labels it (MAR-03). The legacy list was
+   hard-coded and left out First Day First Time Deposit, Losing Bonus and Special Bonus, while
+   offering Referral Deposit, which the form never creates. */
 export const TYPE_FILTER_OPTIONS: readonly FilterOption[] = [
   { value: '', label: 'All types' },
-  { label: 'Deposit', value: 'deposit' },
-  { label: 'Signup', value: 'signup' },
-  { label: 'Direct Bonus', value: 'direct_amount' },
-  { label: 'Referral Deposit', value: 'referral_deposit' },
+  ...OFFERED_BONUS_TYPES.map((type) => ({ value: type, label: formatBonusType(type) })),
 ]
 
 export interface PageSlice<T> {
@@ -106,32 +107,53 @@ export function bonusPageSlice<T>(rows: readonly T[], page: number, pageSize: nu
 export interface BonusCampaignStats {
   total: number
   active: number
+  /** Active by status but past their end date: players can no longer use them (MAR-18). */
+  expired: number
   draft: number
   paused: number
   totalBudget: number
   activeRate: number
 }
 
-type CampaignItem = { status?: string; budgetNumeric?: string | number | null }
+type CampaignItem = { status?: string; budgetNumeric?: string | number | null; endDate?: string | null }
 
-/** The legacy StatsCards arithmetic, verbatim. */
-export function bonusCampaignStats(campaigns: readonly CampaignItem[]): BonusCampaignStats {
+/**
+ * Whether a campaign is active by status but past its end date. Nothing moves such a campaign to
+ * ended (only End does), while the player side already treats it as over, so the list read it as
+ * live (MAR-18). `now` is a parameter so the rule is testable.
+ */
+export function isPastEnd(campaign: { status?: string; endDate?: string | null }, now: number = Date.now()): boolean {
+  if (campaign.status !== 'active' || !campaign.endDate) return false
+  const end = Date.parse(campaign.endDate)
+  return Number.isFinite(end) && end < now
+}
+
+/** The legacy StatsCards arithmetic, except that Active counts only campaigns still running. */
+export function bonusCampaignStats(campaigns: readonly CampaignItem[], now: number = Date.now()): BonusCampaignStats {
   const total = campaigns.length
-  const active = campaigns.filter((c) => c.status === 'active').length
+  const expired = campaigns.filter((c) => isPastEnd(c, now)).length
+  const active = campaigns.filter((c) => c.status === 'active').length - expired
   const draft = campaigns.filter((c) => c.status === 'draft').length
   const paused = campaigns.filter((c) => c.status === 'paused').length
 
   const totalBudget = campaigns.reduce((sum, c) => sum + Number(c.budgetNumeric || 0), 0)
   const activeRate = total > 0 ? Math.round((active / total) * 100) : 0
 
-  return { total, active, draft, paused, totalBudget, activeRate }
+  return { total, active, expired, draft, paused, totalBudget, activeRate }
+}
+
+/** The Active card's note; campaigns past their end date are named rather than counted as active. */
+export function activeShareNote(stats: BonusCampaignStats): string {
+  return stats.expired > 0
+    ? `${stats.expired} past end date, ${stats.total} total`
+    : `${stats.active} campaigns, ${stats.total} total`
 }
 
 export function pausedShareNote(stats: BonusCampaignStats): string {
   return stats.total > 0 ? `${Math.round((stats.paused / stats.total) * 100)}% of total` : '—'
 }
 
-export type BonusStatusKey = 'active' | 'draft' | 'paused' | 'ended'
+export type BonusStatusKey = 'active' | 'draft' | 'paused' | 'ended' | 'expired'
 
 /** The legacy tag: Active, Draft and Paused by name; every other status read as Ended. */
 export function bonusStatusKey(status: string): BonusStatusKey {
@@ -144,10 +166,20 @@ const STATUS_LABELS: Record<BonusStatusKey, string> = {
   draft: 'Draft',
   paused: 'Paused',
   ended: 'Ended',
+  expired: 'Expired',
 }
 
 export function bonusStatusLabel(status: string): string {
   return STATUS_LABELS[bonusStatusKey(status)]
+}
+
+/** The status a row shows: its stored one, except that an active campaign past its end date reads Expired. */
+export function bonusDisplayStatusKey(campaign: { status: string; endDate?: string | null }, now: number = Date.now()): BonusStatusKey {
+  return isPastEnd(campaign, now) ? 'expired' : bonusStatusKey(campaign.status)
+}
+
+export function bonusDisplayStatusLabel(campaign: { status: string; endDate?: string | null }, now: number = Date.now()): string {
+  return STATUS_LABELS[bonusDisplayStatusKey(campaign, now)]
 }
 
 function titleCaseWords(value: string): string {
@@ -229,7 +261,11 @@ export interface StatusConfirmCopy {
   description: string
 }
 
-/** An active campaign offers Deactivate (to paused); any other offers Activate. Legacy Popconfirm copy. */
+/**
+ * An active campaign offers Deactivate (to paused); any other offers Activate, with the legacy
+ * Popconfirm copy. An ended campaign can be activated again (the server allows it), so its copy says
+ * that it is reviving an ended campaign rather than reading like a first start (MAR-07).
+ */
 export function bonusStatusAction(campaign: BonusCampaignRow): StatusConfirmCopy {
   if (campaign.status === 'active') {
     return {
@@ -237,6 +273,14 @@ export function bonusStatusAction(campaign: BonusCampaignRow): StatusConfirmCopy
       tooltip: 'Deactivate',
       title: 'Deactivate campaign?',
       description: 'This will pause the campaign and prevent new awards.',
+    }
+  }
+  if (campaign.status === 'ended') {
+    return {
+      action: 'activate',
+      tooltip: 'Reactivate',
+      title: 'Reactivate campaign?',
+      description: 'This ended campaign becomes active again and allows new awards.',
     }
   }
   return {
@@ -247,10 +291,20 @@ export function bonusStatusAction(campaign: BonusCampaignRow): StatusConfirmCopy
   }
 }
 
-export const DELETE_CONFIRM = {
-  title: 'Delete campaign?',
-  description: 'This action cannot be undone.',
+/**
+ * The list's last action ends a campaign; it never deleted one (deleteBonusCampaign sets status
+ * ended, on purpose, and the row stays). It was labelled Delete under "This action cannot be
+ * undone", while Activate brought the campaign straight back (MAR-07). An ended campaign has
+ * nothing left to end.
+ */
+export const END_CONFIRM = {
+  title: 'End campaign?',
+  description: 'It stops new awards. The campaign stays in the list and can be activated again.',
 } as const
+
+export function canEnd(campaign: Pick<BonusCampaignRow, 'status'>): boolean {
+  return campaign.status !== 'ended'
+}
 
 /** The legacy Popconfirm buttons. */
 export const CONFIRM_LABELS = { confirmLabel: 'Yes', cancelLabel: 'No' } as const
@@ -276,24 +330,21 @@ export function distributedMessage(distributedCount: number | null | undefined):
   return `Distributed to ${distributedCount ?? 0} users`
 }
 
-/* The export's own Type mapping (it never had the First Day First Time Deposit label). */
-function exportBonusType(type: string | null | undefined): string {
-  if (type === 'direct_amount') return 'Direct Bonus'
-  if (type === 'losing_bonus') return 'Losing Bonus'
-  if (type === 'special') return 'Special Bonus'
-  return type ?? ''
-}
-
-/** The legacy Export Excel columns, getter for getter. */
+/**
+ * The legacy Export Excel columns, getter for getter, except Type and Status, which now read as the
+ * table reads them. The export had its own Type mapping that knew three labels and wrote every other
+ * type as its raw code ('deposit', 'daily_first_deposit'), and wrote the raw status (MAR-05).
+ */
 export function bonusExportColumns(
   formatAmount: FormatAmount,
   formatDateDisplay: (date?: string | null) => string,
+  now?: number,
 ): TableExportColumn<BonusCampaignRow>[] {
   return [
     { header: 'Campaign', key: 'name', width: 24, getter: (c) => c.name ?? '' },
     { header: 'Domain', key: 'domain', width: 10, getter: (c) => (c.domain === 'global' ? 'All' : c.domain?.toUpperCase() ?? '') },
-    { header: 'Type', key: 'type', width: 16, getter: (c) => exportBonusType(c.type) },
-    { header: 'Status', key: 'status', width: 10, getter: (c) => c.status ?? '' },
+    { header: 'Type', key: 'type', width: 16, getter: (c) => (c.type ? formatBonusType(c.type) : '') },
+    { header: 'Status', key: 'status', width: 10, getter: (c) => (c.status ? bonusDisplayStatusLabel(c, now ?? Date.now()) : '') },
     { header: 'Distribution', key: 'distributionType', width: 14, getter: (c) => (c.distributionType ?? '').replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) },
     {
       header: 'Amount',

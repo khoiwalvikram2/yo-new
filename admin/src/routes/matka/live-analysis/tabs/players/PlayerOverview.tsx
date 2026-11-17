@@ -8,6 +8,8 @@ import { useCurrency } from '@/shared/core/CurrencyContext'
 import { gql } from '@apollo/client'
 import dayjs from 'dayjs'
 import { nowIST } from '@/shared/utils/date'
+import { useAuthStore } from '@/shared/core/authStore'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 
 const MATKA_BETS_QUERY = gql`
   query MatkaBets($query: MatkaBetsQuery) {
@@ -31,6 +33,10 @@ const USERS_QUERY = gql`
 
 export const PlayerOverview: React.FC = () => {
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
+  // The wagered average only with settlements.center view, masked as in TopPlayersTable and PlayerProfitability beside it;
+  // the counts and rates stay (owner, 2026-11-04).
+  const permissions = useAuthStore(s => s.permissions)
+  const hasFinanceView = hasPermissionWithNested(permissions, 'settlements.center', 'view')
 
   const sevenDaysAgo = useMemo(() => {
     return nowIST().subtract(7, 'day').toISOString()
@@ -100,13 +106,14 @@ export const PlayerOverview: React.FC = () => {
       avgWageredPerPlayer,
       avgExposurePerPlayer,
       avgBetsPerPlayer,
-      retentionRate: totalPlayers > 0 ? (returningPlayers / totalPlayers) * 100 : 0,
+      // Of the players with open bets, the share who are returning: every user the users query returns made it read 0.1%.
+      retentionRate: activePlayers > 0 ? (returningPlayers / activePlayers) * 100 : 0,
     }
   }, [betsData, usersData, sevenDaysAgo])
 
   return <Card title="Player Overview" sub="Key player metrics (open bets)"><div className={styles.grid2}>
-    <Stat variant="bare" label="Avg Wagered/Player" value={formatAmount(convertFromWhitelabelCurrency(kpis.avgWageredPerPlayer))} note="Average wagered per active player" hue="vio" />
-    <Stat variant="bare" label="Retention Rate" value={`${kpis.retentionRate.toFixed(1)}%`} note="Returning players" hue="amb" />
+    <Stat variant="bare" label="Avg Wagered/Player" value={hasFinanceView ? formatAmount(convertFromWhitelabelCurrency(kpis.avgWageredPerPlayer)) : '••••'} note="Average wagered per active player" hue="vio" />
+    <Stat variant="bare" label="Retention Rate" value={`${kpis.retentionRate.toFixed(1)}%`} note="Share of players with open bets who registered over 7 days ago" hue="amb" />
     <Stat variant="bare" label="Avg Bets/Player" value={kpis.avgBetsPerPlayer.toFixed(1)} note="Average activity level" />
     <Stat variant="bare" label="Returning Players" value={kpis.returningPlayers} note="Repeat customers" hue="grn" />
   </div></Card>

@@ -1,11 +1,39 @@
 import { DateTime } from 'luxon'
 import { and, eq, or, sql } from 'drizzle-orm'
-import { bonusAwards, bonusCampaigns, depositRequests, ledgerEntries, wallets } from '../db/schema.js'
+import { bonusAwards, bonusCampaigns, depositRequests, ledgerEntries, users, wallets } from '../db/schema.js'
 import { createWalletLedgerEntry } from './walletLedgerService.js'
+import { isCreditPlayer } from './credit/isCreditPlayer.js'
 
 /** Same copy as user app when another bonus is already active (switch flow). */
 export const BONUS_ACTIVATION_ALREADY_ACTIVE_MESSAGE =
   'You already have an active bonus. Please use switch bonus to change to a different bonus.'
+
+/** Same copy as the admin paths (setUserBonusAllowed, grantSpecialBonus, activateBonusAwardAdmin). */
+export const BONUS_CREDIT_PLAYER_MESSAGE = 'Credit players cannot receive bonuses: their chips move only through Deposit / Withdraw'
+export const BONUS_ELIGIBILITY_OFF_MESSAGE = "This player's bonus eligibility is off"
+
+/**
+ * Bonus money reaches only a player of this tenant who may receive it (players/PLA-07). Credit players get none:
+ * their chips move only through Deposit / Withdraw. A player whose bonus eligibility is off gets none either. The
+ * admin paths check this when a card is granted, but a card issued earlier (or before eligibility was switched off)
+ * must not be activated or switched to, so the activation and switch cores check it again. Throws the refusal;
+ * returns 'not_found' when the player is not in the tenant.
+ */
+export async function assertPlayerMayReceiveBonus(
+  db: { select: (...args: unknown[]) => unknown },
+  userId: number,
+  tenant: string,
+): Promise<'ok' | 'not_found'> {
+  const [player] = await (db as any)
+    .select({ playerType: users.playerType, bonusAllowed: users.bonusAllowed })
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.tenant, tenant)))
+    .limit(1)
+  if (!player) return 'not_found'
+  if (isCreditPlayer(player.playerType)) throw new Error(BONUS_CREDIT_PLAYER_MESSAGE)
+  if (player.bonusAllowed === false) throw new Error(BONUS_ELIGIBILITY_OFF_MESSAGE)
+  return 'ok'
+}
 
 export type BonusActivationWalletRow = {
   id: number
@@ -35,6 +63,10 @@ export type ActivateBonusAwardCoreResult = { kind: 'success' } | { kind: 'not_fo
  */
 export async function activateBonusAwardCore(deps: ActivateBonusAwardCoreDeps): Promise<ActivateBonusAwardCoreResult> {
   const { bonusId, userId, tenant, db, ensureWallet, getWhitelabelCurrency } = deps
+
+  if ((await assertPlayerMayReceiveBonus(db, userId, tenant)) === 'not_found') {
+    return { kind: 'not_found' }
+  }
 
   const existingActiveBonus = await (db as any)
     .select({ id: bonusAwards.id })

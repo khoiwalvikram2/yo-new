@@ -31,6 +31,8 @@ const sportsProfit = `CASE WHEN status IN ('void','cancelled') THEN 0 WHEN pl IS
  ELSE 0 END`
 const walletType = `CASE
  WHEN meta_type IN ('matka_bet','matka_win','matka_refund','matka_result_reversal') THEN CASE meta_type WHEN 'matka_bet' THEN 'Matka Stake' WHEN 'matka_win' THEN 'Matka Settlement' WHEN 'matka_refund' THEN 'Matka Refund' WHEN 'matka_result_reversal' THEN 'Matka Result Reversal' END
+ WHEN meta_type IN ('chip_deposit','chip_withdraw') THEN CASE meta_type WHEN 'chip_deposit' THEN 'Chip Deposit' ELSE 'Chip Withdrawal' END
+ WHEN upper(trim(ledger_type)) IN ('CHIP_DEPOSIT','CHIP_WITHDRAW') THEN CASE upper(trim(ledger_type)) WHEN 'CHIP_DEPOSIT' THEN 'Chip Deposit' ELSE 'Chip Withdrawal' END
  WHEN meta_type = 'admin_adjustment' THEN CASE WHEN original_amount>=0 THEN 'Manual Deposit' ELSE 'Manual Withdrawal' END
  WHEN meta_type IN ('deposit','withdrawal','withdrawal_pending','withdrawal_refund','bonus','bonus_release','bonus_instant_cash','bonus_instant_cash_transfer','bonus_to_cash','bonus_forfeit','bonus_switch_debit','referral_earning','referral_balance_to_cash','referral_balance_backfill') THEN
   CASE meta_type WHEN 'deposit' THEN 'Deposit' WHEN 'withdrawal' THEN 'Withdrawal' WHEN 'withdrawal_pending' THEN 'Withdrawal' WHEN 'withdrawal_refund' THEN 'Withdrawal Refund'

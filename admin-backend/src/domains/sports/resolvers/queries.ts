@@ -24,6 +24,7 @@ import {
   getLeaguesWithOpenBets,
   getEventsWithOpenBets,
   getMarketsWithOpenBets,
+  type OpenBetsScope,
 } from "@src/repos/sports/sportsBetsRepo.js";
 import {
   sportsAutoConfigsTable,
@@ -113,6 +114,25 @@ export async function agentOpenEventTotals(
     if (entry && r.lastBetAt) entry.lastBetAt = new Date(r.lastBetAt).toISOString();
   }
   return out;
+}
+
+/**
+ * Whose open bets the declare-result pickers (leagues/events/marketsWithOpenBets) list: the reach of the
+ * declaration itself. A platform administrator outside whitelabel mode declares a global result
+ * (createSportsResult) and sees every whitelabel's open bets (undefined: no scope). Anyone else settles
+ * only their own whitelabel, so sees only its open bets, and an agent only its own players' (null: an agent
+ * session with no agent id sees none). The pickers read every whitelabel's bets before, so another brand,
+ * or any agent, learned where a brand's players held open bets, and a declaration there settled nothing.
+ */
+function openBetsScope(ctx: any): OpenBetsScope | undefined | null {
+  if (hasPermission(ctx?.permissions ?? [], 'all', '*') && ctx?.directorMode !== 'whitelabel') return undefined;
+  const tenant = ctx?.tenant || 'default';
+  const whitelabelId = ctx?.whitelabel?.id || 'default';
+  if (ctx?.user?.type === 'agent') {
+    const agentId = ctx?.user?.agentId ? String(ctx.user.agentId) : '';
+    return agentId ? { tenant, whitelabelId, agentId } : null;
+  }
+  return { tenant, whitelabelId };
 }
 
 /** Whether an agent may look at one player: the player is in its subtree or referral-linked to it. */
@@ -299,8 +319,13 @@ export const sportsQueryResolvers = {
       markets,
     };
   },
+  // Global data - no tenant filtering. updatedAt goes out as ISO, as leagues and events send it: the bare
+  // Date reached the client as epoch milliseconds, which the Sports table showed as "Invalid Date".
   sports: async (_: any, _args: any, ctx: any) =>
-    listSports(), // Global data - no tenant filtering
+    (await listSports()).map((row) => ({
+      ...row,
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
+    })),
   leagues: async (_: any, args: any, ctx: any) => {
     // Global data - no tenant filtering
     const rows = await db
@@ -523,8 +548,10 @@ export const sportsQueryResolvers = {
       updatedAt: r.updatedAt?.toISOString?.() ?? null,
     }));
   },
-  leaguesWithOpenBets: async (_: any, args: any) => {
-    const rows = await getLeaguesWithOpenBets(String(args.sportId));
+  leaguesWithOpenBets: async (_: any, args: any, ctx: any) => {
+    const scope = openBetsScope(ctx);
+    if (scope === null) return [];
+    const rows = await getLeaguesWithOpenBets(String(args.sportId), scope);
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -533,8 +560,10 @@ export const sportsQueryResolvers = {
       updatedAt: r.updatedAt?.toISOString?.() ?? null,
     }));
   },
-  eventsWithOpenBets: async (_: any, args: any) => {
-    const rows = await getEventsWithOpenBets(String(args.leagueId));
+  eventsWithOpenBets: async (_: any, args: any, ctx: any) => {
+    const scope = openBetsScope(ctx);
+    if (scope === null) return [];
+    const rows = await getEventsWithOpenBets(String(args.leagueId), scope);
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -544,8 +573,10 @@ export const sportsQueryResolvers = {
       updatedAt: r.updatedAt?.toISOString?.() ?? null,
     }));
   },
-  marketsWithOpenBets: async (_: any, args: any) => {
-    const rows = await getMarketsWithOpenBets(String(args.eventId));
+  marketsWithOpenBets: async (_: any, args: any, ctx: any) => {
+    const scope = openBetsScope(ctx);
+    if (scope === null) return [];
+    const rows = await getMarketsWithOpenBets(String(args.eventId), scope);
     return rows.map((r) => ({
       id: r.id,
       name: r.name,

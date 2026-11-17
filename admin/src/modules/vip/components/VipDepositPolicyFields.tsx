@@ -13,7 +13,7 @@ export function VipDepositPolicyFields({ value, onChange, errors = {} }: {
     <Switch label="Allow deposits for this tier" checked={value.enabled} onChange={enabled => onChange({ ...value, enabled })} />
     <fieldset style={{ border: '1px solid var(--line)', borderRadius: 5, padding: 14, display: 'grid', gap: 12 }}>
       <legend>Allowed payment methods</legend>
-      {([['BANK_TRANSFER', 'Bank transfer'], ['UPI', 'UPI'], ['GATEWAY', 'Online payment gateway']] as const).map(([method, label]) =>
+      {([['BANK_TRANSFER', 'Bank transfer'], ['UPI', 'UPI'], ['GATEWAY', 'Online payment gateway'], ['CRYPTO', 'Crypto (USDT)']] as const).map(([method, label]) =>
         <Checkbox key={method} label={label} checked={value.methods.includes(method)} onChange={checked =>
           onChange({ ...value, methods: checked ? [...value.methods, method] : value.methods.filter(item => item !== method) })} />)}
       {errors['depositPolicy.methods'] ? <p role="alert">{errors['depositPolicy.methods']}</p> : null}

@@ -22,6 +22,7 @@ import { Notice } from '@/ui/components/Notice'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { DeclareResultDrawer } from '../results/components/DeclareResultDrawer'
+import { SELECT_WHITELABEL_HINT, SELECT_WHITELABEL_TITLE, useNeedsWhitelabelSelection } from '@/modules/matka/whitelabelScope'
 import styles from './RunningMarketsPage.module.css'
 
 export const RUNNING_MARKETS = gql`query MatkaRunningMarkets($filters: MatkaRunningFilter) {
@@ -58,7 +59,9 @@ function RunningMarketsContent() {
   const [filters, setFilters] = useState<Filters>({ page: 1, limit: 20 }), [search, setSearch] = useState(''), [autoRefresh, setAutoRefresh] = useState(true)
   const [selected, setSelected] = useState<RunningMarket|null>(null), [betPage, setBetPage] = useState(1), [betLimit, setBetLimit] = useState(20), [declaration, setDeclaration] = useState<RunningMarket|null>(null), [notice, setNotice] = useState('')
   const betsRef = useRef<HTMLDivElement>(null)
-  const { data, loading, error, refetch } = useQuery<{ matkaRunningMarkets: { items: RunningMarket[]; total: number; openBetCount: number; pendingResultCount: number } }>(RUNNING_MARKETS, { variables: { filters }, fetchPolicy: 'no-cache', pollInterval: autoRefresh ? 5000 : 0, notifyOnNetworkStatusChange: true })
+  // Core mode has no whitelabel: the server refuses this list, so it is neither asked for nor polled.
+  const needsWhitelabel = useNeedsWhitelabelSelection()
+  const { data, loading, error, refetch } = useQuery<{ matkaRunningMarkets: { items: RunningMarket[]; total: number; openBetCount: number; pendingResultCount: number } }>(RUNNING_MARKETS, { variables: { filters }, fetchPolicy: 'no-cache', pollInterval: autoRefresh && !needsWhitelabel ? 5000 : 0, notifyOnNetworkStatusChange: true, skip: needsWhitelabel })
   const { data: betData, loading: betsLoading, error: betsError, refetch: refetchBets } = useQuery<{ matkaRunningBets: { items: RunningBet[]; total: number } }>(RUNNING_BETS, { variables: { filters: { matkaId: selected?.matkaId, date: selected?.date, session: selected?.session || undefined, page: betPage, limit: betLimit } }, skip: !selected, fetchPolicy: 'no-cache', pollInterval: autoRefresh && selected ? 5000 : 0, notifyOnNetworkStatusChange: true })
   const page = data?.matkaRunningMarkets, rows = page?.items || []
   function changeFilters(next: Partial<Filters>) { setFilters(current => ({ ...current, ...next, page: 1 })); setSelected(null) }
@@ -83,6 +86,9 @@ function RunningMarketsContent() {
     { key: 'wallet', header: 'Wallet / status', cell: row => <div className={styles.cell}><span>{row.walletType}</span><StatusPill tone="warn">{row.status}</StatusPill></div> },
     { key: 'created', header: 'Placed at', minWidth: 160, cell: row => localTime(row.createdAt, selected?.timezone || 'Asia/Kolkata') },
   ]
+  if (needsWhitelabel) return <Page maxWidth="wide"><PageHeader title="Matka Running Markets" sub="Open bets and pending results across all trading dates" />
+    <Notice tone="info" title={SELECT_WHITELABEL_TITLE}>{SELECT_WHITELABEL_HINT}</Notice>
+  </Page>
   return <Page maxWidth="wide"><PageHeader title="Matka Running Markets" sub="Open bets and pending results across all trading dates" actions={<div className={styles.actions}><Button onClick={() => navigate('/matka/results')}>Results history</Button><Button icon={<IconRefresh size={16} />} onClick={() => { void refetch(); if (selected) void refetchBets() }}>Refresh</Button></div>} />
     <div className={styles.content}>
       <div className={styles.stats}><Stat label="Pending market sessions" value={page?.total ?? '—'} /><Stat label="Open bets" value={page?.openBetCount ?? '—'} /><Stat label="Awaiting results" value={page?.pendingResultCount ?? '—'} /></div>

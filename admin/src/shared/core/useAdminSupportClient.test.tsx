@@ -2,6 +2,7 @@ import { beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, renderHook } from '@testing-library/react'
 import { useAuthStore } from './authStore'
+import { readSignOutNotice } from './signOutReason'
 import { useUIStore } from './uiStore'
 import { useAdminSupportClient } from './useAdminSupportClient'
 
@@ -12,7 +13,17 @@ vi.mock('./uiStore', async () => {
 
 describe('admin support client', () => {
   beforeEach(() => {
+    sessionStorage.clear()
     useAuthStore.setState({ token: 'current-token', user: { id: 'owner', name: 'Owner' }, agent: undefined, roles: ['Whitelabel Admin'], permissions: [] })
+  })
+
+  // N003: the support API's 401 signs the panel out like the GraphQL refusal does, and the sign-in page says why.
+  test('a refused support session signs out and leaves the reason for the sign-in page', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{"error":"Invalid support session"}', { status: 401, headers: { 'content-type': 'application/json' } }))
+    const { result } = renderHook(() => useAdminSupportClient())
+    await assert.rejects(result.current.request('/bootstrap'), /Invalid support session/)
+    assert.equal(useAuthStore.getState().token, undefined, 'the session was kept')
+    assert.equal(readSignOutNotice()?.title, 'Session ended')
   })
 
   test('the selected tenant is used for Super Admin and the owner tenant for whitelabel staff', async () => {
@@ -37,5 +48,6 @@ describe('admin support client', () => {
     await pending
     assert.equal(useAuthStore.getState().token, 'next-token')
     assert.equal(useAuthStore.getState().user?.id, 'next-owner')
+    assert.equal(readSignOutNotice(), null, 'no sign-out reason for a session that was not ended')
   })
 })

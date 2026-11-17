@@ -56,22 +56,15 @@ export const AGENT_MUTATION_PERMISSIONS: Record<string, [string, string][]> = {
   setSharingConfig: [['agents.sharing', 'update']],
 
   // Everything that moves money.
-  adjustAgentCredit: [['agents.credit', 'update']],
-  adjustSubAgentCredit: [['agents.credit', 'update']],
-  allocateCreditToPlayer: [['agents.credit', 'update']],
-  depositCredit: [['agents.credit', 'update']],
-  withdrawCredit: [['agents.credit', 'update']],
-  transferCredit: [['agents.credit', 'update']],
-  applyCreditReconciliation: [['agents.credit', 'update']],
-  setAgentCreditAlertThreshold: [['agents.credit', 'update']],
-  resolveAgentCreditAlert: [['agents.credit', 'update']],
-  adjustWhitelabelPlayerCredit: [['agents.credit', 'update']],
-  depositCreditToWhitelabelPlayer: [['agents.credit', 'update']],
-  withdrawCreditFromWhitelabelPlayer: [['agents.credit', 'update']],
+  // Chips (spec 2026-11-02 §7): ChipService then lets only the direct parent act. The credit-limit model's money
+  // mutations they replaced (adjustAgentCredit, depositCredit, transferCredit and the rest) are gone from the schema
+  // and from this map.
+  depositChips: [['agents.credit', 'update']],
+  withdrawChips: [['agents.credit', 'update']],
+  setCreditReference: [['agents.credit', 'update']],
 
   // Either the finance route or the agent's own downline route.
   settleAgent: SETTLEMENT,
-  settleSharingAgent: SETTLEMENT,
   postSettlement: SETTLEMENT,
 }
 

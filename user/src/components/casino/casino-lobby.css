@@ -10,7 +10,7 @@
 
 .nova-ex-grid.nova-lobby {
   --lobby-accent: var(--ex-red);
-  --lobby-accent-deep: #9E1516;
+  --lobby-accent-deep: var(--mb-brand-lobby);
   --lobby-panel: var(--mb-panel);
   --lobby-border: var(--mb-line);
   --lobby-raised: var(--mb-soft);
@@ -46,6 +46,10 @@
 html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter: brightness(0) invert(.85); }
 .nova-lobby-tabs .nova-ex-tabs-arrow:first-child { border-radius: var(--ui-radius); }
 .nova-lobby-tabs .nova-ex-tabs-arrow:last-child { border-radius: var(--ui-radius); }
+/* Placeholder tabs until the categories and counts have loaded; tab height, so nothing below moves on the swap. */
+.nova-lobby-tab-skeleton { position: relative; flex: 1 0 140px; min-height: 52px; border-right: 1px solid var(--ex-line); background: var(--mb-panel); }
+.nova-lobby-tab-skeleton:last-child { border-right: 0; }
+.nova-lobby-tab-skeleton::before { content: ''; position: absolute; inset: calc(50% - 7px) 24px auto; height: 14px; border-radius: var(--ui-radius); background: var(--mb-soft); }
 .nova-lobby-toolbar { display: flex; gap: 10px; }
 .nova-lobby-search {
   position: relative;
@@ -110,12 +114,12 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
 .nova-lobby-providers-btn:hover:not(:disabled) { border-color: var(--lobby-accent); }
 .nova-lobby-providers-btn:disabled { color: var(--ex-muted); cursor: default; }
 .nova-lobby-providers-btn svg { width: 16px; height: 16px; }
-.nova-lobby-providers-btn b { min-width: 20px; padding: 0 6px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--lobby-accent); font-size: 11px; line-height: 1.6; text-align: center; }
+.nova-lobby-providers-btn b { min-width: 20px; padding: 0 6px; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--lobby-accent); font-size: 11px; line-height: 1.6; text-align: center; }
 .nova-lobby-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: -6px; }
 .nova-lobby-chips > span:first-child { color: var(--ex-muted); font-size: 13px; }
-.nova-lobby-chip { padding: 2px 9px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--lobby-accent); font-size: 12px; font-weight: 700; }
+.nova-lobby-chip { padding: 2px 9px; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--lobby-accent); font-size: 12px; font-weight: 700; }
 .nova-lobby-chips button { margin-left: auto; padding: 0; border: 0; color: var(--ex-link); background: none; font-family: var(--font-inter); font-size: 14px; font-weight: 600; cursor: pointer; }
-.nova-lobby-chips button:hover { text-decoration: underline; }
+.nova-lobby-chips button:hover { color: var(--mb-link-hover); text-decoration: underline; }
 
 /* --------------------------------------------------------------- panels */
 /* Each row sits in a white panel; its title is a red tab cut into the top-left corner, and the count,
@@ -147,7 +151,7 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
   margin-left: -1px;
   padding: 11px 30px 11px 16px;
   border-top-left-radius: var(--ui-radius);
-  color: #FFFFFF;
+  color: var(--mb-on-red);
   background: linear-gradient(180deg, var(--lobby-accent), var(--lobby-accent-deep));
   clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
   font-family: var(--font-inter);
@@ -166,7 +170,7 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
   color: var(--ex-text);
   background: var(--lobby-raised);
 }
-.nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows button:hover:not(:disabled) { border-color: var(--lobby-accent); color: #FFFFFF; background: var(--lobby-accent); }
+.nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows button:hover:not(:disabled) { border-color: var(--lobby-accent); color: var(--mb-on-red); background: var(--lobby-accent); }
 .nova-lobby-section > .nova-ex-section-head .nova-ex-section-arrows svg { width: 15px; height: 15px; }
 /* See All / Show less / Clear are buttons here: they change the page, not the route. */
 .nova-lobby-toggle { padding: 0; border: 0; background: none; font-family: var(--font-inter); cursor: pointer; }
@@ -176,7 +180,7 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
   height: 42px;
   margin: -1px 0 16px -31px;
   border-top-left-radius: var(--ui-radius);
-  background: rgb(197 26 27 / 30%);
+  background: color-mix(in srgb, var(--mb-red) 30%, transparent);
   clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
 }
 
@@ -216,7 +220,7 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
   transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 .nova-lobby .nova-game-card:hover {
-  border-color: rgb(197 26 27 / 55%);
+  border-color: color-mix(in srgb, var(--mb-red) 55%, transparent);
   box-shadow: 0 6px 14px rgb(16 18 22 / 14%);
   transform: translateY(-3px);
 }
@@ -245,7 +249,7 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(180deg, rgb(197 26 27 / 74%) 0%, rgb(158 21 22 / 93%) 60%, rgb(130 14 15 / 96%) 100%);
+  background: linear-gradient(180deg in srgb, color-mix(in srgb, var(--mb-red) 74%, transparent) 0%, color-mix(in srgb, var(--mb-brand-lobby) 93%, transparent) 60%, color-mix(in srgb, var(--mb-brand-shade) 96%, transparent) 100%);
   opacity: 0;
   transition: opacity .2s ease;
   pointer-events: none;
@@ -297,8 +301,8 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
   backdrop-filter: blur(4px);
   transition: color .15s ease, background-color .15s ease, border-color .15s ease, transform .15s ease;
 }
-.nova-ex-grid.nova-lobby .nova-game-save:hover { border-color: #FFFFFF; color: #FFFFFF; background: var(--lobby-accent); transform: scale(1.06); }
-.nova-ex-grid.nova-lobby .nova-game-save.is-saved { border-color: #FFFFFF; color: #FFFFFF; background: var(--lobby-accent); }
+.nova-ex-grid.nova-lobby .nova-game-save:hover { border-color: #FFFFFF; color: var(--mb-on-red); background: var(--lobby-accent); transform: scale(1.06); }
+.nova-ex-grid.nova-lobby .nova-game-save.is-saved { border-color: #FFFFFF; color: var(--mb-on-red); background: var(--lobby-accent); }
 .nova-ex-grid.nova-lobby .nova-game-save > svg { width: 15px; height: 15px; stroke-width: 2.4; }
 .nova-lobby .nova-game-copy {
   min-height: 0;
@@ -329,11 +333,11 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
   cursor: pointer;
 }
 .nova-lobby-btn:hover:not(:disabled) { border-color: var(--lobby-accent); color: var(--mb-red-text); }
-.nova-lobby-btn.is-primary { border-color: var(--lobby-accent-deep); color: #FFFFFF; background: linear-gradient(180deg, var(--lobby-accent), var(--lobby-accent-deep)); }
-.nova-lobby-btn.is-primary:hover:not(:disabled) { color: #FFFFFF; filter: brightness(1.08); }
+.nova-lobby-btn.is-primary { border-color: var(--lobby-accent-deep); color: var(--mb-on-red); background: linear-gradient(180deg, var(--lobby-accent), var(--lobby-accent-deep)); }
+.nova-lobby-btn.is-primary:hover:not(:disabled) { color: var(--mb-on-red); filter: brightness(1.08); }
 .nova-lobby-btn:disabled { opacity: .7; cursor: wait; }
-.nova-lobby-btn small { min-width: 22px; padding: 0 7px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--lobby-accent); font-size: 11px; line-height: 1.6; }
-.nova-lobby-btn.is-primary small { color: var(--lobby-accent); background: #FFFFFF; }
+.nova-lobby-btn small { min-width: 22px; padding: 0 7px; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--lobby-accent); font-size: 11px; line-height: 1.6; }
+.nova-lobby-btn.is-primary small { color: var(--lobby-accent); background: var(--mb-on-red); }
 .nova-lobby-spin { width: 16px; height: 16px; animation: nova-lobby-spin 1s linear infinite; }
 @keyframes nova-lobby-spin { to { transform: rotate(360deg); } }
 .nova-lobby-panel {
@@ -361,6 +365,7 @@ html.dark .nova-lobby-tabs .nova-ex-sport-tabs button:not(.active) img { filter:
 }
 @container lobby (max-width: 639px) {
   .nova-lobby-tabs .nova-ex-sport-tabs button { min-width: 0; min-height: 46px; padding: 0 12px; font-size: 15px; }
+  .nova-lobby-tab-skeleton { flex-basis: 110px; min-height: 46px; }
   .nova-lobby-providers-label { display: none; }
   .nova-lobby-section { padding: 0 12px 4px; }
   .nova-lobby-section > .nova-ex-section-head { gap: 8px; margin: 0 -12px 14px; padding-right: 8px; }

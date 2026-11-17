@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { auditActiveFilters, auditCalendarRange, auditCalendarDay, auditGraphqlFilters, auditTimePreset, auditHasChanges, auditPrintDocument, auditResetFilters } from './auditPageModel'
+import { auditActiveFilters, auditCalendarRange, auditCalendarDay, auditExportFilename, auditGraphqlFilters, auditTimePreset, auditHasChanges, auditPrintDocument, auditResetFilters, exportJobDate, exportJobError } from './auditPageModel'
 import { auditFixtureEvent } from '../../../test/auditEventsPreviewData'
 test('audit variables preserve paging/sort and only non-empty supported filters', () => {
   const filters = { page: 3, limit: 50, sort: 'actorId:asc', id: 'event', domain: ['sports'], action: [], actorId: '', resourceId: 'player', resourceType: ['player'], from: 'start', to: 'end', search: 'needle' }
@@ -31,4 +31,26 @@ test('print retains the current page, total, dates and six columns without inter
   assert.ok(html.includes('&lt;script&gt;bad&lt;/script&gt;')); assert.ok(html.includes('&lt;img src=x onerror=bad()&gt;'))
   assert.equal(html.includes('<script>bad</script>'), false)
   assert.equal((html.match(/<th>/g) ?? []).length, 6)
+})
+test('export job dates read in either shape the server has sent', () => {
+  assert.equal(exportJobDate('1793645111717'), '2026-11-02T18:45:11.717Z')
+  assert.equal(exportJobDate('2026-11-02T18:45:11.717Z'), '2026-11-02T18:45:11.717Z')
+  assert.equal(exportJobDate(null), null)
+})
+test('a job that failed in the retired file storage says to run it again, other failures are kept as sent', () => {
+  // Since 2026-11-04 exports are kept in the job row: "Upload failed: …" only comes from the old storage.
+  const retired = 'This export failed in the old file storage, which is no longer used. Create a new export job.'
+  assert.equal(exportJobError('Upload failed: The AWS Access Key Id you provided does not exist in our records.'), retired)
+  assert.equal(exportJobError('Upload failed: socket hang up'), retired)
+  assert.equal(exportJobError('No events match these filters'), 'No events match these filters')
+  assert.equal(exportJobError('The export is too large to store (52 MB); narrow the filters'), 'The export is too large to store (52 MB); narrow the filters')
+})
+test('an audit export downloads as "Audit Trail-<IST day>-<id>.<extension of its type>"', () => {
+  const job = { id: '3f2a9c1e-7b1d-4c55-9a8e-000000000001', exportFormat: 'CSV', createdAt: '2026-11-03T20:00:00.000Z' }
+  // 20:00 UTC is 01:30 the next day in IST.
+  assert.equal(auditExportFilename(job, 'text/csv'), 'Audit Trail-2026-11-04-3f2a9c1e.csv')
+  assert.equal(auditExportFilename({ ...job, exportFormat: 'XLSX' }, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'), 'Audit Trail-2026-11-04-3f2a9c1e.xlsx')
+  // A type this list does not know takes the job's format; the epoch-milliseconds date the server once sent is read too.
+  assert.equal(auditExportFilename({ ...job, exportFormat: 'JSON', createdAt: '1793645111717' }, 'application/x-unknown'), 'Audit Trail-2026-11-03-3f2a9c1e.json')
+  assert.equal(auditExportFilename({ ...job, createdAt: null }), 'Audit Trail-export-3f2a9c1e.csv')
 })

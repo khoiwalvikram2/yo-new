@@ -171,6 +171,30 @@ describe('FileField', () => {
     assert.ok(trigger.closest(`.${styles.contain}`))
   })
 
+  test('a stored image that will not load fills its tile with a placeholder naming it (SYS-18)', () => {
+    render(
+      <FileField
+        label="Icons"
+        onFiles={() => {}}
+        files={[
+          { id: 'icon', name: 'Category icon', src: 'https://bucket.example/icons/live.png', alt: 'Category icon preview' },
+          { id: 'logo', name: 'Logo', src: 'https://bucket.example/logo.png', alt: 'Logo preview', zoomable: true },
+        ]}
+      />,
+    )
+    const [icon, logo] = screen.getAllByRole('listitem')
+    fireEvent.error(within(icon).getByAltText('Category icon preview'))
+    assert.equal(within(icon).queryByAltText('Category icon preview'), null, 'no broken image')
+    const placeholder = within(icon).getByRole('img', { name: 'Category icon preview' })
+    assert.ok(placeholder.classList.contains(styles.thumbPlaceholder))
+    assert.ok(placeholder.closest(`.${styles.thumb}`))
+
+    // A zoomable one has nothing to open once its image fails.
+    fireEvent.error(within(logo).getByRole('button', { name: 'Open preview: Logo preview' }).querySelector('img') as HTMLImageElement)
+    assert.equal(within(logo).queryByRole('button', { name: /Open preview/ }), null)
+    assert.ok(within(logo).getByRole('img', { name: 'Logo preview' }).hasAttribute('data-image-placeholder'))
+  })
+
   test('busy and disabled ignore new files; busy keeps the prompt and announces the work', () => {
     const onFiles = vi.fn()
     const { rerender } = render(

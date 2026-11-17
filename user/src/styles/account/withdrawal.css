@@ -53,7 +53,7 @@
   transition: background-color .15s, border-color .15s, color .15s;
 }
 :is(.nova-acct, .wd-modal) .wd-btn svg { flex: none; width: 18px; height: 18px; }
-:is(.nova-acct, .wd-modal) .wd-btn-primary { width: 100%; border-color: #B21718; color: #FFFFFF; background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%); }
+:is(.nova-acct, .wd-modal) .wd-btn-primary { width: 100%; border-color: var(--mb-brand-edge); color: var(--mb-on-red); background: linear-gradient(180deg, var(--mb-brand-top-action) 0%, var(--mb-red) 100%); }
 :is(.nova-acct, .wd-modal) .wd-btn-primary:hover:not(:disabled) { border-color: var(--acct-red-hover); background: var(--acct-red-hover); }
 :is(.nova-acct, .wd-modal) .wd-btn-primary:disabled { border-color: var(--mb-line); color: var(--mb-faint); background: var(--mb-disabled-bg); cursor: not-allowed; }
 :is(.nova-acct, .wd-modal) .wd-btn-secondary { border-color: var(--acct-field); color: var(--acct-ink); background: var(--mb-panel); }
@@ -72,9 +72,9 @@
   font-weight: 700;
   cursor: pointer;
 }
-.nova-acct .wd-back:hover { text-decoration: underline; }
+.nova-acct .wd-back:hover { color: var(--mb-link-hover); text-decoration: underline; }
 .nova-acct .wd-back svg { width: 16px; height: 16px; }
-.nova-acct .wd-spin { width: 16px; height: 16px; border: 2px solid rgb(255 255 255 / 35%); border-top-color: #FFFFFF; border-radius: 50%; animation: wd-spin .8s linear infinite; }
+.nova-acct .wd-spin { width: 16px; height: 16px; border: 2px solid color-mix(in srgb, var(--mb-on-red) 35%, transparent); border-top-color: var(--mb-on-red); border-radius: 50%; animation: wd-spin .8s linear infinite; }
 .nova-acct .wd-btn-primary:disabled .wd-spin { border-color: rgb(141 140 146 / 35%); border-top-color: var(--mb-line-3); }
 
 /* Small uppercase label used over chip rows and inside summary boxes. */
@@ -105,7 +105,7 @@
 }
 .nova-acct .wd-step-num svg { width: 15px; height: 15px; stroke-width: 3; }
 .nova-acct .wd-step-label { color: #C9CBD1; font-size: 15px; font-weight: 600; white-space: nowrap; }
-.nova-acct .wd-step.is-active .wd-step-num { border-color: var(--acct-red); color: #FFFFFF; background: var(--acct-red); }
+.nova-acct .wd-step.is-active .wd-step-num { border-color: var(--acct-red); color: var(--mb-on-red); background: var(--acct-red); }
 .nova-acct .wd-step.is-done .wd-step-num { border-color: var(--acct-green); color: #FFFFFF; background: var(--acct-green); }
 .nova-acct .wd-step:is(.is-active, .is-done) .wd-step-label { color: #FFFFFF; }
 .nova-acct .wd-step.is-active .wd-step-label { font-weight: 700; }
@@ -251,12 +251,12 @@
 .nova-acct .wd-acc:hover:not(:disabled) { border-color: var(--mb-line-3); }
 .nova-acct .wd-acc.is-selected { border-color: var(--acct-red); background: color-mix(in srgb, var(--mb-red) 5%, var(--mb-panel)); box-shadow: inset 0 0 0 1px var(--acct-red); }
 .nova-acct .wd-acc:disabled { opacity: .55; cursor: not-allowed; }
-.nova-acct .wd-acc-check { position: absolute; top: 10px; right: 10px; display: grid; width: 22px; height: 22px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--acct-red); }
+.nova-acct .wd-acc-check { position: absolute; top: 10px; right: 10px; display: grid; width: 22px; height: 22px; place-items: center; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--acct-red); }
 .nova-acct .wd-acc-check svg { width: 15px; height: 15px; }
 .nova-acct .wd-acc-head { display: flex; align-items: center; gap: 10px; min-width: 0; padding-right: 28px; }
 :is(.nova-acct, .wd-modal) .wd-acc-icon { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--acct-bar); }
 :is(.nova-acct, .wd-modal) .wd-acc-icon svg { width: 20px; height: 20px; }
-.nova-acct .wd-acc.is-selected .wd-acc-icon { background: var(--acct-red); }
+.nova-acct .wd-acc.is-selected .wd-acc-icon { color: var(--mb-on-red); background: var(--acct-red); }
 .nova-acct .wd-acc-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .nova-acct .wd-acc-name h4 { min-width: 0; overflow: hidden; color: var(--acct-ink); font-size: 16px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .nova-acct .wd-acc-holder { margin-top: 1px; overflow: hidden; color: var(--acct-muted); font-size: 14px; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
@@ -345,7 +345,7 @@
   transition: border-color .15s, background-color .15s;
 }
 .nova-acct .wd-add:hover { border-color: var(--acct-red); background: var(--mb-panel); }
-.nova-acct .wd-add-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--acct-red); }
+.nova-acct .wd-add-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--acct-red); }
 .nova-acct .wd-add-icon svg { width: 18px; height: 18px; }
 .nova-acct .wd-add:only-child { grid-column: 1 / -1; min-height: 110px; }
 
@@ -416,8 +416,8 @@
 /* Add UPI / Add bank, withdrawal details, the receipt and the help sheet: a charcoal title bar over a flat
    white body. The workspace palette does not reach the portal, so it is restated here. */
 .nova-modal-surface.wd-modal {
-  --acct-red: #C51A1B;
-  --acct-red-hover: #A81516;
+  --acct-red: var(--mb-red);
+  --acct-red-hover: var(--mb-brand-deep);
   --acct-ink: var(--mb-ink);
   --acct-text: var(--mb-text);
   --acct-muted: var(--mb-muted);
@@ -435,8 +435,8 @@
   --border: var(--mb-line);
   --text: var(--mb-text);
   --subtle: var(--mb-muted);
-  --nova-accent: #C51A1B;
-  --brand-primary: #C51A1B;
+  --nova-accent: var(--mb-red);
+  --brand-primary: var(--mb-red);
   --ds-color-slate-100: var(--mb-text);
   --ds-color-slate-200: var(--mb-muted);
   --ds-color-slate-300: var(--mb-muted);
@@ -458,14 +458,9 @@
 .wd-modal :is(h2, h3, p) { margin: 0; }
 .wd-modal :is(button, a):focus-visible { outline: 2px solid var(--acct-link); outline-offset: 2px; }
 .wd-modal .wd-form .field__control:focus-visible { outline: none; }
-.wd-modal .nova-modal-header { align-items: center; min-height: 58px; padding: 9px 10px 9px 18px; border: 0; color: #FFFFFF; background: var(--acct-bar); }
-.wd-modal .nova-modal-header h2 { color: #FFFFFF; font: 700 21px/1.2 var(--font-inter); letter-spacing: -.01em; }
-.wd-modal .nova-modal-header p { margin-top: 2px; color: #C9CBD1; font-size: 13px; line-height: 1.4; }
-.wd-modal .nova-modal-close { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
-.wd-modal .nova-modal-close:hover { color: #FFFFFF; background: rgb(255 255 255 / 12%); }
 .wd-modal .nova-modal-body { padding: 18px; }
 .wd-modal .nova-modal-footer, .wd-modal .nova-modal-actions { gap: 8px; padding: 12px 18px 14px; border-top: 1px solid var(--acct-line); background: var(--mb-panel); }
-.wd-modal .nova-modal-actions .nova-button { min-height: 46px; padding: 0 18px; border: 1px solid #B21718; border-radius: var(--ui-radius); color: #FFFFFF; background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%); font-size: 16px; font-weight: 700; filter: none; }
+.wd-modal .nova-modal-actions .nova-button { min-height: 46px; padding: 0 18px; border: 1px solid var(--mb-brand-edge); border-radius: var(--ui-radius); color: var(--mb-on-red); background: linear-gradient(180deg, var(--mb-brand-top-action) 0%, var(--mb-red) 100%); font-size: 16px; font-weight: 700; filter: none; }
 .wd-modal .nova-modal-actions .nova-button:hover:not(:disabled) { border-color: var(--acct-red-hover); background: var(--acct-red-hover); }
 .wd-modal .nova-modal-actions .nova-button:disabled { border-color: var(--mb-line); color: var(--mb-faint); background: var(--mb-disabled-bg); }
 .wd-modal .nova-modal-actions .nova-button.nova-button-secondary { border-color: var(--acct-field); color: var(--acct-ink); background: var(--mb-panel); }
@@ -538,7 +533,6 @@
 .wd-modal .wd-info-mark { flex: none; width: 7px; height: 7px; margin-top: 8px; border-radius: var(--ui-radius); background: var(--acct-red); }
 
 @media (max-width: 480px) {
-  .wd-modal .nova-modal-header { padding-left: 14px; }
   .wd-modal .nova-modal-body { padding: 14px; }
   .wd-modal .nova-modal-footer, .wd-modal .nova-modal-actions { padding: 12px 14px; }
   .wd-modal .nova-modal-summary > p + p { font-size: 26px; }

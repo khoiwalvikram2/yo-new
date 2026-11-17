@@ -2,8 +2,11 @@ import { describe, test } from 'vitest'
 import assert from 'node:assert/strict'
 import {
   BET_TYPES,
+  BID_TYPE_OPTIONS,
   bidRuleError,
   bidRuleInput,
+  bidRuleMarketKind,
+  bidTypeOptionsFor,
   buildMatkaFilters,
   cloneVariables,
   coreTotalsFrom,
@@ -11,6 +14,7 @@ import {
   drawerStatusFor,
   hydrateRateRows,
   initialBidRuleDraft,
+  matkaErrorText,
   matkaStatus,
   patchLimits,
   patchRisk,
@@ -180,5 +184,36 @@ describe('matkaManagementModel', () => {
       notes: null,
     })
     assert.deepEqual(cloneVariables(matka()), { id: 'm1', name: 'Kalyan Copy', code: 'KLN-copy' })
+    // The rule names the market's own kind rather than always "worli".
+    assert.equal(bidRuleInput(matka({ settings: { matkaType: 'starline' } }), draft).matkaType, 'starline')
+  })
+
+  test('offers only the bid types the server accepts for the market kind (allowedBids in shared/src/matka/rules.ts)', () => {
+    const values = (settings: unknown) => bidTypeOptionsFor(settings).map((option) => option.value)
+    const worli = ['SINGLE', 'JODI', 'SINGLE_PANNA', 'DOUBLE_PANNA', 'TRIPLE_PANNA', 'HALF_SANGAM', 'FULL_SANGAM']
+    // A Worli market offered Satta AB, A and B too; the server refused them ("This bid type is unavailable for the market").
+    assert.deepEqual(values({ matkaType: 'worli' }), worli)
+    assert.deepEqual(values({}), worli, 'an unset kind is Worli, as the server reads it')
+    assert.deepEqual(values(null), worli)
+    assert.deepEqual(values({ matkaType: 'WORLI' }), worli)
+    assert.deepEqual(values({ matkaType: 'starline' }), ['SINGLE', 'SINGLE_PANNA', 'DOUBLE_PANNA', 'TRIPLE_PANNA'])
+    assert.deepEqual(values({ matkaType: 'jackpot' }), ['JODI'])
+    for (const kind of ['sattaMatka', 'sattamatka', 'satta_matka']) assert.deepEqual(values({ matkaType: kind }), ['AB', 'A', 'B'], kind)
+    assert.deepEqual(bidTypeOptionsFor({ matkaType: 'sattaMatka' }), [
+      { value: 'AB', label: 'Satta AB' }, { value: 'A', label: 'Satta A' }, { value: 'B', label: 'Satta B' },
+    ])
+    // A kind the server does not know keeps the full list; the server's refusal names the problem.
+    assert.equal(bidRuleMarketKind({ matkaType: 'bogus' }), null)
+    assert.deepEqual(bidTypeOptionsFor({ matkaType: 'bogus' }), BID_TYPE_OPTIONS)
+  })
+
+  test('a refused mutation reports the server reason, never a driver error', () => {
+    const fallback = 'The bid configuration could not be created.'
+    const refused = Object.assign(new Error('Response not successful'), { graphQLErrors: [{ message: 'Bid percentage must be between 0 and 100' }] })
+    assert.equal(matkaErrorText(refused, fallback), 'Bid percentage must be between 0 and 100')
+    assert.equal(matkaErrorText(new Error('Network down'), fallback), 'Network down')
+    const driver = { graphQLErrors: [{ message: 'Failed query: insert into "matka_bid_rules" ("id") values ($1)\nparams: 7' }] }
+    assert.equal(matkaErrorText(driver, fallback), fallback)
+    assert.equal(matkaErrorText(null, fallback), fallback)
   })
 })

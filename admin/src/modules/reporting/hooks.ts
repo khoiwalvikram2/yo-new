@@ -34,7 +34,7 @@ import {
   MATKA_PLAYER_BREAKDOWN_QUERY,
   AGENT_PLAYER_BREAKDOWN_QUERY,
 } from './graphql';
-import { useReportingStore } from '@/state/reportingStore';
+import { useReportingStore, type ReportingFilters } from '@/state/reportingStore';
 import { notify } from '@/shared/services/notification';
 
 /* Page migration C, W3 Task 120: the success and failure messages below go through the kit notify
@@ -101,8 +101,9 @@ export function useTopSportsEvents(limit: number = 10, filter?: unknown) {
   });
 }
 
-// Fields allowed by CasinoReportingFilter (no vendorId/gameId etc.)
-const CASINO_REPORTING_FILTER_KEYS = ['tenant', 'whitelabelId', 'agentId', 'dateFrom', 'dateTo', 'currency'] as const;
+// Fields allowed by CasinoReportingFilter: the drill-down's provider, vendor and game narrow the KPIs and
+// trends to the level shown (F-REP-14: they were stripped, so a vendor's cards showed the whole casino).
+const CASINO_REPORTING_FILTER_KEYS = ['tenant', 'whitelabelId', 'agentId', 'providerId', 'vendorId', 'gameId', 'dateFrom', 'dateTo', 'currency'] as const;
 
 function casinoReportingFilterForApi(filter: unknown) {
   if (!filter || typeof filter !== 'object') return filter;
@@ -137,8 +138,10 @@ export function useCasinoTrends(filter?: unknown) {
   });
 }
 
-// Fields allowed by MatkaReportingFilter / MatkaDrillDownFilter (exclude schemeType, domain, etc.)
-const MATKA_FILTER_KEYS = ['tenant', 'whitelabelId', 'dateFrom', 'dateTo', 'matkaType', 'matkaId', 'marketSession', 'agentId', 'playerId', 'currency'] as const;
+// Fields allowed by MatkaReportingFilter / MatkaDrillDownFilter (exclude schemeType, domain, etc.). The
+// KPIs and trends take the drill-down keys too, so the cards follow the level shown (F-REP-01: the
+// server's MatkaReportingFilter refused matkaType and the cards vanished on the first click).
+const MATKA_FILTER_KEYS =['tenant', 'whitelabelId', 'dateFrom', 'dateTo', 'matkaType', 'matkaId', 'marketSession', 'agentId', 'playerId', 'currency'] as const;
 
 function matkaFilterForApi(filter: unknown) {
   if (!filter || typeof filter !== 'object') return filter;
@@ -173,10 +176,23 @@ export function useMatkaTrends(filter?: unknown) {
   });
 }
 
+/**
+ * The persisted store's filters an agent query merges: everything but Agent Performance's own picks.
+ * Its agent type and domain stay in the store, so merged into every agent query they leaked into
+ * Agent Overview and the agent home, whose cards silently showed one type or one domain (and survived
+ * reloads). A page that wants them sends them itself, as Agent Performance does.
+ */
+function agentStoreFilters(filters: ReportingFilters): ReportingFilters {
+  const rest = { ...filters };
+  delete rest.schemeType;
+  delete rest.domain;
+  return rest;
+}
+
 // Agent Reporting Hooks
 export function useAgentKPIs(filter?: unknown, options: { skip?: boolean } = {}) {
   const { filters } = useReportingStore();
-  const mergedFilter = { ...filters, ...(filter as object | undefined) };
+  const mergedFilter = { ...agentStoreFilters(filters), ...(filter as object | undefined) };
 
   // Debug logging
 
@@ -190,7 +206,7 @@ export function useAgentKPIs(filter?: unknown, options: { skip?: boolean } = {})
 
 export function useAgentPerformance(limit: number = 50, filter?: unknown, options: { skip?: boolean } = {}) {
   const { filters } = useReportingStore();
-  const mergedFilter = { ...filters, ...(filter as object | undefined) };
+  const mergedFilter = { ...agentStoreFilters(filters), ...(filter as object | undefined) };
 
   // Debug logging
 
@@ -204,7 +220,7 @@ export function useAgentPerformance(limit: number = 50, filter?: unknown, option
 
 export function useAgentTrends(filter?: unknown) {
   const { filters } = useReportingStore();
-  const mergedFilter = { ...filters, ...(filter as object | undefined) };
+  const mergedFilter = { ...agentStoreFilters(filters), ...(filter as object | undefined) };
 
   // Debug logging
 

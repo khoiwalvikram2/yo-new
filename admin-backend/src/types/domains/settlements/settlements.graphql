@@ -45,38 +45,20 @@ type CommissionSettlementHistoryResult {
   total: Int!
 }
 
-type PlayerCreditAdjustment {
-  id: ID!
-  tenant: String!
-  playerId: ID!
-  player: User
-  adjustmentType: String! # INCREASE | DECREASE | LIMIT_CHANGE
-  amount: Float!
-  previousLimit: Float
-  newLimit: Float
-  previousUsed: Float
-  newUsed: Float
-  notes: String
-  adjustedBy: ID
-  createdAt: String!
-  balanceBefore: Float
-  balanceAfter: Float
-}
-
 # Pending settlement info for dashboard
 type PendingSettlement {
   agentId: ID!
   agent: AgentBasic!
   schemeType: AgentScheme!
-  "SHARING: signed like the SHARE/SETTLEMENT lines the settlement posts — positive = TO_AGENT (pay the agent), negative = FROM_AGENT (collect from the agent). CREDIT: the absolute settlement balance (see settlementDirection)."
+  "SHARING: signed like the SHARE/SETTLEMENT lines the settlement posts — positive = TO_AGENT (pay the agent), negative = FROM_AGENT (collect from the agent). CREDIT agents are never listed: they move chips by Deposit / Withdraw."
   pendingAmount: Float!
-  "Who pays: TO_AGENT (you pay the agent), FROM_AGENT (the agent pays you) or NONE. SHARING and CREDIT rows; null for COMMISSION."
+  "Who pays: TO_AGENT (you pay the agent), FROM_AGENT (the agent pays you) or NONE. SHARING rows; null for COMMISSION."
   settlementDirection: String
   "SHARING: start of the open settlement window (half-open [periodFrom, periodTo))."
   periodFrom: String
   "SHARING: end of the window these figures cover; pass it as SettleAgentInput.periodTo to settle exactly this window."
   periodTo: String
-  settlementType: String! # P_L | CREDIT | COMMISSION
+  settlementType: String! # P_L | COMMISSION
   lastSettlementDate: String
   settlementBreakdownByDomain: [SettlementDomainBreakdownItem!]!
 }
@@ -157,9 +139,9 @@ type EnhancedPendingSettlement {
   agentId: ID!
   agent: AgentBasic!
   schemeType: AgentScheme!
-  "SHARING: signed like the SHARE/SETTLEMENT lines the settlement posts — positive = TO_AGENT (pay the agent), negative = FROM_AGENT (collect from the agent). CREDIT: the absolute settlement balance (see settlementDirection)."
+  "SHARING: signed like the SHARE/SETTLEMENT lines the settlement posts — positive = TO_AGENT (pay the agent), negative = FROM_AGENT (collect from the agent). CREDIT agents are never listed: they move chips by Deposit / Withdraw."
   pendingAmount: Float!
-  "Who pays: TO_AGENT (you pay the agent), FROM_AGENT (the agent pays you) or NONE. SHARING and CREDIT rows; null for COMMISSION."
+  "Who pays: TO_AGENT (you pay the agent), FROM_AGENT (the agent pays you) or NONE. SHARING rows; null for COMMISSION."
   settlementDirection: String
   "SHARING: start of the open settlement window (half-open [periodFrom, periodTo))."
   periodFrom: String
@@ -231,9 +213,7 @@ type SettlementDashboard {
   pendingSharingToAgents: Float
   "SHARING: total agents still pay you (FROM_AGENT), as a positive number."
   pendingSharingFromAgents: Float
-  pendingCreditSettlements: Float!
   pendingCommissionPayouts: Float!
-  pendingDirectCreditAdjustments: Int!
   "Paid plus collected settlement volume this month."
   totalSettledThisMonth: Float!
   "Paid plus collected settlement volume in the last 30 days."
@@ -248,7 +228,6 @@ type SettlementDashboard {
   totalCollectedFromAgentsInPeriod: Float!
   "Commission payments posted during the period, based on payment date."
   totalCommissionPaidInPeriod: Float!
-  domainBreakdown: [DomainSettlement!]!
   monthlyTrend: [SettlementMonthlyTrendItem!]!
 }
 
@@ -272,13 +251,6 @@ input PayCommissionInput {
   periodFrom: String
   periodTo: String
   notes: String!
-}
-
-input AdjustPlayerCreditInput {
-  playerId: ID!
-  adjustmentType: String! # INCREASE | DECREASE | LIMIT_CHANGE
-  amount: Float!
-  notes: String
 }
 
 # Mutation payloads
@@ -406,12 +378,6 @@ type CancelCommissionAdjustmentPayload {
   adjustment: CommissionAdjustment
 }
 
-type PlayerCreditAdjustmentPayload {
-  success: Boolean!
-  message: String!
-  adjustment: PlayerCreditAdjustment
-}
-
 type BulkSettlementResult {
   success: Boolean!
   message: String!
@@ -450,7 +416,6 @@ extend type Query {
   subAgentCommissionSummaries(agentId: ID, periodFrom: String, periodTo: String, lastPaidBefore: String): [SubAgentCommissionSummary!]!
   "Admin/whitelabel only: commission summaries for all COMMISSION agents in tenant for the given period (cycle)."
   whitelabelCommissionSummaries(periodFrom: String!, periodTo: String!): [SubAgentCommissionSummary!]!
-  playerCreditAdjustments(playerId: ID, limit: Int, offset: Int, fromDate: String, toDate: String): [PlayerCreditAdjustment!]!
   pendingSettlements(schemeType: AgentScheme): [PendingSettlement!]!
   enhancedPendingSettlements(schemeType: AgentScheme): [EnhancedPendingSettlement!]!
   subAgentsPendingSettlements(schemeType: AgentScheme): [EnhancedPendingSettlement!]!
@@ -491,7 +456,6 @@ extend type Mutation {
   applyCommissionAdjustment(input: ApplyCommissionAdjustmentInput!): ApplyCommissionAdjustmentPayload!
   "Admin only (settlements.commission:create). A PENDING adjustment becomes CANCELLED; the reason goes to the audit row."
   cancelCommissionAdjustment(adjustmentId: ID!, reason: String): CancelCommissionAdjustmentPayload!
-  adjustPlayerCredit(input: AdjustPlayerCreditInput!): PlayerCreditAdjustmentPayload!
   bulkSettleAgents(agentIds: [ID!]!): BulkSettlementResult!
 }
 

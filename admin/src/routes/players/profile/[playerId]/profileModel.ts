@@ -1,5 +1,24 @@
 import { z } from 'zod'
 import type { Player } from '@/shared/types/player'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
+
+/** The CREDIT scheme's players, on Deposit/Withdraw chips (spec 2026-11-02 decision 1). */
+export function isCreditPlayerType(playerType: string | null | undefined): boolean {
+  return playerType === 'AGENT_CREDIT' || playerType === 'WHITELABEL_CREDIT'
+}
+
+/**
+ * A credit player's Chips tab (its figures, D / W / CR and its chip statement). Agents only ever reach their
+ * own subtree's players; an admin needs players.credit:view, the permission that shows credit figures.
+ */
+export function showChipsTab(input: {
+  playerType?: string | null
+  isAgent: boolean
+  permissions?: Parameters<typeof hasPermissionWithNested>[0]
+}): boolean {
+  if (!isCreditPlayerType(input.playerType)) return false
+  return input.isAgent || hasPermissionWithNested(input.permissions, 'players.credit', 'view')
+}
 
 export interface ProfileWallet { userId?: string; currency?: string; balance?: number; bonus?: number; exposure?: number; referralBalance?: number; referralBonusBalance?: number; updatedAt?: string }
 export interface PlayerProfile extends Omit<Player, 'wallet' | 'email' | 'phone'> {
@@ -31,15 +50,9 @@ export const playerNoteSchema = z.object({ content: z.string().min(1, 'Please en
 export function playerNoteInput(playerId: string, values: typeof PLAYER_NOTE_INITIAL) {
   return { playerId, content: values.content, category: values.category || null, tags: values.tags ? String(values.tags).split(',').map((tag) => tag.trim()).filter(Boolean) : [], isPinned: Boolean(values.isPinned) }
 }
-export type ProfileCreditAction = 'INCREASE' | 'DECREASE' | 'LIMIT_CHANGE'
-export function profileCreditSchema(type: ProfileCreditAction, limit: number, available: number) {
-  return z.object({ amount: z.number().nullable(), notes: z.string() }).superRefine((values, context) => {
-    const message = values.amount == null ? 'Please enter amount' : values.amount < 0.01 ? 'Amount must be greater than 0' : type === 'DECREASE' && values.amount > limit ? 'Cannot decrease more than current limit' : type === 'DECREASE' && values.amount > available ? 'Cannot decrease more than available credit' : undefined
-    if (message) context.addIssue({ code: 'custom', path: ['amount'], message })
-  })
-}
 export const playerPasswordSchema = z.object({
-  newPassword: z.string().min(1, 'Please enter the new password').min(6, 'Password must be at least 6 characters'),
+  // The minimum changePlayerPassword enforces, the same 8 characters a player is created with.
+  newPassword: z.string().min(1, 'Please enter the new password').min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string().min(1, 'Please confirm the new password'),
   adminPassword: z.string().min(1, 'Please enter your login password to confirm'),
 }).superRefine((values, context) => {
@@ -59,7 +72,9 @@ export function relativeProfileTime(value?: string | null, now = Date.now()): st
   const days = Math.floor(hours / 24)
   return days < 30 ? `${days}d ago` : `${Math.floor(days / 30)}mo ago`
 }
+/** The cash player's balance-adjustment modal input. A credit player's chips move by Deposit / Withdraw from its
+ *  direct parent instead (spec 2026-11-02), so the retired credit-limit figures are not carried. */
 export function profileForModal(profile: PlayerProfile): Player {
-  return { id: profile.id, name: profile.name, email: profile.email || undefined, phone: profile.phone || '', username: profile.username, status: profile.status, bonusAllowed: profile.bonusAllowed ?? false, playerType: profile.playerType, creditLimit: profile.creditLimit, creditUsed: profile.creditUsed, creditAvailable: profile.creditAvailable,
+  return { id: profile.id, name: profile.name, email: profile.email || undefined, phone: profile.phone || '', username: profile.username, status: profile.status, bonusAllowed: profile.bonusAllowed ?? false, playerType: profile.playerType,
     wallet: profile.wallet ? { userId: profile.wallet.userId || profile.id, currency: profile.wallet.currency || '', balance: profile.wallet.balance || 0, bonus: profile.wallet.bonus || 0, exposure: profile.wallet.exposure || 0, updatedAt: profile.wallet.updatedAt || new Date().toISOString() } : null }
 }

@@ -3,7 +3,6 @@ import { gql, useMutation, useQuery } from '@apollo/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { IconActivityHeartbeat, IconAddressBook, IconArrowsMaximize, IconArrowsMinimize, IconBell, IconChartBar, IconCreditCard, IconDeviceMobile, IconMail, IconPalette, IconSettings, IconShieldHalfFilled, IconSpeakerphone, IconToggleRight, IconTool, IconWebhook, IconWorldWww, type Icon } from '@tabler/icons-react'
 import clsx from 'clsx'
-import { z } from 'zod'
 import { APP_CONFIG, UPDATE_APP_CONFIG } from '@/lib/graphql/appConfig'
 import { useAuthStore } from '@/shared/core/authStore'
 import { RBACGuard } from '@/shared/core/RBACGuard'
@@ -18,7 +17,7 @@ import { strokeFor } from '@/ui/components/icons'
 import { useForm } from '@/ui/form/useForm'
 import { AppConfigurationBranding } from './AppConfigurationBranding'
 import { AppConfigurationSection } from './AppConfigurationSection'
-import { CONFIG_MENU, brandingInitialValues, configRoles, configurationColorValid, errorMessage, tabVisible, text, type BrandingValues, type ConfigRecord, type ConfigTab } from './appConfigurationModel'
+import { CONFIG_MENU, brandingInitialValues, brandingSchema, configRoles, errorMessage, tabVisible, text, type BrandingValues, type ConfigRecord, type ConfigTab } from './appConfigurationModel'
 import styles from './AppConfigurationPage.module.css'
 
 const UPDATE_WHITELABEL = gql`
@@ -76,9 +75,6 @@ const GET_WHITELABEL_BY_ID = gql`
 `
 
 
-const requiredColor = z.string().min(1, 'Please choose a color').refine((value) => !value || configurationColorValid(value), 'Please enter a valid color')
-const themeSchema = z.object({ bgPage: requiredColor, textPrimary: requiredColor, textSecondary: requiredColor, border: requiredColor })
-const brandingSchema = z.object({ logoUrl: z.string().nullable(), faviconUrl: z.string().nullable(), primary: requiredColor, success: requiredColor, warning: requiredColor, danger: requiredColor, dark: themeSchema, light: themeSchema })
 const UPDATE_GUARDED_TABS: readonly ConfigTab[] = ['analytics', 'payments', 'webhooks', 'observability']
 /** Each section's icon in the section panel and the line under its title. */
 const SECTION_META: Record<ConfigTab, { icon: Icon; description: string }> = {
@@ -108,8 +104,19 @@ export default function AppConfigurationPage() {
   const targetId = searchParams.get('whitelabelId')
   const { roles } = useAuthStore()
   const roleState = useMemo(() => configRoles(roles), [roles])
-  const targetContext = useMemo(() => ({ headers: targetId ? { 'x-whitelabel-id': targetId } : {} }), [targetId])
-  const { data: configData, loading, error: configError, refetch } = useQuery(APP_CONFIG, { errorPolicy: 'all', context: targetContext })
+  // Every read and write here names the whitelabel it manages, so the link runs it in that whitelabel's
+  // mode (shared/core/api.ts); a Super Admin in core mode otherwise read and saved the default tenant. For
+  // a Super Admin that is another tenant's config, kept out of the cache, where the shell and other pages
+  // read the current tenant's (a Whitelabel Admin's target is its own tenant, and the link ignores it).
+  // Apollo merges identical in-flight queries by document and variables, whatever their context: a targeted
+  // read is never merged into an untargeted copy of the same query (which would answer with the current
+  // tenant's config under this whitelabel's banner).
+  const targetContext = useMemo(() => (targetId ? { targetWhitelabelId: targetId, queryDeduplication: false } : {}), [targetId])
+  // Each save reports its own outcome below, so the global notification link stays quiet for it (it toasted
+  // the same message again: one Save showed "Configuration updated" twice).
+  const writeContext = useMemo(() => ({ ...targetContext, skipNotification: true }), [targetContext])
+  const foreignTarget = Boolean(targetId && roleState.isSuperAdmin)
+  const { data: configData, loading, error: configError, refetch } = useQuery(APP_CONFIG, { errorPolicy: 'all', context: targetContext, ...(foreignTarget ? { fetchPolicy: 'no-cache' as const } : {}) })
   const { data: whitelabelData, loading: whitelabelLoading, error: whitelabelError, refetch: refetchWhitelabel } = useQuery(targetId ? GET_WHITELABEL_BY_ID : WHITELABEL_CURRENT, { variables: targetId ? { id: targetId } : undefined, errorPolicy: 'all', context: targetContext })
   const { data: currentWhitelabelData } = useQuery(WHITELABEL_CURRENT, { errorPolicy: 'all', skip: !roleState.isWhitelabelAdmin })
   const [updateAppConfig] = useMutation(UPDATE_APP_CONFIG)
@@ -166,7 +173,7 @@ export default function AppConfigurationPage() {
   }
   const saveConfig = async (values: ConfigRecord) => {
     try {
-      const result = await updateAppConfig({ variables: { input: values }, context: targetContext })
+      const result = await updateAppConfig({ variables: { input: values }, context: writeContext })
       if (!result.data?.updateAppConfig?.success) throw new Error(result.data?.updateAppConfig?.message || 'Failed to save settings')
       notify.success(result.data.updateAppConfig.message || 'Settings saved successfully')
       await refetch()
@@ -175,7 +182,7 @@ export default function AppConfigurationPage() {
   const saveAppName = async (name: string) => {
     if (!whitelabel.id) { const message = 'Whitelabel not loaded yet'; notify.error(message); throw new Error(message) }
     try {
-      const result = await updateWhitelabelName({ variables: { input: { id: whitelabel.id, name } }, context: targetContext })
+      const result = await updateWhitelabelName({ variables: { input: { id: whitelabel.id, name } }, context: writeContext })
       if (!result.data?.updateWhitelabel?.success) throw new Error(result.data?.updateWhitelabel?.message || 'Failed to save app name')
       notify.success('App name saved successfully')
       await refetchWhitelabel()
@@ -201,7 +208,7 @@ export default function AppConfigurationPage() {
     <div ref={containerRef} className={fullscreen ? styles.fullscreen : styles.page}>
       <Page>
         <PageHeader title="App Configuration" sub="Manage branding, modules, integrations and platform settings" actions={<Button aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} icon={fullscreen ? <IconArrowsMinimize size={16} stroke={strokeFor(16)} /> : <IconArrowsMaximize size={16} stroke={strokeFor(16)} />} onClick={() => void toggleFullscreen()} />} />
-        {targetId && whitelabel.name && whitelabel.domain ? <Notice tone="info" title={`Managing: ${text(whitelabel.name)}`} className={styles.target} action={<Button onClick={() => navigate('/config/whitelabels')}>Back to Whitelabels</Button>}>{text(whitelabel.domain)}</Notice> : null}
+        {targetId && whitelabel.name && whitelabel.domain ? <Notice tone="info" title={`Managing: ${text(whitelabel.name)}`} className={styles.target} action={roleState.isSuperAdmin ? <Button onClick={() => navigate('/config/whitelabels')}>Back to Whitelabels</Button> : undefined}>{text(whitelabel.domain)}</Notice> : null}
         {configError || whitelabelError ? <Notice tone="error" title="Configuration could not be loaded" action={<Button onClick={() => { void refetch(); void refetchWhitelabel() }}>Retry</Button>}>{configError?.message || whitelabelError?.message}</Notice> : null}
         <div className={styles.workspace}>
           <aside className={styles.menuPanel} aria-labelledby="app-config-menu-title">

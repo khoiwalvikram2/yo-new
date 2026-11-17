@@ -30,8 +30,8 @@
   transition: background-color .15s, border-color .15s, color .15s;
 }
 .nova-acct .bon-btn svg { width: 16px; height: 16px; }
-.nova-acct .bon-btn-primary { color: #FFFFFF; background: linear-gradient(180deg, #D22322 0%, #C51A1B 100%); }
-.nova-acct .bon-btn-primary:hover:not(:disabled) { background: var(--acct-red-hover, #A81516); }
+.nova-acct .bon-btn-primary { color: var(--mb-on-red); background: linear-gradient(180deg, var(--mb-brand-top-acct) 0%, var(--mb-red) 100%); }
+.nova-acct .bon-btn-primary:hover:not(:disabled) { background: var(--acct-red-hover, var(--mb-brand-deep)); }
 .nova-acct .bon-btn-claim { color: #FFFFFF; background: var(--acct-green, #0B8040); }
 .nova-acct .bon-btn-claim:hover:not(:disabled) { background: #096B35; }
 .nova-acct .bon-btn:disabled { color: var(--mb-faint); background: var(--mb-disabled-bg); cursor: not-allowed; }
@@ -47,7 +47,7 @@
 .nova-acct .bon-empty-title { color: var(--acct-ink, var(--mb-ink)); font-size: 19px; font-weight: 700; line-height: 1.25; }
 .nova-acct .bon-empty-text { max-width: 420px; color: var(--acct-muted, var(--mb-muted)); font-size: 15px; line-height: 1.45; }
 .nova-acct .bon-empty .bon-empty-action { width: auto; min-width: 180px; margin-top: 12px; }
-.nova-acct .bon-empty.is-login { border-top: 4px solid var(--acct-red, #C51A1B); }
+.nova-acct .bon-empty.is-login { border-top: 4px solid var(--acct-red, var(--mb-red)); }
 .nova-acct .bon-empty.is-login .bon-empty-title { font-size: 24px; }
 
 /* ----------------------------------------------------------------- cards */
@@ -89,8 +89,8 @@
 }
 .nova-acct .bon-card:hover { border-color: var(--mb-line-3); border-top-color: var(--bon-stripe); box-shadow: 0 6px 16px rgb(16 18 22 / 8%); }
 .nova-acct .bon-card.is-active { --bon-stripe: var(--acct-green, #0B8040); }
-.nova-acct .bon-card.is-available { --bon-stripe: var(--acct-red, #C51A1B); }
-.nova-acct .bon-card.is-completed { --bon-stripe: var(--acct-bar, #43444A); }
+.nova-acct .bon-card.is-available { --bon-stripe: var(--acct-red, var(--mb-red)); }
+.nova-acct .bon-card.is-completed { --bon-stripe: var(--acct-bar, var(--mb-chrome-2)); }
 .nova-acct .bon-card.is-expired { --bon-stripe: #A3A1A7; }
 
 .nova-acct .bon-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
@@ -148,7 +148,7 @@
 .nova-acct .bon-wager-x { margin-left: 4px; color: var(--acct-muted, var(--mb-muted)); font-weight: 600; }
 .nova-acct .bon-wager-pct { color: var(--mb-red-text); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .nova-acct .bon-bar { height: 10px; overflow: hidden; border-radius: var(--ui-radius); background: var(--mb-disabled-bg); }
-.nova-acct .bon-bar > span { display: block; height: 100%; background: var(--acct-red, #C51A1B); transition: width .5s ease-out; }
+.nova-acct .bon-bar > span { display: block; height: 100%; background: var(--acct-red, var(--mb-red)); transition: width .5s ease-out; }
 .nova-acct .bon-bar.is-thin { height: 6px; }
 .nova-acct .bon-wager-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 .nova-acct .bon-wager-figs > div { display: grid; gap: 2px; min-width: 0; }
@@ -213,7 +213,7 @@
 }
 .nova-acct .bon-filters select.bon-select.has-icon { padding-left: 42px; }
 .nova-acct .bon-filters :is(input.bon-input, select.bon-select):hover { background-color: var(--mb-panel-2); }
-.nova-acct .bon-filters :is(input.bon-input, select.bon-select):focus { outline: none; background-color: var(--mb-panel); box-shadow: inset 0 -2px 0 var(--acct-red, #C51A1B); }
+.nova-acct .bon-filters :is(input.bon-input, select.bon-select):focus { outline: none; background-color: var(--mb-panel); box-shadow: inset 0 -2px 0 var(--acct-red, var(--mb-red)); }
 .nova-acct .bon-filter-icon { position: absolute; top: 50%; left: 14px; z-index: 1; width: 16px; height: 16px; color: var(--mb-faint); transform: translateY(-50%); pointer-events: none; }
 .nova-acct .bon-search-clear,
 .nova-acct .bon-range-clear {
@@ -323,10 +323,6 @@
 .nova-modal-layer:has(.bon-modal)::backdrop { background: rgb(12 13 16 / 72%); backdrop-filter: blur(3px); }
 .nova-modal-surface.bon-modal :is(h2, h3, p) { margin: 0; }
 .nova-modal-surface.bon-modal :is(button, a):focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 2px; }
-.nova-modal-surface.bon-modal .nova-modal-header { align-items: center; gap: 12px; min-height: 58px; padding: 9px 10px 9px 18px; border-bottom: 0; color: #FFFFFF; background: var(--mb-bar); }
-.nova-modal-surface.bon-modal .nova-modal-header h2 { color: #FFFFFF; font: 700 21px/1.2 var(--font-inter); letter-spacing: -.01em; }
-.nova-modal-surface.bon-modal .nova-modal-close { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
-.nova-modal-surface.bon-modal .nova-modal-close:hover { color: #FFFFFF; background: rgb(255 255 255 / 12%); }
 .nova-modal-surface.bon-modal .nova-modal-body { padding: 18px; }
 .nova-modal-surface.bon-modal .nova-modal-footer { gap: 8px; padding: 12px 18px 14px; border-top: 1px solid var(--mb-line); background: var(--mb-panel); }
 .nova-modal-surface.bon-modal .nova-button {
@@ -339,15 +335,15 @@
   padding: 0 18px;
   border: 1px solid transparent;
   border-radius: var(--ui-radius);
-  color: #FFFFFF;
-  background: linear-gradient(180deg, #D22322 0%, #C51A1B 100%);
+  color: var(--mb-on-red);
+  background: linear-gradient(180deg, var(--mb-brand-top-acct) 0%, var(--mb-red) 100%);
   font-family: var(--font-inter);
   font-size: 16px;
   font-weight: 700;
   filter: none;
   cursor: pointer;
 }
-.nova-modal-surface.bon-modal .nova-button:hover:not(:disabled) { background: #A81516; filter: none; }
+.nova-modal-surface.bon-modal .nova-button:hover:not(:disabled) { background: var(--mb-brand-deep); filter: none; }
 .nova-modal-surface.bon-modal .nova-button:disabled { color: var(--mb-faint); background: var(--mb-disabled-bg); cursor: not-allowed; }
 .nova-modal-surface.bon-modal .nova-button.nova-button-secondary { border-color: var(--mb-line-2); color: var(--mb-ink); background: var(--mb-panel); }
 .nova-modal-surface.bon-modal .nova-button.nova-button-secondary:hover:not(:disabled) { border-color: var(--mb-line-3); background: var(--mb-panel-2); }
@@ -384,8 +380,6 @@
 .nova-modal-surface.bon-modal .bon-firstdep-actions { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; width: 100%; max-width: 420px; gap: 8px; margin-top: 6px; padding: 0; border: 0; background: transparent; }
 
 @media (max-width: 639px) {
-  .nova-modal-surface.bon-modal .nova-modal-header { min-height: 54px; padding-left: 14px; }
-  .nova-modal-surface.bon-modal .nova-modal-header h2 { font-size: 19px; }
   .nova-modal-surface.bon-modal .nova-modal-body { padding: 14px; }
   .nova-modal-surface.bon-modal .nova-modal-footer { padding: 10px 14px 12px; }
   .nova-modal-surface.bon-modal .bon-switch-amount { font-size: 23px; }

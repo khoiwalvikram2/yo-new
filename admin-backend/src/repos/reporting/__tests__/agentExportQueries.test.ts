@@ -60,6 +60,13 @@ describe('agent export queries', () => {
     assert.match(text, /^select "id", "name", .* from "users" where/i, 'an explicit column list, not select *')
   })
 
+  it('deposits: selects every column the export reads but proof_data, the screenshot (up to 2 MB a request)', () => {
+    const text = flat(agentDepositsQuery(SCOPE, WINDOW).toSQL().sql)
+    assert.doesNotMatch(text, /proof_data/, 'an agent deposit export loaded every screenshot it listed')
+    assert.match(text, /^select "id", "tenant", "user_id", "amount", .*"proof_key", .*"status", .* from "deposit_requests" where/i, 'an explicit column list, not select *')
+    for (const column of ['"currency"', '"method"', '"created_at"']) assert.ok(text.includes(column), `${column} is still read`)
+  })
+
   it('keeps the tenant and whitelabel predicates on bets', () => {
     for (const build of [() => agentSportsBetsQuery(SCOPE, {}), () => agentCasinoBetsQuery(SCOPE, {}), () => agentMatkaBetsQuery(SCOPE, {})]) {
       const q = build().toSQL()

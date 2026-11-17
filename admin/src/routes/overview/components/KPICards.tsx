@@ -172,7 +172,9 @@ function RevenueSplit({ parts, format }: { parts: ReadonlyArray<{ label: string;
 
 /* The owner's four (2026-10-29): Gross Revenue, GGR, Net GGR and Turnover. Gross Revenue is GGR plus the
    commission paid to agents, the house's take before it pays them; Net GGR is GGR after that commission
-   and bonuses (Query.overviewKPIs' ngr). The operations figures sit in OperationsSections below. */
+   and bonuses (Query.overviewKPIs' ngr). Each figure opens the rows that add up to it: Gross Revenue and
+   Net GGR list their parts (GGR by player, each top-level agent's commission, each bonus paid), not GGR
+   alone. The operations figures sit in OperationsSections below. */
 export function KPICards() {
   const { getDateRangeForQuery, filters } = useDashboardStore()
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
@@ -316,7 +318,7 @@ export function KPICards() {
         <KpiCard
           label="Gross Revenue"
           accent="blue"
-          value={<DrillButton drill={{ kind: 'ggr_players', title: 'GGR by player' }}>{fmt(grossRevenue)}</DrillButton>}
+          value={<DrillButton drill={{ kind: 'gross_revenue', title: 'Gross revenue' }}>{fmt(grossRevenue)}</DrillButton>}
           icon={IconCoins}
           hue={1}
           trend={trend(grossRevenue, prevGrossRevenue)}
@@ -342,7 +344,7 @@ export function KPICards() {
         <KpiCard
           label="Net GGR"
           accent="violet"
-          value={<DrillButton drill={{ kind: 'ggr_players', title: 'GGR by player' }}>{fmt(ngr)}</DrillButton>}
+          value={<DrillButton drill={{ kind: 'net_ggr', title: 'Net GGR' }}>{fmt(ngr)}</DrillButton>}
           icon={IconTrendingUp}
           hue={3}
           trend={trend(ngr, prev?.ngr)}

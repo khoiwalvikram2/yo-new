@@ -62,6 +62,9 @@ const CasinoGameBundleInputSchema = z.object({
 const CasinoGameBundleUpdateInputSchema = CasinoGameBundleInputSchema.partial()
 
 export const marketingMutationResolvers = {
+  // Promotions > Campaigns and > Content (createPromotion, publishPromotion, pausePromotion, createContent,
+  // updateContent, publishContent, deleteContent) were retired on 2026-11-04 (MAR-14).
+
   createBonusCampaignV2: async (_: any, args: any, ctx: any) => {
     const tenant = getEffectiveTenant(ctx) || 'default'
     try {
@@ -439,7 +442,10 @@ export const marketingMutationResolvers = {
       return { success: false, message: 'Invalid bundle ID' }
     }
     try {
-      await deleteCasinoGameBundleDb(id, tenant)
+      // false when this tenant has no such bundle (another whitelabel's id, or one already
+      // deleted); reporting success there told the admin something was deleted (MAR-08).
+      const deleted = await deleteCasinoGameBundleDb(id, tenant)
+      if (!deleted) return { success: false, message: 'Bundle not found' }
       return { success: true, message: 'Bundle deleted successfully' }
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to delete bundle' }

@@ -72,7 +72,8 @@ export function WhitelabelWalletView({ state, compact, formatAmount, onViewDetai
         tabs={<WalletTabs tabs={WHITELABEL_TABS} value={tab} onChange={setTab} idPrefix={idPrefix} />}
         tabPanelId={`${idPrefix}-panel`}
         tabLabelledBy={`${idPrefix}-tab-${tab}`}
-        footer={isCreditTab ? { label: 'View Credit Details', onClick: handleViewDetails } : null}
+        // The pool feeds the root accounts' chips; its details are on the admin Chips page (/credit).
+        footer={isCreditTab ? { label: 'Open Chips', onClick: handleViewDetails } : null}
       >
         {isCreditTab ? (
           <CreditBody credit={credit} formatAmount={formatAmount} />

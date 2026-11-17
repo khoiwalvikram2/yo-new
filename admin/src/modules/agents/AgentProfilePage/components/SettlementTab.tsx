@@ -96,8 +96,9 @@ export function SettlementTab({ agentId, agent }: SettlementTabProps) {
   const historyPending = settlementsLoading && !settlementsData;
   const pendingPending = pendingLoading && !pendingData;
 
-  // Get pending amount from pending settlements query. SHARING: signed (positive = TO_AGENT, the agent is
-  // paid; negative = FROM_AGENT). CREDIT: the absolute balance; settlementDirection says who pays.
+  // Get pending amount from pending settlements query: signed (positive = TO_AGENT, the agent is paid;
+  // negative = FROM_AGENT). Only a SHARING agent has this tab: a CREDIT agent settles by moving chips
+  // (Deposit / Withdraw of its Ref P/L, spec 2026-11-02 decision 8), on its Chips tab.
   const pendingAmount = Number(pendingSettlement?.pendingAmount) || 0;
   const pendingDirection = settlementDirectionOf(pendingSettlement?.settlementDirection, pendingAmount);
   // The agent looking at its own profile sees its side ("You receive" / "You pay"); admins and the parent see the settler's.
@@ -116,7 +117,7 @@ export function SettlementTab({ agentId, agent }: SettlementTabProps) {
       },
       schemeType: agent.schemeType,
       pendingAmount: pendingAmount,
-      settlementType: agent.schemeType === 'CREDIT' ? 'CREDIT' : 'P_L',
+      settlementType: 'P_L',
       settlementDirection: pendingSettlement?.settlementDirection ?? null,
       periodTo: pendingSettlement?.periodTo ?? null,
       settlementBreakdownByDomain: pendingSettlement?.settlementBreakdownByDomain,
@@ -133,7 +134,7 @@ export function SettlementTab({ agentId, agent }: SettlementTabProps) {
     }
     const input: Record<string, unknown> = {
       agentId: agent.id,
-      settlementType: agent.schemeType === 'CREDIT' ? 'CREDIT' : 'P_L',
+      settlementType: 'P_L',
       amount: values.amount,
       direction: values.direction,
       notes,
@@ -156,7 +157,7 @@ export function SettlementTab({ agentId, agent }: SettlementTabProps) {
   ]
   const reload = () => { void refetchSettlements(); void refetchPending() }
   return <div className={clsx(styles.stack, styles.tabPanel)}>
-    <Card title="Settlement Summary" sub={`${agent.schemeType === 'CREDIT' ? 'Credit' : 'P/L'} settlements with this agent`} tools={<Button size="sm" onClick={reload}>Refresh</Button>}>
+    <Card title="Settlement Summary" sub="P/L settlements with this agent" tools={<Button size="sm" onClick={reload}>Refresh</Button>}>
       <div className={styles.stack}>
         <div className={styles.tabKpis} role="group" aria-label="Settlement figures">
           <AccountListMetric label="Pending Settlement" value={formatCurrency(Math.abs(pendingAmount))} note={hasPending ? pendingDirectionLabel : 'Settled'} icon={<IconHourglass size={18} />} hue="amb" loading={pendingPending} />
@@ -164,7 +165,7 @@ export function SettlementTab({ agentId, agent }: SettlementTabProps) {
           <AccountListMetric label="Paid to Agent" value={formatCurrency(toAgent)} note={`${summary?.toCount ?? 0} txns`} icon={<IconArrowUpRight size={18} />} hue="grn" loading={historyPending} />
           <AccountListMetric label="Collected from Agent" value={formatCurrency(fromAgent)} note={`${summary?.fromCount ?? 0} txns`} icon={<IconArrowDownLeft size={18} />} hue="vio" loading={historyPending} />
         </div>
-        {hasPending && agent.id && <Notice tone="info" title="Pending Settlement Available" action={canSettle ? <Button variant="primary" onClick={handleSettle}>Settle Now</Button> : undefined}>{formatCurrency(Math.abs(pendingAmount))} pending {agent.schemeType === 'CREDIT' ? 'credit' : 'P/L'} settlement · {pendingDirectionLabel}</Notice>}
+        {hasPending && agent.id && <Notice tone="info" title="Pending Settlement Available" action={canSettle ? <Button variant="primary" onClick={handleSettle}>Settle Now</Button> : undefined}>{formatCurrency(Math.abs(pendingAmount))} pending P/L settlement · {pendingDirectionLabel}</Notice>}
       </div>
     </Card>
     <Card title="Settlement History" sub="Each settlement and the balance it left" body="table" tools={<Button size="sm" onClick={() => void refetchSettlements()}>Refresh</Button>}>

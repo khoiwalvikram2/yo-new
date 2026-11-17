@@ -11,7 +11,9 @@ import {
   IconTable,
 } from "@tabler/icons-react";
 import { useQuery } from "@apollo/client";
+import { useSearchParams } from "react-router-dom";
 import { LIST_RUNNING_EVENTS } from "@/lib/graphql/sports";
+import { useSearchParamUpdates } from "@/shared/hooks/useSearchParamUpdates";
 import { useSportsEventsStore } from "@/state/sportsEventsStore";
 import { useCurrency } from "@/shared/core/CurrencyContext";
 import { usePageEyebrow } from "@/shell/PageEyebrowContext";
@@ -38,6 +40,7 @@ import {
   QUICK_FILTERS,
   computeEventsStats,
   countActiveEventFilters,
+  eventCompetitionOptions,
   eventCountLabel,
   filterEvents,
   formatCompactAmount,
@@ -93,7 +96,10 @@ function EventsPageContent() {
   const pageEyebrow = usePageEyebrow();
   const filtersPanelId = useId();
   const [filters, setFilters] = useState<EventsFiltersValues>({});
-  const [searchQuery, setSearchQuery] = useState("");
+  // A link may carry the search (?search=, the global search's "See all Sports").
+  const [searchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("search") ?? "");
+  useSearchParamUpdates(setSearchQuery);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [quickFilter, setQuickFilter] = useState<QuickFilter | null>(null);
@@ -114,6 +120,8 @@ function EventsPageContent() {
   });
 
   const events = useMemo<SportsEvent[]>(() => data?.runningEvents || [], [data]);
+  // The Competition filter offers the competitions of the events loaded (the sport filter included).
+  const competitionOptions = useMemo(() => eventCompetitionOptions(events), [events]);
 
   // Search, status, competition and the quick filter run here, over the server's answer. The
   // favourites are a dependency so un-starring an event leaves the Favorite list at once.
@@ -245,6 +253,7 @@ function EventsPageContent() {
               onFilter={setFilters}
               loading={loading}
               initialValues={filters}
+              competitionOptions={competitionOptions}
             />
           </Card>
         ) : null}

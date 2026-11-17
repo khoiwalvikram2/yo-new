@@ -16,13 +16,9 @@ import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import { computeReportingDateRange, type ReportingDateRange } from '@/modules/reporting/reportingDateFilter'
 import PlayerActivityReportPage from './PlayerActivityReportPage'
 import {
-  ACTIVE_PLAYERS_QUERY,
-  CASINO_KPIS_QUERY,
   CASINO_PLAYER_BREAKDOWN_QUERY,
-  MATKA_KPIS_QUERY,
   MATKA_PLAYER_BREAKDOWN_QUERY,
   PLAYER_ACTIVITY_DEPOSIT_WITHDRAWAL_STATS_QUERY,
-  SPORTS_KPIS_QUERY,
   SPORTS_PLAYER_BREAKDOWN_QUERY,
   USERS_BY_IDS_QUERY,
 } from './playerActivityReportQueries'
@@ -195,11 +191,6 @@ const STATS = [
     totalWithdrawalCount: 1,
   }),
 ]
-const KPIS = {
-  sports: { totalStakes: 1200, totalPayouts: 400, grossGamingRevenue: 800, betCount: 10 },
-  casino: { totalStakes: 500, totalPayouts: 100, grossGamingRevenue: 400, betCount: 5 },
-  matka: { totalStakes: 300, totalPayouts: 0, grossGamingRevenue: 300, betCount: 3 },
-}
 
 function mock(query: unknown, variables: Row, data: Row): MockedResponse {
   return {
@@ -242,10 +233,6 @@ function scenarioMocks({
     mock(SPORTS_PLAYER_BREAKDOWN_QUERY, { filter }, { sportsPlayerBreakdown: sports }),
     mock(CASINO_PLAYER_BREAKDOWN_QUERY, { filter }, { casinoPlayerBreakdown: casino }),
     mock(MATKA_PLAYER_BREAKDOWN_QUERY, { filter }, { matkaPlayerBreakdown: matka }),
-    mock(SPORTS_KPIS_QUERY, { filter }, { sportsKPIs: KPIS.sports }),
-    mock(CASINO_KPIS_QUERY, { filter }, { casinoKPIs: KPIS.casino }),
-    mock(MATKA_KPIS_QUERY, { filter }, { matkaKPIs: KPIS.matka }),
-    mock(ACTIVE_PLAYERS_QUERY, { dateRange: filter }, { overviewKPIs: { activePlayers: 42 } }),
     ...idMocks,
   ]
 }
@@ -333,18 +320,10 @@ describe('PlayerActivityReportPage contracts', () => {
         fetchPolicy: 'network-only',
       })
     }
-    for (const name of ['SportsKPIsActivity', 'CasinoKPIsActivity', 'MatkaKPIsActivity']) {
-      assert.deepStrictEqual(latest(name).options, {
-        variables: { filter },
-        errorPolicy: 'all',
-        fetchPolicy: 'network-only',
-      })
+    // F-REP-16: the cards are summed from the listed rows; the domain KPI and active-player documents are gone.
+    for (const name of ['SportsKPIsActivity', 'CasinoKPIsActivity', 'MatkaKPIsActivity', 'ActivePlayersActivity']) {
+      assert.equal(apollo.queries.some((call) => call.name === name), false, name)
     }
-    assert.deepStrictEqual(latest('ActivePlayersActivity').options, {
-      variables: { dateRange: filter },
-      errorPolicy: 'all',
-      fetchPolicy: 'network-only',
-    })
     assert.deepStrictEqual(latest('UsersByIds').options, {
       variables: { ids: ['101', '102', '103'] },
       skip: false,
@@ -378,22 +357,6 @@ describe('PlayerActivityReportPage contracts', () => {
     assert.equal(
       normalised(PLAYER_ACTIVITY_DEPOSIT_WITHDRAWAL_STATS_QUERY),
       'query PlayerActivityDepositWithdrawalStats($ids: [ID!]!, $dateFrom: String, $dateTo: String) { playerActivityDepositWithdrawalStats(ids: $ids, dateFrom: $dateFrom, dateTo: $dateTo) { playerId totalDepositAmount totalDepositCount totalWithdrawalAmount totalWithdrawalCount rangeDepositAmount rangeDepositCount rangeWithdrawalAmount rangeWithdrawalCount } }',
-    )
-    assert.equal(
-      normalised(SPORTS_KPIS_QUERY),
-      'query SportsKPIsActivity($filter: SportsReportingFilter) { sportsKPIs(filter: $filter) { totalStakes totalPayouts grossGamingRevenue betCount } }',
-    )
-    assert.equal(
-      normalised(CASINO_KPIS_QUERY),
-      'query CasinoKPIsActivity($filter: CasinoReportingFilter) { casinoKPIs(filter: $filter) { totalStakes totalPayouts grossGamingRevenue betCount } }',
-    )
-    assert.equal(
-      normalised(MATKA_KPIS_QUERY),
-      'query MatkaKPIsActivity($filter: MatkaReportingFilter) { matkaKPIs(filter: $filter) { totalStakes totalPayouts grossGamingRevenue betCount } }',
-    )
-    assert.equal(
-      normalised(ACTIVE_PLAYERS_QUERY),
-      'query ActivePlayersActivity($dateRange: DashboardDateRange) { overviewKPIs(dateRange: $dateRange) { activePlayers } }',
     )
 
     assert.deepStrictEqual(guard.calls.at(-1), {
@@ -469,7 +432,8 @@ describe('PlayerActivityReportPage contracts', () => {
 
     const stats = screen.getByRole('group', { name: 'Player activity statistics' })
     const figure = (label: string) => within(stats).getByText(label).parentElement?.textContent
-    assert.equal(figure('Active Players'), 'Active Players423 showing')
+    // the listed players' own rows: 3 players, 15 + 0 + 3 bets, stakes 1,500 + 200 + 300 (converted ×2)
+    assert.equal(figure('Active Players'), 'Active Players33 showing')
     assert.equal(figure('Total Bets'), 'Total Bets18Avg: 6.0/player')
     assert.equal(figure('Total Stakes'), 'Total Stakes₹4,000.00Avg: ₹1,333.33')
     assert.equal(figure('Avg Bets/Player'), 'Avg Bets/Player6.0Average per player')
@@ -495,8 +459,12 @@ describe('PlayerActivityReportPage domains and agents', () => {
     assert.equal(within(tabs).getByRole('tab', { name: 'Casino' }).getAttribute('aria-selected'), 'true')
     screen.getByRole('tabpanel', { name: 'Casino' })
     await waitFor(() => assert.equal(bodyRows().length, 1))
-    // The KPI totals are never domain-filtered.
-    assert.equal(latest('SportsKPIsActivity').options.skip, undefined)
+    // F-REP-16: the cards follow the tab, from the casino rows only (player 101: 5 bets, stakes 500 ×2).
+    const stats = screen.getByRole('group', { name: 'Player activity statistics' })
+    const figure = (label: string) => within(stats).getByText(label).parentElement?.textContent
+    assert.equal(figure('Active Players'), 'Active Players11 showing')
+    assert.equal(figure('Total Bets'), 'Total Bets5Avg: 5.0/player')
+    assert.equal(figure('Total Stakes'), 'Total Stakes₹1,000.00Avg: ₹1,000.00')
   })
 
   test('an agent sees and asks for only its allowed domains, and the tabs keep one tab stop', async () => {
@@ -549,8 +517,7 @@ describe('PlayerActivityReportPage filters, sorting and paging', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Period' })).getByRole('button', { name: 'Today' }))
     await waitFor(() => {
       assert.deepStrictEqual(latest('SportsPlayerBreakdown').options.variables, { filter: today })
-      assert.deepStrictEqual(latest('MatkaKPIsActivity').options.variables, { filter: today })
-      assert.deepStrictEqual(latest('ActivePlayersActivity').options.variables, { dateRange: today })
+      assert.deepStrictEqual(latest('MatkaPlayerBreakdown').options.variables, { filter: today })
     })
     await loaded()
     screen.getByText('1 filter applied')
@@ -584,8 +551,8 @@ describe('PlayerActivityReportPage filters, sorting and paging', () => {
     await waitFor(() => assert.equal(bodyRows().length, 1))
     screen.getByText('1 player')
     screen.getByText('1 filter applied')
-    // The KPI totals stay the domain totals; the averages follow the searched players.
-    screen.getByText('Avg: 18.0/player')
+    // The cards follow the searched players: meena's 3 bets over 1 player (it read every domain's 18).
+    screen.getByText('Avg: 3.0/player')
 
     fireEvent.change(search, { target: { value: 'nobody' } })
     await screen.findByText('No players found for the selected period. Try adjusting the date range or search.')
@@ -691,10 +658,6 @@ describe('PlayerActivityReportPage states and refresh', () => {
       'SportsPlayerBreakdown',
       'CasinoPlayerBreakdown',
       'MatkaPlayerBreakdown',
-      'SportsKPIsActivity',
-      'CasinoKPIsActivity',
-      'MatkaKPIsActivity',
-      'ActivePlayersActivity',
       'UsersByIds',
       'PlayerActivityDepositWithdrawalStats',
     ])
@@ -707,10 +670,6 @@ describe('PlayerActivityReportPage states and refresh', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     assert.deepStrictEqual(apollo.refetches, [
       'SportsPlayerBreakdown',
-      'SportsKPIsActivity',
-      'CasinoKPIsActivity',
-      'MatkaKPIsActivity',
-      'ActivePlayersActivity',
       'UsersByIds',
       'PlayerActivityDepositWithdrawalStats',
     ])

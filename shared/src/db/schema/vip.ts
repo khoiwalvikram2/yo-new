@@ -11,11 +11,14 @@ export const vipTiersTable = pgTable('vip_tiers', {
   color: varchar('color', { length: 16 }).notNull(),
   status: varchar('status', { length: 16 }).notNull().default('active'),
   depositPolicy: jsonb('deposit_policy').$type<VipDepositPolicy>().notNull().default({
-    enabled: true, methods: ['BANK_TRANSFER', 'UPI', 'GATEWAY'], min: null, max: null, daily: null, monthly: null,
+    enabled: true, methods: ['BANK_TRANSFER', 'UPI', 'GATEWAY', 'CRYPTO'], min: null, max: null, daily: null, monthly: null,
   }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (table) => [
+  // migration 0020; createVIPTier also refuses a used level with a readable message
+  uniqueIndex('vip_tiers_tenant_level_unique').on(table.tenant, table.level),
+])
 
 export const vipTierBenefitsTable = pgTable('vip_tier_benefits', {
   id: uuid('id').primaryKey().defaultRandom(),

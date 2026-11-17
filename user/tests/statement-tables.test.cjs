@@ -14,6 +14,14 @@ test('wallet debit/credit direction comes from the signed movement, including na
   const view=render(React.createElement(Wallet,{rows:[{...base,id:'a',type:'Adjustment',amount:100,direction:'debit'},{...base,id:'b',type:'Credit',amount:100,direction:'credit'},{...base,id:'c',type:'No movement',amount:0,direction:'neutral'}]}));
   const amounts=view.container.querySelectorAll('td.c-amount');assert.ok(amounts[0].classList.contains('is-debit'));assert.equal(amounts[0].textContent,'−INR 100.00');assert.equal(amounts[1].textContent,'+INR 100.00');assert.ok(amounts[2].classList.contains('is-void'));
 });
+test('a credit player\'s upline chip moves show the server label as sent, with deposit/withdrawal badges and signed amounts',()=>{
+  // The panel does not translate wallet types: user-backend names these rows, the same text in every locale.
+  const Wallet = load('src/components/statements/WalletTable.tsx').default;
+  const base={dateISO:'2026-10-25T00:00:00Z',status:'Success'};
+  const view=render(React.createElement(Wallet,{rows:[{...base,id:'d',type:'Chip Deposit',amount:500,direction:'credit'},{...base,id:'w',type:'Chip Withdrawal',amount:200,direction:'debit'}]}));
+  const kinds=view.container.querySelectorAll('.nova-stmt-kind');assert.equal(kinds[0].textContent,'Chip Deposit');assert.ok(kinds[0].classList.contains('is-deposit'),'Chip Deposit gets the deposit badge');assert.equal(kinds[1].textContent,'Chip Withdrawal');assert.ok(kinds[1].classList.contains('is-withdrawal'),'Chip Withdrawal gets the withdrawal badge');
+  const amounts=view.container.querySelectorAll('td.c-amount');assert.equal(amounts[0].textContent,'+INR 500.00');assert.equal(amounts[1].textContent,'−INR 200.00');assert.ok(amounts[1].classList.contains('is-debit'));
+});
 test('casino pending P/L is not a loss and a zero net win does not get a profit colour',()=>{
   const Casino=load('src/components/statements/CasinoTable.tsx').default,base={dateISO:'2026-10-25T00:00:00Z',title:'Game',market:'Vendor',stake:100};
   const view=render(React.createElement(Casino,{rows:[{...base,id:'a',result:'Pending',payout:0},{...base,id:'b',result:'Win',payout:0},{...base,id:'c',result:'Void',payout:0}]}));

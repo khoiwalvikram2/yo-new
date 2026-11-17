@@ -46,10 +46,15 @@ export async function getWalletsForUserIdsDb(userIds: number[], tenant = 'defaul
 
 export async function adjustWalletDb(userId: number, amount: number, meta?: any, tenant = 'default', executor?: any) {
   const executeAdjustment = async (tx: any) => {
+    // MONEY-CRITICAL: the row is locked (FOR UPDATE) so the balance check below and the write see the same
+    // cash. A player's wallet is its lowest-id row for the tenant (wallets has no unique (user_id, tenant)).
     const [existing] = await tx
       .select({ id: wallets.id, currency: wallets.currency, cash: wallets.cash, exposure: wallets.exposure })
       .from(wallets)
       .where(and(eq(wallets.userId, userId), eq(wallets.tenant, tenant)))
+      .orderBy(wallets.id)
+      .limit(1)
+      .for('update')
 
     if (!existing) return null
 
@@ -61,6 +66,22 @@ export async function adjustWalletDb(userId: number, amount: number, meta?: any,
     // Store balance before/after (raw cash for legacy ledger_entries)
     const balanceBefore = Number(existing.cash || 0)
     const exposureBefore = Number(existing.exposure ?? 0)
+
+    // A debit never takes more than the player's available balance: cash less the open sports exposure held
+    // against it, the same figure a player's own withdrawal request is checked against. Nothing else stopped
+    // cash going negative here, and a whitelabel admin's withdrawal from a zero balance released pool credit
+    // that had never been used.
+    // Compared in whole cents: cash and exposure are numeric(18,2), and the float subtraction 0.30 - 0.10 is
+    // 0.19999999999999998, which refused a withdrawal of exactly the available 0.20. A fraction of a cent in the
+    // request counts as a whole cent, so it cannot release pool credit while the wallet rounds it away.
+    if (amount < 0) {
+      const availableCents = Math.max(0, Math.round(balanceBefore * 100) - Math.round(exposureBefore * 100))
+      const requestedCents = Math.ceil(Math.abs(amount) * 100 - 0.001)
+      if (requestedCents > availableCents) {
+        const held = exposureBefore > 0 ? ` (Cash: ${balanceBefore.toFixed(2)}, Exposure: ${exposureBefore.toFixed(2)})` : ''
+        throw new Error(`Insufficient available balance. Available: ${(availableCents / 100).toFixed(2)}${held}, Requested: ${(requestedCents / 100).toFixed(2)}`)
+      }
+    }
 
     const updatedRows = await tx
       .update(wallets)

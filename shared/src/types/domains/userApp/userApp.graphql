@@ -139,6 +139,11 @@ type AdminAccount {
   maxAmount: Float
   weight: Float
   source: String
+  # type "crypto" only: a USDT wallet and the whitelabel rate (currency per 1 USDT)
+  walletAddress: String
+  network: String
+  cryptoRate: Float
+  cryptoBonusPercent: Float # extra % paid on approval of a crypto deposit (null = no bonus)
 }
 
 type AdminAccountResponse {
@@ -155,21 +160,16 @@ type DepositRequest {
   method: String
   provider: String
   expiresAt: String
+  # CRYPTO only: the USDT the server quoted for this request, and the rate and network it was quoted at
+  cryptoAmount: Float
+  cryptoRate: Float
+  cryptoNetwork: String
+  cryptoBonusAmount: Float # paid into the cash wallet on approval, on top of amount
 }
 
 type DepositRequestResponse {
   meta: ApiMeta!
   data: [DepositRequest!]!
-}
-
-type UploadUrl {
-  url: String!
-  key: String!
-}
-
-type UploadUrlResponse {
-  meta: ApiMeta!
-  data: UploadUrl
 }
 
 type AccountDetail {
@@ -751,6 +751,7 @@ type SportsExtraUrlsResponse {
 extend type Query {
   cashoutConfig(eventId: ID!): Boolean!
   welivepayConfig: WelivepayConfig!
+  welivepayDepositStatus(orderId: String!): WelivepayOrderStatus!
   userDetail: UserDetailResponse!
   accountStatement(startDate: String!, endDate: String!, isChecked: Boolean): TransactionListResponse!
   resultTransactions(startDate: String!, endDate: String!, isChecked: Boolean): TransactionListResponse!
@@ -758,7 +759,9 @@ extend type Query {
   allAppSettings: AppSettingsResponse!
   advertisements: AdvertisementResponse!
   withdrawalRequests(startDate: String, endDate: String): WithdrawalRequestResponse!
-  adminAccounts: AdminAccountResponse!
+  # type "crypto" rows are returned only when includeCrypto is true: clients that do not know the
+  # type would show a USDT wallet as a bank account.
+  adminAccounts(includeCrypto: Boolean): AdminAccountResponse!
   adminDepositRequests(startDate: String, endDate: String): DepositRequestResponse!
   accountDetails: AccountDetailResponse!
   casinoGames(input: CasinoGamesInput): CasinoGameResponse!
@@ -793,9 +796,17 @@ extend type Query {
 }
 
 type WelivepayDepositData {
-  paymentLink: String!
+  paymentLink: String! # hosted checkout when the gateway returns one, else its payment link
+  hostedUrl: String # hosted checkout page, when the gateway returns one
   qrImage: String!
   orderId: String!
+}
+
+# A player's own gateway order, as WeLivePay's authenticated status reports it.
+type WelivepayOrderStatus {
+  orderId: String!
+  status: String! # pending | success | expired | invalid
+  amount: Float!
 }
 
 type WelivepayDepositResponse {
@@ -838,8 +849,8 @@ extend type Mutation {
   getExposureBreakdown: ExposureBreakdownResponse!
   createWithdrawalRequest(accountId: String!, amount: Float!): WithdrawalRequestResponse!
   getWithdrawalRequests(startDate: String, endDate: String): WithdrawalRequestResponse!
-  getAdminAccounts: AdminAccountResponse!
-  getDepositProofUploadUrl(fileName: String!, contentType: String!): UploadUrlResponse!
+  getAdminAccounts(includeCrypto: Boolean): AdminAccountResponse!
+  # proofKey: the payment screenshot as a base64 PNG, JPEG or WebP data URI, at most 2 MB decoded (no file keys)
   createAdminDeposit(accountId: String!, amount: Float!, txnRef: String, proofKey: String, type: String): DepositRequestResponse!
   createDeposit(amount: Float!): CasinoRedirectResponse!
   getAdminDepositRequests(startDate: String, endDate: String): DepositRequestResponse!

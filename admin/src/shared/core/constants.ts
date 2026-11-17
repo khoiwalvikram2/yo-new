@@ -46,10 +46,6 @@ export const ROUTES = {
   // Agents
   AGENTS_HIERARCHY: '/agents/hierarchy',
   
-  // Promotions
-  PROMOTIONS_CAMPAIGNS: '/promotions/campaigns',
-  PROMOTIONS_CONTENT: '/promotions/content',
-  
   // Bonuses
   BONUSES_CAMPAIGNS: '/bonuses/campaigns',
   BONUSES_LIST: '/bonuses',

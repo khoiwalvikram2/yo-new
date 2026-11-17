@@ -142,9 +142,9 @@ export function FinancialTab({ kpis }: { kpis?: FinancialKpis }) {
             <Statement money={money} lines={[
               { label: 'Turnover (settled stakes)', value: k.turnover ?? 0, accent: 'cyan', drill: { kind: 'turnover_players', title: 'Turnover by player' } },
               { label: 'GGR', value: k.ggr ?? 0, accent: (k.ggr ?? 0) < 0 ? 'rose' : 'green', drill: { kind: 'ggr_players', title: 'GGR by player' } },
-              { label: 'Agent commission', value: k.agentCommission ?? 0, accent: 'violet', minus: true },
-              { label: 'Bonus paid', value: k.bonusPayouts ?? 0, accent: 'amber', minus: true },
-              { label: 'NGR', value: k.ngr ?? 0, accent: 'blue', total: true },
+              { label: 'Agent commission', value: k.agentCommission ?? 0, accent: 'violet', minus: true, drill: { kind: 'agent_commission' } },
+              { label: 'Bonus paid', value: k.bonusPayouts ?? 0, accent: 'amber', minus: true, drill: { kind: 'bonus_paid' } },
+              { label: 'NGR', value: k.ngr ?? 0, accent: 'blue', total: true, drill: { kind: 'net_ggr' } },
             ]} />
           </dl>
         </Card>

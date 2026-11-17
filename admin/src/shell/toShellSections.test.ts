@@ -62,13 +62,14 @@ beforeEach(() => {
 })
 
 describe('toShellSections — admin navigationData', () => {
-  test('keeps the Record order and yields 61 rows including live support', () => {
+  test('keeps the Record order and yields 62 rows including live support', () => {
     const sections = rawSections()
     assert.deepEqual(
       sections.map((section) => section.key),
       ['trading', 'userManagement', 'marketing', 'finance', 'reporting', 'system'],
     )
-    assert.equal(rowCount(sections), 61)
+    // 62 since 2026-11-03: Agents gained Chips (/credit), the whitelabel's Chips page.
+    assert.equal(rowCount(sections), 62)
   })
 
   test('takes titles, subtitles and icons from sectionMeta', () => {
@@ -226,7 +227,8 @@ describe('toShellSections — getAgentNavigation output', () => {
       sections.map((section) => section.key),
       ['trading', 'userManagement', 'finance', 'reporting'],
     )
-    assert.equal(rowCount(sections), 21)
+    // 20 rows: a CREDIT agent's finance is its Chips page alone (no Settlement Center since 2026-11-02).
+    assert.equal(rowCount(sections), 20)
     // Every agent scheme has the Export Center (owner decision 4, 2026-10-22), last under Reporting,
     // whatever its domains and level.
     for (const scheme of ['CREDIT', 'SHARING', 'COMMISSION'] as const) {
@@ -292,16 +294,18 @@ describe('toShellSections — getAgentNavigation output', () => {
     ])
   })
 
-  test('A3b agents get Matka Live Analysis (not the admin-only Results); CREDIT agents get their Credit page', () => {
+  test('A3b agents get Matka Live Analysis (not the admin-only Results); CREDIT agents get their Chips page', () => {
     const credit = agentSections('CREDIT', ['matka'], 1)
     const trading = tos(sectionByKey(credit, 'trading'))
     assert.ok(trading.includes('/matka/live'))
     assert.equal(trading.includes('/matka/results'), false)
+    // CREDIT settles nothing since 2026-11-02 (spec §6): its finance is its Chips page, with no Settlement Center.
     assert.deepEqual(
       sectionByKey(credit, 'finance').rows.map((row) => [row.label, row.to]),
-      [['Settlement Center', '/settlement'], ['Credit', '/agent/credit']],
+      [['Chips', '/agent/credit']],
     )
-    assert.equal(tos(sectionByKey(agentSections('SHARING', ['matka'], 1), 'finance')).includes('/agent/credit'), false)
+    const sharingFinance = tos(sectionByKey(agentSections('SHARING', ['matka'], 1), 'finance'))
+    assert.deepEqual(sharingFinance, ['/settlement'])
   })
 
   test('A4 level-4 SHARING agent has no Agents group', () => {

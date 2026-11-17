@@ -310,6 +310,7 @@ export function ResultsTable({ results, fetching, onRefetch, footer, error }: Re
         }}
         onConfirm={handleRollbackConfirm}
         result={selectedResult}
+        marketName={selectedResult ? matkaNameFor(selectedResult, matkas) : undefined}
         busy={rollingBack}
         restoreFocusTo={rollbackTriggerRef}
       />

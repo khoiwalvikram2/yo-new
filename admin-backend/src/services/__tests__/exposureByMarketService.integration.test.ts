@@ -202,9 +202,11 @@ async function buildFixtures(): Promise<void> {
   u4 = await mkUser('u4', X)
   u5 = await mkUser('u5', null)
   uB = await mkUser('uB', null, OTHER)
+  // Confirmed: PlayerAuthService.getAgentPlayerIds counts only confirmed attributions (since
+  // 2026-10-21), and the column defaults to 'pending'.
   await db.execute(sql`
-    INSERT INTO referral_attributions (tenant, referrer_id, referee_id, tier)
-    VALUES (${TENANT}, ${u1}, ${u3}, 1)`)
+    INSERT INTO referral_attributions (tenant, referrer_id, referee_id, tier, status)
+    VALUES (${TENANT}, ${u1}, ${u3}, 1, 'confirmed')`)
 
   // --- TENANT, whitelabel TENANT, INR (TENANT has no app_configs row: base INR) — open ---
   await sportsBet(u1, S3, 'matched', 256)

@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth'
+import { notify } from '@/lib/notify'
 import { getWhitelabelId } from '@/lib/whitelabel'
 import { getThemeMode } from '@/lib/theme'
 import { getCurrencyFromStorage } from '@/lib/currency'
 import { usePageSEO } from '@/hooks/usePageSEO'
 import StakePageHeader from '@/components/StakePageHeader'
 import { getMatkaChart, getMatkaMarket, getMatkaMarkets, getMatkaWallet, getMyMatkaBets, MatkaRequestError, placeMatkaEntries, type MatkaKind, type MatkaPlacementInput, type MatkaWallet } from '@/lib/api/matka'
-import { asKitEntry, asKitMarket, matkaChartRange } from '@/features/matka/model'
+import { asKitEntry, asKitMarket, matkaChartRange, matkaFavoritesKey, orderMarketsForBoard, readMatkaFavorites } from '@/features/matka/model'
 import { FilterSelect } from '@/features/matka/FilterSelect'
 import { Badge, Button, EmptyState, Field, Icon, Modal } from '@/features/matka/kit/components.jsx'
 import { MarketBoard } from '@/features/matka/kit/MarketBoard.jsx'
@@ -24,9 +25,11 @@ import '@/features/matka/matka.css'
 import '@/features/matka/matka-page-refresh.css'
 import '@/features/matka/kit/market-board-refresh.css'
 import '@/features/matka/kit/market-detail-refresh.css'
+import '@/features/matka/kit/entry-refresh.css'
 
 type DraftEntry = { gameId: string; session: string; number: string; amount: number }
-const kinds: Array<{ value: MatkaKind | ''; label: string }> = [{ value: '', label: 'All types' }, { value: 'WORLI', label: 'Worli' }, { value: 'STARLINE', label: 'Starline' }, { value: 'JACKPOT', label: 'Jackpot' }, { value: 'SATTA_MATKA', label: 'Satta Matka' }]
+// Owner 2026-11-01: the player Matka page offers Worli markets only (no Starline, Jackpot or Satta Matka, no "All types").
+const kinds: Array<{ value: MatkaKind; label: string }> = [{ value: 'WORLI', label: 'Worli' }]
 const views = [{ value: 'All', label: 'All markets' }, { value: 'Open', label: 'Open markets' }, { value: 'Favorites', label: 'Favorites' }]
 const layouts = [{ value: 'grid', label: 'Grid view' }, { value: 'table', label: 'Table view' }]
 function readPending(key: string): MatkaPlacementInput | null {
@@ -34,9 +37,6 @@ function readPending(key: string): MatkaPlacementInput | null {
     const raw = JSON.parse(sessionStorage.getItem(key) || 'null')
     return raw && typeof raw.marketId === 'string' && typeof raw.requestKey === 'string' && Array.isArray(raw.entries) && raw.entries.length <= 500 ? raw : null
   } catch { return null }
-}
-function readFavorites(key: string): string[] {
-  try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value.filter(id => typeof id === 'string') : [] } catch { return [] }
 }
 
 export default function MatkaPage() {
@@ -53,14 +53,14 @@ export default function MatkaPage() {
   const routeValid = !parts.length || parts.length === 1 && ['results', 'my-bets'].includes(parts[0]) || parts[0] === 'markets' && !!marketCode && (parts.length === 2 || parts.length === 4 && (parts[2] === 'games' || parts[2] === 'charts' && !!chartType))
   const [theme, setTheme] = useState(getThemeMode), [helpOpen, setHelpOpen] = useState(false)
   const [search, setSearch] = useState(''), [debouncedSearch, setDebouncedSearch] = useState('')
-  const [kind, setKind] = useState<MatkaKind | ''>(''), [view, setView] = useState('All'), [layout, setLayout] = useState('grid')
+  const [kind, setKind] = useState<MatkaKind>('WORLI'), [view, setView] = useState('All'), [layout, setLayout] = useState('grid')
   const [walletChoice, setWalletChoice] = useState<MatkaWallet>('CASH')
-  const pendingKey = `gw:matka:pending:${owner}`, favoritesKey = `gw:matka:favorites:${owner}`
+  const pendingKey = `gw:matka:pending:${owner}`, favoritesKey = matkaFavoritesKey(tenant, isAuthenticated, user?.id)
   const [pendingRead, setPendingRead] = useState<{ key: string; input: MatkaPlacementInput | null }>(() => ({ key: pendingKey, input: readPending(pendingKey) }))
   const pending = pendingRead.key === pendingKey ? pendingRead.input : readPending(pendingKey)
-  const [favoriteRead, setFavoriteRead] = useState<{ key: string; ids: string[] }>(() => ({ key: favoritesKey, ids: readFavorites(favoritesKey) }))
-  const favorites = favoriteRead.key === favoritesKey ? favoriteRead.ids : readFavorites(favoritesKey)
-  const [placing, setPlacing] = useState(false), [placementMessage, setPlacementMessage] = useState(''), [placementError, setPlacementError] = useState('')
+  const [favoriteRead, setFavoriteRead] = useState<{ key: string; ids: string[] }>(() => ({ key: favoritesKey, ids: readMatkaFavorites(favoritesKey) }))
+  const favorites = favoriteRead.key === favoritesKey ? favoriteRead.ids : readMatkaFavorites(favoritesKey)
+  const [placing, setPlacing] = useState(false), [placementError, setPlacementError] = useState('')
   const entryScope = `${owner}:${marketCode}`, [entryState, setEntryState] = useState({ scope: '', page: 1, filter: 'all', from: '', to: '' })
   const entry = entryState.scope === entryScope ? entryState : { scope: entryScope, page: 1, filter: 'all', from: '', to: '' }
   const setEntry = (next: Partial<typeof entry>) => setEntryState({ ...entry, ...next, scope: entryScope })
@@ -70,8 +70,8 @@ export default function MatkaPage() {
     const observer = new MutationObserver(() => setTheme(getThemeMode()))
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); return () => observer.disconnect()
   }, [])
-  useEffect(() => { setPlacing(false); setPlacementMessage(''); setPlacementError('') }, [owner])
-  const listKind = section === 'market' ? '' : kind, listSearch = section === 'market' ? '' : debouncedSearch
+  useEffect(() => { setPlacing(false); setPlacementError('') }, [owner])
+  const listKind = kind, listSearch = section === 'market' ? '' : debouncedSearch
   const catalogue = useInfiniteQuery({ queryKey: ['matka', 'markets', owner, listKind, listSearch], initialPageParam: 1,
     queryFn: ({ pageParam }) => getMatkaMarkets({ kind: listKind || undefined, search: listSearch || undefined, page: pageParam, limit: 100 }),
     getNextPageParam: last => last.meta.hasMore ? (last.meta.page || 1) + 1 : undefined,
@@ -106,12 +106,12 @@ export default function MatkaPage() {
   async function sendPlacement(input: MatkaPlacementInput) {
     const requestOwner = owner
     if (placing || !isAuthenticated || isHydrating) return false
-    storePending(input); setPlacing(true); setPlacementMessage(''); setPlacementError('')
+    storePending(input); setPlacing(true); setPlacementError('')
     try {
       const response = await placeMatkaEntries(input)
       if (currentOwner.current !== requestOwner) return false
       if (!response.data) throw new Error('Entry confirmation is unavailable. Retry the same request.')
-      storePending(null); setPlacementMessage(response.data.replayed ? 'Your entries were already accepted. No additional stake was taken.' : `${response.data.bets.length} entries accepted. Total ${money(response.data.totalStake, true)}.`)
+      storePending(null); notify.success(response.data.replayed ? 'Your entries were already accepted. No additional stake was taken.' : `${response.data.bets.length} ${response.data.bets.length === 1 ? 'entry' : 'entries'} accepted. Total ${money(response.data.totalStake, true)}.`)
       refresh(); void refreshUser().catch(() => {}); return true
     } catch (error) {
       if (currentOwner.current === requestOwner) {
@@ -129,30 +129,32 @@ export default function MatkaPage() {
   }
   const market = rawMarket ? { ...asKitMarket(rawMarket, chart.data?.data || [], marketOptions), currency: selectedWallet?.currency || getCurrencyFromStorage(),
     canBet: isAuthenticated && !!wallet.data?.canBet, accountMessage: !isAuthenticated ? 'Please sign in to place entries.' : wallet.error?.message || (wallet.isLoading ? 'Your wallet is loading. Please wait.' : wallet.data?.message || 'Matka betting is unavailable for this account.'), onLogin: () => { if (!isAuthenticated) openAuthModal('login') },
-    walletLabel: selectedWallet?.label || 'Main wallet', frozen: placing || !!pending, entryTotal: history.data?.meta.total || 0, entryPage: entry.page,
+    walletLabel: selectedWallet?.label || 'Main wallet', frozen: placing || !!pending,
+    // the wallet choice lives in the entry slip on the market page (its top navigation strip was removed)
+    wallets: isAuthenticated ? wallet.data?.data || [] : [], walletType: selectedWallet?.walletType || walletChoice, onWallet: (value: string) => setWalletChoice(value as MatkaWallet), entryTotal: history.data?.meta.total || 0, entryPage: entry.page,
     entriesLoading: history.isLoading, entriesError: history.error?.message, onEntriesRetry: () => { void history.refetch() },
     entryFilter: entry.filter === 'today' ? 'Today' : entry.filter === 'open' ? 'Pending' : 'All entries',
     onEntryFilter: (value: string) => setEntry({ filter: value === 'Today' ? 'today' : value === 'Pending' ? 'open' : 'all', page: 1 }),
     onEntryPage: (page: number) => setEntry({ page }),
   } : null
   const entries = (history.data?.data || []).map(row => asKitEntry(row, rawMarket?.timezone || 'Asia/Kolkata'))
-  const shownMarkets = allMarkets.filter(item => view === 'All' || view === 'Open' && item.status === 'Open' || view === 'Favorites' && favorites.includes(item.id))
+  // Favourites first, then by game time (owner 2026-11-02; orderMarketsForBoard).
+  const shownMarkets = orderMarketsForBoard(allMarkets.filter(item => view === 'All' || view === 'Open' && item.status === 'Open' || view === 'Favorites' && favorites.includes(item.id)), favorites)
   const currentGame = market?.games.find(game => game.id === selectedGame)
   const detailError = detail.error?.message, totalEntries = history.data?.meta.total || 0
   const entryPager = <div className="gw-matka-pager"><span>{totalEntries} entries · Page {entry.page}</span><div><Button variant="secondary" disabled={entry.page <= 1 || history.isFetching} onClick={() => setEntry({ page: entry.page - 1 })}>Previous</Button><Button variant="secondary" disabled={!history.data?.meta.hasMore || history.isFetching} onClick={() => setEntry({ page: entry.page + 1 })}>Next</Button></div></div>
 
   return <div className="m99-kit gw-matka gw-matka-refresh" data-theme={theme}>
-    <StakePageHeader title="Matka" onHelpClick={() => setHelpOpen(true)} />
-    {!isDirectory && <><nav className="gw-matka-nav" aria-label="Matka navigation"><Link to="/matka"><Icon name="grid" size={16} />Markets</Link><Link to="/matka/results"><Icon name="chart" size={16} />Results</Link><Link to="/matka/my-bets" aria-current={section === 'entries' ? 'page' : undefined}><Icon name="layers" size={16} />My entries</Link>
+    <StakePageHeader title={section === 'market' && market ? market.name : 'Matka'} onHelpClick={() => setHelpOpen(true)} />
+    {!isDirectory && section !== 'market' && <><nav className="gw-matka-nav" aria-label="Matka navigation"><Link to="/matka"><Icon name="grid" size={16} />Markets</Link><Link to="/matka/results"><Icon name="chart" size={16} />Results</Link><Link to="/matka/my-bets" aria-current={section === 'entries' ? 'page' : undefined}><Icon name="layers" size={16} />My entries</Link>
       <div>{isAuthenticated ? <><label>Wallet<select aria-label="Matka wallet" value={selectedWallet?.walletType || walletChoice} disabled={placing || !!pending} onChange={event => setWalletChoice(event.target.value as MatkaWallet)}>{(wallet.data?.data || [{ walletType: 'CASH', label: 'Main wallet', balance: 0, currency: getCurrencyFromStorage() }]).map(item => <option key={item.walletType} value={item.walletType}>{item.label}</option>)}</select></label><strong>{money(balance, true)}</strong></> : <Button onClick={() => openAuthModal('login')}>Sign in</Button>}</div>
     </nav></>}
-    {placementMessage && <p role="status" className="gw-matka-notice is-success">{placementMessage}</p>}
     {placementError && <p role="alert" className="gw-matka-notice is-error">{placementError}</p>}
     {pending && <section className="gw-matka-notice" aria-label="Pending entry confirmation"><div><strong>Your last entry request is awaiting confirmation.</strong><p>{pending.entries.length} entries · {money(pending.entries.reduce((sum, item) => sum + item.amount, 0), true)}. Retry this request to check its outcome before placing another.</p></div><Button disabled={placing || !isAuthenticated} onClick={() => { void sendPlacement(pending).catch(() => {}) }}>{placing ? 'Checking…' : 'Retry pending request'}</Button></section>}
     {!routeValid ? <EmptyState title="Matka page not found" description="Choose a market to continue." action={<Button onClick={() => navigate('/matka')}>View markets</Button>} />
       : section === 'market' ? detail.isLoading ? <div role="status" className="gw-matka-loading">Loading market…</div> : detailError || !market ? <EmptyState title={detailError || 'Market unavailable'} description="Return to the directory or try again." action={<Button onClick={() => { void detail.refetch() }}>Try again</Button>} />
         : selectedGame && !currentGame ? <EmptyState title="This game is unavailable for this market" description="Choose one of the listed games." action={<Button onClick={() => goMarket(market)}>All game types</Button>} />
-          : chartType ? chart.isLoading ? <div role="status" className="gw-matka-loading">Loading published results…</div> : chart.error ? <EmptyState title="Could not load results" description={chart.error.message} action={<Button onClick={() => { void chart.refetch() }}>Try again</Button>} /> : <MarketCharts key={`${market.id}:${chartType}`} market={market} type={chartType} onChart={goChart} onMarket={goMarket} />
+          : chartType ? chart.isLoading ? <div role="status" className="gw-matka-loading">Loading published results…</div> : chart.error ? <EmptyState title="Could not load results" description={chart.error.message} action={<Button onClick={() => { void chart.refetch() }}>Try again</Button>} /> : <MarketCharts key={`${market.id}:${chartType}`} market={market} type={chartType} onChart={goChart} />
             : <MarketDetails key={`${owner}:${market.id}`} market={market} selectedGameId={selectedGame} onSelectGame={(id: string | null) => navigate(id ? `/matka/markets/${market.code}/games/${id}` : `/matka/markets/${market.code}`)} balance={balance} favorite={favorites.includes(market.id)} onFavorite={toggleFavorite} onMarket={goMarket} onChart={goChart} onBack={() => navigate('/matka')} entries={entries} onConfirm={confirmEntries} />
       : section === 'entries' ? <section className="m99-panel"><div className="m99-compact-panel-title"><h2>My Matka entries</h2><Badge>{totalEntries}</Badge></div>{!isAuthenticated ? <EmptyState title="Sign in to view your entries" description="Your entries and settled results are available in your account." action={<Button onClick={() => openAuthModal('login')}>Sign in</Button>} /> : <>
         <div className="gw-matka-toolbar"><label>Status<select aria-label="Entry status" value={entry.filter} onChange={event => setEntry({ filter: event.target.value, page: 1 })}><option value="all">All entries</option><option value="open">Pending</option><option value="won">Won</option><option value="lost">Lost</option><option value="void">Void</option></select></label><Field label="From" type="date" value={entry.from} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setEntry({ from: event.target.value, page: 1 })} /><Field label="To" type="date" value={entry.to} min={entry.from || undefined} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setEntry({ to: event.target.value, page: 1 })} /></div>
@@ -161,7 +163,7 @@ export default function MatkaPage() {
         <h2 className="m99-sr-only">{section === 'results' ? 'Matka results' : 'Matka markets'}</h2>
         <section className="gw-matka-filterbar" aria-label="Market discovery controls">
           <div className="gw-matka-filter-search"><Icon name="search" size={16} /><input aria-label="Search Matka markets" placeholder="Search market name…" value={search} onChange={event => setSearch(event.target.value)} />{search && <button type="button" aria-label="Clear market search" onClick={() => setSearch('')}><Icon name="close" size={15} /></button>}</div>
-          <FilterSelect className="gw-matka-filter-type" label="Matka market type" value={kind} options={kinds} onChange={value => setKind(value as MatkaKind | '')} />
+          <FilterSelect className="gw-matka-filter-type" label="Matka market type" value={kind} options={kinds} onChange={value => setKind(value as MatkaKind)} />
           <FilterSelect label="Filter Matka markets" value={view} options={views} onChange={setView} />
           <FilterSelect label="Market layout" value={layout} options={layouts} onChange={setLayout} />
         </section>

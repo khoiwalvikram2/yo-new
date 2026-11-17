@@ -33,6 +33,7 @@
 import 'dotenv/config'
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { AGENT_NAMESPACES, namespaceFields } from './agentNamespaceFields.js'
 
 const SRC = join(process.cwd(), 'src')
 const DOMAINS = join(SRC, 'domains')
@@ -66,6 +67,15 @@ const UNGATED_BY_DESIGN = new Set([
 /** Anything that counts as this resolver refusing on a permission. */
 const ENFORCEMENT = [
   'requirePermission(',
+  // The read gate (common/auth.ts): no session, or no permission, throws. Reads gated by it were listed as
+  // "naming no permission" (the referral and Promotions reads among them).
+  'requireReadPermission(',
+  // The deposit review reads' gate (deposits/resolvers/queries.ts): a commission agent, then a caller without
+  // payments.deposits:view, is refused with a throw. adminDepositRequests and depositRequestProof go through it.
+  'requireDepositRequestsRead(',
+  // The payment method reads' gate (same file): no session, a commission agent, then a caller without
+  // payments.methods:view, is refused with a throw. myDepositMethods and whitelabelPaymentMethods go through it.
+  'requirePaymentMethodsRead(',
   'requireAnyPermission(',
   'requireSuperAdmin(',
   'assertPermission(',
@@ -178,6 +188,23 @@ async function main(): Promise<void> {
   console.log(`\n--- 2. permission consulted but never refused on: ${consultedNotEnforced.length} ---`)
   for (const [d, names] of Object.entries(byDomain(consultedNotEnforced)).sort()) {
     console.log(`  ${d} (${names.length}): ${names.slice(0, 8).join(', ')}${names.length > 8 ? ` …+${names.length - 8}` : ''}`)
+  }
+
+  // ---- the agents namespace ----------------------------------------------------
+  // Its operations (the chips API among them) are declared in agents.graphql, not in types/operations, and each
+  // is gated before its body runs: AgentsQuery by Query.agents, AgentsMutation by guardAgentMutations' per-field
+  // table. probe:admin-authz executes them through the namespace; here they are counted, and the permissions the
+  // namespace gates name count as declared for pass 3.
+  const namespaced = AGENT_NAMESPACES.map((ns) => ({ ns, fields: namespaceFields(ns.type) }))
+  console.log(
+    `\n--- agents namespace: ${namespaced.reduce((n, x) => n + x.fields.length, 0)} operation(s) gated before their bodies run ---`
+  )
+  for (const { ns, fields } of namespaced) console.log(`  ${ns.type} (${fields.length}): ${ns.gate}`)
+  for (const file of ['guardAgentMutations.ts', 'index.ts']) {
+    const src = readFileSync(join(DOMAINS, 'agents', 'resolvers', file), 'utf8')
+    for (const m of src.matchAll(/['"]([a-z][a-z0-9.\-]*)['"]\s*,\s*['"]([a-z_*]+)['"]/gi)) {
+      declared.add(`${m[1]}:${m[2]}`)
+    }
   }
 
   // ---- 3. dead permissions -------------------------------------------------

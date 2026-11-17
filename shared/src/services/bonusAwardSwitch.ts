@@ -2,7 +2,7 @@ import { DateTime } from 'luxon'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { bonusAwards, bonusCampaigns, depositRequests, ledgerEntries, wallets } from '../db/schema.js'
 import { createWalletLedgerEntry } from './walletLedgerService.js'
-import type { BonusActivationWalletRow } from './bonusAwardActivation.js'
+import { assertPlayerMayReceiveBonus, type BonusActivationWalletRow } from './bonusAwardActivation.js'
 
 export type SwitchBonusAwardCoreDeps = {
   newBonusId: number
@@ -22,6 +22,11 @@ export type SwitchBonusAwardCoreDeps = {
  */
 export async function switchBonusAwardCore(deps: SwitchBonusAwardCoreDeps): Promise<void> {
   const { newBonusId, userId, tenant, db, ensureWallet, getWhitelabelCurrency } = deps
+
+  // Checked before anything moves: a refused switch must not cancel the current card either (PLA-07).
+  if ((await assertPlayerMayReceiveBonus(db, userId, tenant)) === 'not_found') {
+    throw new Error('Bonus not found or not in pending status')
+  }
 
   const currentActiveBonus = await (db as any)
     .select({

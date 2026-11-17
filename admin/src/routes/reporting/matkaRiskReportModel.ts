@@ -130,20 +130,39 @@ export function matkaReportFilter(
 
 export type MatkaSource = 'type' | 'market' | 'session' | 'agent' | 'player'
 
-/** Which breakdown query's rows a level shows: the level's own rows, filtered by the path. */
+/**
+ * Which breakdown query's rows a level shows: the level below it, filtered by the path, as the sports
+ * report does. The root shows the types, a type its markets, a market its sessions, a session its
+ * agents and an agent its players; a player is the last level and shows its own row. (Each level
+ * showed its own rows, so a clicked type showed that one type row again, and since a type row carries
+ * no market id the drill-down stopped there: F-REP-01.)
+ */
 export function matkaLevelSource(level: string): MatkaSource | null {
-  if (level === 'all' || level === 'matkaType') return 'type'
-  if (level === 'market') return 'market'
-  if (level === 'session') return 'session'
-  if (level === 'agent') return 'agent'
-  if (level === 'player') return 'player'
+  if (level === 'all') return 'type'
+  if (level === 'matkaType') return 'market'
+  if (level === 'market') return 'session'
+  if (level === 'session') return 'agent'
+  if (level === 'agent' || level === 'player') return 'player'
   return null
 }
 
+/** The level whose rows a level shows (matkaLevelSource); the columns, row keys and search follow it. */
+export function matkaRowsLevel(level: string): MatkaLevelType {
+  const rows: Record<string, MatkaLevelType> = {
+    all: 'matkaType',
+    matkaType: 'market',
+    market: 'session',
+    session: 'agent',
+    agent: 'player',
+    player: 'player',
+  }
+  return rows[level] ?? 'matkaType'
+}
+
 /**
- * The level a row click opens, or null when the row lacks the next level's id (the legacy click did
- * nothing then). The id is read from the clicked row, so only the matka-type rows of the top level
- * carry one: no breakdown row returns the id of the level below its own.
+ * The level a row click opens, or null when the row lacks the next level's id. The id is read from
+ * the clicked row, which is a row of the next level (matkaLevelSource), so every level's rows carry
+ * it; a player row opens nothing, the player being the last level.
  */
 export function matkaDrillTarget(currentLevel: string, record: MatkaRow): DrillDownLevel | null {
   const nextLevel = matkaNextLevel(currentLevel)

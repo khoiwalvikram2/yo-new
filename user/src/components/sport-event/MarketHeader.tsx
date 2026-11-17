@@ -850,7 +850,7 @@ const MarketHeader = memo(function MarketHeader({
         {/* Left: Market Name + Volume */}
         <div className="nova-ev-market-title">
           <h3>{market.name}</h3>
-          {volumeDisplay !== '0' && <p>{volumeDisplay}</p>}
+          {volumeDisplay !== '0' && <p title="Available volume">Vol {volumeDisplay}</p>}
         </div>
         
         {/* Right: Cashout, Limits & Toggle */}

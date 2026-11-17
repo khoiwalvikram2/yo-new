@@ -25,11 +25,6 @@ type Mutation {
   upsertLimit(input: LimitInput!): Limit!
   pauseJackpot(id: ID!, pause: Boolean!): Jackpot!
   payoutJackpot(id: ID!, amount: Float): Jackpot!
-  publishPromotion(id: ID!): PromotionPayload!
-  pausePromotion(id: ID!): PromotionPayload!
-  createContent(input: ContentCreateInput!): Content!
-  updateContent(input: ContentUpdateInput!): Content!
-  publishContent(id: ID!): Content!
   setUserDomainBets(id: ID!, sports: Boolean, casino: Boolean, matka: Boolean, sportsVisible: Boolean, casinoVisible: Boolean, matkaVisible: Boolean): UserPayload!
   setUserBonusAllowed(id: ID!, allow: Boolean!): UserPayload!
   setUserVipTier(id: ID!, vipTierId: ID): User!
@@ -38,7 +33,7 @@ type Mutation {
   setWithdrawalLock(id: ID!, lock: Boolean!): UserPayload!
   updatePlayerRemark(userId: ID!, remark: String): UserPayload!
   forceLogoutUser(id: ID!): BooleanPayload!
-  adjustWallet(userId: ID!, amount: Float!, applyBonus: Boolean): Wallet!
+  adjustWallet(userId: ID!, amount: Float!, applyBonus: Boolean, reason: String): Wallet!
   upsertPlayerLimits(input: PlayerLimitsInput!): PlayerLimitsPayload!
   upsertRole(input: RoleInput!): Role!
   assignRole(userId: ID!, role: String!): [Role!]!
@@ -49,7 +44,6 @@ type Mutation {
   saveBonusCampaignGames(campaignId: ID!, gameIds: [ID!]!, gameWeights: JSON): BonusCampaignPayload!
   saveBonusCampaignMatkas(campaignId: ID!, matkaIds: [ID!]!, matkaBidTypeWeights: JSON): BonusCampaignPayload!
   distributeBonusCampaign(campaignId: ID!): BonusDistributionResult!
-  createPromotion(input: PromotionCreateInput!): PromotionPayload!
   createCasinoGameBundle(input: CasinoGameBundleInput!): CasinoGameBundlePayload!
   updateCasinoGameBundle(id: ID!, input: CasinoGameBundleUpdateInput!): CasinoGameBundlePayload!
   deleteCasinoGameBundle(id: ID!): BooleanPayload!

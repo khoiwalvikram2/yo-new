@@ -6,7 +6,8 @@ import { MockedProvider } from '@apollo/client/testing'
 import { MemoryRouter } from 'react-router-dom'
 import { useAuthStore } from '@/shared/core/authStore'
 import RunningMarketsPage, { type RunningMarket } from './RunningMarketsPage'
-vi.mock('@/shared/core/uiStore', () => ({ useUIStore: (select: (state: unknown) => unknown) => select({ directorMode: 'whitelabel', selectedWhitelabelId: 'qa', tenant: 'qa' }) }))
+const ui = vi.hoisted(() => ({ directorMode: 'whitelabel' }))
+vi.mock('@/shared/core/uiStore', () => ({ useUIStore: (select: (state: unknown) => unknown) => select({ directorMode: ui.directorMode, selectedWhitelabelId: 'qa', tenant: 'qa' }) }))
 vi.mock('@/shared/core/CurrencyContext', () => ({ useCurrency: () => ({ formatAmount: (value: number, currency: string) => `${currency} ${value.toFixed(2)}` }) }))
 let calls: Array<{ name: string; variables: Record<string, unknown> }>, phase: number, failure: string, empty: boolean, kind: string
 const marketId = '11111111-1111-4111-8111-111111111111', date = '2026-10-23'
@@ -39,7 +40,7 @@ function page() {
   return render(<MockedProvider link={link}><MemoryRouter><RunningMarketsPage /></MemoryRouter></MockedProvider>)
 }
 beforeEach(() => {
-  calls = []; phase = 0; failure = ''; empty = false; kind = 'worli'
+  calls = []; phase = 0; failure = ''; empty = false; kind = 'worli'; ui.directorMode = 'whitelabel'
   useAuthStore.setState({ agent: undefined, user: { id: 'admin', name: 'QA' }, roles: [], permissions: [{ domain: 'matka.results', actions: ['view','create'] }] })
 })
 test('all unresolved dates are loaded; exact player entries are available from View bets', async () => {
@@ -85,4 +86,13 @@ test('viewers can inspect bets but cannot declare results; denied users issue no
   useAuthStore.setState({ permissions: [{ domain: 'matka.results', actions: ['view'] }] }); const view = page()
   await screen.findByRole('table', { name: 'Matka running markets' }); assert.equal(screen.queryByRole('button', { name: /Declare/ }), null)
   view.unmount(); calls = []; useAuthStore.setState({ permissions: [] }); page(); screen.getByText('Access denied'); assert.equal(calls.length, 0)
+})
+test('a Super Admin in core mode is asked to select a whitelabel: no query, no polling, no Retry', async () => {
+  ui.directorMode = 'core'; useAuthStore.setState({ roles: ['Super Admin'] })
+  page()
+  assert.ok(await screen.findByText('Select a whitelabel'))
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(calls.some(call => call.name === 'MatkaRunningMarkets'), false)
+  assert.equal(screen.queryByRole('button', { name: 'Retry' }), null)
+  assert.equal(screen.queryByRole('table', { name: 'Matka running markets' }), null)
 })

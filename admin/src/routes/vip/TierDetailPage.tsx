@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { useVIPTiers, useVIPMembers, useAddVIPPoints, useUpdateVIPMember } from '../../modules/vip'
 import { RBACGuard } from '@/shared/core/RBACGuard'
@@ -14,6 +14,8 @@ import { EmptyState } from '@/ui/components/EmptyState'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { Notice } from '@/ui/components/Notice'
 import { toast } from '@/ui/components/toast'
+import { useVipTierActions } from './useVipTierActions'
+import { tierStatusChange } from './vipTierActionsModel'
 import styles from './TierDetailPage.module.css'
 
 export default function VIPTierDetailPage() {
@@ -28,18 +30,25 @@ function VIPTierDetailPageContent() {
   const { data: membersData, refetch: refetchMembers } = useVIPMembers({ tierId: id })
   const [addPoints, { loading: adding }] = useAddVIPPoints()
   const [updateMember, { loading: upgrading }] = useUpdateVIPMember()
+  const navigate = useNavigate()
+  const tierActions = useVipTierActions({ onDeleted: () => navigate('/vip/tiers') })
   if (loading) return <Page><LoadingState label="Loading VIP tier" /></Page>
   if (!tier) return <Page><PageHeader title="VIP Tier" eyebrow={eyebrow} back={{ to: '/vip/tiers', label: 'Back to VIP Tiers' }} />
     <EmptyState title="VIP Tier not found" /></Page>
   const members = membersData?.vipMembers || []
   const reportFailure = (error: unknown) => toast({ tone: 'error', message: error instanceof Error ? error.message : 'Unable to update VIP member' })
+  const statusChange = tierStatusChange(tier)
   return (
     <Page maxWidth="wide">
       <PageHeader title={tier.name} eyebrow={eyebrow}
         meta={<span className={styles.inline}><span>Level {tier.level}</span>
           <StatusPill status={tier.status}>{tier.status === 'active' ? 'Active' : 'Inactive'}</StatusPill></span>}
         back={{ to: '/vip/tiers', label: 'Back to VIP Tiers' }}
-        actions={<Link to={`/vip/tiers/${tier.id}/edit`} className={buttonClassName()}>Edit</Link>} />
+        actions={<>
+          <Link to={`/vip/tiers/${tier.id}/edit`} className={buttonClassName()}>Edit</Link>
+          {tierActions.canChangeStatus ? <Button onClick={() => tierActions.requestStatusChange(tier)}>{statusChange.label}</Button> : null}
+          {tierActions.canDelete ? <Button variant="danger" onClick={() => tierActions.requestDelete(tier)}>Delete</Button> : null}
+        </>} />
       <div className={styles.stack}>
         {error ? <Notice tone="error">{error.message}</Notice> : null}
         <div className={styles.stats}>

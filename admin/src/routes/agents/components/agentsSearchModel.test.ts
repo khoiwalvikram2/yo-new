@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
-import { agentPrimaryAction, agentRowMoneyActions, creditUsage, topLevelAgents } from './agentsSearchModel'
+import { agentPrimaryAction, agentRowMoneyActions, topLevelAgents } from './agentsSearchModel'
 
 describe('topLevelAgents', () => {
   test('keeps agents whose parent is not in the list, so a downline is not counted twice', () => {
@@ -30,24 +30,20 @@ describe('agentRowMoneyActions', () => {
     assert.equal(agentRowMoneyActions({ schemeType: 'COMMISSION', parentAgentId: 'p' }, {}).pay, false)
     assert.equal(agentRowMoneyActions({ schemeType: 'COMMISSION', parentAgentId: null }, { isWhitelabelAdmin: true }).pay, false)
   })
-})
-
-describe('creditUsage', () => {
-  test('share of the limit, headroom and the high-use band match the stats card', () => {
-    assert.deepEqual(creditUsage({ creditLimit: 10000, creditUsed: 3000, creditAvailable: 7000 }), { limit: 10000, used: 3000, available: 7000, percent: 30, high: false })
-    assert.equal(creditUsage({ creditLimit: 500000, creditUsed: 462000, creditAvailable: 38000 }).high, true)
-    assert.equal(creditUsage({ creditLimit: 100, creditUsed: 80 }).high, false)
-    assert.deepEqual(creditUsage({ creditLimit: 0, creditUsed: 0 }), { limit: 0, used: 0, available: 0, percent: 0, high: false })
-    assert.equal(creditUsage({ creditLimit: 100, creditUsed: 150 }).percent, 100)
+  test('a CREDIT agent is never settled from the list: its chips move by Deposit / Withdraw', () => {
+    assert.deepEqual(agentRowMoneyActions({ schemeType: 'CREDIT', parentAgentId: 'me' }, { agentId: 'me' }), { settle: false, pay: false })
+    assert.deepEqual(agentRowMoneyActions({ schemeType: 'CREDIT', parentAgentId: null }, {}), { settle: false, pay: false })
   })
 })
 
 describe('agentPrimaryAction', () => {
   const row = (schemeType: string, status = 'ACTIVE', commissionEarned = 0) => ({ schemeType, status, stats: { commissionEarned } })
   test('money that is due comes first, then reactivation, then the scheme routine', () => {
-    assert.equal(agentPrimaryAction(row('CREDIT', 'SUSPENDED'), { settle: true, pay: false, hasPending: true }), 'settle')
-    assert.equal(agentPrimaryAction(row('CREDIT'), { settle: true, pay: false, hasPending: false }), 'credit')
-    assert.equal(agentPrimaryAction(row('CREDIT', 'SUSPENDED'), { settle: true, pay: false, hasPending: false }), 'reactivate')
+    assert.equal(agentPrimaryAction(row('SHARING', 'SUSPENDED'), { settle: true, pay: false, hasPending: true }), 'settle')
+    assert.equal(agentPrimaryAction(row('CREDIT'), { settle: false, pay: false, hasPending: false, chips: true }), 'chips')
+    assert.equal(agentPrimaryAction(row('CREDIT', 'SUSPENDED'), { settle: false, pay: false, hasPending: false, chips: true }), 'reactivate')
+    // D / W / CR belong to the direct parent only; anyone else gets View.
+    assert.equal(agentPrimaryAction(row('CREDIT'), { settle: false, pay: false, hasPending: false, chips: false }), 'view')
     assert.equal(agentPrimaryAction(row('COMMISSION', 'ACTIVE', 1200), { settle: false, pay: true, hasPending: false }), 'pay')
     assert.equal(agentPrimaryAction(row('COMMISSION', 'ACTIVE', 1200), { settle: false, pay: false, hasPending: false }), 'view')
     assert.equal(agentPrimaryAction(row('SHARING'), { settle: false, pay: false, hasPending: true }), 'view')

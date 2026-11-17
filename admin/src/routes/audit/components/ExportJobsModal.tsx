@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQuery, useMutation } from '@apollo/client'
-import { AUDIT_EXPORT_JOBS_PAGE_QUERY } from '@/modules/audit/graphql/queries'
+import { useApolloClient, useQuery, useMutation } from '@apollo/client'
+import { AUDIT_EXPORT_JOB_DOWNLOAD_QUERY, AUDIT_EXPORT_JOBS_PAGE_QUERY } from '@/modules/audit/graphql/queries'
 import { CREATE_AUDIT_EXPORT_JOB } from '@/modules/audit/graphql/mutations'
 import { useFormatDate } from '@/shared/core/useFormatDate'
 import { Dialog } from '@/ui/components/Dialog'
@@ -11,6 +11,8 @@ import { StatusPill } from '@/ui/components/StatusPill'
 import { Notice } from '@/ui/components/Notice'
 import { Form } from '@/ui/components/Form'
 import { notify } from '@/shared/services/notification'
+import { dataUriMime, saveDataUri } from '@/shared/utils/dataUriFile'
+import { auditExportFilename, exportJobDate, exportJobError } from '../auditPageModel'
 import styles from '../AuditEvents.module.css'
 interface AuditExportJob { id: string; status: string; exportFormat: string; createdAt: string; completedAt?: string | null; errorMessage?: string | null; fileUrl?: string | null }
 export function ExportJobsModal({ open, onClose, currentFiltersJson }: { open: boolean; onClose: () => void; currentFiltersJson?: Record<string, unknown> }) {
@@ -24,7 +26,24 @@ export function ExportJobsModal({ open, onClose, currentFiltersJson }: { open: b
   const input = useRef<HTMLSelectElement>(null)
   const { data, loading, error, refetch } = useQuery<{ auditExportJobsPage: { items: AuditExportJob[]; total: number } }>(AUDIT_EXPORT_JOBS_PAGE_QUERY, { variables: { limit: pageSize, offset: (page-1)*pageSize }, errorPolicy: 'all', fetchPolicy: 'cache-and-network', skip: !open })
   const [createJob, { loading: creating }] = useMutation(CREATE_AUDIT_EXPORT_JOB)
+  const client = useApolloClient()
+  const [downloading, setDownloading] = useState<string | null>(null)
   useEffect(() => { if (!open) return; const timer = setInterval(() => { void refetch() }, 5000); return () => clearInterval(timer) }, [open, refetch])
+  /* Since 2026-11-04 the file is kept in its job row: auditExportJobDownload answers it as a base64 data URI, saved
+     through the shared helper (the list's fileUrl is only the file's name). A refusal is the server's own words
+     (the error link raises no toast of its own), and the file is not kept in the Apollo cache. */
+  async function download(job: AuditExportJob) {
+    if (downloading) return
+    setDownloading(job.id)
+    try {
+      const { data: file, errors } = await client.query<{ auditExportJobDownload: string | null }>({ query: AUDIT_EXPORT_JOB_DOWNLOAD_QUERY, variables: { id: job.id }, fetchPolicy: 'no-cache', errorPolicy: 'all', context: { skipNotification: true } })
+      const fileData = file?.auditExportJobDownload
+      if (!fileData) throw new Error(errors?.[0]?.message || 'Could not get the file')
+      saveDataUri(fileData, auditExportFilename(job, dataUriMime(fileData)))
+      notify.success('Your file download has started.', 'Download Started')
+    } catch (cause) { notify.error(cause instanceof Error && cause.message ? cause.message : 'Failed to download file. Please try again or contact support.', 'Download Failed') }
+    finally { setDownloading(null) }
+  }
   async function save() {
     if (busy.current) return
     if (!format) { setFormError('Please select a format'); return }
@@ -40,10 +59,10 @@ export function ExportJobsModal({ open, onClose, currentFiltersJson }: { open: b
   const columns: DataTableColumn<AuditExportJob>[] = [
     { key: 'status', header: 'Status', cell: (row) => <StatusPill tone={row.status === 'completed' ? 'ok' : row.status === 'failed' ? 'neg' : row.status === 'processing' ? 'info' : 'neutral'}>{({ pending: 'Pending', processing: 'Processing', completed: 'Completed', failed: 'Failed' } as Record<string, string>)[row.status] ?? 'Pending'}</StatusPill> },
     { key: 'format', header: 'Format', cell: (row) => row.exportFormat },
-    { key: 'created', header: 'Created', cell: (row) => row.createdAt ? formatDateTime(row.createdAt, 'MMM d, yyyy h:mm a') : '—' },
-    { key: 'completed', header: 'Completed', cell: (row) => row.completedAt ? formatDateTime(row.completedAt, 'MMM d, yyyy h:mm a') : '—' },
-    { key: 'error', header: 'Error', cell: (row) => row.errorMessage ? <span className={styles.error}>{row.errorMessage}</span> : '-' },
-    { key: 'actions', header: 'Actions', cell: (row) => row.status === 'completed' && row.fileUrl ? <Button size="xs" variant="link" onClick={() => { if (row.fileUrl) window.open(row.fileUrl, '_blank', 'noopener,noreferrer') }}>Download</Button> : null },
+    { key: 'created', header: 'Created', cell: (row) => { const at = exportJobDate(row.createdAt); return at ? formatDateTime(at, 'MMM d, yyyy h:mm a') : '—' } },
+    { key: 'completed', header: 'Completed', cell: (row) => { const at = exportJobDate(row.completedAt); return at ? formatDateTime(at, 'MMM d, yyyy h:mm a') : '—' } },
+    { key: 'error', header: 'Error', cell: (row) => row.errorMessage ? <span className={styles.error} title={row.errorMessage}>{exportJobError(row.errorMessage)}</span> : '-' },
+    { key: 'actions', header: 'Actions', cell: (row) => row.status === 'completed' && row.fileUrl ? <Button size="xs" variant="link" loading={downloading === row.id} disabled={downloading !== null && downloading !== row.id} onClick={() => void download(row)}>Download</Button> : null },
   ]
   return <><Dialog title="Export Jobs" open={open && !createOpen} onOpenChange={(next) => { if (!next && !busy.current) onClose() }} size="xl" dismissible={!creating}>
     <div className={styles.stack}>

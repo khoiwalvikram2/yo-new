@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const VIP_DEPOSIT_METHODS = ['BANK_TRANSFER', 'UPI', 'GATEWAY'] as const
+export const VIP_DEPOSIT_METHODS = ['BANK_TRANSFER', 'UPI', 'GATEWAY', 'CRYPTO'] as const
 const amount = z.number().finite().nonnegative().max(1_000_000_000).nullable()
 export const vipDepositPolicySchema = z.object({
   enabled: z.boolean(), methods: z.array(z.enum(VIP_DEPOSIT_METHODS)).refine(values => new Set(values).size === values.length, 'Duplicate deposit method'),

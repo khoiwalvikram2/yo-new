@@ -26,6 +26,7 @@ import {
   SPORTS_RESULTS,
 } from '@/lib/graphql/sports'
 import { useCreateSportsResult } from '../../../../modules/sports/results'
+import { useCanEditCatalogue } from '../../configuration-components/catalogueAccess'
 import { Combobox, type ListboxOption } from '@/ui/components/Combobox'
 import { Form } from '@/ui/components/Form'
 import { Notice } from '@/ui/components/Notice'
@@ -147,6 +148,11 @@ export const ResultEntryForm = forwardRef<ResultEntryFormRef, ResultEntryFormPro
     const [selection, setSelection] = useState<DeclareSelection>({ result: null })
     const [searchValue, setSearchValue] = useState('')
     const [disableEventAfterResult, setDisableEventAfterResult] = useState(false)
+    // The platform administrator: disabling the event switches it off for every whitelabel (catalogueAccess),
+    // so only they are offered it (the server refuses anyone else), and only their open-bet counts span
+    // every whitelabel (sportsBets honours allTenants for them alone).
+    const isPlatformAdmin = useCanEditCatalogue()
+    const canDisableEvent = isPlatformAdmin
     const [checked, setChecked] = useState<Partial<Record<DeclareField, boolean>>>({})
     const sportRef = useRef<HTMLInputElement | null>(null)
     const leagueRef = useRef<HTMLInputElement | null>(null)
@@ -321,7 +327,7 @@ export const ResultEntryForm = forwardRef<ResultEntryFormRef, ResultEntryFormPro
         if (!response.data?.createSportsResult?.success) return
 
         const disableStep = eventDisableStep({
-          disableEvent: disableEventAfterResult,
+          disableEvent: canDisableEvent && disableEventAfterResult,
           eventId: selection.eventId,
           openBetsLoading,
           chips: betChips,
@@ -571,7 +577,7 @@ export const ResultEntryForm = forwardRef<ResultEntryFormRef, ResultEntryFormPro
             <header className={styles.openBetsHeader}>
               <h3 id="sports-open-bets-title" className={styles.openBetsTitle}>
                 <IconChartLine size={14} stroke={strokeFor(14)} aria-hidden="true" />
-                Markets with open bets <span className={styles.openBetsSub}>(all whitelabels)</span>
+                Markets with open bets <span className={styles.openBetsSub}>{isPlatformAdmin ? '(all whitelabels)' : '(this whitelabel)'}</span>
               </h3>
             </header>
             <div className={styles.openBetsList}>
@@ -585,7 +591,7 @@ export const ResultEntryForm = forwardRef<ResultEntryFormRef, ResultEntryFormPro
           </section>
         ) : null}
 
-        {selection.marketType === 'exchange' || selection.marketType === 'bookmaker' ? (
+        {canDisableEvent && (selection.marketType === 'exchange' || selection.marketType === 'bookmaker') ? (
           <section className={styles.switchPanel}>
             <div className={styles.switchRow}>
               <div className={styles.switchCopy}>

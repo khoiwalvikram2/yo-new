@@ -14,11 +14,20 @@ describe('scoped direct notification reads',()=>{
     assert.equal(result?.id,id)
     assert.deepEqual(received,{tenant:'a',whitelabelId:'a',category:'task',allowedTypes:['DEPOSIT','WITHDRAWAL'],id,limit:1,offset:0})
   })
-  it('refuses missing identity/permission before the repository is reached',async()=>{
+  it('refuses a missing session or recipient identity before the repository is reached',async()=>{
     mock.method(NotificationsRepo.prototype,'getNotifications',async()=>{throw new Error('Repository must not be reached')})
     const read=buildNotificationsQueryResolvers().myNotification
-    for(const ctx of [{...admin,user:undefined},{...admin,permissions:[]},{...admin,user:{type:'agent'}},{...admin,user:{type:'user'}}])await assert.rejects(read(null,{id},ctx),/Unauthorized|Forbidden/)
+    for(const ctx of [{...admin,user:undefined},{...admin,user:{type:'agent'}},{...admin,user:{type:'user'}}])await assert.rejects(read(null,{id},ctx),/Unauthorized|Forbidden/)
+    await assert.rejects(read(null,{id,category:'task'},{tenant:'a',whitelabel:{id:'a'}}),/Unauthorized/)
     assert.equal(await read(null,{id:'invalid'},admin),null)
+  })
+  it('opens the caller\'s own notification without notifications.list, which no Whitelabel Admin or agent holds',async()=>{
+    const reads:any[]=[]
+    mock.method(NotificationsRepo.prototype,'getNotifications',async filters=>{reads.push(filters);return[{id,createdAt:new Date('2026-10-01T00:00:00Z')}] as any})
+    const read=buildNotificationsQueryResolvers().myNotification
+    assert.equal((await read(null,{id},{...admin,permissions:[]}))?.id,id)
+    assert.equal((await read(null,{id},{...admin,user:{type:'agent',agentId:id},permissions:[]}))?.id,id)
+    assert.deepEqual(reads,[{tenant:'a',whitelabelId:'a',id,limit:1,offset:0},{tenant:'a',agentId:id,id,limit:1,offset:0}])
   })
   it('keeps user, agent and director recipient scopes distinct',()=>{
     assert.deepEqual(notificationReadScope({...admin,user:{type:'user',userId:3}},'task'),{tenant:'a',userId:3,category:'task'})

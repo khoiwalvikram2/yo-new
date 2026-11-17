@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
   IconAlertTriangle,
-  IconCoinRupee,
   IconDotsVertical,
   IconEdit,
   IconPlayerPause,
@@ -10,10 +9,9 @@ import {
   IconUserCheck,
 } from '@tabler/icons-react'
 import { useCurrency } from '@/shared/core/CurrencyContext'
+import { ChipActions, chipTone, roundChips, signedChips, type ChipAccount } from '@/modules/chips'
 import {
   agentDisplayName,
-  creditUsagePercent,
-  creditUsageTone,
   filterHierarchyAgents,
   hierarchyDepthLabel,
   type HierarchyAgentNode,
@@ -25,11 +23,21 @@ import { IconButton } from '@/ui/components/IconButton'
 import { strokeFor } from '@/ui/components/icons'
 import { LoadingState } from '@/ui/components/LoadingState'
 import { Menu, MenuItem, MenuSeparator } from '@/ui/components/Menu'
-import { Meter } from '@/ui/components/Meter'
 import { Notice } from '@/ui/components/Notice'
 import { SearchField } from '@/ui/components/SearchField'
 import { StatusPill } from '@/ui/components/StatusPill'
 import styles from './HierarchyTree.module.css'
+
+/** A row's note where it shows no chips: a CREDIT agent's chips could not be read; any other names its scheme. Every
+ *  non-CREDIT agent was called a "Revenue-sharing account", COMMISSION ones included (B001, AGE-17). */
+const SCHEME_NOTES: Record<string, string> = {
+  CREDIT: 'Chips not available',
+  SHARING: 'Revenue-sharing account',
+  COMMISSION: 'Commission account',
+}
+function schemeNote(schemeType?: string | null): string {
+  return SCHEME_NOTES[String(schemeType || '').toUpperCase()] ?? 'Agent account'
+}
 
 export interface HierarchyTreeProps {
   agents: readonly HierarchyAgentNode[]
@@ -39,7 +47,9 @@ export interface HierarchyTreeProps {
   selectedAgentId?: string | null
   onRefresh: () => void
   onSelectAgent?: (agentId: string) => void
-  onAction?: (action: 'edit' | 'credit' | 'suspend' | 'activate', agentId: string) => void
+  onAction?: (action: 'edit' | 'suspend' | 'activate', agentId: string) => void
+  /** After a deposit, withdrawal or credit reference change on a row's D / W / CR. */
+  onChipsChanged?: () => void
 }
 
 export default function HierarchyTree({
@@ -51,17 +61,17 @@ export default function HierarchyTree({
   onRefresh,
   onSelectAgent,
   onAction,
+  onChipsChanged,
 }: HierarchyTreeProps) {
   const [searchValue, setSearchValue] = useState('')
-  const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
+  const { formatAmount } = useCurrency()
   const visibleAgents = useMemo(
     () => filterHierarchyAgents(agents, searchValue),
     [agents, searchValue],
   )
 
-  const amount = (value?: number | null) => (
-    formatAmount(convertFromWhitelabelCurrency(Number(value || 0)))
-  )
+  // Chips are in the whitelabel currency, kept to 2 decimals (spec 2026-11-02 §2).
+  const chipAmount = (chips: ChipAccount) => (value: number) => formatAmount(roundChips(value), chips.currency || undefined)
 
   return (
     <Card
@@ -123,7 +133,9 @@ export default function HierarchyTree({
         <ul className={styles.tree} role="tree" aria-label="Agent hierarchy">
           {visibleAgents.map((agent) => {
             const isCredit = agent.schemeType === 'CREDIT'
-            const usage = creditUsagePercent(agent)
+            const chips = isCredit ? agent.chips ?? null : null
+            const chipFormat = chips ? chipAmount(chips) : null
+            const refTone = chips ? chipTone(chips.refPnl) : undefined
             const level = Math.min(4, Math.max(1, Number(agent.levelIndex || 1)))
             const isSelected = selectedAgentId === agent.id
 
@@ -159,18 +171,26 @@ export default function HierarchyTree({
                       <StatusPill tone={isCredit ? 'info' : 'neutral'}>{agent.schemeType}</StatusPill>
                       <StatusPill status={agent.status}>{agent.status}</StatusPill>
                     </span>
-                    {isCredit ? (
-                      <span className={styles.credit}>
-                        <span className={styles.creditTop}>
-                          <span>{Math.round(usage)}% used</span>
-                          <strong>{amount(agent.creditAvailable)} available</strong>
+                    {chips && chipFormat ? (
+                      <span className={styles.chips}>
+                        <span className={styles.chipLine}>
+                          <span>Balance</span>
+                          <strong>{chipFormat(chips.balance)}</strong>
                         </span>
-                        <Meter value={usage} tone={creditUsageTone(usage)} />
+                        <span className={styles.chipLine}>
+                          <span>Ref P/L</span>
+                          <strong className={refTone === 'gain' ? styles.gain : refTone === 'loss' ? styles.loss : undefined}>
+                            {signedChips(chips.refPnl, chipFormat)}
+                          </strong>
+                        </span>
                       </span>
                     ) : (
-                      <span className={styles.schemeNote}>Revenue-sharing account</span>
+                      <span className={styles.schemeNote}>{schemeNote(agent.schemeType)}</span>
                     )}
                   </button>
+
+                  {/* D / W / CR render for the direct parent only (ChipActions checks it). */}
+                  {chips ? <ChipActions account={chips} onDone={onChipsChanged} /> : null}
 
                   <Menu
                     trigger={
@@ -186,12 +206,6 @@ export default function HierarchyTree({
                       onSelect={() => onAction?.('edit', agent.id)}
                     >
                       Edit agent
-                    </MenuItem>
-                    <MenuItem
-                      icon={<IconCoinRupee size={15} stroke={strokeFor(15)} />}
-                      onSelect={() => onAction?.('credit', agent.id)}
-                    >
-                      Adjust credit
                     </MenuItem>
                     <MenuSeparator />
                     <MenuItem

@@ -24,8 +24,8 @@
   --surface: var(--mb-panel);
   --surface-2: var(--mb-soft);
   --border: var(--mb-line);
-  --brand-primary: #C51A1B;
-  --brand-primary-dark: #A01516;
+  --brand-primary: var(--mb-red);
+  --brand-primary-dark: var(--mb-brand-press);
   --ev-back: #8DCDF3;
   --ev-back-soft: #C6E5F9;
   --ev-lay: #F6AABA;
@@ -95,26 +95,33 @@
 .nova-ev-btn:hover { border-color: rgb(255 255 255 / 55%); background: rgb(255 255 255 / 10%); }
 .nova-ev-btn svg { width: 16px; height: 16px; }
 
-.nova-ev-head-sub { display: flex; align-items: center; gap: 14px; min-height: 40px; padding: 0 14px 0 6px; background: var(--ex-dark); font-size: 14px; }
-.nova-ev-competition { min-width: 0; overflow: hidden; color: #E2E3E3; text-overflow: ellipsis; white-space: nowrap; }
+/* The match strip under the title (owner 2026-11-01): a card in the theme's own colours instead of the charcoal bar.
+   The sport sits in a tinted tile, the league reads in ink, Switch Event and the start time are chips, and the
+   countdown ticks in inverted digit tiles. */
+.nova-ev-head-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 58px; margin-top: 10px; padding: 9px 12px 9px 9px; border: 1px solid var(--mb-line); color: var(--mb-ink); background: var(--mb-panel); font-size: 14px; }
+.nova-ev-sport-tile { display: grid; flex: none; width: 38px; height: 38px; place-items: center; background: color-mix(in srgb, var(--mb-red) 10%, var(--mb-panel)); }
+.nova-ev-head-sub .nova-ev-sport { width: 22px; height: 22px; filter: none; }
+html.dark .nova-ev-head-sub .nova-ev-sport { filter: invert(1); }
+.nova-ev-competition { min-width: 0; overflow: hidden; color: var(--mb-ink); font-size: 15px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .nova-ev-switch { position: relative; }
 .nova-ev-switch > button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 10px;
-  border: 0;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--mb-line);
   border-radius: var(--ui-radius);
-  color: #FFFFFF;
-  background: transparent;
+  color: var(--mb-ink);
+  background: var(--mb-soft);
   font-family: var(--font-inter);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  transition: border-color .15s, background-color .15s;
 }
-.nova-ev-switch > button:hover,
-.nova-ev-switch > button[aria-expanded="true"] { background: rgb(255 255 255 / 10%); }
+.nova-ev-switch > button:hover { border-color: var(--mb-line-3); background: var(--mb-hover); }
+.nova-ev-switch > button[aria-expanded="true"] { border-color: color-mix(in srgb, var(--mb-red) 55%, var(--mb-line)); background: var(--mb-panel); }
 .nova-ev-switch > button svg { width: 16px; height: 16px; transition: transform .15s; }
 .nova-ev-switch > button[aria-expanded="true"] svg { transform: rotate(180deg); }
 .nova-ev-switch-menu {
@@ -141,99 +148,122 @@
   font-weight: 500;
   line-height: 1.3;
 }
-.nova-ev-switch-menu a:hover { background: var(--mb-soft); }
+.nova-ev-switch-menu a:hover { color: var(--mb-link-hover); background: var(--mb-soft); }
 .nova-ev-switch-menu a[aria-current="page"] { border-left-color: var(--ex-red); background: var(--mb-panel-2); font-weight: 700; }
 .nova-ev-switch-empty { padding: 10px 14px; color: var(--ex-muted); font-size: 13px; }
-.nova-ev-countdown { display: inline-flex; align-items: baseline; gap: 6px; color: #C9CBD1; white-space: nowrap; }
-.nova-ev-countdown strong { color: #FFFFFF; font-size: 15px; font-variant-numeric: tabular-nums; }
-.nova-ev-when { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: #E2E3E3; white-space: nowrap; }
-.nova-ev-when svg { width: 15px; height: 15px; color: #C9CBD1; }
+.nova-ev-countdown { display: inline-flex; align-items: center; gap: 8px; padding-left: 10px; border-left: 1px solid var(--mb-line); color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+.nova-ev-countdown strong { display: inline-flex; align-items: center; gap: 3px; color: var(--mb-muted); font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.nova-ev-countdown strong > b { display: grid; min-width: 30px; height: 30px; place-items: center; padding: 0 4px; color: var(--mb-panel); background: var(--mb-ink); font-size: 15px; font-weight: 800; box-shadow: inset 0 -12px 0 rgb(255 255 255 / 7%); }
+.nova-ev-when { display: inline-flex; align-items: center; gap: 6px; height: 34px; margin-left: auto; padding: 0 12px; border-radius: var(--ui-radius); color: var(--mb-text); background: var(--mb-soft); font-weight: 600; white-space: nowrap; }
+.nova-ev-when svg { width: 15px; height: 15px; color: var(--mb-red-text); }
 
 /* ------------------------------------------------------- market tabs */
-.nova-ev-tabs button { flex: 0 0 auto; min-width: 104px; min-height: 46px; font-size: 16px; }
+/* Line tabs: muted labels, the active one in ink over a brand-coloured underline, each with its market count. */
+.nova-ex-sport-tabs.nova-ev-tabs { gap: 2px; margin-top: 10px; padding: 0 8px; border: 1px solid var(--mb-line); background: var(--mb-panel); }
+.nova-ex-sport-tabs.nova-ev-tabs button { position: relative; flex: 0 0 auto; gap: 7px; min-width: 0; min-height: 50px; padding: 0 16px; border: 0; color: var(--mb-muted); background: transparent; font-size: 15px; font-weight: 700; }
+.nova-ex-sport-tabs.nova-ev-tabs button::after { content: ""; position: absolute; right: 10px; bottom: 0; left: 10px; height: 3px; border-radius: 3px 3px 0 0; background: transparent; transition: background-color .15s; }
+.nova-ex-sport-tabs.nova-ev-tabs button:hover { color: var(--mb-ink); background: transparent; }
+.nova-ex-sport-tabs.nova-ev-tabs button:hover::after { background: var(--mb-line-2); }
+.nova-ex-sport-tabs.nova-ev-tabs button.active { color: var(--mb-ink); background: transparent; }
+.nova-ex-sport-tabs.nova-ev-tabs button.active::after { background: var(--mb-red); }
+.nova-ex-sport-tabs.nova-ev-tabs button small { --ui-radius: 999px; min-width: 22px; color: var(--mb-muted); background: var(--mb-soft); }
+.nova-ex-sport-tabs.nova-ev-tabs button.active small { color: var(--mb-red-text); background: color-mix(in srgb, var(--mb-red) 12%, var(--mb-panel)); }
 
 /* ----------------------------------------------------------- markets */
-.nova-ev-markets { display: grid; gap: 10px; }
-.nova-ev-market { min-width: 0; background: var(--mb-panel); }
+/* Each market is a card: a head with a brand marker before its name, the volume and stake limits as pills and a
+   square toggle; BACK / LAY (NO / YES) labels as tinted pills over their columns; roomy runner rows. */
+.nova-ev-markets { display: grid; gap: 12px; margin-top: 12px; }
+.nova-ev-market { min-width: 0; overflow: hidden; border: 1px solid var(--mb-line); background: var(--mb-panel); box-shadow: 0 1px 2px rgb(16 18 22 / 5%); }
 .nova-ev-market-head {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 48px;
-  padding: 6px 8px 6px 14px;
-  border-bottom: 1px solid var(--ex-line);
-  background: var(--mb-neutral-bg);
+  min-height: 56px;
+  padding: 8px 10px 8px 16px;
+  border-bottom: 1px solid var(--mb-line);
+  background: var(--mb-panel);
   cursor: pointer;
   user-select: none;
+  transition: background-color .15s;
 }
-.nova-ev-market-head:hover { background: var(--mb-hover); }
-.nova-ev-market-title { flex: 1 1 auto; min-width: 0; }
-.nova-ev-market-title h3 { overflow: hidden; color: var(--mb-ink); font-size: 17px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
-.nova-ev-market-title p { margin-top: 1px; color: var(--ex-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.nova-ev-market-head:hover { background: var(--mb-panel-2); }
+.nova-ev-market-title { display: flex; flex: 1 1 auto; align-items: center; gap: 10px; min-width: 0; }
+.nova-ev-market-title h3 { position: relative; min-width: 0; padding-left: 13px; overflow: hidden; color: var(--mb-ink); font-size: 17px; font-weight: 800; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.nova-ev-market-title h3::before { content: ""; position: absolute; top: 2px; bottom: 2px; left: 0; width: 4px; border-radius: 2px; background: var(--mb-red); }
+.nova-ev-market-title p { --ui-radius: 999px; flex: none; margin: 0; padding: 3px 9px; color: var(--mb-muted); background: var(--mb-soft); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .nova-ev-market-tools { display: flex; flex: none; align-items: center; gap: 8px; }
 .nova-ev-limits {
+  --ui-radius: 999px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--ex-line);
-  border-radius: var(--ui-radius);
-  color: var(--mb-muted);
-  background: var(--mb-panel);
+  height: 28px;
+  padding: 0 11px 0 9px;
+  border: 1px solid var(--mb-line);
+  color: var(--mb-text);
+  background: var(--mb-panel-2);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.nova-ev-limits svg { width: 13px; height: 13px; color: var(--ex-red); }
+.nova-ev-limits svg { width: 13px; height: 13px; color: var(--mb-red-text); }
 .nova-ev-market-toggle {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--mb-line);
   border-radius: var(--ui-radius);
-  color: var(--mb-muted);
-  background: transparent;
+  color: var(--mb-text);
+  background: var(--mb-panel);
   cursor: pointer;
+  transition: border-color .15s, color .15s;
 }
-.nova-ev-market-toggle:hover { background: rgb(0 0 0 / 6%); }
-.nova-ev-market-toggle svg { width: 18px; height: 18px; transition: transform .15s; }
+.nova-ev-market-toggle:hover { border-color: var(--mb-line-3); color: var(--mb-ink); }
+.nova-ev-market-toggle svg { width: 18px; height: 18px; transition: transform .2s; }
 .nova-ev-market-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
-.nova-ev-market-body { padding: 0 8px 6px; }
+.nova-ev-market-body { padding: 0 10px 8px; }
 
 /* Column labels above the price ladder, then one row per runner. */
-.nova-ev-cols { min-height: 34px; border-bottom: 1px solid var(--ex-line); }
-.nova-ev-cols-label { color: var(--ex-muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.nova-ev-cols-label.is-back { color: var(--mb-back-text); }
-.nova-ev-cols-label.is-lay { color: var(--mb-lay-text); }
-.nova-ev-runner { border-bottom: 1px solid var(--mb-line); }
+.nova-ev-cols { min-height: 40px; border-bottom: 1px solid var(--mb-line); }
+.nova-ev-cols-label { color: var(--mb-muted); font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.nova-ev-cols-label:is(.is-back, .is-lay) { --ui-radius: 999px; display: inline-grid; min-width: 52px; height: 22px; place-items: center; padding: 0 9px; color: var(--mb-odds-ink); }
+.nova-ev-cols-label.is-back { background: var(--ev-back-soft); }
+.nova-ev-cols-label.is-lay { background: var(--ev-lay-soft); }
+.nova-ev-runner { border-bottom: 1px solid var(--mb-line); transition: background-color .12s; }
 .nova-ev-runner:last-child { border-bottom: 0; }
-.nova-ev-runner-name { color: var(--mb-ink); font-size: 16px; font-weight: 600; line-height: 1.2; }
+.nova-ev-runner:hover { background: var(--mb-panel-2); }
+.nova-ev-runner [data-market-row] { min-height: 64px; }
+.nova-ev-runner-name { color: var(--mb-ink); font-size: 16px; font-weight: 700; line-height: 1.2; }
 
-/* Price cells: the best price is the deeper shade, the depth behind it lighter (matchbook ladder). */
+/* Price cells: the best price is the deeper shade with a soft top light, the depth behind it lighter (matchbook
+   ladder). A cell lifts on hover and presses on click. */
 .nova-ev-odd {
   border: 0;
   border-radius: var(--ui-radius);
   color: var(--mb-odds-ink);
   background: var(--ev-back-soft);
-  box-shadow: none;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 7%);
   scale: none;
   cursor: pointer;
-  transition: background-color .12s, filter .12s;
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
 }
-.nova-ev-odd.is-back.is-main { background: var(--ev-back); }
+.nova-ev-odd.is-back.is-main { background: linear-gradient(180deg, color-mix(in srgb, var(--ev-back) 62%, white), var(--ev-back)); }
 .nova-ev-odd.is-lay { background: var(--ev-lay-soft); }
-.nova-ev-odd.is-lay.is-main { background: var(--ev-lay); }
-.nova-ev-odd:hover { filter: brightness(.94); }
-.nova-ev-odd:active { filter: brightness(.88); }
-.nova-ev-odd:focus { box-shadow: none; }
+.nova-ev-odd.is-lay.is-main { background: linear-gradient(180deg, color-mix(in srgb, var(--ev-lay) 62%, white), var(--ev-lay)); }
+/* No price: the box keeps its side tint, muted, with a lock; a span, so nothing opens the bet slip. */
+.nova-ev-odd.is-locked { align-items: center; justify-content: center; color: var(--mb-odds-muted); opacity: .6; cursor: not-allowed; }
+.nova-ev-odd.is-locked svg { width: 14px; height: 14px; }
+.nova-ev-odd.is-locked:hover { transform: none; box-shadow: inset 0 -2px 0 rgb(0 0 0 / 7%); filter: none; }
+.nova-ev-odd:hover { transform: translateY(-1px); box-shadow: inset 0 -2px 0 rgb(0 0 0 / 7%), 0 7px 14px -9px rgb(0 0 0 / 45%); filter: brightness(.98); }
+.nova-ev-odd:active { transform: translateY(0); filter: brightness(.9); }
+.nova-ev-odd:focus { box-shadow: inset 0 -2px 0 rgb(0 0 0 / 7%); }
 .nova-ev-odd:focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 1px; }
 /* The back/lay tiles stay light blue / pink in both themes, so their text is the fixed odds ink. */
-.nova-ev-odd-price { color: var(--mb-odds-ink); font-size: 16px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-.nova-ev-odd-size { margin-top: 3px; color: var(--mb-odds-muted); font-size: 11px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+.nova-ev-odd-price { color: var(--mb-odds-ink); font-size: 17px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.nova-ev-odd-size { margin-top: 4px; color: var(--mb-odds-muted); font-size: 11px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
 
 .nova-ev-empty span { max-width: 360px; color: var(--ex-muted); font-size: 15px; }
 .nova-ev-empty .nova-ev-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: none; }
@@ -241,7 +271,7 @@
 .nova-ev-empty-actions a:hover { background: var(--mb-soft); }
 
 /* -------------------------------------------------------- side column */
-.nova-ev-panel { min-width: 0; background: var(--mb-panel); }
+.nova-ev-panel { min-width: 0; overflow: hidden; border: 1px solid var(--mb-line); background: var(--mb-panel); box-shadow: 0 1px 2px rgb(16 18 22 / 5%); }
 .nova-ev-panel > .nova-ex-section-head { min-height: 44px; }
 .nova-ev-panel > .nova-ex-section-head h2 { font-size: 17px; }
 .nova-ev-panel-body { padding: 10px 12px; }
@@ -253,14 +283,14 @@
   padding: 0 20px;
   border: 0;
   border-radius: var(--ui-radius);
-  color: #FFFFFF;
+  color: var(--mb-on-red);
   background: var(--ex-red);
   font-family: var(--font-inter);
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
 }
-.nova-ev-slip-guest button:hover { background: #A81516; }
+.nova-ev-slip-guest button:hover { background: var(--mb-brand-deep); }
 
 /* ----------------------------------------------------------- loading */
 .nova-ev-skeleton { display: grid; gap: 10px; }
@@ -313,7 +343,7 @@
 .nova-ev-lines-cols,
 .nova-ev-line-prices { display: grid; flex: none; grid-template-columns: repeat(2, 64px); gap: 4px; }
 .nova-ev-lines-cols > span { text-align: center; }
-.nova-ev-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 6px 12px; transition: background-color .12s; }
+.nova-ev-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 7px 12px; transition: background-color .12s; }
 .nova-ev-line:hover { background: var(--mb-panel-2); }
 .nova-ev-line-info { min-width: 0; }
 .nova-ev-line .nova-ev-runner-name { font-size: 15px; overflow-wrap: anywhere; }
@@ -324,7 +354,7 @@
 .nova-ev-line-book button { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 0 7px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-link); background: transparent; font-size: 11px; font-weight: 700; cursor: pointer; }
 .nova-ev-line-book button:hover { border-color: var(--mb-line-3); }
 .nova-ev-line-book button svg { width: 12px; height: 12px; }
-.nova-ev-line-prices .nova-ev-odd { display: grid; align-content: center; justify-items: center; height: 48px; padding: 0; }
+.nova-ev-line-prices .nova-ev-odd { display: grid; align-content: center; justify-items: center; height: 50px; padding: 0; }
 .nova-ev-line-status { display: inline-flex; grid-column: 1 / -1; align-items: center; justify-content: center; gap: 6px; height: 48px; border: 1px dashed var(--mb-amber-line); border-radius: var(--ui-radius); color: var(--mb-amber); background: var(--mb-amber-bg); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .nova-ev-line-status svg { width: 13px; height: 13px; }
 .nova-ev-market-suspended { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; margin: 12px; border: 1px dashed var(--mb-amber-line); border-radius: var(--ui-radius); color: var(--mb-amber); background: var(--mb-amber-bg); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
@@ -381,7 +411,7 @@
 .nova-slip-quick-head span { display: inline-flex; align-items: center; gap: 6px; color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .nova-slip-quick-head svg { width: 13px; height: 13px; color: var(--mb-red-text); }
 .nova-slip-quick-head button { min-height: 26px; padding: 0 10px; border: 1px solid var(--mb-red); border-radius: var(--ui-radius); color: var(--mb-red-text); background: transparent; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
-.nova-slip-quick-head button:hover:not(:disabled) { color: #FFFFFF; background: var(--mb-red); }
+.nova-slip-quick-head button:hover:not(:disabled) { color: var(--mb-on-red); background: var(--mb-red); }
 .nova-slip-quick-head button:disabled { opacity: .45; cursor: not-allowed; }
 .nova-slip-quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .nova-slip-quick-grid button { min-height: 36px; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); color: var(--mb-ink); background: var(--mb-drawer-row); font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -396,9 +426,9 @@
 .nova-slip-actions button { min-height: 46px; padding: 0 16px; border-radius: var(--ui-radius); font-size: 15px; font-weight: 700; cursor: pointer; }
 .nova-slip-cancel { border: 1px solid var(--mb-line-2); color: var(--mb-ink); background: var(--mb-drawer-row); }
 .nova-slip-cancel:hover:not(:disabled) { border-color: var(--mb-line-3); }
-.nova-slip-place { border: 1px solid #B21718; color: #FFFFFF; background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%); }
-.nova-slip-place:hover:not(:disabled) { background: var(--mb-red-hover); }
-.nova-slip-place.is-cashout { border-color: #08602F; background: #0B8040; }
+.nova-slip-place { border: 1px solid var(--mb-brand-edge); color: var(--mb-on-red); background: linear-gradient(180deg, var(--mb-brand-top-action) 0%, var(--mb-red) 100%); }
+.nova-slip-place:hover:not(:disabled) { color: var(--mb-on-red); background: var(--mb-red-hover); }
+.nova-slip-place.is-cashout { border-color: #08602F; color: #FFFFFF; background: #0B8040; }
 .nova-slip-actions button:disabled { border-color: var(--mb-line); color: var(--mb-disabled-fg); background: var(--mb-disabled-bg); cursor: not-allowed; }
 .nova-shell-matchbook .nova-panel .nova-slip-hint { margin: 0; font-size: 12px; text-align: center; }
 .nova-slip-hint kbd { padding: 1px 6px; border: 1px solid var(--mb-line-2); border-radius: var(--ui-radius); color: var(--mb-ink); background: var(--mb-drawer-row); font-family: inherit; font-size: 11px; }
@@ -417,19 +447,28 @@
   .nova-ev-title p { font-size: 13px; }
   .nova-ev-btn { width: 32px; padding: 0; justify-content: center; }
   .nova-ev-btn span { display: none; }
-  .nova-ev-sport { display: none; }
-  .nova-ev-head-sub { gap: 10px; padding-right: 10px; font-size: 13px; }
-  .nova-ev-countdown span { display: none; }
-  .nova-ev-market-head { padding-left: 10px; }
+  /* the strip: sport + league on the first row, Switch Event, the countdown and the time on the second */
+  .nova-ev-head-sub { gap: 8px; margin-top: 8px; padding: 8px; font-size: 13px; }
+  .nova-ev-sport-tile { width: 34px; height: 34px; }
+  .nova-ev-competition { flex: 1 1 calc(100% - 46px); font-size: 14px; }
+  .nova-ev-switch > button, .nova-ev-when { height: 32px; padding-inline: 9px; font-size: 13px; }
+  .nova-ev-countdown { padding-left: 8px; }
+  .nova-ev-countdown > span { display: none; }
+  .nova-ev-countdown strong > b { min-width: 26px; height: 28px; font-size: 14px; }
+  .nova-ev-market-head { min-height: 52px; padding-left: 12px; }
   .nova-ev-market-title h3 { font-size: 16px; }
   .nova-ev-limits { display: none; }
   .nova-ev-market-body { padding: 0 4px 4px; }
   .nova-ev-runner-name { font-size: 15px; }
-  .nova-ev-tabs button { min-width: 0; padding: 0 14px; font-size: 15px; }
+  .nova-ex-sport-tabs.nova-ev-tabs { margin-top: 8px; padding: 0 4px; }
+  .nova-ex-sport-tabs.nova-ev-tabs button { padding: 0 12px; font-size: 14px; }
+  .nova-ev-markets { margin-top: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .nova-ev-live i::after { display: none; }
   .nova-ev-live i,
   .nova-ev-skeleton span,
   .nova-ev-skeleton-block { animation: none; }
+  .nova-ev-odd, .nova-ev-runner, .nova-ev-market-head, .nova-ex-sport-tabs.nova-ev-tabs button::after { transition: none; }
+  .nova-ev-odd:hover { transform: none; }
 }

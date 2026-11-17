@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { beforeEach, describe, test, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { useAuthStore } from '@/shared/core/authStore'
 import { DeclareResultDrawer } from './DeclareResultDrawer'
 
 interface QueryCall { name: string; options?: Record<string, unknown> }
@@ -87,6 +88,7 @@ beforeEach(() => {
   apollo.setEventStatus.mockReset().mockResolvedValue({ data: { setEventStatus: { success: true } } })
   apollo.refetchQueries.mockReset().mockResolvedValue(undefined)
   apollo.toast.mockReset()
+  useAuthStore.setState({ permissions: [{ domain: 'sports', actions: ['read', 'write'] }], roles: ['Whitelabel Admin'] })
 })
 
 describe('DeclareResultDrawer', () => {
@@ -147,7 +149,19 @@ describe('DeclareResultDrawer', () => {
     assert.equal(input.runnerId, undefined)
   })
 
+  test('a whitelabel admin is not offered to disable the event, which every whitelabel shares', async () => {
+    renderDrawer()
+    await chooseCore('exchange')
+    await choose('Winner Selection', 'India')
+    assert.equal(Boolean(screen.queryByRole('switch', { name: 'Disable event after declaring result' })),false)
+    fireEvent.click(screen.getByRole('button', { name: 'Declare Result' }))
+    await waitFor(() => assert.equal(apollo.createResult.mock.calls.length, 1))
+    await waitFor(() => assert.equal(apollo.refetchQueries.mock.calls.length, 1))
+    assert.equal(apollo.setEventStatus.mock.calls.length, 0)
+  })
+
   test('disables the event only after the sole open-bet market is declared', async () => {
+    useAuthStore.setState({ permissions: [{ domain: 'all', actions: ['*'] }], roles: ['Super Admin'] })
     renderDrawer()
     await chooseCore('exchange')
     await choose('Winner Selection', 'India')

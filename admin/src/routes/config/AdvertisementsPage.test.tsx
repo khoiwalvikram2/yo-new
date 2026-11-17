@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   allowed: true, loading: false, error: undefined as Error | undefined,
   refetch: vi.fn(), mutation: vi.fn(), toast: vi.fn(), confirm: vi.fn(), compress: vi.fn(),
   query: vi.fn(), export: vi.fn(), exportOptions: undefined as unknown,
+  mutationOptions: new Map<string, unknown>(),
   rows: [
     { id: 'banner', title: 'Welcome bonus', subtitle: 'New players', type: 'BANNER', status: 'ACTIVE', deviceType: 'BOTH', imageUrl: 'https://example.test/welcome.png', url: '/bonuses', order: 1, createdAt: '2026-01-01' },
     { id: 'sports', title: 'Sports promo', subtitle: 'Cricket', type: 'PROMOTIONAL', status: 'INACTIVE', deviceType: 'MOBILE', imageUrl: 'https://example.test/sports.png', url: null, order: 2 },
@@ -25,9 +26,11 @@ vi.mock('@apollo/client', async (importOriginal) => ({
     return { data: { advertisements: mocks.rows.filter((row) => !options.variables?.status || row.status === options.variables.status) },
       loading: mocks.loading, error: mocks.error, refetch: mocks.refetch }
   },
-  useMutation: (document: DocumentNode) => [
-    (options: unknown) => mocks.mutation(document, options), { loading: false },
-  ],
+  useMutation: (document: DocumentNode, hookOptions?: unknown) => {
+    const operation = document.definitions.find((item) => item.kind === 'OperationDefinition')
+    mocks.mutationOptions.set(operation?.kind === 'OperationDefinition' ? operation.name?.value ?? '' : '', hookOptions)
+    return [(options: unknown) => mocks.mutation(document, options), { loading: false }]
+  },
 }))
 vi.mock('@/shared/core/RBACGuard', () => ({
   RBACGuard: ({ children }: { children: ReactNode }) => mocks.allowed ? children : <div>Access denied</div>,
@@ -56,6 +59,25 @@ afterEach(cleanup)
 function page() { return render(<MemoryRouter><PageEyebrowProvider value="Configuration"><AdvertisementsPage /></PageEyebrowProvider></MemoryRouter>) }
 
 describe('advertisement management workflows', () => {
+  test('each action toasts its own outcome once: the global notification link is told to stay quiet', () => {
+    page()
+    for (const name of ['CreateAdvertisement', 'UpdateAdvertisement', 'DeleteAdvertisement', 'ReorderAdvertisements']) {
+      assert.deepEqual(mocks.mutationOptions.get(name), { context: { skipNotification: true } }, name)
+    }
+  })
+
+  test('an image that will not load becomes a placeholder tile naming the advertisement, never a broken image (SYS-18)', () => {
+    page()
+    const image = screen.getByAltText('Welcome bonus')
+    const tileClass = image.className
+    fireEvent.error(image)
+    assert.equal(screen.queryByAltText('Welcome bonus'), null)
+    const placeholder = screen.getByRole('img', { name: 'Welcome bonus' })
+    assert.equal(placeholder.className.includes(tileClass), true, 'the placeholder keeps the thumbnail box')
+    assert.equal(placeholder.getAttribute('title'), 'Welcome bonus')
+    assert.equal(screen.queryByText('Unavailable'), null)
+  })
+
   test('keeps list/aggregate query contracts, status filtering and client filters/export', () => {
     page()
     assert.ok(screen.getByRole('heading', { level: 1, name: 'Advertisements' }))

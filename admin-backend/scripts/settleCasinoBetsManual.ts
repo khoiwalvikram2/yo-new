@@ -42,8 +42,10 @@
  * Safety rails:
  *   - DRY-RUN by default; everything runs for real inside a transaction and is ROLLBACKed
  *     unless --apply is passed, so the printed numbers are the true numbers.
- *   - Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) are REFUSED: their stake was
- *     locked exposure, not cash. Settling them needs releaseCasinoCreditForBet.
+ *   - Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) are settled like any player: on
+ *     Deposit/Withdraw chips their casino stake is a cash debit with its `casino_bet` DEBIT row.
+ *     A bet from before D/W, whose stake was locked as credit and never debited, has no such
+ *     row and is caught by the debit proof below.
  *   - Non-cash wallets (bonus / referralBonus) are REFUSED: their winnings route through
  *     bonus_transfer / referral_transfer plus a whitelabel credit deduction, which this
  *     script does not reproduce.
@@ -163,7 +165,6 @@ if (!process.env.DATABASE_URL) {
 
 const userId = userIdStr ? Number(userIdStr) : null
 const OPEN_STATUSES = includePending ? ['active', 'pending'] : ['active']
-const CREDIT_PLAYER_TYPES = ['AGENT_CREDIT', 'WHITELABEL_CREDIT']
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 const money = (n: number) => n.toFixed(2)
@@ -177,7 +178,7 @@ type BetRow = {
   game_name: string | null; vendor_name: string; stake: string; status: string
   wallet_type: string | null; bonus_award_id: number | null; currency: string
   game_round_id: string | null; transaction_id: string | null
-  created_at: Date; username: string | null; player_type: string
+  created_at: Date; username: string | null
 }
 type Plan = {
   bet: BetRow; stake: number; pl: number; payout: number
@@ -198,7 +199,7 @@ try {
   const betsRes = await c.query<BetRow>(
     `SELECT b.id, b.tenant, b.whitelabel_id, b.user_id, b.game_name, b.vendor_name, b.stake, b.status,
             b.wallet_type, b.bonus_award_id, b.currency, b.game_round_id, b.transaction_id, b.created_at,
-            u.username, u.player_type
+            u.username
        FROM casino_bets b
        JOIN users u ON u.id = b.user_id
       WHERE b.id = ANY($1::uuid[])
@@ -241,18 +242,6 @@ try {
       )
       await c.query('ROLLBACK'); await c.end(); process.exit(1)
     }
-  }
-
-  const creditPlayers = [...new Set(
-    bets.filter((b) => CREDIT_PLAYER_TYPES.includes(b.player_type)).map((b) => `${b.user_id} (${b.player_type})`),
-  )]
-  if (creditPlayers.length > 0) {
-    console.error(
-      `❌ ${creditPlayers.length} credit player(s) in scope: ${creditPlayers.join(', ')}\n` +
-      `   Their stake was locked as agent/whitelabel exposure, not debited from a cash wallet — ` +
-      `crediting the wallet would create money. Settle them via releaseCasinoCreditForBet.`,
-    )
-    await c.query('ROLLBACK'); await c.end(); process.exit(1)
   }
 
   const nonCash = bets.filter((b) => String(b.wallet_type ?? 'cash').toLowerCase() !== 'cash')

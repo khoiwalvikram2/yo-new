@@ -139,10 +139,12 @@ function BonusCreatePageContent() {
   const pageEyebrow = usePageEyebrow()
   const { currencies, getWhitelabelBaseCurrencyCode } = useCurrency()
   const defaultCurrency = getWhitelabelBaseCurrencyCode()
+  // The page toasts the outcome itself, so the global mutation toast is skipped: it said
+  // "created successfully" a second time (MAR-06).
   const [createCampaign, mutationState] = useMutation<
     CreateBonusCampaignData,
     CreateBonusCampaignVariables
-  >(CREATE_BONUS_CAMPAIGN_MUTATION)
+  >(CREATE_BONUS_CAMPAIGN_MUTATION, { context: { skipNotification: true } })
 
   const submitCampaign = useCallback(async (values: BonusCreateValues) => {
     try {

@@ -172,6 +172,8 @@ function RulesManagementPageContent() {
   const [upsertRule, { loading: saving }] = useMutation<UpsertReferralRuleData>(
     UPSERT_REFERRAL_RULE_MUTATION,
     {
+      // Reported below; the global mutation toast said each outcome a second time (MAR-06).
+      context: { skipNotification: true },
       onCompleted: (result) => {
         if (result.upsertReferralRules.success) {
           toast({

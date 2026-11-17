@@ -11,8 +11,8 @@ export function settlementModalDirection(direction: string | null | undefined, p
 
 /**
  * What is still owed after settling `amount` in `direction`, signed (positive = you still owe the agent,
- * negative = the agent still owes you). `pending` may be signed (SHARING) or absolute (CREDIT): its
- * magnitude is taken in `owedDirection`. The display is |remaining|.
+ * negative = the agent still owes you). Only the magnitude of `pending` is used, taken in `owedDirection`
+ * (the backend's direction can disagree with its sign). The display is |remaining|.
  */
 export function remainingAfterSettlement(pending: number, owedDirection: 'TO_AGENT' | 'FROM_AGENT', direction: string, amount: number): number {
   const signed = owedDirection === 'FROM_AGENT' ? -Math.abs(pending) : Math.abs(pending)

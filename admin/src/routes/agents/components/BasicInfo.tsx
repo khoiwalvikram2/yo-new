@@ -121,11 +121,14 @@ export default function BasicInfo({ form, isEdit = false }: { form: FormApi<Agen
   })), [sharingAgents, schemeType])
   function chooseParent(id: string | null) {
     const parent = id ? sharingAgents.find((option) => option.id === id) : undefined
-    setValues({ parentAgentId: id || null, levelIndex: parent ? (parent.levelIndex ?? 1) + 1 : 1 })
+    // Under a parent agent the opening chips are that agent's to deposit (givesOpeningChips): an amount typed
+    // for a root agent is dropped rather than kept out of sight.
+    setValues({ parentAgentId: id || null, levelIndex: parent ? (parent.levelIndex ?? 1) + 1 : 1, ...(id ? { openingChips: null } : {}) })
   }
   function chooseScheme(value: AgentEditorValues['schemeType']) {
-    // A parent must share the scheme, so a scheme change starts again from a top-level agent.
-    setValues({ schemeType: value, parentAgentId: null, levelIndex: 1, tallyEnabled: value === 'COMMISSION' })
+    // A parent must share the scheme, so a scheme change starts again from a top-level agent. The tally starts off:
+    // switching it on here, with no domain chosen, tallied nothing while every screen showed "Tally".
+    setValues({ schemeType: value, parentAgentId: null, levelIndex: 1, tallyEnabled: false, tallyDomains: [] })
   }
   const availableDomains = useMemo(() => selectedParent ? selectedParent.allowedDomains || [] :
     isAgent && agent ? agent.allowedDomains : ['sports', 'casino', 'matka'], [selectedParent, isAgent, agent])
@@ -184,7 +187,7 @@ export default function BasicInfo({ form, isEdit = false }: { form: FormApi<Agen
     {!isAgent && <RadioGroup label="Scheme Type" {...form.field('schemeType')} onChange={chooseScheme} disabled={isEdit} orientation="vertical" required
       help={isEdit ? 'The scheme cannot be changed after the agent is created.' : undefined} options={[
       { value: 'SHARING', label: 'Sharing', description: 'Players deposit/withdraw themselves via app. Earn percentage share of GGR revenue.' },
-      { value: 'CREDIT', label: 'Credit', description: 'Agent manages all D/W and credit limits. Players cannot deposit/withdraw via app.' },
+      { value: 'CREDIT', label: 'Credit', description: 'Agent deposits and withdraws chips (D/W) for its downline and sets credit references. Players cannot deposit/withdraw via app.' },
       { value: 'COMMISSION', label: 'Commission', description: 'Earn commission on player activity.' },
     ]} />}
     {isAgent && <Notice tone="info">Scheme: {schemeType}. Sub-agents use the same revenue model.</Notice>}

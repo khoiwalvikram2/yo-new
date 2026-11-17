@@ -11,7 +11,6 @@ export class HierarchyService {
 		parentAgentId: string,
 		subAgentData: {
 			allowedDomains: string[];
-			creditLimit?: number;
 			commissionRate?: number;
 			shareRate?: number;
 		}
@@ -39,19 +38,8 @@ export class HierarchyService {
 			}
 		}
 
-		// Validate credit limits
-		if (subAgentData.creditLimit !== undefined && subAgentData.creditLimit > 0) {
-			const { CreditService } = await import('./CreditService');
-			const creditService = new CreditService(this.agentsRepo);
-			const parentCredit = await creditService.getCreditAllocation(parentAgent.id);
-			
-			if (subAgentData.creditLimit > parentCredit.creditAvailable) {
-				return {
-					valid: false,
-					error: `Insufficient credit available from parent agent. Available: ${parentCredit.creditAvailable}, Requested: ${subAgentData.creditLimit}`,
-				};
-			}
-		}
+		// No credit check: a CREDIT sub-agent's creditLimit is a credit reference now, never drawn from its parent
+		// (spec 2026-11-02 §4.4); its opening chips are checked by the deposit that gives them.
 
 		// Validate commission/sharing rates
 		if (subAgentData.commissionRate !== undefined || subAgentData.shareRate !== undefined) {

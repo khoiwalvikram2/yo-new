@@ -37,20 +37,26 @@ import { hasPermission } from '@/domains/common/auth.js'
 
 export const currencyResolvers = {
   Query: {
-    currencies: (_: any, __: any, ctx: any) => {
+    // Active currencies (the display-currency list everyone reads). The Currency Management page asks for
+    // inactive ones too: it is where they are activated again or deleted, and they used to vanish from it.
+    currencies: async (_: any, args: { includeInactive?: boolean | null } | undefined, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'view')) {
         throw new Error('Forbidden: insufficient permissions for currency')
       }
-      return currencyManagementService.getActiveCurrencies()
+      await currencyManagementService.ready()
+      return args?.includeInactive
+        ? currencyManagementService.getAllCurrencies()
+        : currencyManagementService.getActiveCurrencies()
     },
 
-    currency: (_: any, { code }: { code: string }, ctx: any) => {
+    currency: async (_: any, { code }: { code: string }, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'view')) {
         throw new Error('Forbidden: insufficient permissions for currency')
       }
-      
+      await currencyManagementService.ready()
+
       const upperCode = code.toUpperCase() as CurrencyCode
       if (!currencyManagementService.isValidCurrency(upperCode)) {
         return null
@@ -58,9 +64,11 @@ export const currencyResolvers = {
       return currencyManagementService.getCurrency(upperCode)
     },
 
-    convertCurrency: (_: any, { input }: { input: any }, ctx: any) => {
+    convertCurrency: async (_: any, { input }: { input: any }, ctx: any) => {
       const validated = CurrencyConversionInputSchema.parse(input)
-      
+      // currencyService reads the page's currencies: the rate saved there is the rate used here.
+      await currencyManagementService.ready()
+
       if (!currencyService.isValidCurrency(validated.from)) {
         throw new Error(`Invalid currency code: ${validated.from}`)
       }
@@ -76,17 +84,19 @@ export const currencyResolvers = {
       )
     },
 
-    exchangeRates: (_: any, __: any, ctx: any) => {
+    exchangeRates: async (_: any, __: any, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'view')) {
         throw new Error('Forbidden: insufficient permissions for currency')
       }
+      await currencyManagementService.ready()
       return currencyManagementService.getActiveCurrencies()
     },
   },
 
+  // Each change is saved (currencyStore) before it answers; a change that cannot be saved is refused.
   Mutation: {
-    createCurrency: (_: any, { input }: { input: any }, ctx: any) => {
+    createCurrency: async (_: any, { input }: { input: any }, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'create')) {
         return {
@@ -103,7 +113,7 @@ export const currencyResolvers = {
         }
         
         const validated = CreateCurrencyInputSchema.parse(normalizedInput)
-        return currencyManagementService.createCurrency({
+        return await currencyManagementService.createCurrency({
           ...validated,
           isActive: true // Default to active
         })
@@ -116,7 +126,7 @@ export const currencyResolvers = {
       }
     },
 
-    updateCurrency: (_: any, { input }: { input: any }, ctx: any) => {
+    updateCurrency: async (_: any, { input }: { input: any }, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'update')) {
         return {
@@ -134,7 +144,7 @@ export const currencyResolvers = {
         
         const validated = UpdateCurrencyInputSchema.parse(normalizedInput)
         const { code, ...updates } = validated
-        return currencyManagementService.updateCurrency(code as CurrencyCode, updates)
+        return await currencyManagementService.updateCurrency(code as CurrencyCode, updates)
       } catch (error) {
         return {
           success: false,
@@ -144,7 +154,7 @@ export const currencyResolvers = {
       }
     },
 
-    deleteCurrency: (_: any, { code }: { code: string }, ctx: any) => {
+    deleteCurrency: async (_: any, { code }: { code: string }, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'delete')) {
         return {
@@ -152,6 +162,7 @@ export const currencyResolvers = {
           message: 'Forbidden: insufficient permissions for currency'
         }
       }
+      await currencyManagementService.ready()
       const upperCode = code.toUpperCase() as CurrencyCode
       if (!currencyManagementService.isValidCurrency(upperCode)) {
         return {
@@ -162,7 +173,7 @@ export const currencyResolvers = {
       return currencyManagementService.deleteCurrency(upperCode)
     },
 
-    updateExchangeRates: (_: any, { input }: { input: any }, ctx: any) => {
+    updateExchangeRates: async (_: any, { input }: { input: any }, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'update')) {
         return {
@@ -177,7 +188,7 @@ export const currencyResolvers = {
           currency: r.currency.toUpperCase() as CurrencyCode,
           rate: r.rate
         }))
-        return currencyManagementService.updateExchangeRates(rates)
+        return await currencyManagementService.updateExchangeRates(rates)
       } catch (error) {
         return {
           success: false,
@@ -187,7 +198,7 @@ export const currencyResolvers = {
       }
     },
 
-    activateCurrency: (_: any, { code }: { code: string }, ctx: any) => {
+    activateCurrency: async (_: any, { code }: { code: string }, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'update')) {
         return {
@@ -195,6 +206,7 @@ export const currencyResolvers = {
           message: 'Forbidden: insufficient permissions for currency'
         }
       }
+      await currencyManagementService.ready()
       const upperCode = code.toUpperCase() as CurrencyCode
       if (!currencyManagementService.isValidCurrency(upperCode)) {
         return {
@@ -205,7 +217,7 @@ export const currencyResolvers = {
       return currencyManagementService.activateCurrency(upperCode)
     },
 
-    deactivateCurrency: (_: any, { code }: { code: string }, ctx: any) => {
+    deactivateCurrency: async (_: any, { code }: { code: string }, ctx: any) => {
       const perms = ctx?.permissions || []
       if (!hasPermission(perms, 'currency.list', 'update')) {
         return {
@@ -213,6 +225,7 @@ export const currencyResolvers = {
           message: 'Forbidden: insufficient permissions for currency'
         }
       }
+      await currencyManagementService.ready()
       const upperCode = code.toUpperCase() as CurrencyCode
       if (!currencyManagementService.isValidCurrency(upperCode)) {
         return {

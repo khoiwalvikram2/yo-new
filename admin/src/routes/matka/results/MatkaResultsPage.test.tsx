@@ -20,6 +20,8 @@ import {
 } from '@apollo/client'
 import { MockedProvider } from '@apollo/client/testing'
 import type { ReactNode } from 'react'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import { istToday } from '@/ui/components/istDate'
 import {
@@ -562,8 +564,9 @@ describe('MatkaResultsPage', () => {
     assert.ok(within(dialog).getByText(/Rolling back a result will mark it as invalid/))
     const facts = within(dialog).getAllByRole('term').map((term) => term.textContent)
     assert.deepEqual(facts, ['Market', 'Date', 'Type', 'Result'])
+    // The market by its name, as its row shows it (the dialog used to show the raw id "m1").
     assert.deepEqual(within(dialog).getAllByRole('definition').map((value) => value.textContent),
-      ['m1', istToday(), 'OPEN', '45'])
+      ['Kalyan', istToday(), 'OPEN', '45'])
 
     const reason = within(dialog).getByRole('textbox', { name: /Rollback Reason/ })
     await waitFor(() => assert.ok(document.activeElement === reason))
@@ -635,6 +638,31 @@ describe('MatkaResultsPage', () => {
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
     await waitFor(() => assert.ok(screen.queryByRole('dialog', { name: 'Declare Matka Result' }) === null))
+  })
+
+  test('a Super Admin in core mode is asked to select a whitelabel: no query, no subscription, no Declare Result', async () => {
+    // Core mode read the platform's own tenant, which has no results: TOTAL RESULTS 0 and an empty table.
+    const auth = useAuthStore.getState(), ui = useUIStore.getState()
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      const core = renderPage()
+      assert.ok(await screen.findByText('Select a whitelabel'))
+      assert.equal(screen.getByRole('heading', { level: 1 }).textContent, 'Matka Results')
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+      assert.equal(server.calls.length, 0)
+      assert.equal(apollo.queries.length, 0)
+      assert.equal(apollo.subscriptions.length, 0)
+      assert.ok(screen.queryByRole('button', { name: 'Declare Result' }) === null)
+      assert.ok(screen.queryByRole('table', { name: 'Matka results' }) === null)
+      core.unmount()
+      // With a site selected the same admin gets the page, as a whitelabel admin always does.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      await renderLoaded()
+      assert.ok(screen.queryByText('Select a whitelabel') === null)
+      assert.equal(calls('MatkaResultEvents').length, 1)
+    } finally {
+      useAuthStore.setState({ roles: auth.roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
   })
 })
 

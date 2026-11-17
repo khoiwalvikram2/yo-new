@@ -5,20 +5,52 @@ import { LoadingState } from './LoadingState'
 import { EmptyState } from './EmptyState'
 import { IconAlertTriangle } from '@tabler/icons-react'
 import { EmptyState as KitEmptyState } from '@/ui/components/EmptyState'
+import { ROUTES } from '@/shared/core/constants'
 import styles from './GlobalSearch.module.css'
 
-/** Routes for "See all" per category; param is the query string */
-const CATEGORY_SEE_ALL_ROUTES: Record<string, { path: string; param: string }> = {
-  players: { path: '/players', param: 'search' },
+/**
+ * Routes for "See all" per category; param is the query string. GlobalSearch navigates by this same table.
+ * Each path is the list page itself: /players redirects to /players/search and the redirect dropped the query.
+ * A category whose records no page lists by a typed term has no See all: VIP members (/vip opens the tier list),
+ * referral codes (an exact code, one result at most) and bets (its one row is already the bet-list search).
+ */
+export const CATEGORY_SEE_ALL_ROUTES: Record<string, { path: string; param: string }> = {
+  players: { path: ROUTES.PLAYERS_SEARCH, param: 'search' },
   agents: { path: '/agents', param: 'search' },
   whitelabels: { path: '/config/whitelabels', param: 'search' },
   casinoGames: { path: '/casino/management', param: 'search' },
   sports: { path: '/sports/events', param: 'search' },
-  vipMembers: { path: '/vip', param: 'search' },
   matkas: { path: '/matka/management', param: 'search' },
-  referralCodes: { path: '/referrals', param: 'search' },
-  bets: { path: '/bets', param: 'search' },
   bonuses: { path: '/bonuses', param: 'search' },
+}
+
+const AGENT_SCHEMES = new Set(['COMMISSION', 'SHARING', 'CREDIT'])
+
+/**
+ * The scheme the agents list should open on for these matches (B005). That list shows one scheme at a time (?type=,
+ * else the last one used, else COMMISSION), so See all names the scheme the matched agents share, or the one most
+ * of them have (the first to reach that count on a tie). Null when no match records a scheme.
+ */
+export function agentsSchemeOf(agents: SearchResult[]): string | null {
+  const counts = new Map<string, number>()
+  for (const agent of agents) {
+    const scheme = agent.metadata?.schemeType
+    if (scheme && AGENT_SCHEMES.has(scheme)) counts.set(scheme, (counts.get(scheme) ?? 0) + 1)
+  }
+  let best: string | null = null
+  for (const [scheme, count] of counts) if (best === null || count > (counts.get(best) ?? 0)) best = scheme
+  return best
+}
+
+/** Where a group's See all goes: its list page with the typed term, and for agents the scheme of the matches. */
+export function seeAllPath(categoryKey: string, query: string, results?: Partial<CategorizedResults>): string | null {
+  const route = CATEGORY_SEE_ALL_ROUTES[categoryKey]
+  if (!route) return null
+  const term = query.trim()
+  const params = term ? [`${route.param}=${encodeURIComponent(term)}`] : []
+  const scheme = categoryKey === 'agents' ? agentsSchemeOf(results?.agents ?? []) : null
+  if (scheme) params.push(`type=${scheme}`)
+  return params.length ? `${route.path}?${params.join('&')}` : route.path
 }
 
 interface SearchResultsProps {
@@ -45,8 +77,10 @@ const ALL_CATEGORIES = [
   { key: 'vipMembers' as const, label: 'VIP Members' },
   { key: 'matkas' as const, label: 'Matka' },
   { key: 'referralCodes' as const, label: 'Referrals' },
-  { key: 'bets' as const, label: 'Bets' },
   { key: 'bonuses' as const, label: 'Bonuses' },
+  // Last, after every real match (B006): the Bets group is only the "Search bets: <term>" shortcut. The order is
+  // useGlobalSearch's allResults order, which keyboard selection and these groups' offsets share.
+  { key: 'bets' as const, label: 'Bets' },
 ]
 
 const AGENT_CATEGORY_KEYS = new Set(['pages', 'players', 'agents'])

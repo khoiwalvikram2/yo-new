@@ -96,3 +96,27 @@ describe('unpaginated Users list metadata', () => {
     assert.equal(wallet.mock.callCount(), 0)
   })
 })
+
+// PLA-20: usersPage answered every failure with an empty page, so a bad filter and a real failure both read as
+// "0 players". The repo refuses an invalid date now; the resolver must let the caller see it.
+describe('usersPage reports a failure instead of an empty list', () => {
+  const page = info('{ usersPage { total items { id } } }')
+
+  it('surfaces an invalid registration date to the caller', async () => {
+    setup()
+    mock.method(players, 'listUsersPage', async () => { throw new Error('Invalid registeredFrom date: not-a-date') })
+    await assert.rejects(
+      () => usersQueryResolvers.usersPage(null, { registeredFrom: 'not-a-date' }, ctx, page),
+      /^Error: Invalid registeredFrom date: not-a-date$/
+    )
+  })
+
+  it('surfaces any other failure too, and logs it', async () => {
+    setup()
+    mock.method(players, 'listUsersPage', async () => { throw new Error('Connection terminated unexpectedly') })
+    const logged: unknown[] = []
+    const withLog = { ...ctx, request: { log: { error: (obj: unknown) => logged.push(obj) } } }
+    await assert.rejects(() => usersQueryResolvers.usersPage(null, {}, withLog, page), /Connection terminated unexpectedly/)
+    assert.equal(logged.length, 1)
+  })
+})

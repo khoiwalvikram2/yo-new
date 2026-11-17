@@ -19,10 +19,15 @@ import { count, periodLabel, plural, useWholeMoney } from './insightFormat'
 
 /* The Overview's operations sections, the owner's list (2026-10-29), in place of Advanced Analytics.
    A B2C (cash) whitelabel gets Deposits & Withdrawals, Pending Actions, Player Activity, Registrations &
-   Status and Balances & Agents; a credit (chips) whitelabel gets Chip Movements, Credit Pool & Settlement,
-   Player Activity, Registrations & Status and Players & Agents. One with both kinds of players gets both,
-   with the shared two once. Figures come from Query.dashboardOperations; the period totals the KPI query
-   already has (deposits, withdrawals, first deposits, bets, players) are read from it, not asked twice.
+   Status and Balances & Agents; a credit (chips) whitelabel gets Chip Movements, Chip Pool, Player Activity,
+   Registrations & Status and Players & Agents. One with both kinds of players gets both, with the shared two
+   once. Figures come from Query.dashboardOperations; the period totals the KPI query already has (deposits,
+   withdrawals, first deposits, bets, players) are read from it, not asked twice.
+
+   Chips (spec 2026-11-02): the credit scheme moves chips by Deposit / Withdraw only, each move recorded in the
+   chip ledger. The whitelabel moves chips between its pool and its root accounts (root agents and whitelabel
+   credit players); agents move them to and from their own downline. A CREDIT settlement is one of these
+   moves, so the section shows no separate settlement or "% of the limit" figure.
 
    Colour (the owner's colour pass, same day, then toned down at the owner's ask): each section's accent
    tints a glyph chip by its title, with no coloured borders. Only the headline figures take colour, on
@@ -114,22 +119,20 @@ export function OperationsSections({ kpis }: { kpis?: OverviewTotals }) {
       {showCredit ? (
         <>
           <Section title="Chip Movements" sub={period} icon={IconCoins} accent="cyan" pending={pending} figures={[
-            { label: 'Chips Deposited by Whitelabel', value: money(n('chipsDepositedByWhitelabel')) , drill: { kind: 'chip_moves', arg: 'wl_in' } },
-            { label: 'Chips Deposited by Agents', value: money(n('chipsDepositedByAgents')) , drill: { kind: 'chip_moves', arg: 'agent_in' } },
+            { label: 'Chips Deposited by Whitelabel', value: money(n('chipsDepositedByWhitelabel')), note: 'From the pool to root accounts', drill: { kind: 'chip_moves', arg: 'wl_in' } },
+            { label: 'Chips Deposited by Agents', value: money(n('chipsDepositedByAgents')), note: 'Agents to their downline', drill: { kind: 'chip_moves', arg: 'agent_in' } },
             { label: 'Total Chips Deposited', value: money(chipsIn), accent: 'green' , drill: { kind: 'chip_moves', arg: 'in' } },
             { label: 'Net Chips', value: money(chipsIn - chipsOut), note: 'Deposited minus withdrawn', accent: signed(chipsIn - chipsOut) , drill: { kind: 'chip_moves' } },
-            { label: 'Chips Withdrawn by Whitelabel', value: money(n('chipsWithdrawnByWhitelabel')) , drill: { kind: 'chip_moves', arg: 'wl_out' } },
-            { label: 'Chips Withdrawn by Agents', value: money(n('chipsWithdrawnByAgents')) , drill: { kind: 'chip_moves', arg: 'agent_out' } },
+            { label: 'Chips Withdrawn by Whitelabel', value: money(n('chipsWithdrawnByWhitelabel')), note: 'From root accounts to the pool', drill: { kind: 'chip_moves', arg: 'wl_out' } },
+            { label: 'Chips Withdrawn by Agents', value: money(n('chipsWithdrawnByAgents')), note: 'From agents\' downline', drill: { kind: 'chip_moves', arg: 'agent_out' } },
             { label: 'Total Chips Withdrawn', value: money(chipsOut), accent: 'rose' , drill: { kind: 'chip_moves', arg: 'out' } },
-            { label: 'Chips Given to Agents', value: money(n('chipsGivenToAgents')) , drill: { kind: 'chip_moves', arg: 'to_agents' } },
+            { label: 'Chips Deposited to Agents', value: money(n('chipsGivenToAgents')), note: 'Of the deposits, to agents', drill: { kind: 'chip_moves', arg: 'to_agents' } },
           ]} />
-          <Section title="Credit Pool & Settlement" sub="Now; settled in the period" icon={IconBuildingBank} accent="blue" pending={pending} figures={[
-            { label: 'Credit Limit', value: money(n('creditLimit')), accent: 'blue' },
-            { label: 'Credit Used', value: money(n('creditUsed')), note: n('creditLimit') > 0 ? `${((n('creditUsed') / n('creditLimit')) * 100).toFixed(1)}% of the limit` : undefined },
-            { label: 'Credit Available', value: money(n('creditAvailable')) },
-            { label: 'Settlement Due', value: money(n('settlementDue')), accent: 'rose' },
-            { label: 'Settled Amount', value: money(n('settledAmount')), note: period , drill: { kind: 'settlements' } },
-            { label: 'Chips with Players', value: money(n('chipsWithPlayers')), note: 'Available to credit players' , drill: { kind: 'credit_players' } },
+          <Section title="Chip Pool" sub="Now" icon={IconBuildingBank} accent="blue" pending={pending} figures={[
+            { label: 'Pool Limit', value: money(n('creditLimit')), note: 'The whitelabel credit pool', accent: 'blue' },
+            { label: 'Given Out', value: money(n('creditUsed')), note: 'Deposited to root accounts' },
+            { label: 'Pool Available', value: money(n('creditAvailable')), note: 'Free to deposit' },
+            { label: 'Chips with Players', value: money(n('chipsWithPlayers')), note: 'In credit players\' wallets' , drill: { kind: 'credit_players' } },
           ]} />
         </>
       ) : null}

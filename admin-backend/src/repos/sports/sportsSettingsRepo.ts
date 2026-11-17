@@ -54,6 +54,28 @@ export async function getSportSettings(whitelabelId: string, sportId: string, ti
   return mapRow(r)
 }
 
+/**
+ * The row each sport would hold after upsertSportSettings with the same params, without writing: the
+ * stored row with the input merged in by the mode, or the input alone for a sport with no row yet. The
+ * limits check reads it, because a fill-empty or partial save keeps stored fields the input never names.
+ */
+export async function sportSettingsAfterUpsert(params: {
+  whitelabelId: string
+  sportIds: string[]
+  tierId: string | null
+  mode: 'overwrite' | 'fill-empty' | 'replace-all'
+  input: Omit<SportSettings, 'sportId' | 'tierId'>
+}): Promise<Record<string, unknown>[]> {
+  const tierId = params.tierId || 'default'
+  const rows: Record<string, unknown>[] = []
+  for (const sportId of params.sportIds) {
+    const [current] = await db.select().from(sportsSettingsTable)
+      .where(and(eq(sportsSettingsTable.whitelabelId, params.whitelabelId), eq(sportsSettingsTable.sportId, sportId), eq(sportsSettingsTable.tierId, tierId)))
+    rows.push(current ? { ...current, ...buildUpdate(current, params.input, params.mode) } : sanitize(params.input))
+  }
+  return rows
+}
+
 export async function upsertSportSettings(params: {
   whitelabelId: string
   sportIds: string[]

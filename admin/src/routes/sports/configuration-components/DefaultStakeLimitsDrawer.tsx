@@ -9,7 +9,7 @@ import { NumberField } from '@/ui/components/NumberField'
 import { Notice } from '@/ui/components/Notice'
 import { LoadingState } from '@/ui/components/LoadingState'
 import { useSettingsForm } from './useSettingsForm'
-import { DOMAINS, type ConfigValues } from './settingsModel'
+import { DOMAINS, defaultStakeLimitsError, type ConfigValues } from './settingsModel'
 import styles from './SportsConfiguration.module.css'
 interface Defaults { defaultStakeLimits?: Partial<Record<'exchangeMin' | 'exchangeMax' | 'bookmakerMin' | 'bookmakerMax' | 'fancyMin' | 'fancyMax', number | null>>; defaultBetDelays?: Partial<Record<'exchange' | 'bookmaker' | 'fancy', number | null>>; defaultBetCooldowns?: Partial<Record<'exchange' | 'bookmaker' | 'fancy', number | null>> }
 const EMPTY: Defaults = {}
@@ -36,6 +36,9 @@ export function DefaultStakeLimitsDrawer({ open, onClose }: { open: boolean; onC
     try {
       const values = methods.values()
       if (Object.values(values).some(value => typeof value === 'number' && value < 0)) throw new Error('Limits, delays and cooldowns must be zero or greater')
+      // A min above its max fails every stake where these defaults apply; the server refuses it too.
+      const limitsError = defaultStakeLimitsError(values)
+      if (limitsError) throw new Error(limitsError)
       const sportsGlobalConfig = {
         defaultStakeLimits: Object.fromEntries(DOMAINS.flatMap(domain => [[domain + 'Min', values[domain + 'Min']], [domain + 'Max', values[domain + 'Max']]])),
         defaultBetDelays: Object.fromEntries(DOMAINS.map(domain => [domain, values[domain + 'Delay']])),

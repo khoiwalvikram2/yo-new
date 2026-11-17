@@ -9,7 +9,7 @@ import { isAgentExportAllowed } from './agentExportPolicy.js'
  * then switches on that string across twenty report types, among them
  * AUDIT_LOGS, PLAYERS, TRANSACTIONS, DEPOSITS and WITHDRAWALS, consulting no
  * further permission at any point. So one grant exported the whole tenant's
- * audit trail, player roster and payment history to an S3 file the same caller
+ * audit trail, player roster and payment history to a file the same caller
  * could then download.
  *
  * The catalogue has carried a separate export permission for each of those

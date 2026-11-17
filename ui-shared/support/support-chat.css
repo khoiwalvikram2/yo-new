@@ -3,7 +3,11 @@
 .gw-support *{box-sizing:border-box}
 .gw-support :is(button,input:not([type=radio]),select,textarea),
 .gw-support :is(.gw-support-page-header,.gw-chat-brand>span,.gw-chat-error,.gw-chat-banner,.gw-chat-workspace,.gw-chat-conversation,.gw-chat-topic,.gw-chat-state,.gw-chat-unread,.gw-chat-transfer,.gw-chat-bubble,.gw-chat-image,.gw-chat-image img,.gw-chat-pending-files>span,.gw-widget-logo,.gw-chat-history,.gw-chat-settings section),
-.gw-support.gw-chat-dialog{border-radius:var(--ui-radius,5px)}
+.gw-support.gw-chat-dialog{border-radius:0}
+/* The player chat drawer is square on all four corners, like the other drawers (owner 2026-11-02). The drawer carries
+   data-ui-radius="square"; its head is in radius.css's panel-head list, which outranks that mark, so the head and
+   the foot strip are squared here in the same layer. */
+@layer ui-radius-policy{body .gw-chat-dialog[data-ui-radius='square']>:is(.gw-widget-header,.gw-widget-footer){border-radius:0!important}}
 .gw-support button,.gw-support input,.gw-support select,.gw-support textarea{font:inherit;color:inherit}
 .gw-support button{cursor:pointer;border:1px solid var(--chat-line);background:var(--chat-bg);padding:8px 12px;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;font-weight:600;line-height:1.3}
 .gw-support button:hover:not(:disabled){background:var(--chat-panel)}
@@ -105,10 +109,18 @@
 .gw-chat-welcome svg{color:var(--chat-red);width:30px;height:30px}
 .gw-chat-welcome strong,.gw-chat-welcome h2{color:var(--chat-fg)}
 .gw-chat-welcome p,.gw-chat-welcome span{font-size:13px}
-.gw-support .gw-chat-launcher{position:fixed;right:110px;bottom:22px;z-index:92;background:var(--chat-red);border-color:var(--chat-red);color:#fff;padding:11px 16px;box-shadow:0 4px 18px #0002;gap:8px;font-size:14px;min-height:44px}
-.gw-support .gw-chat-launcher:hover:not(:disabled),.gw-support .gw-chat-launcher:focus-visible{background:var(--mb-red-hover,#a81516);border-color:var(--mb-red-hover,#a81516);color:#fff}
+/* Player launcher (owner 2026-11-02): a round brand-coloured button with its top-left corner squared, pointing at the
+   chat it opens, holding a filled bubble with two dots. The player panel rounds every box by --ui-radius with
+   !important, so the shape is set through that token; the unread badge resets it. */
+.gw-support .gw-chat-launcher{position:fixed;right:110px;bottom:22px;z-index:92;width:56px;height:56px;min-height:0;padding:0;border:0;--ui-radius:6px 50% 50% 50%;border-radius:var(--ui-radius);background:var(--chat-red);color:var(--mb-on-red,#fff);box-shadow:0 8px 20px color-mix(in srgb,var(--chat-red) 38%,transparent),0 2px 6px #0002;transition:transform .15s,background-color .15s}
+.gw-support .gw-chat-launcher:hover:not(:disabled),.gw-support .gw-chat-launcher:focus-visible{background:var(--mb-red-hover,#a81516);color:var(--mb-on-red,#fff);transform:translateY(-1px)}
+.gw-support .gw-chat-launcher:active{transform:scale(.95)}
 .gw-chat-launcher[aria-expanded=true]{visibility:hidden;pointer-events:none}
-.gw-chat-launcher b{background:#fff;color:#bc1422;font-size:11px;min-width:20px;padding:2px 5px}
+.gw-chat-launcher-glyph{fill:currentColor}
+.gw-chat-launcher-glyph circle{fill:var(--chat-red)}
+.gw-support .gw-chat-launcher:hover .gw-chat-launcher-glyph circle,.gw-support .gw-chat-launcher:focus-visible .gw-chat-launcher-glyph circle{fill:var(--mb-red-hover,#a81516)}
+.gw-chat-launcher b{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;box-sizing:border-box;padding:0 5px;--ui-radius:10px;border-radius:var(--ui-radius);background:#fff;color:#bc1422;box-shadow:0 0 0 2px var(--chat-red);font-size:11px;line-height:20px;text-align:center}
+@media(prefers-reduced-motion:reduce){.gw-support .gw-chat-launcher{transition:none}}
 /* Player chat shares the user panel's rail-drawer placement and slide animation. */
 .gw-support.gw-chat-dialog{
   --chat-bg:var(--mb-drawer,#fff);--chat-panel:var(--mb-panel-2,#f6f6f7);--chat-fg:var(--mb-ink,#18212e);--chat-muted:var(--mb-muted,#667085);--chat-line:var(--mb-line,#d9dde4);
@@ -185,7 +197,7 @@
 .gw-chat-desk-controls .gw-chat-connection{margin-right:5px}
 @media(min-width:761px){.gw-support-desk .gw-chat-back{display:none}}
 @media(max-width:1000px){.gw-support-page-header{align-items:flex-start;flex-direction:column;gap:14px}.gw-chat-desk-controls{justify-content:flex-start;flex-wrap:wrap}.gw-chat-workspace{height:clamp(480px,calc(100dvh - 260px),850px);grid-template-columns:minmax(240px,280px) minmax(0,1fr)}.gw-chat-feed{padding:14px}}
-@media(max-width:760px){.gw-support h1{font-size:23px}.gw-chat-brand>span{width:42px;height:42px}.gw-chat-brand p{font-size:12px}.gw-support-page-header{margin-bottom:14px}.gw-chat-desk-controls{gap:6px}.gw-chat-desk-controls button{font-size:12px;padding:7px 9px}.gw-chat-desk-controls .gw-chat-connection{font-size:11px}.gw-chat-workspace{grid-template-columns:minmax(0,1fr);height:calc(100dvh - 250px);min-height:460px}.gw-chat-inbox-list{border-right:0}.gw-chat-inbox-main{display:none}.gw-chat-workspace[data-has-thread=true] .gw-chat-inbox-list{display:none}.gw-chat-workspace[data-has-thread=true] .gw-chat-inbox-main{display:block}.gw-chat-actions{padding:8px 10px}.gw-thread-header{padding:11px 12px}.gw-chat-bubble{max-width:90%}.gw-chat-compose-footer>span{font-size:9px}.gw-chat-settings form{grid-template-columns:1fr}.gw-chat-settings section{padding:16px}.gw-chat-settings h2{font-size:17px}.gw-chat-banner{align-items:flex-start;flex-direction:column;font-size:12px}.gw-support .gw-chat-launcher{right:16px;bottom:calc(82px + env(safe-area-inset-bottom));padding:11px 15px}.gw-widget-footer{padding-bottom:calc(7px + env(safe-area-inset-bottom))}.gw-chat-dialog .gw-chat-composer{padding-bottom:12px}.gw-chat-dialog .gw-chat-feed{padding:13px 10px}}
+@media(max-width:760px){.gw-support h1{font-size:23px}.gw-chat-brand>span{width:42px;height:42px}.gw-chat-brand p{font-size:12px}.gw-support-page-header{margin-bottom:14px}.gw-chat-desk-controls{gap:6px}.gw-chat-desk-controls button{font-size:12px;padding:7px 9px}.gw-chat-desk-controls .gw-chat-connection{font-size:11px}.gw-chat-workspace{grid-template-columns:minmax(0,1fr);height:calc(100dvh - 250px);min-height:460px}.gw-chat-inbox-list{border-right:0}.gw-chat-inbox-main{display:none}.gw-chat-workspace[data-has-thread=true] .gw-chat-inbox-list{display:none}.gw-chat-workspace[data-has-thread=true] .gw-chat-inbox-main{display:block}.gw-chat-actions{padding:8px 10px}.gw-thread-header{padding:11px 12px}.gw-chat-bubble{max-width:90%}.gw-chat-compose-footer>span{font-size:9px}.gw-chat-settings form{grid-template-columns:1fr}.gw-chat-settings section{padding:16px}.gw-chat-settings h2{font-size:17px}.gw-chat-banner{align-items:flex-start;flex-direction:column;font-size:12px}.gw-support .gw-chat-launcher{right:16px;bottom:calc(82px + env(safe-area-inset-bottom));width:52px;height:52px}.gw-widget-footer{padding-bottom:calc(7px + env(safe-area-inset-bottom))}.gw-chat-dialog .gw-chat-composer{padding-bottom:12px}.gw-chat-dialog .gw-chat-feed{padding:13px 10px}}
 @media(prefers-reduced-motion:reduce){.gw-chat-typing span{animation:none}}
 
 @media(max-height:540px){.gw-chat-dialog .gw-chat-feed{min-height:0;padding:8px}.gw-chat-dialog .gw-chat-composer textarea{min-height:38px;max-height:60px}.gw-chat-dialog .gw-widget-header{padding-block:8px}.gw-chat-dialog .gw-chat-composer{padding:6px 10px}.gw-chat-dialog .gw-widget-footer{display:none}.gw-chat-dialog .gw-thread-header{padding-block:6px}}

@@ -27,4 +27,30 @@ describe('PanelFooter', () => {
     assert.ok(screen.getByText('GoldBet77'))
     assert.ok(screen.getByText('G7'))
   })
+
+  // The clock moved here from the topbar (owner, 2026-11-17): it sits under the brand card.
+  test('shows the IST date and time under the brand card', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-04T11:49:30Z'))
+    try {
+      render(
+        <MemoryRouter>
+          <PanelFooter brandName="GoldBet77" />
+        </MemoryRouter>,
+      )
+      const date = screen.getByText('Fri, 04 Sep 2026')
+      const time = screen.getByText('17:19 IST')
+      const card = screen.getByText('GoldBet77')
+      assert.ok(
+        Boolean(card.compareDocumentPosition(date) & Node.DOCUMENT_POSITION_FOLLOWING),
+        'the date comes after the brand card',
+      )
+      assert.ok(
+        Boolean(date.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING),
+        'the time comes after the date',
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

@@ -1,15 +1,14 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client'
 import dayjs from 'dayjs'
 import { IconArrowsDiff, IconCards, IconChartDots, IconDice5, IconTrophy } from '@tabler/icons-react'
 import { DASHBOARD_PLAYERS_TAB_QUERY } from '../graphql'
 import { useDashboardStore } from '@/state/dashboardStore'
-import { ROUTES } from '@/shared/core/constants'
 import type { Accent } from '@/ui/components/accent'
 import { Card } from '@/ui/components/Card'
 import { LoadingState } from '@/ui/components/LoadingState'
 import { Notice } from '@/ui/components/Notice'
+import { DashboardPlayerName } from './DashboardPlayerName'
 import { FigureSection, type Figure } from './FigureSection'
 import { count, periodLabel, plural, useWholeMoney } from './insightFormat'
 import { RetentionSections } from './RetentionSections'
@@ -63,8 +62,6 @@ const PRODUCT: Record<string, { label: string; accent: Accent; icon: ReactNode }
   casino: { label: 'Casino', accent: 'violet', icon: <IconCards size={15} stroke={1.8} /> },
   matka: { label: 'Matka', accent: 'amber', icon: <IconDice5 size={15} stroke={1.8} /> },
 }
-
-const profile = (userId: number) => ROUTES.PLAYERS_PROFILE.replace(':playerId', String(userId))
 
 /** The period against the one before: "▲ 12.5% vs 40", in green up and rose down. */
 function change(current: number, previous: number, show: (value: number) => string): Pick<Figure, 'note' | 'accent'> {
@@ -194,7 +191,7 @@ export function PlayersTab() {
                   <li key={row.userId} className={styles.row}>
                     <span className={styles.rank} aria-hidden="true">{index + 1}</span>
                     <span className={styles.body}>
-                      <span className={styles.name}><Link className={styles.link} to={profile(row.userId)}>{row.username}</Link>{row.agent ? <span className={styles.sub}>{` · ${row.agent}`}</span> : null}</span>
+                      <span className={styles.name}><DashboardPlayerName userId={row.userId} username={row.username} linkClassName={styles.link} />{row.agent ? <span className={styles.sub}>{` · ${row.agent}`}</span> : null}</span>
                       <span className={styles.sub}>{plural(row.bets, 'bet')}</span>
                     </span>
                     <span className={styles.end}>
@@ -214,7 +211,7 @@ export function PlayersTab() {
                   <li key={row.userId} className={styles.row}>
                     <span className={styles.rank} aria-hidden="true">{index + 1}</span>
                     <span className={styles.body}>
-                      <span className={styles.name}><Link className={styles.link} to={profile(row.userId)}>{row.username}</Link>{row.agent ? <span className={styles.sub}>{` · ${row.agent}`}</span> : null}</span>
+                      <span className={styles.name}><DashboardPlayerName userId={row.userId} username={row.username} linkClassName={styles.link} />{row.agent ? <span className={styles.sub}>{` · ${row.agent}`}</span> : null}</span>
                       <span className={styles.sub}>{plural(row.deposits, 'deposit')}</span>
                     </span>
                     <span className={styles.end}>

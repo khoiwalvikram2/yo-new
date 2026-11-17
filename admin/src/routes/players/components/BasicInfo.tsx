@@ -12,7 +12,9 @@ import { Notice } from '@/ui/components/Notice'
 import { Button } from '@/ui/components/Button'
 import { NumberField } from '@/ui/components/NumberField'
 import type { FormApi } from '@/ui/form/useForm'
-import { PLAYER_TYPES, isAgentPlayer, isCreditPlayer, phoneAvailabilityValue, type PlayerCreateValues } from '../playerCreateModel'
+// The chips reads only, not the module's barrel: the form needs no chips component.
+import { useChipAccount, useChipPool } from '@/modules/chips/chipHooks'
+import { PLAYER_TYPES, givesOpeningChips, isAgentPlayer, phoneAvailabilityValue, type PlayerCreateValues } from '../playerCreateModel'
 import styles from '../PlayerCreateForm.module.css'
 
 const CREDIT_AGENTS_QUERY = gql`
@@ -32,7 +34,6 @@ const CREDIT_AGENTS_QUERY = gql`
           levelIndex
           schemeType
           status
-          creditAvailable
         }
       }
     }
@@ -56,7 +57,6 @@ const SHARING_AGENTS_QUERY = gql`
           levelIndex
           schemeType
           status
-          creditAvailable
         }
       }
     }
@@ -80,7 +80,6 @@ const COMMISSION_AGENTS_QUERY = gql`
           levelIndex
           schemeType
           status
-          creditAvailable
         }
       }
     }
@@ -95,10 +94,10 @@ const CHECK_PHONE_AVAILABLE_QUERY = gql`
     }
   }
 `;
-interface AgentOption { id: string; username: string | null; parentAgentId?: string | null; levelIndex?: number | null; schemeType?: string | null; status?: string | null; creditAvailable?: number | null }
+/** An agent to own the player. */
+interface AgentOption { id: string; username: string | null; parentAgentId?: string | null; levelIndex?: number | null; schemeType?: string | null; status?: string | null }
 interface AgentsData { agents: { agentsPage: { items: AgentOption[] } } }
-const agentDescription = (agent: AgentOption) => [`L${agent.levelIndex ?? 1}`, agent.schemeType ? agent.schemeType[0] + agent.schemeType.slice(1).toLowerCase() : null,
-  agent.schemeType === 'CREDIT' && agent.creditAvailable != null ? `available ${Number(agent.creditAvailable).toFixed(2)}` : null].filter(Boolean).join(' · ')
+const agentDescription = (agent: AgentOption) => [`L${agent.levelIndex ?? 1}`, agent.schemeType ? agent.schemeType[0] + agent.schemeType.slice(1).toLowerCase() : null].filter(Boolean).join(' · ')
 export default function BasicInfo({ form, agentMode = false, phoneQuery }: {
   form: FormApi<PlayerCreateValues>; tenant?: string | null; agentMode?: boolean; phoneQuery?: DocumentNode
 }) {
@@ -106,7 +105,8 @@ export default function BasicInfo({ form, agentMode = false, phoneQuery }: {
   const { setValue } = form
   const previousType = useRef(playerType)
   useEffect(() => {
-    if (previousType.current !== playerType) setValue('agentId', '')
+    // Another type has another owner, and its opening chips another source (the pool or an agent): both start over.
+    if (previousType.current !== playerType) { setValue('agentId', ''); setValue('openingChips', null) }
     previousType.current = playerType
   }, [playerType, setValue])
   const credit = useQuery<AgentsData>(CREDIT_AGENTS_QUERY, { skip: agentMode || playerType !== 'AGENT_CREDIT' })
@@ -115,10 +115,25 @@ export default function BasicInfo({ form, agentMode = false, phoneQuery }: {
   const selected = playerType === 'AGENT_CREDIT' ? credit : playerType === 'SHARING_AGENT_PLAYER' ? sharing : commission
   // Every ACTIVE agent of the scheme at any level, sub-agents included (the server filters on status; a stale row is kept out here too).
   const agents = (selected.data?.agents.agentsPage.items || []).filter((agent) => !agent.status || agent.status.toUpperCase() === 'ACTIVE')
-  const chosenAgent = agents.find((agent) => agent.id === form.values.agentId)
-  const creditHelp = playerType === 'WHITELABEL_CREDIT' ? 'Optional. Taken from the whitelabel credit pool. Leave blank for 0.'
-    : chosenAgent?.creditAvailable != null ? `Optional. Taken from the agent's available credit (${Number(chosenAgent.creditAvailable).toFixed(2)}). Leave blank for 0.`
-    : "Optional. Taken from the chosen agent's available credit. Leave blank for 0."
+  // A credit player's opening chips come from its direct parent only (spec 2026-11-02 §4.4, decision 3): the
+  // whitelabel pool for a whitelabel credit player; for an agent credit player, its chosen CREDIT agent's own free
+  // chips, the admin acting for that agent (owner decision 2026-11-04). Its Credit Reference and Opening Chips show
+  // once that parent is known (givesOpeningChips).
+  const agentId = form.values.agentId
+  const opensWithChips = !agentMode && givesOpeningChips({ playerType, targetAgentId: form.values.targetAgentId, agentId }, false)
+  const fromAgent = opensWithChips && playerType === 'AGENT_CREDIT'
+  const pool = useChipPool({ skip: !opensWithChips || fromAgent })
+  const parent = useChipAccount('AGENT', agentId, { skip: !fromAgent })
+  // The chosen agent's figures only: never the agent chosen before it while the new read is on its way.
+  const parentAccount = fromAgent && parent.account && parent.account.id.toLowerCase() === agentId.toLowerCase() ? parent.account : null
+  const chipsFree = agentMode ? undefined : opensWithChips ? (fromAgent ? parentAccount?.available : pool.pool?.available) ?? null : null
+  const parentName = agents.find((agent) => agent.id === agentId)?.username || parentAccount?.username || 'the agent'
+  const { getValue } = form
+  useEffect(() => {
+    // Agent mode reads the agent's own chips in the form itself.
+    if (chipsFree !== undefined && getValue('_chipsFree') !== chipsFree) setValue('_chipsFree', chipsFree)
+  }, [chipsFree, getValue, setValue])
+  const free = chipsFree != null ? ` (${Math.max(0, chipsFree).toFixed(2)} free)` : ''
   const [checking, setChecking] = useState(false)
   const [checkPhone] = useLazyQuery<{ checkPhoneAvailable: { available: boolean; message?: string } }>(phoneQuery || CHECK_PHONE_AVAILABLE_QUERY, { fetchPolicy: 'network-only', errorPolicy: 'all' })
   useEffect(() => {
@@ -140,9 +155,15 @@ export default function BasicInfo({ form, agentMode = false, phoneQuery }: {
     {!agentMode && <Select label="Player Type" {...form.field('playerType')} options={PLAYER_TYPES} layout="stacked" required />}
     {!agentMode && isAgentPlayer(playerType) && <Combobox label={playerType === 'AGENT_CREDIT' ? 'Credit Agent' : playerType === 'SHARING_AGENT_PLAYER' ? 'Sharing Agent' : 'Commission Agent'}
       {...form.field('agentId')} value={form.values.agentId || null} onChange={(value) => setValue('agentId', value || '')} required loading={selected.loading}
-      options={agents.map((agent) => ({ value: agent.id, label: agent.username || agent.id, description: agentDescription(agent) }))} help="Active agents at every level of the hierarchy." />}
+      options={agents.map((agent) => ({ value: agent.id, label: agent.username || agent.id, description: agentDescription(agent) }))}
+      help={playerType === 'AGENT_CREDIT' ? "Active agents at every level of the hierarchy. The player's opening chips come from this agent's chips." : 'Active agents at every level of the hierarchy.'} />}
     {!agentMode && isAgentPlayer(playerType) && selected.error && <Notice tone="error" title="Unable to load agents" action={<Button size="sm" onClick={() => void selected.refetch()}>Retry</Button>}>{selected.error.message}</Notice>}
-    {!agentMode && isCreditPlayer(playerType) && <NumberField label="Credit Limit" {...form.field('creditLimit')} value={form.values.creditLimit ?? null} min={0} precision={2} help={creditHelp} />}
+    {opensWithChips && <div className={styles.fields}>
+      <NumberField label="Credit Reference" {...form.field('creditLimit')} value={form.values.creditLimit ?? null} min={0} precision={2}
+        help="Optional. A reference only: it moves no chips. The player's Ref P/L is its chips less this. Leave blank for 0." />
+      <NumberField label="Opening Chips" {...form.field('openingChips')} value={form.values.openingChips ?? null} min={0} precision={2}
+        help={`Optional. Deposited from ${fromAgent ? `${parentName}'s chips` : 'the whitelabel pool'}${free}.`} />
+    </div>}
     <div className={styles.fields}>
       <TextField label="Full Name" {...form.field('name')} required placeholder="e.g., John Smith" />
       <TextField label="Username" {...form.field('username')} required={agentMode} help={agentMode ? 'Letters, numbers, and underscores. 3–50 characters.' : 'Leave empty to auto-generate'} />
@@ -154,8 +175,7 @@ export default function BasicInfo({ form, agentMode = false, phoneQuery }: {
           help={checking ? 'Checking phone availability…' : agentMode ? 'Enter a 10-digit phone number' : 'Enter digits only (without country code or spaces)'} />
       </div>
       <TextField label={agentMode ? 'Email (Optional)' : 'Email Address'} {...form.field('email')} type="email" />
-      <PasswordField label="Password" {...form.field('password')} autoComplete="new-password" required={agentMode}
-        help={agentMode ? 'At least 6 characters' : 'Optional. If supplied, at least 8 characters.'} />
+      <PasswordField label="Password" {...form.field('password')} autoComplete="new-password" required help="At least 8 characters" />
     </div>
     {!agentMode && <Switch label="Require Reset on Next Login" checked={form.values.requirePasswordReset} onChange={(value) => setValue('requirePasswordReset', value)} />}
   </div></Card>

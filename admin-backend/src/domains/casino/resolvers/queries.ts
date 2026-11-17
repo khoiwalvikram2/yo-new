@@ -1,20 +1,19 @@
 import { fetchGames } from '@src/domains/casino/adapters/casinoApi.js'
 import { aggregateRTP, aggregateIncidents } from '@src/domains/casino/adapters/casinoRegistry.js'
-import { getProviderKeysByIdsDb, listCasinoApiProvidersDb, listVendorsByProviderAndCategoryDb, listCasinoGamesPagedDb, listCasinoSelectionGamesDb, readCasinoSelectionIdsDb, getVipTierGamesDb, getGameVipTiersDb, getProvidersWithVendorsDb, getWhitelabelCasinoProviderSettingsDb, getWhitelabelCasinoVendorOverrideSettingsDb, getWhitelabelCasinoGameOverrideSettingsDb, computeProviderGGRDb, computeVendorGGRDb, getProviderVendorsStatsDb, getVendorGamesStatsDb, getCasinoGameBetSettingsDb, getCasinoGameBetSettingByPlayerDb, listCasinoCategoriesDb, getCasinoCategoryDb, getCategoriesForGameDb, listProviderVendorSharesDb, getGamesInCategoryDb, getCasinoGamesByIdsDb, listCasinoVendorsWithSettingsDb } from '@src/repos/casino/casinoRepo.js'
-import { vipTiersTable, casinoVendors } from '@src/db/schema.js'
+import { getProviderKeysByIdsDb, listCasinoApiProvidersDb, listVendorsByProviderAndCategoryDb, listCasinoGamesPagedDb, listCasinoSelectionGamesDb, readCasinoSelectionIdsDb, getVipTierGamesDb, getGameVipTiersDb, vipTierBelongsToTenantDb, getProvidersWithVendorsDb, getWhitelabelCasinoProviderSettingsDb, getWhitelabelCasinoVendorOverrideSettingsDb, getWhitelabelCasinoGameOverrideSettingsDb, computeProviderGGRDb, computeVendorGGRDb, getProviderVendorsStatsDb, getVendorGamesStatsDb, getCasinoGameBetSettingsDb, getCasinoGameBetSettingByPlayerDb, listCasinoCategoriesDb, getCasinoCategoryDb, getCategoriesForGameDb, listProviderVendorSharesDb, getGamesInCategoryDb, getCasinoGamesByIdsDb, listCasinoVendorsWithSettingsDb } from '@src/repos/casino/casinoRepo.js'
+import { casinoVendors } from '@src/db/schema.js'
 import { db } from '@src/db/client.js'
 import { eq, inArray, and } from 'drizzle-orm'
 import { getEffectiveTenantForDirector, shouldSkipTenantFiltering } from '@src/domains/common/directorModeUtils.js'
 import { hasPermission } from '@src/domains/common/auth.js'
 import { toCasinoCategoryType } from '../categoryType.js'
 import { getCasinoLoungeGameImagesDb } from '@src/repos/casino/loungeImagesRepo.js'
+import { displayableAsset } from '@shared/utils/dataUri.js'
 import {
   listProviders,
   categoriesTree,
   listLimits as listCasinoLimits,
   listJackpots,
-  listPromotions,
-  listContent as listCms,
 } from '@/stores/index.js'
 
 function mapCasinoGamesPage(page: any) {
@@ -100,30 +99,7 @@ export const casinoQueryResolvers = {
   casinoCategories: async (_: any, __: any, _ctx: any) => categoriesTree(),
   limits: async (_: any, args: any, _ctx: any) => listCasinoLimits(args.scope ?? undefined),
   jackpots: async (_: any, __: any, _ctx: any) => listJackpots(),
-  promotions: async (_: any, __: any, ctx: any) => {
-    // CRITICAL: For Director Admin in core mode, skip whitelabel filtering
-    const skipFiltering = shouldSkipTenantFiltering(ctx)
-    const whitelabelId = skipFiltering ? undefined : (getEffectiveTenantForDirector(ctx) ?? ctx?.whitelabel?.id)
-    const promos = listPromotions(whitelabelId)
-    return promos.map(p => ({
-      id: p.id,
-      tenant: ctx?.whitelabel?.id || ctx?.tenant || 'default',
-      name: p.name,
-      status: p.status,
-      targetingJson: p.targetingRules,
-      scheduleStart: p.schedule.start,
-      scheduleEnd: p.schedule.end,
-      contentJson: null,
-      createdAt: p.updatedAt,
-      updatedAt: p.updatedAt,
-    }))
-  },
-  content: async (_: any, __: any, ctx: any) => {
-    // CRITICAL: For Director Admin in core mode, skip whitelabel filtering
-    const skipFiltering = shouldSkipTenantFiltering(ctx)
-    const whitelabelId = skipFiltering ? undefined : (getEffectiveTenantForDirector(ctx) ?? ctx?.whitelabel?.id)
-    return listCms(whitelabelId)
-  },
+  // promotions and content (Promotions > Campaigns and > Content) were retired on 2026-11-04 (MAR-14).
   // Casino management hierarchy
   casinoApiProviders: async (_: any, __: any, ctx: any) => {
     const skipFiltering = shouldSkipTenantFiltering(ctx)
@@ -159,11 +135,15 @@ export const casinoQueryResolvers = {
       displayOrder: r.displayOrder ?? null,
     }))
   },
-  casinoGames: async (_: any, args: { input: { providerId?: string; category: 'LIVE_CASINO'|'CASINO'|'SLOTS'; vendorId?: string; vipTierId?: string; search?: string; enabled?: boolean; page?: number; pageSize?: number } }, ctx: any) => {
+  casinoGames: async (_: any, args: { input: { providerId?: string; category?: 'LIVE_CASINO'|'CASINO'|'SLOTS' | null; vendorId?: string; vipTierId?: string; search?: string; enabled?: boolean; page?: number; pageSize?: number } }, ctx: any) => {
     // CRITICAL: For Director Admin in core mode, skip tenant filtering
     const skipFiltering = shouldSkipTenantFiltering(ctx)
     const tenant = skipFiltering ? undefined : (getEffectiveTenantForDirector(ctx) ?? ctx?.whitelabel?.id ?? 'default')
-    const cat = args.input.category === 'LIVE_CASINO' ? 'live_casino' : (args.input.category as string).toLowerCase()
+    // No category is the "All" view: the three main categories paged together on the server.
+    // The page used to fetch each category with pageSize 10000 and page them in the browser,
+    // which lost every game past the 10,000th and left the last pages empty.
+    const category = args.input.category
+    const cat = category ? (category === 'LIVE_CASINO' ? 'live_casino' : (category as string).toLowerCase()) : undefined
     const page = await listCasinoGamesPagedDb({
       tenant,
       providerId: args.input.providerId ? Number(args.input.providerId) : undefined,
@@ -217,6 +197,11 @@ export const casinoQueryResolvers = {
     if (!hasPermission(ctx?.permissions ?? [], 'casino.vip-games', 'view')) {
       throw new Error('Forbidden: insufficient permissions for casino VIP tier games')
     }
+    // A tier is one whitelabel's; another whitelabel's tier id is refused (core mode reads any).
+    const tenant = shouldSkipTenantFiltering(ctx) ? undefined : (getEffectiveTenantForDirector(ctx) ?? ctx?.whitelabel?.id ?? 'default')
+    if (tenant !== undefined && !(await vipTierBelongsToTenantDb(args.tierId, tenant))) {
+      throw new Error('VIP tier not found for this whitelabel')
+    }
     const rows = await getVipTierGamesDb(args.tierId)
     return rows.map((r: any) => ({
       tierId: args.tierId,
@@ -229,15 +214,13 @@ export const casinoQueryResolvers = {
     if (!hasPermission(ctx?.permissions ?? [], 'casino.vip-games', 'view')) {
       throw new Error('Forbidden: insufficient permissions for casino VIP tier games')
     }
-    const rows = await getGameVipTiersDb(Number(args.gameId))
-    // Fetch tier names
-    const tierIds = rows.map((r: any) => r.tierId)
-    const tiers = tierIds.length > 0 ? await db.select({ id: vipTiersTable.id, name: vipTiersTable.name }).from(vipTiersTable).where(inArray(vipTiersTable.id, tierIds)) : []
-    const tierMap = new Map(tiers.map((t: any) => [t.id, t.name]))
-    
+    // Only the caller's own tiers (core mode reads every whitelabel's): the drawer diffs
+    // against this list, so another tenant's tier ids here became writes to them.
+    const tenant = shouldSkipTenantFiltering(ctx) ? undefined : (getEffectiveTenantForDirector(ctx) ?? ctx?.whitelabel?.id ?? 'default')
+    const rows = await getGameVipTiersDb(Number(args.gameId), tenant)
     return rows.map((r: any) => ({
       tierId: r.tierId,
-      tierName: tierMap.get(r.tierId) || null,
+      tierName: r.tierName || null,
       enabled: r.enabled,
       updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : null,
     }))
@@ -354,6 +337,7 @@ export const casinoQueryResolvers = {
         ggr: v.ggr,
         shareAmount,
         transactionCount: v.transactionCount,
+        totalStake: v.totalStake,
       }
     })
     return { providerId: args.providerId, totalGGR, vendorBreakdown }
@@ -388,6 +372,7 @@ export const casinoQueryResolvers = {
             ggr: v.ggr,
             shareAmount,
             transactionCount: v.transactionCount,
+            totalStake: v.totalStake,
           }
         })
         return { providerId, totalGGR, vendorBreakdown }
@@ -409,7 +394,7 @@ export const casinoQueryResolvers = {
       const tz = await getWhitelabelTimezone(tenantForTz)
       startDate = getStartOfDay(tz)
     }
-    const { ggr, transactionCount, vendorName } = await computeVendorGGRDb(Number(args.vendorId), Number(args.providerId), startDate.toISOString(), end.toISOString(), tenant)
+    const { ggr, transactionCount, totalStake, vendorName } = await computeVendorGGRDb(Number(args.vendorId), Number(args.providerId), startDate.toISOString(), end.toISOString(), tenant)
     const shares = await listProviderVendorSharesDb(tenant ?? 'default', Number(args.providerId))
     const sharesMap = new Map<string, number>(shares.map((s: any) => [String(s.vendorId), Number(s.sharePercentage ?? 0)]))
     const sharePercentage = sharesMap.get(String(args.vendorId)) ?? 0
@@ -420,6 +405,7 @@ export const casinoQueryResolvers = {
       ggr,
       shareAmount,
       transactionCount,
+      totalStake,
     }
   },
   vendorGamesStats: async (_: any, args: { vendorId: string }, ctx: any) => {
@@ -441,17 +427,7 @@ export const casinoQueryResolvers = {
     const cat = args.mainCategory ? (args.mainCategory === 'LIVE_CASINO' ? 'live_casino' : (args.mainCategory as string).toLowerCase()) : undefined
     const rows = await listCasinoCategoriesDb(tenant, cat as any)
     const mapCat = (v: any) => v === 'live_casino' ? 'LIVE_CASINO' : (v === 'casino' ? 'CASINO' : 'SLOTS')
-    // Convert stored S3 icon keys into displayable presigned URLs (data URIs / full URLs pass through)
-    const { generatePresignedGetUrl, getS3ObjectUrl } = await import('@src/services/storage/s3.js')
-    const toIconUrl = async (icon: string | null): Promise<string | null> => {
-      if (!icon) return null
-      if (icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('data:')) return icon
-      try {
-        const presigned = await generatePresignedGetUrl(icon, 7 * 24 * 3600)
-        if (presigned) return presigned
-      } catch {}
-      try { return getS3ObjectUrl(icon) } catch { return icon }
-    }
+    // Icons as stored (data URIs, or links); a legacy S3 key is null, since nothing can fetch it any more.
     return Promise.all(rows.map(async (r: any) => ({
       id: String(r.id),
       mainCategory: mapCat(r.mainCategory),
@@ -459,7 +435,7 @@ export const casinoQueryResolvers = {
       subtitle: r.subtitle || null,
       name: r.name,
       slug: r.slug,
-      iconData: await toIconUrl(r.iconData || null),
+      iconData: displayableAsset(r.iconData),
       order: r.order ?? null,
       isActive: !!r.isActive,
       gameCount: r.gameCount != null ? Number(r.gameCount) : 0,
@@ -471,17 +447,8 @@ export const casinoQueryResolvers = {
     const tenant = ctx?.whitelabel?.id || 'default'
     const row = await getCasinoCategoryDb(tenant, Number(args.id))
     if (!row) return null
-    const rIcon: any = (row as any).iconData
-    const { generatePresignedGetUrl: presignGet, getS3ObjectUrl: s3Url } = await import('@src/services/storage/s3.js')
-    let iconUrl: string | null = null
-    if (rIcon && typeof rIcon === 'string') {
-      if (rIcon.startsWith('http://') || rIcon.startsWith('https://') || rIcon.startsWith('data:')) {
-        iconUrl = rIcon
-      } else {
-        try { iconUrl = await presignGet(rIcon, 7 * 24 * 3600) } catch {}
-        if (!iconUrl) { try { iconUrl = s3Url(rIcon) } catch { iconUrl = rIcon } }
-      }
-    }
+    // The icon as stored (a data URI, or a link); a legacy S3 key is null, since nothing can fetch it any more.
+    const iconUrl = displayableAsset((row as any).iconData)
     const mapCat = (v: any) => v === 'live_casino' ? 'LIVE_CASINO' : (v === 'casino' ? 'CASINO' : 'SLOTS')
     return {
       id: String(row.id),

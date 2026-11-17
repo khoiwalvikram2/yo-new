@@ -46,6 +46,7 @@ import {
   matkaPathFromOtherReport,
   matkaReportFilter,
   matkaRowKey,
+  matkaRowsLevel,
   matkaSearchPlaceholder,
   matkaTotalText,
   sortMatkaPage,
@@ -172,6 +173,9 @@ function MatkaRiskReportContent() {
   }, [resetDrillDownPath]);
 
   const currentLevel = matkaCurrentLevel(drillDownPath);
+  // The table shows the next level's rows (a type's markets, a market's sessions…), so its columns,
+  // row keys and search follow that level; the breadcrumbs and a row's drill-down follow the path.
+  const rowsLevel = matkaRowsLevel(currentLevel);
 
   // Only the fields MatkaDrillDownFilter allows (the store's schemeType, domain etc. are left out).
   const filter = useMemo(
@@ -186,7 +190,8 @@ function MatkaRiskReportContent() {
   const { data: agentData, loading: agentLoading, error: agentError, refetch: refetchAgent } = useMatkaAgentBreakdown(filter);
   const { data: playerData, loading: playerLoading, error: playerError, refetch: refetchPlayer } = useMatkaPlayerBreakdown(filter);
 
-  // Each level shows its own breakdown, filtered by the path; the figures are the KPI query's.
+  // Each level shows the next level's breakdown, filtered by the path; the figures are the KPI query's,
+  // narrowed by the same path.
   const source = matkaLevelSource(currentLevel);
   const levelQueries = {
     type: { rows: typeData?.matkaTypeBreakdown, loading: typeLoading, error: typeError, refetch: refetchType },
@@ -202,8 +207,8 @@ function MatkaRiskReportContent() {
   const money = (value: number) => formatAmount(convertFromWhitelabelCurrency(value));
 
   const filteredData = useMemo(
-    () => filterMatkaRows(levelRows, currentLevel, searchQuery),
-    [levelRows, currentLevel, searchQuery],
+    () => filterMatkaRows(levelRows, rowsLevel, searchQuery),
+    [levelRows, rowsLevel, searchQuery],
   );
   const total = filteredData.length;
   // A page past the last one (a drill-down from page 3 to a shorter level) shows the last page.
@@ -213,23 +218,23 @@ function MatkaRiskReportContent() {
     () => sortMatkaPage(
       matkaPageRows(filteredData, page, pageSize).map((row, index) => ({
         ...row,
-        rowKey: matkaRowKey(currentLevel, row, index),
+        rowKey: matkaRowKey(rowsLevel, row, index),
       })),
       sort,
     ),
-    [currentLevel, filteredData, page, pageSize, sort],
+    [rowsLevel, filteredData, page, pageSize, sort],
   );
 
   const columns = useMemo<DataTableColumn<MatkaTableRow>[]>(() => {
     const amount = (value: number) => formatAmount(convertFromWhitelabelCurrency(value));
-    return matkaColumns(currentLevel).map((spec) => ({
+    return matkaColumns(rowsLevel).map((spec) => ({
       key: spec.key,
       header: spec.title,
       align: spec.align,
       sort: spec.sortable ? true : undefined,
       cell: (row: MatkaTableRow) => matkaCell(spec.key, row, amount),
     }));
-  }, [convertFromWhitelabelCurrency, currentLevel, formatAmount]);
+  }, [convertFromWhitelabelCurrency, rowsLevel, formatAmount]);
 
   const handleDrillDown = (record: MatkaRow) => {
     const target = matkaDrillTarget(currentLevel, record);
@@ -352,7 +357,7 @@ function MatkaRiskReportContent() {
           search={(
             <SearchField
               label="Search the matka report"
-              placeholder={matkaSearchPlaceholder(currentLevel)}
+              placeholder={matkaSearchPlaceholder(rowsLevel)}
               size="sm"
               value={searchQuery}
               onChange={(value) => {

@@ -31,7 +31,10 @@ import {
 import styles from '../RolesManagementPage.module.css'
 
 type RolesTableProps = {
+  /** The rows on the current page. */
   roles: GraphQLRole[]
+  /** Every role the search matched, on every page: the card's count and the export. Defaults to `roles`. */
+  allRoles?: GraphQLRole[]
   fetching: boolean
   onEdit: (role: GraphQLRole) => void
   onView: (role: GraphQLRole) => void
@@ -115,11 +118,14 @@ function UpdatedCell({
   }
 }
 
-/* The legacy table on the kit Card + DataTable. Export still receives only the rows on the current
-   page. Delete keeps the legacy two-step confirmation: this row confirmation invokes the page's
-   final confirmation as a nested confirm action, preserving one focus-return chain. */
+/* The legacy table on the kit Card + DataTable. The card's count and the export cover every role the
+   search matched, not just this page: with 15 roles it said "10 roles" and exported 10, silently leaving
+   5 out (as Support Admins does, the export takes the filtered list). Delete keeps the legacy two-step
+   confirmation: this row confirmation invokes the page's final confirmation as a nested confirm action,
+   preserving one focus-return chain. */
 export function RolesTable({
   roles,
+  allRoles = roles,
   fetching,
   onEdit,
   onView,
@@ -133,11 +139,11 @@ export function RolesTable({
     [formatDate],
   )
   const { exporting, handleExport } = useTableExport({
-    data: roles,
+    data: allRoles,
     columns: exportColumns,
     filename: 'Roles',
     sheetName: 'Roles',
-    title: exportTitle(roles.length),
+    title: exportTitle(allRoles.length),
   })
 
   const requestDelete = (role: GraphQLRole) => {
@@ -184,7 +190,7 @@ export function RolesTable({
   return (
     <Card
       title={TABLE_TITLE}
-      sub={roleCountLabel(roles.length)}
+      sub={roleCountLabel(allRoles.length)}
       body="table"
       tools={
         <Button
@@ -193,7 +199,7 @@ export function RolesTable({
           icon={<IconDownload size={15} stroke={strokeFor(15)} />}
           loading={exporting}
           onClick={() => void handleExport()}
-          disabled={!roles.length || fetching}
+          disabled={!allRoles.length || fetching}
         >
           Export Excel
         </Button>

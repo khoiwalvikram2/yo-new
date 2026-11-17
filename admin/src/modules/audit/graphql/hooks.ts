@@ -1,8 +1,33 @@
-import { useEffect, useRef } from 'react'
-import { useSubscription } from '@apollo/client'
+import { useEffect, useMemo, useRef } from 'react'
+import { useQuery, useSubscription } from '@apollo/client'
 import { toast } from '@/ui/components/toast'
 import { AUDIT_EVENTS_SUBSCRIPTION } from './subscriptions'
+import { AUDIT_FILTER_OPTIONS_QUERY } from './queries'
+import { ACTION_OPTIONS, DOMAIN_OPTIONS, RESOURCE_TYPE_OPTIONS } from '../constants'
 import type { AuditFilters } from '@/state/auditStore'
+
+export interface AuditFilterOptionLists {
+  domains: readonly string[]
+  actions: readonly string[]
+  resourceTypes: readonly string[]
+}
+
+/** The lists a trail can be filtered by before (or without) the tenant's own: names the trail records. */
+export const FALLBACK_AUDIT_FILTER_OPTIONS: AuditFilterOptionLists = { domains: DOMAIN_OPTIONS, actions: ACTION_OPTIONS, resourceTypes: RESOURCE_TYPE_OPTIONS }
+
+/**
+ * The Domain, Action and Resource Type values this tenant's trail holds, for the filter lists. A failure is
+ * quiet (skipNotification): the lists fall back to the fixed ones, and the page works either way.
+ */
+export function useAuditFilterOptions(enabled = true): AuditFilterOptionLists {
+  const { data } = useQuery<{ auditFilterOptions: AuditFilterOptionLists }>(AUDIT_FILTER_OPTIONS_QUERY, {
+    skip: !enabled,
+    errorPolicy: 'all',
+    context: { skipNotification: true },
+  })
+  const served = data?.auditFilterOptions
+  return useMemo(() => (served?.domains?.length || served?.actions?.length ? served : FALLBACK_AUDIT_FILTER_OPTIONS), [served])
+}
 
 interface AuditEventPayload {
   id: string

@@ -7,7 +7,7 @@ import {
 } from '@src/repos/audit/auditAnnotationRepo.js'
 import { createAuditExportJob } from '@src/repos/audit/auditExportJobRepo.js'
 import { listAuditDb } from '@src/repos/audit/auditRepo.js'
-import { requirePermission } from '@src/domains/common/auth.js'
+import { requirePermission, requireReadPermission } from '@src/domains/common/auth.js'
 
 // Helper to get effective tenant
 function getEffectiveTenant(ctx: any): string {
@@ -45,20 +45,13 @@ function checkAuditPermission(ctx: any): void {
   }
 }
 
-// Helper to check export permission (aligned with queries: agent bypass, whitelabel needs export, else view + export)
+// The export gate: the job list's (audit.events:view, which auditExportJobs and auditExportJobDownload demand) plus
+// audit.events:export. Agents passed straight through here, and a job records the admin user id the list and the
+// download match the caller against, so an agent is refused by principal first: no flat grant can let one in.
 function checkAuditExportPermission(ctx: any): void {
-  if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) return
-  if (hasWhitelabelAdminRole(ctx) || isWhitelabelTenantUser(ctx) || isWhitelabelTenantContext(ctx)) {
-    if (!hasPermission(ctx?.permissions ?? [], 'audit.events', 'export')) {
-      throw new Error('Forbidden: insufficient permissions for audit export')
-    }
-    return
-  }
-  const perms = ctx?.permissions ?? []
-  if (!hasPermission(perms, 'audit.events', 'view')) {
-    throw new Error('Forbidden: insufficient permissions for audit events')
-  }
-  if (!hasPermission(perms, 'audit.events', 'export')) {
+  if (ctx?.user?.type === 'agent') throw new Error('Forbidden: audit exports are not available to agents')
+  requireReadPermission(ctx, 'audit.events', 'view')
+  if (!hasPermission(ctx?.permissions ?? [], 'audit.events', 'export')) {
     throw new Error('Forbidden: insufficient permissions for audit export')
   }
 }
@@ -167,9 +160,11 @@ export const auditMutationResolvers = {
   createAuditExportJob: async (_: any, args: { input: any }, ctx: any) => {
     const tenant = getEffectiveTenant(ctx)
     checkAuditExportPermission(ctx)
-    
-    const userId = ctx?.user?.sub ? parseInt(ctx.user.sub, 10) : null
-    if (!userId || isNaN(userId)) {
+
+    // created_by is an admin user id, so only an all-digit sub is one: parseInt read a uuid's leading digits as an id.
+    const sub = String(ctx?.user?.sub ?? '')
+    const userId = /^\d+$/.test(sub) ? Number(sub) : null
+    if (!userId) {
       throw new Error('Invalid user ID')
     }
     

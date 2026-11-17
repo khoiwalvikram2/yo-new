@@ -162,7 +162,9 @@ export function TransactionsTab({
     if (row.type === 'transfer' && row.metadata) {
       try { const metadata: ProfileTransactionMetadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata; if (metadata?.remark) display = metadata.remark } catch { display = row.type }
     }
-    return display === 'manual_deposit' ? 'Manual Deposit' : display === 'manual_withdrawal' ? 'Manual Withdrawal' : display
+    // A credit player's chips moved by the upline (D/W) are rows of their own on this statement.
+    return display === 'manual_deposit' ? 'Manual Deposit' : display === 'manual_withdrawal' ? 'Manual Withdrawal'
+      : display === 'chip_deposit' ? 'Chip Deposit' : display === 'chip_withdrawal' ? 'Chip Withdrawal' : display
   }
   const columns: DataTableColumn<ProfileTransaction>[] = [
     { key: 'type', header: 'Type', minWidth: 170, cell: (row) => <StatusPill tone="neutral">{typeLabel(row)}</StatusPill> },
@@ -178,7 +180,8 @@ export function TransactionsTab({
       <Select label="Type" value={typeFilter} onChange={(next) => { setTypeFilter(next); setPage(1) }} options={[
         { value: '', label: 'All Types' }, { value: 'all_deposit', label: 'All Deposits' }, { value: 'all_withdrawal', label: 'All Withdrawals' },
         { value: 'deposit', label: 'Deposit' }, { value: 'manual_deposit', label: 'Manual Deposit' }, { value: 'withdrawal', label: 'Withdrawal' },
-        { value: 'manual_withdrawal', label: 'Manual Withdrawal' }, { value: 'transfer', label: 'Transfer' }, { value: 'adjustment', label: 'Adjustment' },
+        { value: 'manual_withdrawal', label: 'Manual Withdrawal' }, { value: 'chip_deposit', label: 'Chip Deposit' }, { value: 'chip_withdrawal', label: 'Chip Withdrawal' },
+        { value: 'transfer', label: 'Transfer' }, { value: 'adjustment', label: 'Adjustment' },
       ]} />
       <Select label="Status" value={statusFilter} onChange={(next) => { setStatusFilter(next); setPage(1) }} options={[{ value: '', label: 'All Status' }, { value: 'completed', label: 'Completed' }, { value: 'pending', label: 'Pending' }, { value: 'failed', label: 'Failed' }]} />
     </FilterBar>

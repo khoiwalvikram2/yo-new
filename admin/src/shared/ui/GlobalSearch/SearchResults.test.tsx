@@ -9,7 +9,7 @@ import { test, describe } from 'vitest'
 import assert from 'node:assert/strict'
 import { render, screen } from '@testing-library/react'
 import type { CategorizedResults, SearchResult } from '@/hooks/useGlobalSearch'
-import { SearchResults } from './SearchResults'
+import { SearchResults, agentsSchemeOf, seeAllPath } from './SearchResults'
 
 function pageResult(id: string, label: string): SearchResult {
   return { type: 'page', id, label, subtitle: 'Section', route: `/${id}`, icon: 'fa-file-lines' }
@@ -131,5 +131,85 @@ describe('SearchResults Pages group', () => {
     )
     assert.equal(screen.queryAllByRole('option').length, 0)
     assert.equal(screen.getByText('No results found').textContent, 'No results found')
+  })
+})
+
+describe('SearchResults See all', () => {
+  function entity(type: SearchResult['type'], id: string, label: string): SearchResult {
+    return { type, id, label, route: `/${type}/${id}`, icon: type }
+  }
+
+  test('offers See all only where a list page takes the typed term', () => {
+    const results = baseResults({
+      players: [entity('player', 'u1', 'Alice')],
+      vipMembers: [entity('vipMember', 'v1', 'Alice VIP')],
+      referralCodes: [entity('referralCode', 'r1', 'ALICE10')],
+      bets: [entity('bet', 'bet-search-alice', 'Search bets: "alice"')],
+      bonuses: [entity('bonus', 'b1', 'Alice welcome')],
+    })
+    const seen: string[] = []
+    render(
+      <SearchResults
+        results={results}
+        allResults={Object.values(results).flat()}
+        selectedIndex={0}
+        loading={false}
+        error={null}
+        query="alice"
+        onSelect={() => {}}
+        onSeeAll={(category) => { seen.push(category) }}
+      />
+    )
+    const seeAll = screen.getAllByRole('button', { name: /^See all / }).map((button) => button.getAttribute('aria-label'))
+    // /vip opens the tier list, a referral code is matched exactly (one row at most) and the Bets row is
+    // itself the bet-list search, so none of those three offers a See all that would drop or ignore the term.
+    assert.deepEqual(seeAll, ['See all Players', 'See all Bonuses'])
+    screen.getByRole('button', { name: 'See all Bonuses' }).click()
+    assert.deepEqual(seen, ['bonuses'])
+  })
+
+  /* B005: the agents list shows one scheme at a time, so See all Agents names the scheme of the matches. */
+  test('See all Agents carries the scheme the matches share, or the one most of them have', () => {
+    const agent = (id: string, schemeType?: string): SearchResult => ({ ...entity('agent', id, id), metadata: schemeType ? { schemeType } : undefined })
+    assert.equal(agentsSchemeOf([agent('a1', 'SHARING'), agent('a2', 'SHARING')]), 'SHARING')
+    assert.equal(agentsSchemeOf([agent('a1', 'COMMISSION'), agent('a2', 'CREDIT'), agent('a3', 'CREDIT')]), 'CREDIT')
+    assert.equal(agentsSchemeOf([agent('a1', 'SHARING'), agent('a2', 'CREDIT')]), 'SHARING', 'a tie goes to the first match')
+    assert.equal(agentsSchemeOf([agent('a1'), agent('a2', 'PLAYER'), agent('a3', 'CREDIT')]), 'CREDIT', 'no or unknown schemes are not counted')
+    assert.equal(agentsSchemeOf([agent('a1')]), null)
+
+    const agents = [agent('a1', 'SHARING')]
+    assert.equal(seeAllPath('agents', ' vfy sh ', { agents }), '/agents?search=vfy%20sh&type=SHARING')
+    assert.equal(seeAllPath('agents', 'vfy', { agents: [agent('a1')] }), '/agents?search=vfy', 'no scheme recorded: the term alone, as before')
+    assert.equal(seeAllPath('agents', '', { agents }), '/agents?type=SHARING')
+    // Only the agents list is by scheme; the others keep the term alone.
+    assert.equal(seeAllPath('players', 'a & b', { agents }), '/players/search?search=a%20%26%20b')
+    assert.equal(seeAllPath('bonuses', 'WEDNESDAY 10%'), '/bonuses?search=WEDNESDAY%2010%25')
+    assert.equal(seeAllPath('vipMembers', 'alice'), null, 'no See all where no list takes the term')
+  })
+})
+
+/* B006: the Bets group is only the generic "Search bets: <term>" shortcut. Listed above the Bonuses, it was the default
+   selection over a matching campaign. It now comes after every real match, and the offsets follow that order. */
+describe('SearchResults order', () => {
+  test('the bets shortcut is the last group, and selection lines up with the flat order', () => {
+    const bonus: SearchResult = { type: 'bonus', id: '6', label: 'WEDNESDAY 10%', route: '/bonuses/6', icon: 'fa-gift' }
+    const bet: SearchResult = { type: 'bet', id: 'bet-search-w', label: 'Search bets: "WEDNESDAY 10%"', route: '/bets?search=w', icon: 'fa-receipt' }
+    const referral: SearchResult = { type: 'referralCode', id: 'r1', label: 'WEDNES10', route: '/referrals', icon: 'fa-link' }
+    render(
+      <SearchResults
+        results={baseResults({ referralCodes: [referral], bets: [bet], bonuses: [bonus] })}
+        allResults={[referral, bonus, bet]}
+        selectedIndex={1}
+        loading={false}
+        error={null}
+        query="WEDNES"
+        onSelect={() => {}}
+      />
+    )
+    const groups = screen.getAllByRole('region').map((group) => group.getAttribute('aria-label'))
+    assert.deepEqual(groups, ['Referrals', 'Bonuses', 'Bets'])
+    const options = screen.getAllByRole('option')
+    assert.deepEqual(options.map((option) => option.getAttribute('aria-selected')), ['false', 'true', 'false'])
+    assert.ok(options[1].textContent?.includes('WEDNESDAY 10%') && !options[1].textContent?.includes('Search bets'))
   })
 })

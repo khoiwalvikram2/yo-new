@@ -12,12 +12,12 @@ import { connectionInitHeaders } from '@src/domains/common/guardSubscriptions.js
 import { buildCrmAuthContext } from '@src/domains/crm/services/CrmAuthService.js'
 import { getAppConfig } from '@src/config/app.js'
 import { errorHandler } from '@src/middleware/errorHandler.js'
+import { maskDatabaseErrors } from '@src/domains/common/graphqlErrorMasking.js'
 import { registerRequestLogger } from '@src/middleware/requestLogger.js'
 import { registerHealthRoutes } from '@src/routes/health.js'
 import { registerMetricsRoutes } from '@src/routes/metrics.js'
 import { registerReferralRedirectRoutes } from '@src/routes/referralRedirect.js'
 import { registerInternalReferralRoutes } from '@src/routes/internalReferral.js'
-import { registerMediaRoutes } from '@src/routes/media.js'
 import { registerGmagGameDataRoutes } from '@src/routes/gmagGameData.js'
 import helmet from '@fastify/helmet'
 import { registerPgBridge } from '@src/realtime/pgBridge.js'
@@ -120,6 +120,8 @@ app.register(mercurius as any, {
   graphiql: !isProduction,
   allowBatchedQueries: true, // Admin client uses BatchHttpLink; reduces request flood on load
   validationRules: [queryDepthLimit],
+  // A database error's "Failed query: <SQL> params: <values>" is logged, never returned (MAT-09).
+  errorFormatter: maskDatabaseErrors,
   subscription: {
     // Mercurius reads custom emitters from subscription options.
     emitter: getRedisEmitter(),
@@ -249,7 +251,8 @@ if (config.metricsEnabled) {
 }
 await registerReferralRedirectRoutes(app)
 await registerInternalReferralRoutes(app)
-await registerMediaRoutes(app)
+// No file upload route: files are stored as base64 in their rows (owner decision 2026-11-04). POST /api/media/upload,
+// which wrote to a local ./uploads folder and had no caller, was removed.
 await registerGmagGameDataRoutes(app)
 
 // bridge postgres notifications to GraphQL subscriptions

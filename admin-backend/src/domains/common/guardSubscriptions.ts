@@ -70,7 +70,6 @@ export const SUBSCRIPTION_PERMISSIONS: Record<string, [string, string][]> = {
   // Money and accounts.
   walletUpdated: [['players.wallet', 'view']],
   depositRequestUpdated: [['payments.deposits', 'view']],
-  agentCreditUpdated: [['agents.credit', 'view']],
   agentCommissionUpdated: [['agents.commission', 'view']],
   agentSharingUpdated: [['agents.sharing', 'view']],
   whitelabelSharingUpdated: [['agents.sharing', 'view']],
@@ -94,6 +93,16 @@ export const OPEN_SUBSCRIPTIONS: Record<string, string> = {
   heartbeat: 'a liveness ping carrying no tenant data',
   notificationReceived: "delivers only the calling user's own notifications",
 }
+
+/**
+ * Streams of the brand's own pool, which no agent may watch whatever it holds.
+ *
+ * An agent's flat `agents:view` grants `agents.credit:view` and `agents.sharing:view`, so the table above let
+ * every agent, sub-agents included, watch the whitelabel's credit line and sharing totals move. Only the
+ * whitelabel topbar wallet subscribes to these, and the queries behind that same wallet (myWhitelabelCredit,
+ * myWhitelabelSharing) refuse agents by principal; this keeps the live path in step with them.
+ */
+export const NOT_FOR_AGENTS: ReadonlySet<string> = new Set(['whitelabelCreditUpdated', 'whitelabelSharingUpdated'])
 
 type SubscribeFn = (
   parent: unknown,
@@ -126,6 +135,9 @@ export function guardSubscriptions<T extends Record<string, unknown>>(map: T): T
 
     function guardedSubscribe(this: unknown, parent: unknown, args: unknown, ctx: any, info: unknown) {
       if (!ctx?.user) throw new Error('Unauthorized: authentication required')
+      if (ctx.user.type === 'agent' && NOT_FOR_AGENTS.has(name)) {
+        throw new Error(`Forbidden: ${name} is not available to agents`)
+      }
       if (isOpen) return (subscribe as SubscribeFn).call(this, parent, args, ctx, info)
       if (!required) {
         throw new Error(

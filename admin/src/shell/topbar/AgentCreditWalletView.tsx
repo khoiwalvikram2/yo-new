@@ -1,18 +1,9 @@
 import { useId, useState } from 'react'
 import { Popover } from '@/ui/components/Popover'
-import {
-  WalletTrigger,
-  WalletTriggerLoading,
-  WalletTabs,
-  WalletPanel,
-  CreditBody,
-  SharingBody,
-  SettlementBody,
-} from './WalletParts'
-import { CREDIT_STATUS_LABEL } from './walletData'
+import { roundChips } from '@/modules/chips/chipModel'
+import { WalletTrigger, WalletTriggerLoading, WalletPanel, ChipBody } from './WalletParts'
 import type { AgentCreditState } from './useAgentCredit'
 import type { FormatAmount } from './formatAmount'
-import type { WalletTab } from './WalletParts'
 
 export interface AgentCreditWalletViewProps {
   state: AgentCreditState
@@ -21,22 +12,22 @@ export interface AgentCreditWalletViewProps {
   onViewDetails: () => void
 }
 
-const TABS: readonly WalletTab[] = ['credit', 'sharing', 'settlement']
-
+/**
+ * A CREDIT agent's topbar wallet on Deposit/Withdraw chips (spec 2026-11-02 §8): the trigger shows the
+ * agent's balance, and the panel its balance, downline balance, credit reference and Ref P/L. The
+ * credit-limit meter, its alert dot and the Settlement tab are gone with the credit-limit model, and so is
+ * the Sharing tab: CREDIT has no partnership split (spec decision 2), so a CREDIT agent has no share to show.
+ */
 export function AgentCreditWalletView(props: AgentCreditWalletViewProps) {
   const { state, compact, formatAmount, onViewDetails } = props
   const [open, setOpen] = useState(false)
-  const [tab, setTab] = useState<WalletTab>('credit')
-  const idPrefix = useId()
-  const titleId = `${idPrefix}-title`
-  const panelId = `${idPrefix}-panel`
-  const tabId = `${idPrefix}-tab-${tab}`
+  const titleId = useId()
 
   if (!state.visible) return null
-  if (state.loading || !state.credit) return <WalletTriggerLoading />
+  if (state.loading || !state.chips) return <WalletTriggerLoading />
 
-  const { credit, settlement, sharing, sharingLoading } = state
-  const amountText = formatAmount(credit.creditAvailable)
+  const { chips } = state
+  const amountText = formatAmount(roundChips(chips.balance), chips.currency)
 
   return (
     <Popover
@@ -45,41 +36,30 @@ export function AgentCreditWalletView(props: AgentCreditWalletViewProps) {
       labelledBy={titleId}
       trigger={
         <WalletTrigger
-          label={`Credit wallet, ${amountText} available`}
+          label={`Chips wallet, balance ${amountText}`}
           amountText={amountText}
           compact={compact}
-          tone={credit.status}
-          showDot={credit.isNearLimit || credit.isCritical}
+          tone={null}
+          showDot={false}
         />
       }
     >
       {({ close }) => (
         <WalletPanel
           titleId={titleId}
-          title="Credit Wallet"
-          subtitle="Credit & Sharing"
-          tone={credit.status}
-          statusLabel={tab === 'credit' ? CREDIT_STATUS_LABEL[credit.status] : null}
-          tabs={<WalletTabs tabs={TABS} value={tab} onChange={setTab} idPrefix={idPrefix} />}
-          tabPanelId={panelId}
-          tabLabelledBy={tabId}
-          footer={
-            tab === 'credit'
-              ? {
-                  label: 'View Credit Details',
-                  onClick: () => {
-                    close()
-                    onViewDetails()
-                  },
-                }
-              : null
-          }
+          title="Chips Wallet"
+          subtitle="Deposit & Withdraw"
+          tone={null}
+          statusLabel={null}
+          footer={{
+            label: 'Open Chips',
+            onClick: () => {
+              close()
+              onViewDetails()
+            },
+          }}
         >
-          {tab === 'credit' && <CreditBody credit={credit} formatAmount={formatAmount} />}
-          {tab === 'sharing' && (
-            <SharingBody sharing={sharing} loading={sharingLoading} formatAmount={formatAmount} periodLabel="Period" capped />
-          )}
-          {tab === 'settlement' && settlement && <SettlementBody settlement={settlement} formatAmount={formatAmount} />}
+          <ChipBody chips={chips} formatAmount={formatAmount} />
         </WalletPanel>
       )}
     </Popover>

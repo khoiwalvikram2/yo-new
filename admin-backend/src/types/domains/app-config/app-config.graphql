@@ -226,6 +226,8 @@ type AppConfig {
   sportsGlobalConfig: SportsGlobalConfig
   preLoginBannerUrl: String
   postLoginBannerUrl: String
+  # Player panel theme { presetId, sportsIconStyle, colors }; null = the Matchbook default
+  playerTheme: JSON
   updatedAt: String!
 }
 
@@ -259,6 +261,7 @@ input UpdateAppConfigInput {
   sportsGlobalConfig: SportsGlobalConfigInput
   preLoginBannerUrl: String
   postLoginBannerUrl: String
+  playerTheme: JSON
 }
 
 type CMSPage { 

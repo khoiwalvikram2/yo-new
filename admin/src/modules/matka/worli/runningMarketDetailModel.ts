@@ -23,6 +23,8 @@ export interface WorliSession {
   scheduledLockAt?: string | null
   scheduledCloseAt?: string | null
   operatorMessage?: string | null
+  /** Lock Now or Close Now stopped it and Unlock may reopen it (server rule: before the result and the scheduled close). */
+  canUnlock?: boolean | null
   counters?: WorliCounters | null
   bidRulesVersionId?: string | null
 }
@@ -106,25 +108,37 @@ export function isValidInstanceId(str: string | undefined): boolean {
 
 export type InstanceView = 'loading' | 'error' | 'not-found' | 'ready'
 
+/** admin-backend's answer for an id with no session in this whitelabel (matka-worli authorizedWorliInstance): an
+ *  error, not a null, so the page read it as a failed load. */
+export const SESSION_NOT_FOUND = 'Market session not found'
+
+export function isSessionNotFound(message: string | null | undefined): boolean {
+  return (message ?? '').trim() === SESSION_NOT_FOUND
+}
+
 /** What the page shows. The legacy page showed "Loading market details..." in every state but ready; the
  *  failed and not-found states now say so while the legacy two-second redirect to the list runs (an invalid
- *  id is sent back at once and keeps the loading state meanwhile). */
+ *  id is sent back at once and keeps the loading state meanwhile). The server's not-found error is a not-found,
+ *  like a null answer; any other error is a failed load. */
 export function instanceView({
   isValidId,
   loading,
   hasError,
   hasData,
   hasInstance,
+  errorMessage,
 }: {
   isValidId: boolean
   loading: boolean
   hasError: boolean
   hasData: boolean
   hasInstance: boolean
+  /** The failed lookup's message. */
+  errorMessage?: string | null
 }): InstanceView {
   if (hasInstance) return 'ready'
   if (!isValidId) return 'loading'
-  if (hasError) return 'error'
+  if (hasError) return isSessionNotFound(errorMessage) ? 'not-found' : 'error'
   if (!loading && hasData) return 'not-found'
   return 'loading'
 }
@@ -224,11 +238,56 @@ export function summaryStatusTone(status: string | null | undefined): StatusPill
   return 'neutral'
 }
 
-/** A bet: ACTIVE green, VOID red, anything else default. */
+/** A bet: ACTIVE green, VOID red, anything else default. The API sends the statuses lower-case (only CSS
+ *  shows them upper-case), so either spelling is read. */
 export function betStatusTone(status: string | null | undefined): StatusPillTone {
-  if (status === 'ACTIVE') return 'ok'
-  if (status === 'VOID') return 'neg'
+  const value = String(status ?? '').toUpperCase()
+  if (value === 'ACTIVE') return 'ok'
+  if (value === 'VOID') return 'neg'
   return 'neutral'
+}
+
+/** Only an open bet (pending or active) can be voided; a void, won or lost one is refused by the server. */
+export function canVoidBet(status: string | null | undefined): boolean {
+  return ['pending', 'active'].includes(String(status ?? '').toLowerCase())
+}
+
+/* ---------- what the session allows ---------- */
+
+export interface BettingNote {
+  label: string
+  tone: StatusPillTone
+  text: string
+  /** The session is taking bets. */
+  open: boolean
+}
+
+/** The Total Bets tile's note follows the session's status, not its bet count: a session past its lock with
+ *  bets on it is not live. While it takes bets the note is the legacy Live (or Idle without bets). */
+export function bettingNote(status: string | null | undefined, betCount: number): BettingNote {
+  if (status === 'OPEN') return { label: betCount > 0 ? 'Live' : 'Idle', tone: betCount > 0 ? 'ok' : 'neutral', text: 'Active betting', open: true }
+  if (status === 'PAUSED') return { label: 'Paused', tone: 'warn', text: 'Betting paused', open: false }
+  if (status === 'SCHEDULED' || status === 'OPENING_SOON') return { label: 'Upcoming', tone: 'neutral', text: 'Betting not open yet', open: false }
+  return { label: 'Closed', tone: 'neutral', text: 'Betting closed', open: false }
+}
+
+export type SessionControl = OperatorAction | 'MESSAGE' | 'SUSPEND_ADJUST'
+
+const TAKING_OR_DUE = ['SCHEDULED', 'OPENING_SOON', 'OPEN']
+
+/** Whether a control can still change the session: Pause only while it takes (or is about to take) bets,
+ *  Resume only when paused, Lock Now until it is locked, Close Now until it is closed; nothing once a result
+ *  is settled. An unknown status leaves every control on. */
+export function sessionControlEnabled(status: string | null | undefined, control: SessionControl): boolean {
+  if (!status) return true
+  if (['SETTLING', 'SETTLED', 'VOIDED'].includes(status)) return false
+  switch (control) {
+    case 'PAUSE': return TAKING_OR_DUE.includes(status)
+    case 'RESUME': return status === 'PAUSED'
+    case 'LOCK': return [...TAKING_OR_DUE, 'PAUSED'].includes(status)
+    case 'CLOSE': return [...TAKING_OR_DUE, 'PAUSED', 'LOCKED'].includes(status)
+    default: return true
+  }
 }
 
 /* ---------- the status chip's countdown ---------- */
@@ -347,6 +406,21 @@ export function filterBets(items: readonly WorliBet[], searchQuery: string): Wor
   )
 }
 
+/** The Bets tab's Export CSV: one row per bet, amounts as the API sends them (whitelabel currency), every
+ *  cell quoted. The server pages bets 100 at a time, so the page collects them first. */
+export const BET_EXPORT_PAGE_SIZE = 100
+
+export function worliBetsCsv(bets: readonly WorliBet[]): string {
+  const header = ['Bet ID', 'User ID', 'Bid Type', 'Selection', 'Stake', 'Rate', 'Potential Win', 'Status', 'Currency', 'Placed At']
+  const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+  const rows = bets.map((bet) => [bet.id, bet.userId, bet.bidType, bet.betNumbers, bet.betAmount, bet.payoutMultiplier, bet.potentialWin, bet.status, bet.currency, bet.createdAt])
+  return [header, ...rows].map((row) => row.map(cell).join(',')).join('\n')
+}
+
+export function worliBetsCsvName(instanceId: string): string {
+  return `worli-bets-${instanceId.slice(0, 8)}.csv`
+}
+
 export function formatRate(rate: number | string | null | undefined): string {
   return `${Number(rate).toFixed(2)}x`
 }
@@ -393,7 +467,7 @@ export function activityStyle(action: string): { tone: StatusPillTone; hue: Acti
 
 /* ---------- operator controls ---------- */
 
-export type OperatorAction = 'PAUSE' | 'RESUME' | 'LOCK' | 'CLOSE'
+export type OperatorAction = 'PAUSE' | 'RESUME' | 'LOCK' | 'CLOSE' | 'UNLOCK'
 
 /** The confirmation title: "Confirm PAUSE" and so on ("Confirm " while it closes). */
 export function operatorActionTitle(action: OperatorAction | null): string {

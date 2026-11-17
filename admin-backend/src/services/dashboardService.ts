@@ -141,32 +141,48 @@ async function computeWhitelabelGrossCommission(
   currency: string,
 ): Promise<number> {
   try {
-    const agentsRepo = new AgentsRepo();
-    const rootAgentIds = await agentsRepo.listRootAgentIds(tenant);
-    if (rootAgentIds.length === 0) return 0;
-
-    // Share hierarchy, effective rate rows and grouped bets inside this request.
-    // Root selection/order, tally, carry and gross commission maths stay in the
-    // existing commission engine. A later refresh creates a fresh reader.
-    const tenantAgents = await agentsRepo.list(tenant);
-    const commissionService = await createCommissionReportCalculator(tenant, tenantAgents);
-
-    const summaries = await Promise.all(
-      rootAgentIds.map((agentId) =>
-        commissionService
-          .calculateCommissionSummary(agentId, dateFrom, dateTo, currency, 'gross')
-          .catch(() => null),
-      ),
-    );
-
+    const parts = await computeWhitelabelGrossCommissionByRootAgent(tenant, dateFrom, dateTo, currency);
     let total = 0;
-    for (const s of summaries) {
-      if (s) total += s.effectiveCalculatedTotal;
-    }
+    for (const part of parts) total += part.amount;
     return total;
   } catch {
     return 0;
   }
+}
+
+/**
+ * The parts computeWhitelabelGrossCommission adds up: each root agent's gross commission for the
+ * period. Exported for the Gross Revenue and Net GGR drill-downs, whose rows must add up to the card
+ * (DAS-KPI-DRILL-GGR). A root agent whose calculation fails is left out, as the sum leaves it out.
+ */
+export async function computeWhitelabelGrossCommissionByRootAgent(
+  tenant: string,
+  dateFrom: Date,
+  dateTo: Date,
+  currency: string,
+): Promise<Array<{ agentId: string; amount: number }>> {
+  const agentsRepo = new AgentsRepo();
+  const rootAgentIds = await agentsRepo.listRootAgentIds(tenant);
+  if (rootAgentIds.length === 0) return [];
+
+  // Share hierarchy, effective rate rows and grouped bets inside this request.
+  // Root selection/order, tally, carry and gross commission maths stay in the
+  // existing commission engine. A later refresh creates a fresh reader.
+  const tenantAgents = await agentsRepo.list(tenant);
+  const commissionService = await createCommissionReportCalculator(tenant, tenantAgents);
+
+  const summaries = await Promise.all(
+    rootAgentIds.map((agentId) =>
+      commissionService
+        .calculateCommissionSummary(agentId, dateFrom, dateTo, currency, 'gross')
+        .catch(() => null),
+    ),
+  );
+
+  return rootAgentIds.flatMap((agentId, index) => {
+    const summary = summaries[index];
+    return summary ? [{ agentId: String(agentId), amount: summary.effectiveCalculatedTotal }] : [];
+  });
 }
 
 /**

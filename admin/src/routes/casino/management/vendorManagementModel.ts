@@ -118,6 +118,18 @@ export function vendorStatusLabel(enabled: boolean | null | undefined): 'Enabled
   return enabled === false ? 'Disabled' : 'Enabled'
 }
 
+/* Core mode (a Super Admin with no whitelabel selected) reads every whitelabel at once: a vendor's
+   enabled flag and enabled-game count belong to one whitelabel and come back empty, and the switches
+   would write the pseudo-whitelabel "default". The server refuses those writes, and the page offers
+   none of them there. */
+export const CORE_MODE_VENDOR_HINT =
+  'Core mode lists every vendor on the platform. Select a whitelabel in the top bar to switch vendors on or off for it.'
+
+/** The vendors' total games, the one per-vendor figure that is not a whitelabel setting. */
+export function totalVendorGames(vendors: readonly VendorWithSettings[]): number {
+  return vendors.reduce((sum, v) => sum + (Number(v.gamesCount) || 0), 0)
+}
+
 /** Counted over every vendor the query returned, not the searched subset. */
 export function vendorStats(vendors: readonly VendorWithSettings[]): VendorStats {
   const total = vendors.length

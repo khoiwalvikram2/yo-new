@@ -61,43 +61,5 @@ export const MATKA_PLAYER_BREAKDOWN_QUERY = gql`
   }
 `;
 
-export const SPORTS_KPIS_QUERY = gql`
-  query SportsKPIsProfitability($filter: SportsReportingFilter) {
-    sportsKPIs(filter: $filter) {
-      totalStakes
-      totalPayouts
-      grossGamingRevenue
-      betCount
-    }
-  }
-`;
-
-export const CASINO_KPIS_QUERY = gql`
-  query CasinoKPIsProfitability($filter: CasinoReportingFilter) {
-    casinoKPIs(filter: $filter) {
-      totalStakes
-      totalPayouts
-      grossGamingRevenue
-      betCount
-    }
-  }
-`;
-
-export const MATKA_KPIS_QUERY = gql`
-  query MatkaKPIsProfitability($filter: MatkaReportingFilter) {
-    matkaKPIs(filter: $filter) {
-      totalStakes
-      totalPayouts
-      grossGamingRevenue
-      betCount
-    }
-  }
-`;
-
-export const ACTIVE_PLAYERS_QUERY = gql`
-  query ActivePlayersProfitability($dateRange: DashboardDateRange) {
-    overviewKPIs(dateRange: $dateRange) {
-      activePlayers
-    }
-  }
-`;
+/* The domain KPI documents and the active-player count are gone (F-REP-16): the cards are summed from
+   the listed players' rows, which are complete (the breakdowns are not capped). */

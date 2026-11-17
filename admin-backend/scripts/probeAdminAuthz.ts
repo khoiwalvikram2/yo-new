@@ -8,7 +8,9 @@
  *
  * It signs in as a purpose-built admin user holding exactly one harmless
  * permission, in its own throwaway tenant, and invokes each operation through
- * the real resolver map with the real context shape.
+ * the real resolver map with the real context shape. A second, anonymous pass
+ * then calls every root Query with no session at all, which the first pass
+ * cannot see: see `ANONYMOUS_BY_DESIGN`.
  *
  * **Reading the verdict.** An operation is gated if it throws a refusal *or*
  * returns one — a large part of this surface reports refusal as a payload
@@ -41,6 +43,8 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { db, pool } from '@src/db/client.js'
 import { sql } from 'drizzle-orm'
+import { AGENT_NAMESPACES, namespaceFields, type AgentNamespace } from './agentNamespaceFields.js'
+import { extensionFields } from './schemaExtensionFields.js'
 
 const SRC = join(process.cwd(), 'src')
 const ONLY = process.argv.find((a) => a.startsWith('--domain='))?.split('=')[1] ?? null
@@ -109,21 +113,49 @@ const OPEN_BY_DESIGN: Record<string, string> = {
     ' session, so reaching it here means seeing one row, its own', 
   crmMe: 'the caller reading their own CRM session',
   checkPhoneAvailable: 'a boolean during player creation; discloses nothing about the holder',
-  myDepositMethods: 'the caller’s own deposit methods',
-  myWhitelabelCredit: 'the caller’s own credit',
-  myWhitelabelCreditHistory: 'the caller’s own credit history',
-  myWhitelabelSettlements: 'the caller’s own settlements',
-  myWhitelabelSharing: 'the caller’s own sharing terms',
+  // myDepositMethods, myWhitelabelCredit, myWhitelabelCreditHistory and myWhitelabelSharing used to sit here as
+  // "the caller's own ...". "Own" was decided by the X-Whitelabel-ID header alone: with no session at all they
+  // returned a brand's bank accounts, chip pool, pool ledger (player names and phones) and sharing terms, and
+  // every agent read the pool. They now ask for a permission, so the probe measures them. `referralLink` was here
+  // as "carries its own ownership check on the link"; it carried none, and is gated now too.
+  // myWhitelabelSettlements was here as "the caller’s own settlements": any session read them, every agent
+  // included. It now asks settlements.center:view and refuses agents, like its pool and sharing siblings (SCO-09).
+  appDisplayConfig: "the brand's currency, time zone and locale, which every signed-in shell formats with",
   aiAvailability: 'whether the assistant is switched on at all',
   aiEntitlement: 'what the caller’s own whitelabel may use',
   globalSearch: 'authorises per category and returns empty for a caller entitled to none',
   aiWhitelabelSettings: 'Super Admin, checked by role name',
   crmWhitelabels: 'Super Admin, checked by role name',
-  referralLink: 'carries its own ownership check on the link',
   agentReferralLink: 'carries its own agent-ownership check',
   aiConversation: 'scoped to the caller’s own conversations',
   aiConfirmAction: 'consumes a proposal already addressed to the caller',
   aiRejectAction: 'the same',
+  // Declared by `extend type` in the domain schema files, which this probe did not read until 2026-11-03.
+  myNotifications: "the caller's own inbox (an admin's is its whitelabel's, behind every admin's topbar bell); no session is refused",
+  notificationStats: 'the unread counts of that same inbox',
+  myNotification: 'one notification of that same inbox (it refuses the probe’s made-up category first)',
+  markAllNotificationsRead: 'marks that same inbox read; no session is refused',
+  // Executed by the default run (its only argument is an id). The probe's made-up id is not a uuid, so it fails in the
+  // query rather than on a permission; without this entry the run reported it as reached and exited 1.
+  markNotificationRead: 'marks one notification of that same inbox read; no session is refused',
+  myCommissionSettlementHistory: 'answers an empty list to anyone but a signed-in commission agent',
+  downlineCommissionSettlementHistory: 'the same',
+  subAgentsPendingSettlements: 'empty unless a signed-in agent',
+  currentCommissionCycle: 'the dates of the current commission week; no tenant data',
+}
+
+/**
+ * Reached by a caller holding nothing, and NOT by design: each needs a gate, and which permission is an owner
+ * decision because a live role may lose access (memory gw-tighten-gates-check-live-roles). They became visible when
+ * the probe started reading the `extend type` fields. Printed on every run under their own heading; the run still
+ * fails on anything reached that is on neither list, and an entry that is now refused is reported for removal.
+ *
+ * Empty since 2026-11-03 (SCO-09), after the live roles were measured: agentSettlementTransactions and its Page now
+ * ask settlements.center:view (requireSettlementRead); commissionCyclesForAgent and commissionCycleReadiness ask a
+ * commission read or settlements.center:view (the settlement centre's Pay dialog calls both). Keep the list, empty,
+ * for the next one.
+ */
+const KNOWN_UNGATED: Record<string, string> = {
 }
 
 /**
@@ -154,7 +186,45 @@ const GATED_BUT_VALIDATES_FIRST: Record<string, string> = {
   setCrmWhitelabelSettings: 'the same',
 }
 
-type Field = { name: string; kind: 'Query' | 'Mutation'; args: Array<{ name: string; type: string }> }
+/**
+ * Queries that answer a caller with NO session, each with the reason. The anonymous pass below flags any other.
+ *
+ * The session pass alone could not see the anonymous case: it always signs in, so a field calling itself "the
+ * caller's own" looked fine while it actually read the tenant from the X-Whitelabel-ID header for anyone. Four
+ * such fields served a brand's bank accounts, chip pool and ledger to no session at all. Measured 2026-11-03 with
+ * every database connection read-only: these are the only Query fields that answer without one.
+ *
+ * That claim now covers the Query fields the domain files declare with `extend type Query` as well (the notification
+ * reads among them, which refuse a caller with no session). Until 2026-11-03 this probe read only
+ * types/operations/*.graphql, so neither pass ever called those fields: see schemaExtensionFields.ts.
+ */
+const ANONYMOUS_BY_DESIGN: Record<string, string> = {
+  health: 'liveness',
+  whitelabelCurrent: 'branding for the host being addressed, needed before sign-in',
+  whitelabel: 'the same, by id; its money fields are null without a session (whitelabelFieldScope test)',
+  checkPhoneAvailable: 'the player site answers the same question to anyone at sign-up',
+  crmMe: 'null without a CRM session',
+  currentCommissionCycle: 'the dates of the current commission week; no tenant data',
+  convertCurrency: 'arithmetic on exchange rates; no tenant data (fails here on its missing input)',
+  agentReferralLink: 'validates the agent id before the caller; a valid id with no session is refused',
+  myCommissionSettlementHistory: 'answers an empty list to anyone but a signed-in commission agent',
+  downlineCommissionSettlementHistory: 'the same',
+  subAgentCommissionSummaries: 'empty unless a signed-in agent, or an admin holding a commission read',
+  subAgentsPendingSettlements: 'empty unless a signed-in agent',
+  commissionAdjustments: 'empty without an agent id the caller may see',
+  commissionAdjustmentsPage: 'the same',
+}
+
+type Field = {
+  name: string
+  kind: 'Query' | 'Mutation'
+  args: Array<{ name: string; type: string }>
+  /** Set for a field of the agents namespace (AgentsQuery / AgentsMutation), reached through Query/Mutation.agents. */
+  namespace?: AgentNamespace
+}
+
+/** How a field is named in the report: namespace fields carry their namespace (agents.settleAgent is not settleAgent). */
+const labelOf = (f: Field) => (f.namespace ? `${f.namespace.field}.${f.name}` : f.name)
 
 /** Parses the operation SDL into fields with their argument types. */
 function parseFields(file: string, kind: 'Query' | 'Mutation'): Field[] {
@@ -210,9 +280,19 @@ function isRefusalPayload(out: unknown, depth = 0): boolean {
 }
 
 async function main(): Promise<void> {
-  const fields = [
+  const fields: Field[] = [
     ...parseFields('queries.graphql', 'Query'),
     ...parseFields('mutations.graphql', 'Mutation'),
+    // The root fields the domain files add with `extend type Query` / `extend type Mutation` (notifications,
+    // settlements, payouts, worli, currencies, ...): about ninety operations neither pass ever called before.
+    ...(['Query', 'Mutation'] as const).flatMap((kind) =>
+      extensionFields(kind).map((f): Field => ({ name: f.name, kind, args: f.args }))
+    ),
+    // The agents namespace (the chips API among it) is declared in its domain file, not in types/operations.
+    // Each field is invoked the way a request reaches it: through Query.agents / Mutation.agents first.
+    ...AGENT_NAMESPACES.flatMap((ns) =>
+      namespaceFields(ns.type).map((f): Field => ({ name: f.name, kind: ns.root, args: f.args, namespace: ns }))
+    ),
   ]
 
   // A throwaway tenant with a user holding one harmless permission, so the
@@ -256,9 +336,12 @@ async function main(): Promise<void> {
   let probed = 0
   for (const f of fields) {
     if (LIMIT && probed >= LIMIT) break
-    const fn = maps[f.kind][f.name]
+    const label = labelOf(f)
+    const fn = f.namespace
+      ? (domainResolvers as unknown as Record<string, Record<string, unknown>>)[f.namespace.type]?.[f.name]
+      : maps[f.kind][f.name]
     if (typeof fn !== 'function') {
-      skipped.push(`${f.name} (no function resolver)`)
+      skipped.push(`${label} (no function resolver)`)
       continue
     }
 
@@ -278,11 +361,14 @@ async function main(): Promise<void> {
       }
       args[a.name] = v
     }
+    // A read under the agents namespace cannot fail on an argument before it is gated: Query.agents runs first.
+    // So a required enum or input argument (chipAccount's accountType) is no reason to skip it.
+    if (unsafe && f.namespace?.root === 'Query') unsafe = false
     if (unsafe) {
       const effectful = EXTERNALLY_EFFECTFUL.some((re) => re.test(f.name))
       if (!DEEP || effectful) {
         skipped.push(
-          `${f.name} (${effectful ? 'reaches outside the database' : 'would need invented content'})`
+          `${label} (${effectful ? 'reaches outside the database' : 'would need invented content'})`
         )
         continue
       }
@@ -294,8 +380,16 @@ async function main(): Promise<void> {
 
     probed++
     try {
+      // A namespace field runs only after its namespace field has: Query.agents is where every agent read is
+      // gated, so it is called first, exactly as a request reaches the field.
+      let parent: unknown = undefined
+      if (f.namespace) {
+        const gate = maps[f.kind][f.namespace.field]
+        if (typeof gate !== 'function') throw new Error(`no resolver for ${f.kind}.${f.namespace.field}`)
+        parent = await (gate as (p: unknown, a: unknown, c: unknown, i: unknown) => Promise<unknown>)(undefined, {}, ctx, undefined)
+      }
       const out = await (fn as (p: unknown, a: unknown, c: unknown, i: unknown) => Promise<unknown>)(
-        undefined,
+        parent,
         args,
         ctx,
         undefined
@@ -307,16 +401,43 @@ async function main(): Promise<void> {
       // the RBAC mutations look wide open when they are gated, and reading the
       // returned message is the only way to tell the two apart.
       if (isRefusalPayload(out)) {
-        gated.push(f.name)
+        gated.push(label)
       } else {
-        reached.push({ name: f.name, kind: f.kind, note: 'ran to completion' })
+        reached.push({ name: label, kind: f.kind, note: 'ran to completion' })
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       if (/Forbidden|insufficient permission|Unauthorized|not permitted|Access denied/i.test(msg)) {
-        gated.push(f.name)
+        gated.push(label)
       } else {
-        reached.push({ name: f.name, kind: f.kind, note: msg.split('\n')[0].slice(0, 70) })
+        reached.push({ name: label, kind: f.kind, note: msg.split('\n')[0].slice(0, 70) })
+      }
+    }
+  }
+
+  // The anonymous pass: every root Query again, as a caller with no session at all, the tenant still named the
+  // way the X-Whitelabel-ID header names it. Queries only, so nothing is written; the same id-shaped arguments.
+  const anonymous = { ...ctx, user: undefined, permissions: undefined }
+  const anonymousReached: Array<{ name: string; note: string }> = []
+  let anonymousProbed = 0
+  for (const f of fields) {
+    if (f.kind !== 'Query' || f.namespace) continue
+    const fn = maps.Query[f.name]
+    if (typeof fn !== 'function') continue
+    const args: Record<string, unknown> = {}
+    for (const a of f.args) {
+      const v = absentValue(a.type)
+      if (v !== undefined) args[a.name] = v
+    }
+    anonymousProbed++
+    try {
+      const out = await (fn as (p: unknown, a: unknown, c: unknown, i: unknown) => Promise<unknown>)(undefined, args, anonymous, undefined)
+      if (!isRefusalPayload(out)) anonymousReached.push({ name: f.name, note: 'ran to completion' })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      // Two more wordings of the same refusal: "Authentication required" and "Only a Super Admin can ...".
+      if (!/Forbidden|insufficient permission|Unauthorized|not permitted|Access denied|authentication required|only a super admin/i.test(msg)) {
+        anonymousReached.push({ name: f.name, note: msg.split('\n')[0].slice(0, 70) })
       }
     }
   }
@@ -372,8 +493,9 @@ async function main(): Promise<void> {
     console.log(`\n⚠ rows left behind in tenant ${TENANT}: ${leftovers.join(', ')}\n`)
   }
 
+  const knownUngated = reached.filter((x) => x.name in KNOWN_UNGATED)
   const unexpected = reached.filter(
-    (x) => !(x.name in OPEN_BY_DESIGN) && !(DEEP && x.name in GATED_BUT_VALIDATES_FIRST)
+    (x) => !(x.name in OPEN_BY_DESIGN) && !(x.name in KNOWN_UNGATED) && !(DEEP && x.name in GATED_BUT_VALIDATES_FIRST)
   )
   const expected = reached.filter((x) => x.name in OPEN_BY_DESIGN)
   const shown = ONLY
@@ -383,8 +505,19 @@ async function main(): Promise<void> {
   console.log(`probed ${probed} operation(s) as a user holding one unrelated permission\n`)
   console.log(`  refused on a permission  : ${gated.length}`)
   console.log(`  reached, open by design  : ${expected.length}`)
+  console.log(`  KNOWN UNGATED (see below): ${knownUngated.length}`)
   console.log(`  REACHED UNEXPECTEDLY     : ${unexpected.length}`)
   console.log(`  skipped (unsafe to probe): ${skipped.length}\n`)
+
+  if (knownUngated.length) {
+    console.log('--- KNOWN UNGATED: reached by a caller holding nothing, NOT by design; each still needs a gate ---')
+    for (const x of knownUngated) console.log(`  ${x.kind[0]}:${x.name.padEnd(38)} ${KNOWN_UNGATED[x.name]}`)
+    console.log('')
+  }
+  const nowGated = Object.keys(KNOWN_UNGATED).filter((name) => gated.includes(name))
+  if (nowGated.length) {
+    console.log(`--- now refused, so remove from KNOWN_UNGATED: ${nowGated.join(', ')} ---\n`)
+  }
 
   if (DEEP) {
     console.log('NOTE on --deep: these are LEADS, not findings.')
@@ -403,6 +536,20 @@ async function main(): Promise<void> {
       console.log(`  ${x.kind[0]}:${x.name.padEnd(38)} ${x.note}`)
     }
     if (shown.length > 120) console.log(`  …and ${shown.length - 120} more`)
+    process.exitCode = 1
+  }
+
+  const anonymousUnexpected = anonymousReached.filter(
+    (x) => !(x.name in ANONYMOUS_BY_DESIGN) && (!ONLY || x.name.toLowerCase().includes(ONLY.toLowerCase()))
+  )
+  console.log(`\nanonymous pass: ${anonymousProbed} queries as a caller with no session`)
+  console.log(`  answered, open by design : ${anonymousReached.length - anonymousReached.filter((x) => !(x.name in ANONYMOUS_BY_DESIGN)).length}`)
+  console.log(`  ANSWERED UNEXPECTEDLY    : ${anonymousUnexpected.length}\n`)
+  if (anonymousUnexpected.length === 0) {
+    console.log('OK no query answers a caller without a session unless it is meant to.')
+  } else {
+    console.log('--- answered with no session, and not on the anonymous by-design list ---')
+    for (const x of anonymousUnexpected.slice(0, 120)) console.log(`  Q:${x.name.padEnd(38)} ${x.note}`)
     process.exitCode = 1
   }
 

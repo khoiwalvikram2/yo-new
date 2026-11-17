@@ -1,5 +1,6 @@
 import type { Market, BetSlipData, EventDetails, Bet } from './types'
 import { Lock, Minus, BarChart3 } from "lucide-react"
+import { hasPrice } from '../nova/exchange-home/exchangeShared'
 import { useMemo, useCallback, useState, memo } from 'react'
 import FancyBookDisplay from './FancyBookDisplay'
 import { formatAmount } from '@/lib/currency'
@@ -132,6 +133,9 @@ const StandardMarketLayout = memo(function StandardMarketLayout({ market, myBets
               ) : columns.map(({ side }) => {
                 const price = side === 'back' ? odds.back : odds.lay
                 const size = side === 'back' ? odds.fancyData?.bs1 : odds.fancyData?.ls1
+                if (!hasPrice(price)) {
+                  return <span key={side} role="img" aria-label="Suspended" title="Suspended" data-locked="true" className={`nova-ev-odd is-${side} is-main is-locked`}><Lock aria-hidden="true" /></span>
+                }
                 return (
                   <button
                     key={side}

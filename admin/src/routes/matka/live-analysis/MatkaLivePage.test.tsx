@@ -6,6 +6,7 @@ import { ApolloLink, InMemoryCache, Observable } from '@apollo/client'
 import { MockedProvider } from '@apollo/client/testing'
 import { MemoryRouter } from 'react-router-dom'
 import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { useMatkaLiveStore } from '@/state/matkaLiveStore'
 import LiveAnalysisPage from './LiveAnalysisPage'
 import { TestBetsPanel } from './tabs/testing/TestBetsPanel'
@@ -104,7 +105,7 @@ test('a delayed tenant change clears previous statistics before its new snapshot
 test('main page retains all eight views and original subscription/query scopes without implicit writes', async () => {
   workspace(); await screen.findByRole('heading', { name: 'Top Matkas' })
   assert.equal(screen.getAllByRole('tab').length, 8)
-  assert.deepEqual(calls.find(call => call.name === 'MatkaLiveDashboard')?.variables, { scope: { tenant: 'tenant-a', whitelabelId: 'tenant-a', agentId: undefined } })
+  assert.deepEqual(calls.find(call => call.name === 'MatkaLiveDashboard')?.variables, { scope: { tenant: 'tenant-a', whitelabelId: 'tenant-a' } })
   for (const [label, heading] of [['Analytics', 'Player Journey Mapping'], ['Performance', 'Risk Analytics'], ['Heatmap', 'Player Activity Heatmap'], ['Bet List', 'Live Bet List'], ['Compare', 'Comparison View'], ['Players', 'Player Overview']]) {
     fireEvent.click(screen.getByRole('tab', { name: label })); await screen.findByRole('heading', { name: heading })
   }
@@ -122,7 +123,16 @@ test('pause keeps the snapshot, ends only dashboard/activity streams and Refresh
   await waitFor(() => assert.equal(calls.filter(call => call.name === 'MatkaLiveDashboard').length, before + 1))
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Refresh now' })) })
   await waitFor(() => assert.equal(calls.filter(call => call.name === 'MatkaLiveDashboard').length, before + 2))
-  assert.deepEqual(calls.filter(call => call.name === 'MatkaLiveDashboard').at(-1)?.variables, { scope: { tenant: 'tenant-a', whitelabelId: 'tenant-a', agentId: undefined } })
+  assert.deepEqual(calls.filter(call => call.name === 'MatkaLiveDashboard').at(-1)?.variables, { scope: { tenant: 'tenant-a', whitelabelId: 'tenant-a' } })
+})
+test('an agent subscribes with the LiveScope fields only: the server scopes the agent from its session', async () => {
+  // LiveScope defines tenant, whitelabelId, windowMins and matkaType; an agentId made GraphQL refuse both
+  // subscriptions for every agent ("Field \"agentId\" is not defined by type \"LiveScope\"").
+  useAuthStore.setState({ agent: { id: 'agent-301' } as never, agentPermissions: [], permissions: [] })
+  workspace(); await screen.findByRole('heading', { name: 'Top Matkas' })
+  const subscriptions = calls.filter(call => call.name === 'MatkaLiveDashboard' || call.name === 'MatkaPlayerEvents')
+  assert.deepEqual([...new Set(subscriptions.map(call => call.name))].sort(), ['MatkaLiveDashboard', 'MatkaPlayerEvents'])
+  for (const call of subscriptions) assert.deepEqual(call.variables, { scope: { tenant: 'tenant-a', whitelabelId: 'tenant-a' } })
 })
 test('changing scope while paused clears old snapshot/history and resumes the newly selected tenant', async () => {
   const view = workspace(); await screen.findByRole('heading', { name: 'Top Matkas' })
@@ -139,21 +149,71 @@ test('view permission still gates data reads and subscription failure offers rea
   workspace(<LiveAnalysisPage />, state); await screen.findByText('Live Matka data unavailable')
   state.fail = ''; fireEvent.click(screen.getByRole('button', { name: 'Retry' })); await screen.findByRole('heading', { name: 'Top Matkas' })
 })
-test('Bet List paginates exactly once, keeps limit/status contract, saves views and exports all filtered loaded rows', async () => {
+test('Bet List opens on the open bets, paginates exactly once, keeps limit/status contract, saves views and exports all filtered loaded rows', async () => {
   workspace(<BetList />); const table = await screen.findByRole('table', { name: 'Live Matka bets' }); await waitFor(() => assert.equal(within(table).getAllByRole('row').length, 21))
-  assert.deepEqual(JSON.parse(JSON.stringify(calls.find(call => call.name === 'MatkaLiveBetsPage')?.variables)), { filters: { status: ['pending'] }, offset: 0, limit: 20 })
-  fireEvent.click(screen.getByRole('button', { name: 'Next page' })); await waitFor(() => assert.equal(within(table).getAllByRole('row').length, 11))
-  fireEvent.change(screen.getByRole('textbox', { name: 'Search Matka bets' }), { target: { value: 'Asha' } }); await waitFor(() => assert.equal(within(table).getAllByRole('row').length, 9))
+  // Placement stores open bets as active, so the default asks for pending and active (pending alone listed none).
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.find(call => call.name === 'MatkaLiveBetsPage')?.variables)), { filters: { status: ['pending', 'active'] }, offset: 0, limit: 20 })
+  screen.getByText('Showing 20 of 40 bets')
+  assert.equal((screen.getByRole('combobox', { name: 'Status' }) as HTMLSelectElement).selectedOptions[0].textContent, 'Open (pending + active)')
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' })); await waitFor(() => assert.ok(within(table).queryByText('INR 600.00'), 'the second page starts at the 21st open bet'))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search Matka bets' }), { target: { value: 'Asha' } }); await waitFor(() => assert.equal(within(table).getAllByRole('row').length, 11))
   const before = calls.length; fireEvent.click(screen.getByRole('button', { name: 'Save View' })); assert.equal(useMatkaLiveStore.getState().savedViews[0].filters.searchQuery, 'Asha')
   fireEvent.click(screen.getByRole('button', { name: 'Export CSV' })); await waitFor(() => assert.ok(exported)); assert.ok(calls.length > before); assert.equal(calls.at(-1)?.variables.limit,500)
   fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'active' } })
   await waitFor(() => assert.ok(calls.some(call => JSON.stringify((call.variables.filters as { status?: string[] })?.status) === '["active"]')))
+})
+test('Bet List asks a Super Admin with no whitelabel selected to pick one, and queries, polls and exports nothing', async () => {
+  // Core mode read the platform's own tenant, which holds no bets: the list showed "0 of 0" every 5 seconds.
+  const ui = useUIStore.getState()
+  useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+  try {
+    const core = workspace(<BetList />)
+    const region = await screen.findByRole('region', { name: 'Live Bet List' })
+    assert.ok(within(region).getByText('Select a whitelabel'))
+    assert.equal(screen.queryByRole('table', { name: 'Live Matka bets' }), null)
+    assert.equal(screen.queryByRole('button', { name: 'Export CSV' }), null)
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+    assert.equal(calls.some(call => call.name === 'MatkaLiveBetsPage'), false)
+    core.unmount()
+    // With a site selected the same admin gets the list.
+    useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+    workspace(<BetList />); await screen.findByRole('table', { name: 'Live Matka bets' })
+    assert.ok(calls.some(call => call.name === 'MatkaLiveBetsPage'))
+  } finally {
+    useAuthStore.setState({ roles: [] }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+  }
+})
+test('the live workspace asks a Super Admin in core mode to select a whitelabel and opens no stream', async () => {
+  // Core mode subscribed for the platform's own tenant ("default"), which holds no bets: every tile read ₹0.00.
+  const ui = useUIStore.getState()
+  useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+  try {
+    const core = workspace()
+    assert.ok(await screen.findByText('Select a whitelabel'))
+    assert.equal(screen.getByRole('heading', { level: 1 }).textContent, 'Live Matka Intelligence')
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+    assert.equal(calls.length, 0, 'no dashboard, activity or tab request')
+    assert.equal(screen.queryAllByRole('tab').length, 0)
+    core.unmount()
+    // With a site selected the same admin gets the workspace and its streams, as whitelabel admins and agents always do.
+    useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+    workspace(); await screen.findByRole('heading', { name: 'Top Matkas' })
+    assert.ok(calls.some(call => call.name === 'MatkaLiveDashboard'))
+    assert.ok(calls.some(call => call.name === 'MatkaPlayerEvents'))
+  } finally {
+    useAuthStore.setState({ roles: [] }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+  }
 })
 test('Top Players retains every original column and ranking changes without changing the query', async () => {
   workspace(<TopPlayersTable />); const table = await screen.findByRole('table', { name: 'Top Matka players' }); await within(table).findByText('Dev Patel')
   assert.equal(within(table).getAllByRole('columnheader').length, 9)
   within(within(table).getAllByRole('row')[1]).getByText('Dev Patel')
   const before = calls.length; fireEvent.click(within(screen.getByRole('group', { name: 'Player ranking' })).getByRole('button', { name: 'Exposure' }))
+  // MAT-13: exposure is the potential win less the stake (8× the stake on these 9× bets, never the stake less the win,
+  // which was 0 for everyone), so Dev Patel's largest stake is also the largest exposure: (27900 - 3100) converted ×2
+  const first = within(table).getAllByRole('row')[1]; within(first).getByText('Dev Patel'); within(first).getByText('INR 49600.00')
+  // every player has 10 open bets, so ranking by bets keeps the order the bets came in: Asha Sharma leads
+  fireEvent.click(within(screen.getByRole('group', { name: 'Player ranking' })).getByRole('button', { name: 'Bets' }))
   within(within(table).getAllByRole('row')[1]).getByText('Asha Sharma'); assert.equal(calls.length, before)
 })
 test('Risk Analytics retains liquidity and overall-score memo calculations and identifies estimates', () => {

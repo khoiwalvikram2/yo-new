@@ -8,6 +8,7 @@ import { afterEach, describe, test } from 'vitest'
 import assert from 'node:assert/strict'
 import {
   BACKEND_SUPPORTED_EXPORT_TYPE_IDS,
+  EXPORT_TYPE_PERMISSIONS,
   DEFAULT_AGENT_DOMAINS,
   EXPORT_CATEGORY_LABELS,
   EXPORT_CATEGORY_OPTIONS,
@@ -187,6 +188,21 @@ describe('availableExportTypes', () => {
         assert.equal(types.includes(forbidden), false, `${scheme} sees ${forbidden}`)
       }
     }
+  })
+
+  test('an admin is offered only the types whose export permission it holds (F-REP-10)', () => {
+    const held = new Set(['reporting:export', 'users:read'])
+    const can = (domain: string, action: string) =>
+      held.has(`${domain}:${action}`) || (domain.startsWith('reporting.') && action === 'export' && held.has('reporting:export'))
+        || (domain.startsWith('players.') && held.has('users:read'))
+    const types = ids(availableExportTypes({ ...ADMIN, can }))
+    assert.equal(types.includes('audit-logs'), false, 'audit.events:export is not held')
+    assert.equal(types.includes('deposits'), false, 'payments.deposits:view is not held')
+    assert.ok(types.includes('ggr') && types.includes('players') && types.includes('matka-bets'))
+    // every supported type has the server's price, so none slips through unpriced
+    for (const id of BACKEND_SUPPORTED_EXPORT_TYPE_IDS) assert.ok(EXPORT_TYPE_PERMISSIONS[id], id)
+    // no checker: the legacy catalogue
+    assert.ok(ids(availableExportTypes(ADMIN)).includes('audit-logs'))
   })
 
   test('an agent session without a scheme is offered nothing', () => {

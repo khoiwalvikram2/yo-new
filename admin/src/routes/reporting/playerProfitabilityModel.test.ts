@@ -246,16 +246,15 @@ describe('search, paging and sorting', () => {
 })
 
 describe('totals and cell readings', () => {
-  test('the KPI totals add the three domains, reading strings and treating gaps as zero', () => {
+  test('the KPI totals add up the listed players’ rows (F-REP-16), and none is zero', () => {
     assert.deepEqual(
-      profitabilityTotals(
-        { totalStakes: '1000', totalPayouts: 400, grossGamingRevenue: '600', betCount: 10 },
-        { totalStakes: 500, totalPayouts: null, grossGamingRevenue: -50, betCount: '5' },
-        undefined,
-      ),
+      profitabilityTotals([
+        row(1, { totalStakes: 1000, totalPayouts: 400, grossGamingRevenue: 600, betCount: 10 }),
+        row(2, { totalStakes: 500, totalPayouts: 0, grossGamingRevenue: -50, betCount: 5 }),
+      ]),
       { totalStakes: 1500, totalPayouts: 400, totalGGR: 550, totalBets: 15 },
     )
-    assert.deepEqual(profitabilityTotals(null, null, null), {
+    assert.deepEqual(profitabilityTotals([]), {
       totalStakes: 0,
       totalPayouts: 0,
       totalGGR: 0,

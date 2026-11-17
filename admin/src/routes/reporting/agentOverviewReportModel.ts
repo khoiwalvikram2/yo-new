@@ -16,7 +16,10 @@ export type AgentOverviewPreset =
   | 'lastMonth'
   | 'custom'
 
-export type AgentOverviewTab = 'ggr' | 'activity' | 'top-players' | 'top-events'
+/* 'top-events' is gone (F-REP-08): it was a fixed "will be displayed here" placeholder with no query
+   behind it, and the existing top-event and game reads cannot be scoped to the agents' players for an
+   admin, so the tab is left out until a source exists. */
+export type AgentOverviewTab = 'ggr' | 'activity' | 'top-players'
 export type AgentOverviewDomain = 'all' | 'sports' | 'casino' | 'matka'
 
 /** The legacy Date Range options, in order and wording. */
@@ -38,7 +41,6 @@ export const AGENT_OVERVIEW_TABS = [
   { value: 'ggr', label: 'GGR by Domain' },
   { value: 'activity', label: 'Player Activity' },
   { value: 'top-players', label: 'Top Players' },
-  { value: 'top-events', label: 'Top Events/Games' },
 ] as const satisfies readonly { value: AgentOverviewTab; label: string }[]
 
 export const AGENT_OVERVIEW_DOMAIN_LABELS: Record<AgentOverviewDomain, string> = {
@@ -203,6 +205,13 @@ export function agentOverviewPresetPeriod(
 /** A custom range of IST days, from the first instant of `from` to the last instant of `to`. */
 export function agentOverviewCustomPeriod(from: string, to: string): AgentOverviewPeriod {
   return periodFromDays('custom', from, to)
+}
+
+/** The period the totals cover, as the Total Turnover card notes it (it said "All time" whatever was chosen, F-REP-09). */
+export function agentOverviewPeriodNote(period: Pick<AgentOverviewPeriod, 'preset' | 'dateFrom' | 'dateTo'>): string {
+  const range = period.dateFrom === period.dateTo ? period.dateFrom : `${period.dateFrom} – ${period.dateTo}`
+  if (period.preset === 'custom') return range
+  return AGENT_OVERVIEW_PRESETS.find((preset) => preset.value === period.preset)?.label ?? range
 }
 
 /** The filter the four queries receive: the two days, then the domain unless it is All Domains. */

@@ -13,6 +13,7 @@ import clsx from 'clsx'
 import { CASINO_VENDORS_WITH_SETTINGS, CASINO_API_PROVIDERS, TOGGLE_CASINO_VENDOR_ENABLED, BULK_UPDATE_VENDOR_SETTINGS } from '@/lib/graphql/casino'
 import { useAuthStore } from '@/shared/core/authStore'
 import { RBACGuard } from '@/shared/core/RBACGuard'
+import { useUIStore } from '@/shared/core/uiStore'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { Button } from '@/ui/components/Button'
 import { Card } from '@/ui/components/Card'
@@ -36,10 +37,12 @@ import { StatusPill } from '@/ui/components/StatusPill'
 import { Switch } from '@/ui/components/Switch'
 import { toast } from '@/ui/components/toast'
 import { Tooltip } from '@/ui/components/Tooltip'
+import { isCoreModeView } from './casinoManagementModel'
 import {
   BULK_ERROR_FALLBACK,
   CATEGORY_OPTIONS,
   CATEGORY_PLACEHOLDER,
+  CORE_MODE_VENDOR_HINT,
   DEFAULT_PAGE_SIZE,
   MESSAGE_DURATION_MS,
   NOTIFICATION_DURATION_MS,
@@ -67,6 +70,7 @@ import {
   statusSwitchLabel,
   toggleAllVendors,
   toggleVendorSelection,
+  totalVendorGames,
   vendorCountLabel,
   vendorStats,
   vendorStatusLabel,
@@ -84,7 +88,10 @@ import styles from './VendorManagementPage.module.css'
 
 const VENDORS_ACCESS_REQUIREMENT = [{ domain: 'casino.vendors', actions: ['view'] }]
 
-function VendorStatsGrid({ stats }: { stats: VendorStats }) {
+/** Columns that are one whitelabel's settings; core mode has no whitelabel, so it shows none of them. */
+const WHITELABEL_COLUMNS = new Set(['enabledGamesCount', 'status', 'actions'])
+
+function VendorStatsGrid({ stats, coreMode, totalGames }: { stats: VendorStats; coreMode: boolean; totalGames: number }) {
   return (
     <Grid cols={{ base: 1, md: 3 }} gap={12} role="group" aria-label="Vendor statistics">
       <Stat
@@ -93,18 +100,29 @@ function VendorStatsGrid({ stats }: { stats: VendorStats }) {
         icon={<IconBuildingStore size={18} stroke={strokeFor(18)} />}
         hue="blu"
       />
-      <Stat
-        label="Enabled"
-        value={stats.enabled}
-        icon={<IconCircleCheck size={18} stroke={strokeFor(18)} />}
-        hue="grn"
-      />
-      <Stat
-        label="Disabled"
-        value={stats.disabled}
-        icon={<IconCircleX size={18} stroke={strokeFor(18)} />}
-        hue="vio"
-      />
+      {coreMode ? (
+        <Stat
+          label="Total Games"
+          value={totalGames}
+          icon={<IconCircleCheck size={18} stroke={strokeFor(18)} />}
+          hue="grn"
+        />
+      ) : (
+        <>
+          <Stat
+            label="Enabled"
+            value={stats.enabled}
+            icon={<IconCircleCheck size={18} stroke={strokeFor(18)} />}
+            hue="grn"
+          />
+          <Stat
+            label="Disabled"
+            value={stats.disabled}
+            icon={<IconCircleX size={18} stroke={strokeFor(18)} />}
+            hue="vio"
+          />
+        </>
+      )}
     </Grid>
   )
 }
@@ -113,18 +131,20 @@ function VendorDetailsCell({
   vendor,
   selected,
   onSelect,
+  coreMode,
 }: {
   vendor: VendorWithSettings
   selected: boolean
   onSelect: (checked: boolean) => void
+  coreMode: boolean
 }) {
   const status = vendorStatusLabel(vendor.enabled)
   return (
     <div className={styles.vendorCell}>
-      <Checkbox checked={selected} onChange={onSelect} label={`Select ${vendor.name}`} hideLabel />
+      {!coreMode ? <Checkbox checked={selected} onChange={onSelect} label={`Select ${vendor.name}`} hideLabel /> : null}
       <div className={styles.vendorBody}>
         <span className={styles.vendorName} title={vendor.name}>{vendor.name}</span>
-        <StatusPill status={status}>{status}</StatusPill>
+        {!coreMode ? <StatusPill status={status}>{status}</StatusPill> : null}
       </div>
     </div>
   )
@@ -199,6 +219,8 @@ function VendorManagementPageContent() {
   const pageEyebrow = usePageEyebrow()
   const roles = useAuthStore((s) => s.roles)
   const isWhitelabelAdmin = isWhitelabelAdminRoles(roles)
+  const directorMode = useUIStore((s) => s.directorMode)
+  const coreMode = isCoreModeView(roles, directorMode)
 
   const [selectedProviderId, setSelectedProviderId] = useState<string | undefined>()
   const [selectedCategory, setSelectedCategory] = useState<VendorCategory | undefined>()
@@ -314,6 +336,7 @@ function VendorManagementPageContent() {
   )
 
   const stats = useMemo(() => vendorStats(vendors), [vendors])
+  const totalGames = useMemo(() => totalVendorGames(vendors), [vendors])
 
   if (error) {
     return (
@@ -336,13 +359,13 @@ function VendorManagementPageContent() {
     )
   }
 
-  const selectedCount = selectedRowKeys.length
+  const selectedCount = coreMode ? 0 : selectedRowKeys.length
   const allState = selectAllState(filteredVendors, selectedRowKeys)
 
-  const columns: DataTableColumn<VendorWithSettings>[] = [
+  const allColumns: DataTableColumn<VendorWithSettings>[] = [
     {
       key: 'vendor',
-      header: (
+      header: coreMode ? 'Vendor Details' : (
         <span className={styles.selectHead}>
           <Checkbox
             checked={allState.checked}
@@ -361,6 +384,7 @@ function VendorManagementPageContent() {
           onSelect={(checked) =>
             setSelectedRowKeys((previous) => toggleVendorSelection(previous, vendor.id, checked))
           }
+          coreMode={coreMode}
         />
       ),
     },
@@ -407,13 +431,15 @@ function VendorManagementPageContent() {
       ),
     },
   ]
+  const columns = coreMode ? allColumns.filter((column) => !WHITELABEL_COLUMNS.has(column.key)) : allColumns
 
   return (
     <Page maxWidth="wide">
       <PageHeader eyebrow={pageEyebrow} title={PAGE_TITLE} sub={PAGE_SUB} />
 
       <div className={styles.content}>
-        <VendorStatsGrid stats={stats} />
+        {coreMode ? <Notice tone="info" title="Core mode">{CORE_MODE_VENDOR_HINT}</Notice> : null}
+        <VendorStatsGrid stats={stats} coreMode={coreMode} totalGames={totalGames} />
 
         <FilterBar
           label="Filters"

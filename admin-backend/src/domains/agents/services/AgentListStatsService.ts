@@ -16,6 +16,7 @@ import { attributedAgentId, withReferralScope } from './commissionPlayerScope';
 import { getWhitelabelCurrency } from '@src/shared/whitelabelConfig.js';
 import { createCommissionReportCalculator } from '@src/domains/settlements/services/commissionReportCalculator.js';
 import { readAgentListHierarchy, readAgentListPayments, readAgentListGgr, readAgentListTurnover } from './agentListStatsReads.js';
+import { chipService } from './ChipService.js';
 
 /**
  * The agent list's player sets (getPlayersByAgents), from rows of (the one agent
@@ -108,7 +109,7 @@ export class AgentListStatsService {
       this.fetchLastBetInfoBatched(playersByAgent, statsMap, tenant),
       this.fetchDepositsWithdrawals(agentIds, tenant, statsMap, playersByAgent),
       this.fetchGGRAndExposure(agentIds, tenant, statsMap, dateRange, playersByAgent),
-      this.fetchSettlementInfo(agentIds, statsMap),
+      this.fetchSettlementInfo(agentIds, statsMap, tenant),
       this.fetchCommissionInfo(agentIds, tenant, statsMap, dateRange, playersByAgent),
       this.fetchPLTrend(agentIds, statsMap),
     ]);
@@ -382,7 +383,8 @@ export class AgentListStatsService {
 
   private async fetchSettlementInfo(
     agentIds: string[],
-    statsMap: Map<string, AgentListStats>
+    statsMap: Map<string, AgentListStats>,
+    tenant: string
   ): Promise<void> {
     try {
       const [agentRows, allSettlements] = await Promise.all([
@@ -390,6 +392,11 @@ export class AgentListStatsService {
         this.settlementsRepo.listBatch(agentIds, new Date(0), new Date()),
       ]);
       const byId = new Map(agentRows.map(row => [row.id, row]));
+      // CREDIT agents settle on chips: what is pending is the size of their Ref P/L, the amount a Deposit or
+      // Withdraw would move to bring them back to their credit reference (spec 2026-11-02 decision 8). One batch
+      // read for every CREDIT agent of the page; settlement_balance is no longer written for them.
+      const creditIds = agentRows.filter(row => row.schemeType === 'CREDIT').map(row => row.id);
+      const chips = creditIds.length > 0 ? await chipService.chipAccountsForAgents(tenant, creditIds) : new Map();
       for (const agentId of agentIds) {
         const stats = statsMap.get(agentId);
         if (!stats) continue;
@@ -418,14 +425,10 @@ export class AgentListStatsService {
           }
         }
 
-        // For CREDIT agents, use settlementBalance instead of pending settlement records
+        // CREDIT: |Ref P/L| from the chip figures (see above); its sign is on AgentAccount.chips.refPnl.
         if (agent.schemeType === 'CREDIT') {
-          const settlementBalance = Number(agent.settlementBalance || 0);
-          if (settlementBalance !== 0) {
-            stats.pendingSettlement = Math.abs(settlementBalance);
-          } else {
-            stats.pendingSettlement = 0;
-          }
+          const refPnl = chips.get(String(agentId).toLowerCase())?.refPnl ?? 0;
+          stats.pendingSettlement = Math.abs(refPnl);
         } else if (agent.schemeType === 'SHARING') {
           // SHARING: what is still owed for the open settlement window, from the
           // settlement engine — the same window and maths the settle mutation posts.

@@ -1,0 +1,85 @@
+/* Product page art (owner 2026-11-02). Each product page carries one large mark in the corner behind its content, the
+   way the Live Casino roulette wheel does (the owner kept that one and asked the others to follow it, and the small
+   icon patterns to go): Live Casino a roulette wheel turning slowly; Slots a jackpot ring of bulbs and rays turning
+   round a still lucky seven; Sports a football turning; Matka a painted matka swaying gently; Home, which carries
+   every product, a trophy in a laurel wreath floating gently. The monochrome marks
+   are masks in a faint brand colour; the matka keeps its own colours, faded. The art is original and lives in
+   public/watermarks. The roots are matched without new classes because tests pin the lobby root's className. */
+:is(.m99-kit.gw-matka.gw-matka-refresh, #casino-main, #slots-main, .nova-ex-grid.nova-sx, .nova-ex-grid.nova-ex-home) { position: relative; isolation: isolate; }
+:is(.m99-kit.gw-matka.gw-matka-refresh, #casino-main, #slots-main, .nova-ex-grid.nova-sx, .nova-ex-grid.nova-ex-home)::after,
+#slots-main::before {
+  content: '';
+  position: fixed;
+  right: 96px;
+  bottom: -150px;
+  z-index: -1;
+  width: 520px;
+  height: 520px;
+  pointer-events: none;
+}
+:is(#casino-main, #slots-main, .nova-ex-grid.nova-sx, .nova-ex-grid.nova-ex-home)::after,
+#slots-main::before { background: color-mix(in srgb, var(--mb-red) 22%, transparent); }
+html.dark :is(#casino-main, #slots-main, .nova-ex-grid.nova-sx, .nova-ex-grid.nova-ex-home)::after,
+html.dark #slots-main::before { background: color-mix(in srgb, var(--mb-red) 30%, transparent); }
+
+/* The lobby's category panels and the Matka market cards let the mark through, a little; game cards, number tiles
+   and buttons stay solid */
+:is(#casino-main, #slots-main) .nova-lobby-section { background: color-mix(in srgb, var(--lobby-panel) 70%, transparent); }
+.m99-kit.gw-matka.gw-matka-refresh .m99-market-board-card { background: color-mix(in srgb, var(--m99-surface) 78%, transparent); }
+.m99-kit.gw-matka.gw-matka-refresh .dep-board { background: color-mix(in srgb, var(--dep-band) 72%, transparent); }
+
+/* Live Casino: a roulette wheel */
+#casino-main::after {
+  -webkit-mask: url('/watermarks/casino-wheel.svg') center / contain no-repeat;
+  mask: url('/watermarks/casino-wheel.svg') center / contain no-repeat;
+  animation: gw-mark-spin 90s linear infinite;
+}
+
+/* Slots: the jackpot ring turns, the seven in its centre stays upright */
+#slots-main::after {
+  -webkit-mask: url('/watermarks/slots-ring.svg') center / contain no-repeat;
+  mask: url('/watermarks/slots-ring.svg') center / contain no-repeat;
+  animation: gw-mark-spin 90s linear infinite;
+}
+#slots-main::before {
+  -webkit-mask: url('/watermarks/slots-seven.svg') center / contain no-repeat;
+  mask: url('/watermarks/slots-seven.svg') center / contain no-repeat;
+}
+
+/* Sports: a football */
+.nova-ex-grid.nova-sx::after {
+  -webkit-mask: url('/watermarks/sports-ball.svg') center / contain no-repeat;
+  mask: url('/watermarks/sports-ball.svg') center / contain no-repeat;
+  animation: gw-mark-spin 70s linear infinite;
+}
+
+/* Home: a trophy in a laurel wreath, floating */
+.nova-ex-grid.nova-ex-home::after {
+  -webkit-mask: url('/watermarks/home-trophy.svg') center / contain no-repeat;
+  mask: url('/watermarks/home-trophy.svg') center / contain no-repeat;
+  animation: gw-mark-float 6s ease-in-out infinite alternate;
+}
+
+/* Matka: a painted matka in its own colours, faded, swaying on its base */
+.m99-kit.gw-matka.gw-matka-refresh::after {
+  bottom: -30px;
+  width: 460px;
+  height: 460px;
+  background: url('/watermarks/matka-big.svg') center / contain no-repeat;
+  opacity: .22;
+  transform-origin: 50% 88%;
+  animation: gw-mark-sway 7s ease-in-out infinite alternate;
+}
+.m99-kit.gw-matka.gw-matka-refresh[data-theme='dark']::after { opacity: .2; }
+
+@media (max-width: 760px) {
+  :is(.m99-kit.gw-matka.gw-matka-refresh, #casino-main, #slots-main, .nova-ex-grid.nova-sx, .nova-ex-grid.nova-ex-home)::after,
+  #slots-main::before { right: -120px; bottom: 90px; width: 340px; height: 340px; }
+  .m99-kit.gw-matka.gw-matka-refresh::after { right: -50px; bottom: 80px; width: 300px; height: 300px; }
+}
+@keyframes gw-mark-spin { to { transform: rotate(360deg); } }
+@keyframes gw-mark-sway { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+@keyframes gw-mark-float { from { transform: translateY(0); } to { transform: translateY(-22px); } }
+@media (prefers-reduced-motion: reduce) {
+  :is(.m99-kit.gw-matka.gw-matka-refresh, #casino-main, #slots-main, .nova-ex-grid.nova-sx, .nova-ex-grid.nova-ex-home)::after { animation: none; }
+}

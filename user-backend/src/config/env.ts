@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { z, type ZodIssue } from 'zod'
 import { otpEnvSchema } from '@shared/validation/env.js'
+import { isCryptoAllowedForUser } from '@shared/utils/cryptoDeposit.js'
 
 const userBackendEnvSchema = otpEnvSchema.extend({
   /** Global request ceiling for this public API (see index.ts). */
@@ -116,4 +117,13 @@ export function isWelivepayAllowedForUser(userId: number | null | undefined): bo
   if (userId == null) return false
   const allowed = raw.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n))
   return allowed.includes(userId)
+}
+
+/**
+ * TEMP test gate: restrict crypto (USDT) deposits to specific user IDs.
+ * CRYPTO_DEPOSIT_ALLOWED_USER_IDS = comma-separated user IDs (e.g. "761").
+ * Unset/empty => every player. A list with no valid ID allows nobody (a typo never opens crypto to all).
+ */
+export function isCryptoDepositAllowedForUser(userId: number | null | undefined): boolean {
+  return isCryptoAllowedForUser(process.env.CRYPTO_DEPOSIT_ALLOWED_USER_IDS, userId)
 }

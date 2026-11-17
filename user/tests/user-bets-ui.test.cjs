@@ -66,8 +66,8 @@ function harness(component = 'mobile', options = {}) {
     'react-i18next': { useTranslation: () => ({ t: translate }) },
     '@/lib/auth': { useAuth: () => auth },
     '@/lib/api/user': calls,
-    '../hooks/useAppSettings': { useFeatureFlags: () => features },
-    '@/hooks/useAppSettings': { useFeatureFlags: () => features },
+    '../hooks/useAppSettings': { useFeatureFlags: () => features, useSportsIconStyle: () => 'default' },
+    '@/hooks/useAppSettings': { useFeatureFlags: () => features, useSportsIconStyle: () => 'default' },
     '@/components/sports': sports, '../components/sports': sports,
     '../components/sports/utils': { formatStart: sports.formatStart },
     '@/lib/sportsHelpers': {
@@ -281,6 +281,38 @@ test('sports page load failure shows the error with a retry that refetches real 
   assert.equal(region().querySelector('[role="alert"]'), null);
   const link = eventRows(view)[0].querySelector('a.nova-sx-row-link');
   assert.equal(link.getAttribute('href'), '/sports/event/real-home-v-real-away?id=event-real', 'the row is the backend event');
+});
+
+test('sports tabs list every sport; one the backend does not list as active opens Coming soon', async () => {
+  const view = harness('sports', { getSportsList: async () => ok([
+    { name: 'Cricket', slugName: 'cricket', leagues: [{ name: 'Real league', events: [{ _id: 'event-real', name: 'Real Home v Real Away', date: '2099-01-01T10:00:00Z', markets: [] }] }] },
+    { name: 'Tennis', slugName: 'tennis', leagues: [] },
+  ]) });
+  const region = () => view.container.querySelector('#nova-sx-events');
+  const route = () => view.getByTestId('current-route').textContent;
+  const tab = label => [...view.container.querySelectorAll('.nova-ex-sport-tabs button')].find(button => button.querySelector('span').textContent === label);
+  await waitFor(() => assert.equal(eventRows(view).length, 1));
+  const labels = [...view.container.querySelectorAll('.nova-ex-sport-tabs button span')].map(span => span.textContent);
+  assert.deepEqual(labels.slice(0, 4), [translate('nova.allSports'), translate('nova.inPlay'), 'Cricket', 'Tennis'], 'active sports lead');
+  assert.equal(labels.length, 2 + 18, 'every sport in the catalogue is a tab');
+  for (const label of ['Soccer', 'Horse Racing', 'Golf', 'Cycling']) assert.ok(labels.includes(label), `${label} is a tab`);
+
+  fireEvent.click(tab('Golf'));
+  assert.equal(route(), '/sports?sport=golf');
+  await waitFor(() => assert.equal(region().querySelector('[role="status"] strong')?.textContent, 'Coming soon'));
+  assert.equal(region().querySelector('[role="status"] p').textContent, 'Golf betting opens here soon. Check back later.');
+  assert.ok(view.container.querySelector('.nova-sx-filters') === null, 'no time filters or search for a sport that is not open');
+  assert.equal(eventRows(view).length, 0);
+
+  fireEvent.click(tab('Tennis'));
+  await waitFor(() => assert.equal(region().querySelector('[role="status"]')?.textContent, translate('nova.noUpcoming')), 'an active sport without events is empty, not coming soon');
+  assert.ok(view.container.querySelector('.nova-sx-filters') !== null);
+
+  fireEvent.click(tab('Golf'));
+  await waitFor(() => assert.ok(within(region()).queryByRole('button', { name: translate('nova.allSports') }) !== null, 'coming soon offers a way back'));
+  fireEvent.click(within(region()).getByRole('button', { name: translate('nova.allSports') }));
+  assert.equal(route(), '/sports');
+  await waitFor(() => assert.equal(eventRows(view).length, 1));
 });
 
 test('sports discards a previous account response after logout or replacement instead of revealing its bets', async () => {

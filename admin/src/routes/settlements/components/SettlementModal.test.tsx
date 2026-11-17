@@ -32,12 +32,14 @@ test('the backend settlementDirection wins over the sign of the pending amount',
   fireEvent.change(screen.getByRole('textbox', { name: /Notes/ }), { target: { value: 'Collect share' } }); fireEvent.click(screen.getByRole('button', { name: 'Review Details' })); fireEvent.click(screen.getByRole('button', { name: 'Confirm Settlement' }))
   await waitFor(() => assert.deepEqual(submit.mock.calls[0], [{ amount: 4000, direction: 'FROM_AGENT', notes: 'Collect share' }]))
 })
-test('Credit amount stays fixed while existing editable direction radios remain compatible', async () => {
+test('the direction is never picked by hand and the amount stays editable: the fixed-amount CREDIT settle is gone', async () => {
+  // Since 2026-11-02 a CREDIT agent settles by moving chips (D / W of its Ref P/L); only SHARING settles here.
   const submit = vi.fn(async () => undefined)
-  render(<SettlementModal visible agent={{ pendingAmount: 4000, schemeType: 'CREDIT', agent: { username: 'Partner', schemeType: 'CREDIT' } }} onCancel={() => {}} onSubmit={submit} formatCurrency={formatCurrency} />)
-  assert.ok((screen.getByRole('textbox', { name: 'Settlement Amount' }) as HTMLInputElement).disabled)
-  fireEvent.click(screen.getByRole('radio', { name: /Collect FROM Agent/ })); fireEvent.change(screen.getByRole('textbox', { name: /Notes/ }), { target: { value: 'Collect credit settlement' } }); fireEvent.click(screen.getByRole('button', { name: 'Review Details' })); fireEvent.click(screen.getByRole('button', { name: 'Confirm Settlement' }))
-  await waitFor(() => assert.deepEqual(submit.mock.calls[0], [{ amount: 4000, direction: 'FROM_AGENT', notes: 'Collect credit settlement' }]))
+  render(<SettlementModal visible agent={{ pendingAmount: 4000, agent: { username: 'Partner' } }} onCancel={() => {}} onSubmit={submit} formatCurrency={formatCurrency} />)
+  assert.equal(screen.queryByRole('radio'), null); assert.equal((screen.getByRole('textbox', { name: 'Settlement Amount' }) as HTMLInputElement).disabled, false)
+  assert.equal(screen.queryByText(/Amount is fixed/), null); assert.ok(screen.getByText('Pay TO Agent (You pay agent)'))
+  fireEvent.change(screen.getByRole('textbox', { name: /Notes/ }), { target: { value: 'Pay share' } }); fireEvent.click(screen.getByRole('button', { name: 'Review Details' })); fireEvent.click(screen.getByRole('button', { name: 'Confirm Settlement' }))
+  await waitFor(() => assert.deepEqual(submit.mock.calls[0], [{ amount: 4000, direction: 'TO_AGENT', notes: 'Pay share' }]))
 })
 test('domain breakdown preserves signed amounts/percentages/cuts and refresh callback', async () => {
   const refresh = vi.fn(async () => undefined)

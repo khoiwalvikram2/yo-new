@@ -2,11 +2,12 @@ import { upsertRiskLimit } from '@/stores/index.js'
 import { getSportsAdapters } from '@src/adapters/sportsRegistry.js'
 import { sportsAutoConfigsTable } from '@shared/db/schema.js'
 import { db } from '@src/db/client.js'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { upsertSports, setSportStatus, upsertLeague, upsertEvent, upsertMarket, upsertRunner, deleteAutoRuns } from '@src/repos/sports/sportsRepo.js'
 import { recordAuditDb } from '@src/repos/audit/auditRepo.js'
 import { scheduleAutoConfig } from '@src/services/autoSportsQueue.js'
-import { upsertSportSettings } from '@src/repos/sports/sportsSettingsRepo.js'
+import { upsertSportSettings, sportSettingsAfterUpsert } from '@src/repos/sports/sportsSettingsRepo.js'
+import { sportsLimitsProblem } from '@src/domains/sports/settingsLimits.js'
 import { upsertLeagueSettingsRepo } from '@src/repos/sports/leagueSettingsRepo.js'
 import { upsertEventSettingsRepo } from '@src/repos/sports/eventSettingsRepo.js'
 import { upsertRiskConfig } from '@src/repos/sports/riskConfigRepo.js'
@@ -19,6 +20,42 @@ function slugify(name: string): string {
     .toLowerCase()
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9\-]/g, '')
+}
+
+/**
+ * Sport, league, event and market status, and the sport and league order, are
+ * platform data.
+ *
+ * sports, sports_leagues, sports_events and sports_markets carry no whitelabel:
+ * one row serves every brand, and user-backend refuses a bet on anything that is
+ * not active. The map's `sports.configuration` and `sports.events` updates are
+ * granted by the flat `sports:write` every Whitelabel Admin holds, so one brand
+ * switched a market, an event, a league or a whole sport off for all of them.
+ * There is no per-whitelabel status to send the write to instead (the
+ * whitelabel's own sport, league and event settings hold limits only), so, as
+ * for the casino provider catalogue, the platform permission is asked on top of
+ * the map.
+ */
+function requirePlatformCatalogueAccess(ctx: any, name: string): void {
+  if (!hasPermission(ctx?.permissions ?? [], 'all', '*')) {
+    throw new Error(`Forbidden: ${name} changes the sports catalogue every whitelabel shares and requires platform administrator permission`)
+  }
+}
+
+/** The acting admin. `ctx.user` carries the admin id as `sub`; `id` is never set, so audits read 'system'. */
+function actorOf(ctx: any): string {
+  return String(ctx?.user?.sub ?? ctx?.user?.id ?? 'system')
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Ids from a reorder that name no row of the table (a malformed id names none). */
+async function unknownCatalogueIds(table: typeof sportsTable | typeof sportsLeaguesTable, ids: string[]): Promise<string[]> {
+  const wellFormed = ids.filter((id) => UUID_PATTERN.test(id))
+  const found = wellFormed.length
+    ? new Set((await db.select({ id: table.id }).from(table).where(inArray(table.id, wellFormed))).map((row) => String(row.id)))
+    : new Set<string>()
+  return ids.filter((id) => !found.has(id))
 }
 
 export const sportsMutationResolvers = {
@@ -62,12 +99,16 @@ export const sportsMutationResolvers = {
       }
     })
     const { inserted, updated } = await upsertSports(imports)
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'seedSportsFromProvider', resourceType: 'sports', resourceId: String(provider), before: null, after: { inserted, updated } }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'seedSportsFromProvider', resourceType: 'sports', resourceId: String(provider), before: null, after: { inserted, updated } }) } catch {}
     return { inserted, updated }
   },
   setSportStatus: async (_: any, args: any, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'setSportStatus')
+    const key = String(args.key)
+    const status = String(args.status).toLowerCase() === 'active' ? 'active' : 'inactive'
     // Global data - no tenant filtering
-    await setSportStatus(args.key, args.status)
+    if (!(await setSportStatus(key, status))) throw new Error('Sport not found')
+    try { await recordAuditDb({ tenant: (ctx?.whitelabel?.id ?? 'default') as any, actorId: actorOf(ctx), domain: 'sports', action: 'setSportStatus', resourceType: 'sport', resourceId: key, before: null, after: { status } }) } catch {}
     return true
   },
   persistSportsSelections: async (_: any, args: any, ctx: any) => {
@@ -148,7 +189,7 @@ export const sportsMutationResolvers = {
       skippedEvents,
       skippedMarketsCount: skippedMarkets,
     }
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'persistSportsSelections', resourceType: 'events', resourceId: 'bulk', before: null, after: resultPersist }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'persistSportsSelections', resourceType: 'events', resourceId: 'bulk', before: null, after: resultPersist }) } catch {}
     return resultPersist
   },
   upsertAutoSportsConfig: async (_: any, args: any, ctx: any) => {
@@ -161,7 +202,7 @@ export const sportsMutationResolvers = {
         .where(eq(sportsAutoConfigsTable.id, existing[0].id))
       // re-schedule next run
       await scheduleAutoConfig(wl, String(args.sportId))
-      try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'upsertAutoSportsConfig', resourceType: 'autoConfig', resourceId: String(args.sportId), before: { id: existing[0].id, leagueCodes: existing[0].leagueCodes, frequencyHours: existing[0].frequencyHours, active: existing[0].active }, after: { leagueCodes: args.leagueCodes ?? null, frequencyHours: Number(args.frequencyHours ?? 6), active: args.active ?? true } }) } catch {}
+      try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'upsertAutoSportsConfig', resourceType: 'autoConfig', resourceId: String(args.sportId), before: { id: existing[0].id, leagueCodes: existing[0].leagueCodes, frequencyHours: existing[0].frequencyHours, active: existing[0].active }, after: { leagueCodes: args.leagueCodes ?? null, frequencyHours: Number(args.frequencyHours ?? 6), active: args.active ?? true } }) } catch {}
       return { success: true, message: 'Auto config updated' }
     }
     await db.insert(sportsAutoConfigsTable).values({
@@ -172,7 +213,7 @@ export const sportsMutationResolvers = {
       active: args.active ?? true,
     })
     await scheduleAutoConfig(wl, String(args.sportId))
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'createAutoSportsConfig', resourceType: 'autoConfig', resourceId: String(args.sportId), before: null, after: { leagueCodes: args.leagueCodes ?? null, frequencyHours: Number(args.frequencyHours ?? 6), active: args.active ?? true } }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'createAutoSportsConfig', resourceType: 'autoConfig', resourceId: String(args.sportId), before: null, after: { leagueCodes: args.leagueCodes ?? null, frequencyHours: Number(args.frequencyHours ?? 6), active: args.active ?? true } }) } catch {}
     return { success: true, message: 'Auto config created' }
   },
   runAutoSportsIngestion: async (_: any, args: any, ctx: any) => {
@@ -283,7 +324,7 @@ export const sportsMutationResolvers = {
       skippedEvents,
       skippedMarketsCount: skippedMarkets,
     }
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'runAutoSportsIngestion', resourceType: 'autoRun', resourceId: String(sportId), before: null, after: resultRun }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'runAutoSportsIngestion', resourceType: 'autoRun', resourceId: String(sportId), before: null, after: resultRun }) } catch {}
     return resultRun
   },
   deleteAutoSportsConfig: async (_: any, args: any, ctx: any) => {
@@ -291,13 +332,13 @@ export const sportsMutationResolvers = {
     await db.delete(sportsAutoConfigsTable)
       .where(and(eq(sportsAutoConfigsTable.whitelabelId, wl), eq(sportsAutoConfigsTable.sportId, String(args.sportId))))
     // Note: existing scheduled job (if any) will noop since row is gone; next schedule won't happen
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'deleteAutoSportsConfig', resourceType: 'autoConfig', resourceId: String(args.sportId), before: null, after: null }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'deleteAutoSportsConfig', resourceType: 'autoConfig', resourceId: String(args.sportId), before: null, after: null }) } catch {}
     return { success: true, message: 'Auto config deleted' }
   },
   deleteAutoRuns: async (_: any, args: any, ctx: any) => {
     const wl = ctx?.whitelabel?.id as string
     await deleteAutoRuns(wl, String(args.sportId))
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'deleteAutoRuns', resourceType: 'autoRun', resourceId: String(args.sportId), before: null, after: null }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'deleteAutoRuns', resourceType: 'autoRun', resourceId: String(args.sportId), before: null, after: null }) } catch {}
     return { success: true, message: 'Run history cleared' }
   },
   upsertSportSettings: async (_: any, args: any, ctx: any) => {
@@ -324,48 +365,61 @@ export const sportsMutationResolvers = {
     // default channel to email if enabling alerts without explicit channel
     const normalizedChannel = (alertOnBreach && (!alertChannel || String(alertChannel).trim() === '')) ? 'email' : alertChannel
 
+    const input = {
+      exchangeMinStake, exchangeMaxStake,
+      bookmakerMinStake, bookmakerMaxStake,
+      fancyMinStake, fancyMaxStake,
+      exchangeDelay, bookmakerDelay, fancyDelay,
+      exchangeCooldown, bookmakerCooldown, fancyCooldown,
+      exchangeMinOdds, exchangeMaxOdds,
+      exchangeCommission, bookmakerCommission, fancyCommission,
+      exchangeExposureDaily, exchangeExposureWeekly, exchangeExposureCap,
+      bookmakerExposureDaily, bookmakerExposureWeekly, bookmakerExposureCap,
+      fancyExposureDaily, fancyExposureWeekly, fancyExposureCap,
+      cashoutActive,
+      riskLevel, riskThreshold, volatilityThreshold,
+      alertOnBreach,
+      alertChannel: normalizedChannel,
+      alertRateLimit,
+    }
+    // Checked on the row each sport ends up with (the mode can keep stored fields), before any is written.
+    const problem = (await sportSettingsAfterUpsert({ whitelabelId: wl, sportIds, tierId, mode, input }))
+      .map((row) => sportsLimitsProblem(row))
+      .find(Boolean)
+    if (problem) return { success: false, message: problem }
+
     const { affected } = await upsertSportSettings({
       whitelabelId: wl,
       sportIds,
       tierId,
       mode,
-      input: {
-        exchangeMinStake, exchangeMaxStake,
-        bookmakerMinStake, bookmakerMaxStake,
-        fancyMinStake, fancyMaxStake,
-        exchangeDelay, bookmakerDelay, fancyDelay,
-        exchangeCooldown, bookmakerCooldown, fancyCooldown,
-        exchangeMinOdds, exchangeMaxOdds,
-        exchangeCommission, bookmakerCommission, fancyCommission,
-        exchangeExposureDaily, exchangeExposureWeekly, exchangeExposureCap,
-        bookmakerExposureDaily, bookmakerExposureWeekly, bookmakerExposureCap,
-        fancyExposureDaily, fancyExposureWeekly, fancyExposureCap,
-        cashoutActive,
-        riskLevel, riskThreshold, volatilityThreshold,
-        alertOnBreach,
-        alertChannel: normalizedChannel,
-        alertRateLimit,
-      },
+      input,
     })
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'upsertSportSettings', resourceType: 'sportSettings', resourceId: sportIds.join(','), before: null, after: { tierId: tierId || 'default', mode, affected } }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'upsertSportSettings', resourceType: 'sportSettings', resourceId: sportIds.join(','), before: null, after: { tierId: tierId || 'default', mode, affected } }) } catch {}
     return { success: true, message: `Settings applied to ${affected} sport(s)` }
   },
   reorderSports: async (_: any, args: any, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'reorderSports')
     const wl = ctx?.whitelabel?.id as string
     const items: Array<{ id: string; sort: number }> = (args?.inputs || []).map((x: any) => ({ id: String(x.id), sort: Number(x.sort) }))
     // Basic validation
     if (!items.length) return { success: false, message: 'No items to reorder' }
+    // Nothing is written unless every id is a sport, so an unknown id is not reported as reordered.
+    if ((await unknownCatalogueIds(sportsTable, items.map((it) => it.id))).length) return { success: false, message: 'Sport not found' }
     // Update each row (small N expected). For larger N, batch CASE WHEN could be used.
     for (const it of items) {
       await db.update(sportsTable).set({ sort: it.sort, updatedAt: new Date() }).where(eq(sportsTable.id, it.id)) // Global data - no tenant filtering
     }
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'reorderSports', resourceType: 'sports', resourceId: 'bulk', before: null, after: { count: items.length } }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'reorderSports', resourceType: 'sports', resourceId: 'bulk', before: null, after: { count: items.length } }) } catch {}
     return { success: true, message: 'Sports order updated' }
   },
   upsertLeagueSettings: async (_: any, args: any, ctx: any) => {
     const wl = ctx?.whitelabel?.id as string
-    const actorId = String(ctx?.user?.id ?? 'system')
+    const actorId = actorOf(ctx)
     const { leagueIds, input } = args
+    // The row is replaced by the input, so the input is what gets checked, before any league is written.
+    const problem = sportsLimitsProblem(input ?? {})
+    if (problem) return { success: false, message: problem }
     let successCount = 0
     for (const leagueId of leagueIds) {
       const tierId = input.tierId ?? 'default'
@@ -428,28 +482,37 @@ export const sportsMutationResolvers = {
     return { success: true, message }
   },
   reorderLeagues: async (_: any, args: any, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'reorderLeagues')
     const wl = ctx?.whitelabel?.id as string
     const items: Array<{ id: string; sort: number }> = (args?.inputs || []).map((x: any) => ({ id: String(x.id), sort: Number(x.sort) }))
     // Basic validation
     if (!items.length) return { success: false, message: 'No items to reorder' }
+    // Nothing is written unless every id is a league, so an unknown id is not reported as reordered.
+    if ((await unknownCatalogueIds(sportsLeaguesTable, items.map((it) => it.id))).length) return { success: false, message: 'League not found' }
     // Update each row (small N expected). For larger N, batch CASE WHEN could be used.
     for (const it of items) {
       await db.update(sportsLeaguesTable).set({ sort: it.sort, updatedAt: new Date() }).where(eq(sportsLeaguesTable.id, it.id)) // Global data - no tenant filtering
     }
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'reorderLeagues', resourceType: 'leagues', resourceId: 'bulk', before: null, after: { count: items.length } }) } catch {}
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'reorderLeagues', resourceType: 'leagues', resourceId: 'bulk', before: null, after: { count: items.length } }) } catch {}
     return { success: true, message: 'Leagues order updated' }
   },
   setLeagueStatus: async (_: any, args: any, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'setLeagueStatus')
     const wl = ctx?.whitelabel?.id as string
     const id = String(args.id)
     const status = String(args.status).toLowerCase() === 'active' ? 'active' : 'inactive'
-    await db.update(sportsLeaguesTable).set({ status: status as any, updatedAt: new Date() }).where(eq(sportsLeaguesTable.id, id)) // Global data - no tenant filtering
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'setLeagueStatus', resourceType: 'league', resourceId: id, before: null, after: { status } }) } catch {}
+    if (!UUID_PATTERN.test(id)) throw new Error('League not found')
+    const updated = await db.update(sportsLeaguesTable).set({ status: status as any, updatedAt: new Date() }).where(eq(sportsLeaguesTable.id, id)).returning({ id: sportsLeaguesTable.id }) // Global data - no tenant filtering
+    if (!updated.length) throw new Error('League not found')
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'setLeagueStatus', resourceType: 'league', resourceId: id, before: null, after: { status } }) } catch {}
     return true
   },
   upsertEventSettings: async (_: any, args: any, ctx: any) => {
     const wl = ctx?.whitelabel?.id as string
     const { eventIds, input } = args
+    // The row is replaced by the input, so the input is what gets checked, before any event is written.
+    const problem = sportsLimitsProblem(input ?? {})
+    if (problem) return { success: false, message: problem }
     let successCount = 0
     for (const eventId of eventIds) {
       const tierId = input.tierId ?? 'default'
@@ -509,19 +572,25 @@ export const sportsMutationResolvers = {
     return { success: true, message }
   },
   setEventStatus: async (_: any, args: any, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'setEventStatus')
     const wl = ctx?.whitelabel?.id as string
     const id = String(args.id)
     const status = String(args.status).toLowerCase() === 'active' ? 'active' : 'inactive'
-    await db.update(sportsEventsTable).set({ status: status as any, updatedAt: new Date() }).where(eq(sportsEventsTable.id, id)) // Global data - no tenant filtering
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'setEventStatus', resourceType: 'event', resourceId: id, before: null, after: { status } }) } catch {}
+    if (!UUID_PATTERN.test(id)) throw new Error('Event not found')
+    const updated = await db.update(sportsEventsTable).set({ status: status as any, updatedAt: new Date() }).where(eq(sportsEventsTable.id, id)).returning({ id: sportsEventsTable.id }) // Global data - no tenant filtering
+    if (!updated.length) throw new Error('Event not found')
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'setEventStatus', resourceType: 'event', resourceId: id, before: null, after: { status } }) } catch {}
     return true
   },
   setMarketStatus: async (_: any, args: any, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'setMarketStatus')
     const wl = ctx?.whitelabel?.id as string
     const id = String(args.id)
     const status = String(args.status).toLowerCase() === 'active' ? 'active' : 'inactive'
-    await db.update(sportsMarketsTable).set({ status: status as any, updatedAt: new Date() }).where(eq(sportsMarketsTable.id, id)) // Global data - no tenant filtering
-    try { await recordAuditDb({ tenant: wl as any, actorId: String(ctx?.user?.id ?? 'system'), domain: 'sports', action: 'setMarketStatus', resourceType: 'market', resourceId: id, before: null, after: { status } }) } catch {}
+    if (!UUID_PATTERN.test(id)) return { success: false, message: 'Market not found' }
+    const updated = await db.update(sportsMarketsTable).set({ status: status as any, updatedAt: new Date() }).where(eq(sportsMarketsTable.id, id)).returning({ id: sportsMarketsTable.id }) // Global data - no tenant filtering
+    if (!updated.length) return { success: false, message: 'Market not found' }
+    try { await recordAuditDb({ tenant: wl as any, actorId: actorOf(ctx), domain: 'sports', action: 'setMarketStatus', resourceType: 'market', resourceId: id, before: null, after: { status } }) } catch {}
     return { success: true, message: `Market status updated to ${status}` }
   },
   createSportsResult: async (_: any, args: any, ctx: any) => {
@@ -910,9 +979,13 @@ export const sportsMutationResolvers = {
     }
     
     const { deleteAutomationRule } = await import("@src/repos/sports/automationRulesRepo.js");
-    
-    const deleted = await deleteAutomationRule(args.id);
-    
+    // The caller's own rules only: the tenant and whitelabel automationRules
+    // lists and upsertAutomationRule writes. The id alone reached any brand.
+    const tenant = ctx?.tenant || 'default';
+    const whitelabelId = ctx?.whitelabel?.id || 'default';
+
+    const deleted = await deleteAutomationRule(args.id, tenant, whitelabelId);
+
     return {
       success: deleted,
       message: deleted ? 'Automation rule deleted successfully' : 'Rule not found',
@@ -986,25 +1059,51 @@ export const sportsMutationResolvers = {
     }
   },
   flagPlayer: async (_: any, args: any, ctx: any) => {
+    // Block agents from flagging players, as from every other risk write
+    if (ctx?.user?.type === 'agent') {
+      throw new Error('Agents are not allowed to flag players');
+    }
+
     const { recordAuditDb } = await import("@src/repos/audit/auditRepo.js");
     const { db } = await import("@src/db/client.js");
     const { users } = await import("@shared/db/schema.js");
-    const { eq, sql } = await import("drizzle-orm");
-    
+    const { and, eq } = await import("drizzle-orm");
+
     const tenant = ctx?.tenant || 'default';
     const userId = Number(args.userId);
-    const actorId = String(ctx?.user?.id || 'system');
+    // `ctx.user` carries the admin id as `sub` (see cancelBet); `id` is never
+    // set, so every flag was recorded as set by 'system'.
+    const actorId = String(ctx?.user?.sub ?? ctx?.user?.id ?? 'system');
     const now = new Date().toISOString();
-    
+
+    if (!Number.isInteger(userId) || userId <= 0 || userId > 2147483647) {
+      return {
+        success: false,
+        message: 'Invalid user ID',
+      };
+    }
+    // The player must belong to the caller's own tenant, the scope
+    // sportsPlayerProfile reads with. This matched the id alone, and player ids
+    // are sequential, so an admin of one whitelabel could flag every player of
+    // every other one; an id that matched nobody also answered success.
+    const ownPlayer = and(eq(users.id, userId), eq(users.tenant, tenant));
+
     try {
       // Get current flags from user
       const userRows = await db
-        .select({ flags: users.flags })
+        .select({ flags: users.flags, tenant: users.tenant })
         .from(users)
-        .where(eq(users.id, userId))
+        .where(ownPlayer)
         .limit(1);
-      
-      const currentFlags: Array<{ flag: string; reason: string; setBy: string; setAt: string }> = 
+
+      if (userRows.length === 0) {
+        return {
+          success: false,
+          message: 'Player not found',
+        };
+      }
+
+      const currentFlags: Array<{ flag: string; reason: string; setBy: string; setAt: string }> =
         (userRows[0]?.flags as any) || [];
       
       // Check if flag already exists
@@ -1020,17 +1119,17 @@ export const sportsMutationResolvers = {
         };
         
         const updatedFlags = [...currentFlags, newFlag];
-        
+
         // Update user flags in database
         await db
           .update(users)
           .set({ flags: updatedFlags as any })
-          .where(eq(users.id, userId));
+          .where(ownPlayer);
       }
-      
-      // Record audit log
+
+      // Record audit log, in the player's own tenant
       await recordAuditDb({
-        tenant,
+        tenant: userRows[0].tenant || tenant,
         actorId,
         domain: 'players',
         action: 'flag_player',
@@ -1052,42 +1151,50 @@ export const sportsMutationResolvers = {
     };
   },
   unflagPlayer: async (_: any, args: any, ctx: any) => {
+    // Block agents from unflagging players, as from every other risk write
+    if (ctx?.user?.type === 'agent') {
+      throw new Error('Agents are not allowed to unflag players');
+    }
+
     const { recordAuditDb } = await import("@src/repos/audit/auditRepo.js");
     const { db } = await import("@src/db/client.js");
     const { users } = await import("@shared/db/schema.js");
-    const { eq } = await import("drizzle-orm");
-    
+    const { and, eq } = await import("drizzle-orm");
+
     const tenant = ctx?.tenant || 'default';
     const userId = Number(args.userId);
-    const actorId = String(ctx?.user?.id || 'system');
-    
+    // The admin id is `sub`, as in flagPlayer.
+    const actorId = String(ctx?.user?.sub ?? ctx?.user?.id ?? 'system');
+
     // Validate inputs
-    if (!args.userId || isNaN(userId) || userId <= 0) {
+    if (!args.userId || !Number.isInteger(userId) || userId <= 0 || userId > 2147483647) {
       return {
         success: false,
         message: 'Invalid user ID',
       };
     }
-    
+
     if (!args.flag || typeof args.flag !== 'string' || args.flag.trim().length === 0) {
       return {
         success: false,
         message: 'Invalid flag name',
       };
     }
-    
+    // The caller's own tenant only, as in flagPlayer.
+    const ownPlayer = and(eq(users.id, userId), eq(users.tenant, tenant));
+
     try {
       // Get current flags from user
       const userRows = await db
-        .select({ flags: users.flags })
+        .select({ flags: users.flags, tenant: users.tenant })
         .from(users)
-        .where(eq(users.id, userId))
+        .where(ownPlayer)
         .limit(1);
-      
+
       if (userRows.length === 0) {
         return {
           success: false,
-          message: 'User not found',
+          message: 'Player not found',
         };
       }
       
@@ -1110,11 +1217,11 @@ export const sportsMutationResolvers = {
       await db
         .update(users)
         .set({ flags: updatedFlags as any })
-        .where(eq(users.id, userId));
-      
-      // Record audit log
+        .where(ownPlayer);
+
+      // Record audit log, in the player's own tenant
       await recordAuditDb({
-        tenant,
+        tenant: userRows[0].tenant || tenant,
         actorId,
         domain: 'players',
         action: 'unflag_player',
@@ -1136,10 +1243,24 @@ export const sportsMutationResolvers = {
     };
   },
   dismissPattern: async (_: any, args: any, ctx: any) => {
+    // Block agents from dismissing patterns, as from every other risk write
+    if (ctx?.user?.type === 'agent') {
+      throw new Error('Agents are not allowed to dismiss betting patterns');
+    }
+
     const { updatePatternStatus } = await import("@src/repos/sports/bettingPatternsRepo.js");
-    
-    await updatePatternStatus(args.patternId, 'DISMISSED', args.reason);
-    
+    // A pattern of the caller's own tenant and whitelabel, as bettingPatterns lists them.
+    const tenant = ctx?.tenant || 'default';
+    const whitelabelId = ctx?.whitelabel?.id || 'default';
+
+    const updated = await updatePatternStatus(args.patternId, 'DISMISSED', args.reason, { tenant, whitelabelId });
+    if (!updated) {
+      return {
+        success: false,
+        message: 'Pattern not found',
+      };
+    }
+
     return {
       success: true,
       message: 'Pattern dismissed',

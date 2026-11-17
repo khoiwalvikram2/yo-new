@@ -5,7 +5,7 @@ import { isolateDatabase, rollback, routeDbToTransaction, fixture, t, eq, types 
 import { declareAndSettleMatka, reverseMatkaResult } from '@shared/matka/settlement.js'
 const guard = isolateDatabase()
 const { db, pool } = await import('../../../../db/client.js')
-const { listRunningMatkaMarkets, listRunningMatkaBets, runningMatkaTenant } = await import('../runningMarkets.js')
+const { listRunningMatkaMarkets, listRunningMatkaBets, runningMatkaTenant, countOpenMatkaBets } = await import('../runningMarkets.js')
 const { matkaQueryResolvers } = await import('../../resolvers/queries.js')
 test.before(() => guard(pool)); test.after(() => pool.end()); test.afterEach(() => mock.restoreAll())
 const date = '2026-10-23'
@@ -105,6 +105,28 @@ test('declaring Open then Close settles only their own sessions, removes resolve
     await reverseMatkaResult(tx, { id: close.id, reason: 'Isolated queue regression' }, operator)
     list = await listRunningMatkaMarkets(f.tenant, {}, tx)
     assert.equal(list.total, 1); assert.equal(list.items[0].betCount, 1); assert.equal(list.items[0].resultValue, null)
+  })
+})
+test('the results list counts the bets a result still has to settle: active ones, by trading date and settlement session', async () => {
+  await rollback(db, async tx => {
+    routeDbToTransaction(mock, db, tx)
+    const f = await seed(tx), market = await f.market()
+    // Bets are stored active. One is placed after midnight for the 23rd's draw, one is a legacy row without a
+    // trading date, a Jodi labelled Open waits for Close; settled and void bets wait for nothing.
+    await f.bet(market, { createdAt: new Date('2026-10-23T19:00:00Z') })
+    await f.bet(market, { runDate: null, createdAt: new Date('2026-10-23T08:00:00Z') })
+    await f.bet(market, { bidType: 'JODI', betNumbers: '58', marketSession: 'open' })
+    await f.bet(market, { marketSession: 'close', betNumbers: '8' })
+    await f.bet(market, { status: 'won' }); await f.bet(market, { marketSession: 'close', status: 'void' })
+    await f.bet(market, { runDate: '2026-10-22' })
+    assert.equal(await countOpenMatkaBets(f.tenant, market.id, date, 'open'), 2)
+    assert.equal(await countOpenMatkaBets(f.tenant, market.id, date, 'close'), 2)
+    assert.equal(await countOpenMatkaBets(f.tenant, market.id, '2026-10-22', 'open'), 1)
+    assert.equal(await countOpenMatkaBets('another-tenant', market.id, date, 'open'), 0)
+    // A rolled-back Open result re-opened its bets: its row reports them (it always said 0).
+    await tx.insert(t.matkaResults).values({ tenant: f.tenant, matkaId: market.id, date, type: 'open', result: '267', declaredBy: 'qa', rolledBackAt: new Date(), rolledBackBy: 'qa' })
+    const results = await matkaQueryResolvers.matkaResults(null, { filters: { matkaId: market.id } }, { tenant: f.tenant, permissions: [{ domain: 'matka.results', actions: ['view'] }] })
+    assert.deepEqual(results.items.map((item: any) => [item.type, item.pendingBetsCount]), [['open', 2]])
   })
 })
 test('recorded results with unresolved bets are shown as settlement pending and cannot be declared again', async () => {

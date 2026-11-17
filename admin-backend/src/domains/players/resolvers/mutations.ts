@@ -13,6 +13,7 @@ import {
 import { isActiveEntityStatus } from '../statusNormalization.js'
 import { PlayerAuthService } from '../services/PlayerAuthService.js'
 import { playerTypeForAgentScheme, bettingFlagsFromAgentDomains } from './agentPlayerCreation.js'
+import { creatorActorOf, creditReferenceOf, depositOpeningChipsInTx, lockOpeningChipsParent, openingChipsOf } from '@src/domains/agents/services/openingChips.js'
 import { resolveBonusAwardStatusActorDisplay } from '../services/bonusAwardStatusActorDisplay.js'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { ensureAgentCanMutate, hashPassword, verifyPassword, hasPermission, requirePermission } from '@/domains/common/auth.js'
@@ -23,9 +24,45 @@ import {
 } from '@shared/services/bonusAwardActivation.js'
 import { switchBonusAwardCore } from '@shared/services/bonusAwardSwitch.js'
 import { getWhitelabelCurrency } from '@src/shared/whitelabelConfig.js'
+import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
+import { playerLimitFields, limitInputError } from '../playerLimitsInput.js'
+import { playerCreatedMessage } from './agentPlayerCreation.js'
 import { z } from 'zod'
 
 const playerAuthService = new PlayerAuthService()
+
+/**
+ * Who an audit row names. An admin's JWT carries `sub` and an agent's `agentId`; there is no `user.id`, so
+ * reading it recorded every admin action here as "system".
+ */
+function auditActorOf(ctx: any): string {
+  return String(ctx?.user?.agentId || ctx?.user?.sub || 'system')
+}
+
+/**
+ * The player, read in the caller's tenant, or "Player not found". Admins skip validateAgentPlayerAccess (it
+ * only scopes agents), and these mutations otherwise reported success, and wrote rows and audit entries, for
+ * an id from another tenant.
+ */
+async function requirePlayerInTenant(playerId: number, tenant: string) {
+  const player = await getUserDb(playerId, tenant)
+  if (!player) throw new Error('Player not found')
+  return player
+}
+
+/**
+ * A bonus (granted, or a card activated) puts bonus money in front of the player. Credit players get none: their
+ * chips move only through Deposit / Withdraw (spec 2026-11-02 decision 7, the rule setUserBonusAllowed enforces),
+ * and a player whose bonus eligibility is off gets none either.
+ */
+function assertPlayerMayReceiveBonus(player: { playerType?: string | null; bonusAllowed?: boolean | null }) {
+  if (isCreditPlayer(player.playerType)) {
+    throw new Error('Credit players cannot receive bonuses: their chips move only through Deposit / Withdraw')
+  }
+  if (player.bonusAllowed === false) {
+    throw new Error("This player's bonus eligibility is off")
+  }
+}
 
 function normalizeBonusAdminRemark(remark: unknown): string | null {
   if (remark == null) return null
@@ -50,7 +87,8 @@ export const playersMutationResolvers = {
 
     const p = z.object({
       playerId: z.string().min(1),
-      newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+      // The same 8-character minimum a player is created with (createPlayerDb).
+      newPassword: z.string().min(8, 'Password must be at least 8 characters'),
       adminPassword: z.string().min(1, 'Admin password is required'),
     }).safeParse(args)
 
@@ -153,25 +191,29 @@ export const playersMutationResolvers = {
     // CRITICAL: For Director Admin, use effective tenant based on mode
     const directorTenant = getEffectiveTenantForDirector(ctx)
     const tenant = directorTenant ?? (ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default')
-    const userId = Number(args.input.playerId)
+    const parsed = z.object({ playerId: z.string().min(1), ...playerLimitFields }).safeParse(args.input ?? {})
+    if (!parsed.success) throw limitInputError(parsed.error)
+    const input = parsed.data
+    const userId = Number(input.playerId)
     if (!Number.isFinite(userId)) throw new Error('Invalid player ID')
-    
+
     // Agent authorization check
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'modify limits for')
-    
+
+    // upsertPlayerLimitsDb refuses an id that is not a player of this tenant ("Player not found").
     const limits = await upsertPlayerLimitsDb(tenant, userId, {
-      dailyStakeLimit: args.input.dailyStakeLimit,
-      weeklyStakeLimit: args.input.weeklyStakeLimit,
-      exposureCapOverride: args.input.exposureCapOverride,
-      cooldownSeconds: args.input.cooldownSeconds,
-      maxBetSports: args.input.maxBetSports,
-      maxBetCasino: args.input.maxBetCasino,
-      maxBetMatka: args.input.maxBetMatka,
+      dailyStakeLimit: input.dailyStakeLimit,
+      weeklyStakeLimit: input.weeklyStakeLimit,
+      exposureCapOverride: input.exposureCapOverride,
+      cooldownSeconds: input.cooldownSeconds,
+      maxBetSports: input.maxBetSports,
+      maxBetCasino: input.maxBetCasino,
+      maxBetMatka: input.maxBetMatka,
     })
-    
+
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'set_limits',
       resourceType: 'player',
@@ -207,7 +249,8 @@ export const playersMutationResolvers = {
     
     // Agent authorization check
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'grant bonus to')
-    
+    assertPlayerMayReceiveBonus(await requirePlayerInTenant(userId, tenant))
+
     const amount = args.input.amount
     const currency = args.input.currency || 'INR'
 
@@ -231,7 +274,7 @@ export const playersMutationResolvers = {
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'grant_bonus',
       resourceType: 'player',
@@ -282,13 +325,16 @@ export const playersMutationResolvers = {
       }
     }
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'grant special bonus to')
+    // The player must be in this tenant (createSpecialBonusAward checks only the campaign's tenant, so a card was
+    // created for another tenant's player, or for an id that names nobody), and may receive bonuses at all.
+    assertPlayerMayReceiveBonus(await requirePlayerInTenant(userId, tenant))
 
     const currency = args.input?.currency ?? undefined
     const award = await createSpecialBonusAward(tenant, userId, campaignId, amount, currency)
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'grant_special_bonus',
       resourceType: 'player',
@@ -356,7 +402,7 @@ export const playersMutationResolvers = {
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'revoke_bonus',
       resourceType: 'bonus',
@@ -434,7 +480,7 @@ export const playersMutationResolvers = {
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || ctx?.user?.sub || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'set_bonus_award_status',
       resourceType: 'bonus_award',
@@ -491,6 +537,10 @@ export const playersMutationResolvers = {
       await playerAuthService.validateAgentPlayerAccess(ctx, award.userId, 'activate bonus for')
     }
 
+    // The card's player must be in this tenant and may receive bonuses. A card issued before grantSpecialBonus
+    // checked either (another tenant's player, a credit player) is not activated into a wallet from here.
+    assertPlayerMayReceiveBonus(await requirePlayerInTenant(award.userId, tenant))
+
     const actionRemark = requireBonusAdminRemark(args.remark)
 
     try {
@@ -523,7 +573,7 @@ export const playersMutationResolvers = {
 
       await recordAuditDb({
         tenant,
-        actorId: ctx?.user?.id || ctx?.user?.sub || 'system',
+        actorId: auditActorOf(ctx),
         domain: 'players',
         action: 'activate_bonus_award_admin',
         resourceType: 'bonus_award',
@@ -593,6 +643,9 @@ export const playersMutationResolvers = {
       await playerAuthService.validateAgentPlayerAccess(ctx, award.userId, 'switch bonus for')
     }
 
+    // Switching activates this card: the same player checks as activateBonusAwardAdmin.
+    assertPlayerMayReceiveBonus(await requirePlayerInTenant(award.userId, tenant))
+
     const ensureWalletForBonus = async (userId: number, ten: string, cur?: string) => {
       const w = await ensurePlayerWalletDb(userId, ten, cur)
       return {
@@ -620,7 +673,7 @@ export const playersMutationResolvers = {
 
       await recordAuditDb({
         tenant,
-        actorId: ctx?.user?.id || ctx?.user?.sub || 'system',
+        actorId: auditActorOf(ctx),
         domain: 'players',
         action: 'switch_bonus_award_admin',
         resourceType: 'bonus_award',
@@ -698,7 +751,7 @@ export const playersMutationResolvers = {
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || ctx?.user?.sub || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'forfeit_bonus_award_admin',
       resourceType: 'bonus_award',
@@ -726,6 +779,7 @@ export const playersMutationResolvers = {
     // staff set it. The player drawer has never offered it to agents either.
     if (ctx?.user?.type === 'agent') throw new Error('Agents cannot adjust player VIP tiers')
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'adjust VIP tier for')
+    await requirePlayerInTenant(userId, tenant)
 
     const { getVipMemberByUserIdDb, getVipTierDb, listVipTransactionsDb, listVipHistoryDb } = await import('@/repos/vip/vipRepo.js')
     await setUserVipTierDb(userId, args.input.tierId || null, tenant,
@@ -733,7 +787,7 @@ export const playersMutationResolvers = {
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'adjust_vip_tier',
       resourceType: 'player',
@@ -885,28 +939,13 @@ export const playersMutationResolvers = {
     
     // Agent authorization check
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'terminate sessions for')
-    
-    // TODO: implement session termination
-    const terminatedCount = args.input.allSessions ? 1 : (args.input.sessionIds?.length || 0)
-    
-    await recordAuditDb({
-      tenant,
-      actorId: ctx?.user?.id || 'system',
-      domain: 'players',
-      action: 'terminate_sessions',
-      resourceType: 'player',
-      resourceId: String(userId),
-      after: {
-        terminatedCount,
-        reason: args.input.reason,
-      },
-    })
-    
-    return {
-      success: true,
-      message: `Terminated ${terminatedCount} session(s)`,
-      terminatedCount,
-    }
+    await requirePlayerInTenant(userId, tenant)
+
+    // Sessions are not tracked: a player's login is a JWT and there is no session table (playerSessions and
+    // playerDevices have nothing to read either), so no session can be ended one by one or counted. This used to
+    // answer "Terminated 1 session(s)", write an audit row and change nothing. Ending all of a player's sessions
+    // is Force logout (forceLogoutUser), which invalidates every token the player holds.
+    throw new Error("Sessions are not tracked, so they cannot be ended here. Use Force logout to end all of this player's sessions.")
   },
 
   lockPlayerAccount: async (_: any, args: any, ctx: any) => {
@@ -920,13 +959,14 @@ export const playersMutationResolvers = {
     
     // Agent authorization check
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'lock account for')
-    
+
     const { setUserStatusDb } = await import('@/repos/users/usersRepo.js')
-    await setUserStatusDb(userId, 'SUSPENDED', tenant)
-    
+    // Null when the id is not a player of this tenant: refused before the audit row, not after it.
+    if (!(await setUserStatusDb(userId, 'SUSPENDED', tenant))) throw new Error('Player not found')
+
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'lock_account',
       resourceType: 'player',
@@ -1092,34 +1132,34 @@ export const playersMutationResolvers = {
     // Check if creating for sub-agent (used in credit player restrictions and credit update)
     const isCreatingForSubAgent = targetAgentId !== loggedInAgentId;
     
+    // Opening chips (spec 2026-11-02 §4.4): a deposit from the logged-in agent's own chips to its own new player,
+    // made on the creation transaction below.
+    const openingChips = openingChipsOf(args.input.openingChips);
+    if (openingChips > 0 && !isCreditAgent) {
+      throw new Error('Opening chips can only be given to credit players');
+    }
+
     // ========== CREDIT PLAYER RESTRICTIONS ==========
     // Always validate for credit agents (isCreditAgent is determined from logged-in agent's scheme type)
     if (isCreditAgent) {
-      
-      // 1. Credit limit validation based on target agent
+
+      // 1. The credit reference (creditLimit) and the opening chips. Only a player's direct parent sets its credit
+      // reference or moves its chips (spec 2026-11-02 decision 3), so a player created for a sub-agent starts at 0
+      // for both and that sub-agent funds it. Missing means 0.
+      const creditReference = creditReferenceOf(args.input.creditLimit);
       if (isCreatingForSubAgent) {
-        // When creating for sub-agent, credit limit must be 0 (sub-agent will manage credit)
-        if (args.input.creditLimit && args.input.creditLimit > 0) {
-          throw new Error('Credit limit must be 0 when creating player for sub-agent. Sub-agent will manage the player\'s credit.');
+        if (creditReference > 0) {
+          throw new Error('Credit reference must be 0 when creating a player for a sub-agent. The sub-agent sets it.');
         }
-        // Force credit limit to 0 for sub-agent
-        args.input.creditLimit = 0;
-      } else {
-        // When creating for self, credit limit defaults to 0 if not provided
-        // Frontend may not send creditLimit field, so default to 0 from backend
-        if (args.input.creditLimit === undefined || args.input.creditLimit === null) {
-          args.input.creditLimit = 0;
-        }
-        // Allow 0 as valid value (default from backend)
-        // Only reject if explicitly provided and negative
-        if (args.input.creditLimit < 0) {
-          throw new Error('Credit limit cannot be negative');
+        if (openingChips > 0) {
+          throw new Error('Opening chips must be 0 when creating a player for a sub-agent. The sub-agent deposits them.');
         }
       }
-      
-      // 2. Initial balance must be 0 for credit players (they get credit, not balance)
+      args.input.creditLimit = creditReference;
+
+      // 2. Initial balance must be 0 for credit players: their chips arrive as a deposit (openingChips)
       if (args.input.initialBalance && args.input.initialBalance > 0) {
-        throw new Error('Credit players cannot have an initial balance. They receive credit limit instead.');
+        throw new Error('Credit players cannot have an initial balance. Give them opening chips instead.');
       }
       
       // 3. Bonus is not allowed for credit players
@@ -1132,24 +1172,7 @@ export const playersMutationResolvers = {
         throw new Error(`Credit players must use the whitelabel's base currency (${whitelabelBaseCurrency})`);
       }
       
-      // 5. Validate agent has sufficient available credit to assign to player (only when creating for self and creditLimit > 0)
-      if (!isCreatingForSubAgent && args.input.creditLimit > 0) {
-        // Always check logged-in agent's credit (not targetAgentId) because that's whose credit will be deducted
-        const agentCreditData = await agentsRepo.getCreditFields(loggedInAgentId);
-        if (!agentCreditData) {
-          throw new Error('Agent credit information not found');
-        }
-        
-        const requestedCreditLimit = Number(args.input.creditLimit);
-        const agentAvailableCredit = Number(agentCreditData.creditAvailable || 0);
-        
-        if (requestedCreditLimit > agentAvailableCredit) {
-          throw new Error(
-            `Insufficient credit available. You have ${agentAvailableCredit.toFixed(2)} available, but ${requestedCreditLimit.toFixed(2)} was requested. ` +
-            `(Your credit limit: ${agentCreditData.creditLimit.toFixed(2)}, Used: ${agentCreditData.creditUsed.toFixed(2)})`
-          );
-        }
-      }
+      // Whether the agent has the opening chips is decided under its lock, in the creation transaction.
     }
     // ================================================
     
@@ -1196,6 +1219,12 @@ export const playersMutationResolvers = {
     }
     // ================================================
 
+    // No agent player starts with cash, whatever the scheme (an agent cannot adjust a wallet either): the
+    // per-scheme refusals above cover the three schemes, this covers an agent with none of them.
+    if (args.input.initialBalance && args.input.initialBalance !== 0) {
+      throw new Error('Agents cannot set an initial balance. Players start with 0 balance.');
+    }
+
     // Validate required fields
     if (!args.input.phone || (typeof args.input.phone === 'string' && args.input.phone.trim() === '')) {
       throw new Error('Phone number is required')
@@ -1220,39 +1249,20 @@ export const playersMutationResolvers = {
     // (owner decision 4), not from a hard-coded sports+casino on / matka off.
     const domainFlags = bettingFlagsFromAgentDomains(owningAgent.allowedDomains)
 
-    // Credit the new player takes from the logged-in agent's own line (creating
-    // for self only; a sub-agent's player starts at 0 and is funded by that
-    // sub-agent later).
-    const creditToAllocate = isCreditAgent && !isCreatingForSubAgent ? Number(args.input.creditLimit || 0) : 0
-
     // Create user with proper player type and agent linkage.
     // Note: createPlayerDb already creates the wallet, so we don't need to create it separately.
     //
-    // MONEY-CRITICAL: the agent's credit deduction, the player row and its
-    // agent_player_credits row are one transaction. Before, the player was
-    // committed first and the deduction ran afterwards in its own transaction,
-    // reading the agent's credit without a lock and writing absolute values — so
-    // two concurrent creates could both pass and over-allocate, and a failed
-    // deduction left a funded player behind. The deduction is now a delta applied
-    // under the agent row's FOR UPDATE lock and re-validated against that row.
-    // Credit-ledger row for the allocation (plan W7): written in the same transaction, as
-    // every other allocation path does. Currency is fetched before the locks are taken.
-    const allocationLedger = creditToAllocate > 0
-      ? {
-          repo: new (await import('@/repos/agents/AgentCreditLedgerRepo.js')).AgentCreditLedgerRepo(),
-          currency: await (await import('@src/shared/whitelabelConfig.js')).getWhitelabelCurrency(tenant),
-        }
-      : null
-    let allocatedAgentSnapshot: { creditLimit: number; creditUsed: number; creditAvailable: number; settlementBalance: number } | null = null
+    // MONEY-CRITICAL: a credit player's opening chips and the player row are one transaction (spec 2026-11-02
+    // §4.4). Creating a credit player no longer takes a limit from the agent's credit line. Instead, when the agent
+    // gives its own new player opening chips:
+    //   1. the agent's row is locked first, before the player's rows exist;
+    //   2. the player, its wallet and its agent_player_credits row are written on the same transaction;
+    //   3. the opening deposit runs with every rule of depositChips on that transaction.
+    // A refusal (not enough chips, an agent that is not ACTIVE) rolls all of it back.
+    const opensWithChips = isCreditAgent && !isCreatingForSubAgent && openingChips > 0
 
     const created = await db.transaction(async (tx) => {
-      if (creditToAllocate > 0) {
-        // Always the logged-in agent's credit (not targetAgentId): that is whose line is used.
-        allocatedAgentSnapshot = await agentsRepo.lockAndUpdateCredit(loggedInAgentId, {
-          creditUsedDelta: creditToAllocate,
-          requireAvailableForDelta: true,
-        }, tx);
-      }
+      if (opensWithChips) await lockOpeningChipsParent(tx, tenant, loggedInAgentId);
 
       const row = await createPlayerDb({
         tenant,
@@ -1268,14 +1278,12 @@ export const playersMutationResolvers = {
         // New fields for agent-created players
         playerType: effectivePlayerType,
         agentId: targetAgentId,
-        // Credit limit: 0 for sub-agent, provided value for self (validated above)
+        // credit_limit is the credit reference (0 for a sub-agent's player); credit_used and credit_available
+        // are retired with the credit-limit model, as migration 0019 left them.
         creditLimit: isCreditAgent ? (args.input.creditLimit || 0) : null,
         creditUsed: isCreditAgent ? 0 : null,
-        creditAvailable: isCreditAgent ? (args.input.creditLimit || 0) : null,
-        // For sharing agents: initialBalance must be 0 (enforced above)
-        // For credit agents: initialBalance is 0
-        // For commission agents: initialBalance must be 0 (enforced above)
-        initialBalance: isSharingAgent ? 0 : (isCreditAgent ? 0 : (isCommissionAgent ? 0 : (args.input.initialBalance || 0))),
+        creditAvailable: isCreditAgent ? 0 : null,
+        // The wallet starts at 0 (createPlayerDb takes no initial balance; non-zero is refused above).
         // For sharing agents: always use whitelabel base currency (enforced above)
         // For credit agents: always use whitelabel base currency
         // For commission agents: always use whitelabel base currency (enforced above)
@@ -1294,7 +1302,8 @@ export const playersMutationResolvers = {
       // The owning agent is targetAgentId (same agentId passed to createPlayerDb above).
       if (effectivePlayerType === 'AGENT_CREDIT' && targetAgentId) {
         const { agentPlayerCredits } = await import('@shared/db/schema.js')
-        const apcLimit = String(args.input.creditLimit || 0)
+        // The agent's per-player mirror has no figures on chips: the reference is kept, the rest is 0, as
+        // migration 0019 left every existing row.
         // Cast to any: drizzle cross-package table typing produces a spurious
         // PgTable<TableConfig> mismatch here (same as the vip_members inserts in this
         // file). Runtime behavior is unaffected.
@@ -1303,46 +1312,25 @@ export const playersMutationResolvers = {
           .values({
             agentId: targetAgentId,
             playerId: row.id,
-            creditLimit: apcLimit,
+            creditLimit: String(args.input.creditLimit || 0),
             currentBalance: '0',
             openExposure: '0',
             creditUsed: '0',
-            creditAvailable: apcLimit,
+            creditAvailable: '0',
           })
           .onConflictDoNothing()
       }
 
-      // The agent's ALLOCATION credit-ledger row, with the before/after availability of
-      // the locked agent row (like allocateCreditToPlayer / depositCredit).
-      const agentSnap = allocatedAgentSnapshot as { creditLimit: number; creditUsed: number; creditAvailable: number; settlementBalance: number } | null
-      if (allocationLedger && agentSnap) {
-        await allocationLedger.repo.recordTransaction({
-          tenantId: tenant,
-          fromEntityType: 'agent',
-          fromEntityId: loggedInAgentId,
-          toEntityType: 'player',
-          toEntityId: String(row.id),
-          transactionType: 'ALLOCATION',
-          amount: creditToAllocate,
-          currency: allocationLedger.currency,
-          balanceBefore: Math.max(0, Math.round((agentSnap.creditLimit - (agentSnap.creditUsed - creditToAllocate) + agentSnap.settlementBalance) * 100) / 100),
-          balanceAfter: agentSnap.creditAvailable,
-          reason: 'Credit allocation to player at creation',
-          createdBy: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(loggedInAgentId)) ? String(loggedInAgentId) : undefined,
-          createdByType: 'agent',
-          metadata: { allocationType: 'player_creation' },
-        }, tx)
+      if (opensWithChips) {
+        await depositOpeningChipsInTx(
+          { tenant, accountType: 'PLAYER', accountId: row.id, amount: openingChips, actor: creatorActorOf(ctx) },
+          tx
+        )
       }
 
       return row
     })
     const userId = created.id
-
-    // Credit alert check for the agent whose credit moved (best-effort, never throws).
-    if (creditToAllocate > 0) {
-      const { CreditService } = await import('@src/domains/agents/services/CreditService.js')
-      await new CreditService(agentsRepo).checkCreditAlerts(loggedInAgentId)
-    }
 
     // Link to agent via referral attribution
     // Note: Referral attribution requires a user ID, not an agent ID
@@ -1378,13 +1366,14 @@ export const playersMutationResolvers = {
         agentId: targetAgentId,
         playerType: effectivePlayerType,
         creditLimit: isCreditAgent ? args.input.creditLimit : null,
+        openingChips: opensWithChips ? openingChips : null,
         createdBy: loggedInAgentId,
       },
     })
 
     return {
       success: true,
-      message: `${effectivePlayerType === 'AGENT_CREDIT' ? 'Credit' : 'Regular'} player created successfully`,
+      message: playerCreatedMessage(effectivePlayerType),
       playerId: String(userId),
     }
   },
@@ -1402,11 +1391,12 @@ export const playersMutationResolvers = {
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'suspend')
 
     const { setUserStatusDb, getUserDb } = await import('@/repos/users/usersRepo.js')
-    await setUserStatusDb(userId, 'SUSPENDED', tenant)
+    // Null when the id is not a player of this tenant: refused, with no audit row or success reply.
+    if (!(await setUserStatusDb(userId, 'SUSPENDED', tenant))) throw new Error('Player not found')
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'suspend_player',
       resourceType: 'player',
@@ -1464,11 +1454,11 @@ export const playersMutationResolvers = {
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'block')
 
     const { setUserStatusDb } = await import('@/repos/users/usersRepo.js')
-    await setUserStatusDb(userId, 'SUSPENDED', tenant)
+    if (!(await setUserStatusDb(userId, 'SUSPENDED', tenant))) throw new Error('Player not found')
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'block_player',
       resourceType: 'player',
@@ -1495,11 +1485,11 @@ export const playersMutationResolvers = {
     await playerAuthService.validateAgentPlayerAccess(ctx, userId, 'unblock')
 
     const { setUserStatusDb } = await import('@/repos/users/usersRepo.js')
-    await setUserStatusDb(userId, 'ACTIVE', tenant)
+    if (!(await setUserStatusDb(userId, 'ACTIVE', tenant))) throw new Error('Player not found')
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'unblock_player',
       resourceType: 'player',
@@ -1619,7 +1609,7 @@ export const playersMutationResolvers = {
 
     await recordAuditDb({
       tenant,
-      actorId: ctx?.user?.id || ctx?.user?.sub || 'system',
+      actorId: auditActorOf(ctx),
       domain: 'players',
       action: 'move_player_agent',
       resourceType: 'player',

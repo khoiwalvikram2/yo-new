@@ -113,6 +113,48 @@
       "when": 1793318400001,
       "tag": "0015_casino_lounge_game_images",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793404800000,
+      "tag": "0016_crypto_deposits",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793404800001,
+      "tag": "0017_welivepay_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793404800002,
+      "tag": "0018_player_theme",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793404800003,
+      "tag": "0019_credit_chips",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793404800004,
+      "tag": "0020_currencies_vip_level_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793404800005,
+      "tag": "0021_payout_soft_delete_username_unique",
+      "breakpoints": true
     }
   ]
 }

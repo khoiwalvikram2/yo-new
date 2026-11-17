@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { GraphQLError } from 'graphql'
+import { GraphQLError, print } from 'graphql'
 import type { ReactNode } from 'react'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import {
@@ -19,11 +19,12 @@ import {
   CREATE_CURRENCY,
   DEACTIVATE_CURRENCY,
   DELETE_CURRENCY,
-  GET_CURRENCIES,
   UPDATE_CURRENCY,
 } from '@/lib/graphql/currency'
+import { useAuthStore } from '@/shared/core/authStore'
 import type { Currency } from '@/shared/types/currency'
 import CurrencyManagementPage from './CurrencyManagementPage'
+import { ALL_CURRENCIES } from './currencyQueries'
 
 interface ConfirmOptions {
   title: ReactNode
@@ -124,7 +125,7 @@ function payload(c: Currency) {
 
 function listMock(): MockedResponse {
   return {
-    request: { query: GET_CURRENCIES },
+    request: { query: ALL_CURRENCIES },
     maxUsageCount: Number.POSITIVE_INFINITY,
     result: () => {
       server.queries += 1
@@ -282,6 +283,7 @@ beforeEach(() => {
   }
   guard.allowed = true
   guard.calls.length = 0
+  useAuthStore.setState({ permissions: [{ domain: 'all', actions: ['*'] }] })
   exporter.options.length = 0
   exporter.handleExport.mockReset()
   feedback.confirm.mockReset()
@@ -320,8 +322,9 @@ describe('CurrencyManagementPage', () => {
     assert.ok(screen.queryByText('System') === null)
     assert.ok(screen.getByRole('heading', { level: 1, name: 'Currency Management' }))
     assert.ok(screen.queryByText('Manage currencies, exchange rates, and conversions') === null)
-    assert.ok(screen.getByRole('button', { name: 'Bulk Actions' }))
+    assert.equal(screen.queryByRole('button', { name: 'Bulk Actions' }), null, 'a button with no action behind it is gone')
     assert.ok(screen.getByRole('button', { name: 'Add Currency' }))
+    assert.match(print(ALL_CURRENCIES), /currencies\(includeInactive: true\)/, 'inactive currencies are listed too')
 
     const stats = screen.getByRole('group', { name: 'Currency statistics' })
     assert.equal(stats.getAttribute('aria-busy'), null)
@@ -437,8 +440,9 @@ describe('CurrencyManagementPage', () => {
       input: { code: 'NZD', name: 'New Zealand Dollar', symbol: 'NZ$', decimals: 2, exchangeRate: 1.65 },
     }])
     assert.deepEqual(feedback.notify.loading.mock.calls[0], ['Creating currency...'])
-    await waitFor(() => assert.deepEqual(feedback.notify.success.mock.calls.at(-1), ['Currency created successfully']))
-    assert.equal(feedback.closeLoading.mock.calls.length, 1)
+    await waitFor(() => assert.equal(feedback.closeLoading.mock.calls.length, 1))
+    // The server's own message is the one toast (the Apollo notification link); the page adds none.
+    assert.equal(feedback.notify.success.mock.calls.length, 0)
     assert.ok(server.queries >= 2, 'the list refetched')
     await waitFor(() => assert.match(
       screen.getByRole('navigation', { name: 'Pagination' }).textContent ?? '',
@@ -446,7 +450,7 @@ describe('CurrencyManagementPage', () => {
     ))
   })
 
-  test('a refused create keeps the dialog open with the server message; a failed one with the legacy text', async () => {
+  test('a refused create keeps the dialog open and leaves the message to the server; a failed one says so', async () => {
     await renderLoaded()
     server.createReply = 'refuse'
     fireEvent.click(screen.getByRole('button', { name: 'Add Currency' }))
@@ -456,8 +460,11 @@ describe('CurrencyManagementPage', () => {
     type(dialog, 'Currency Symbol', '£')
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create Currency' }))
-    await waitFor(() => assert.deepEqual(feedback.notify.error.mock.calls.at(-1), ['Currency GBP already exists']))
+    await waitFor(() => assert.equal(feedback.closeLoading.mock.calls.length, 1))
+    assert.equal(sentOf('create').length, 1)
     assert.ok(screen.getByRole('dialog', { name: 'Create New Currency' }))
+    // "Currency GBP already exists" is toasted once, by the notification link; the page used to repeat it.
+    assert.equal(feedback.notify.error.mock.calls.length, 0)
     assert.equal(feedback.notify.success.mock.calls.length, 0)
 
     server.createReply = 'throw'
@@ -490,11 +497,11 @@ describe('CurrencyManagementPage', () => {
       input: { code: 'EUR', name: 'Euro (EU)', symbol: '€', decimals: 2, exchangeRate: 0.92, isActive: true },
     }])
     assert.deepEqual(feedback.notify.loading.mock.calls[0], ['Updating currency...'])
-    await waitFor(() => assert.deepEqual(feedback.notify.success.mock.calls.at(-1), ['Currency updated successfully']))
     await screen.findByText('Euro (EU)')
+    assert.equal(feedback.notify.success.mock.calls.length, 0, 'the server message is the one toast')
   })
 
-  test('a refused update keeps the edit dialog open with the server message', async () => {
+  test('a refused update keeps the edit dialog open and leaves the message to the server', async () => {
     await renderLoaded()
     server.updateReply = 'refuse'
     fireEvent.click(within(rowOf('Japanese Yen')).getByRole('button', { name: 'Edit JPY' }))
@@ -502,7 +509,8 @@ describe('CurrencyManagementPage', () => {
     assert.equal(textbox('Decimal Places', dialog).value, '0')
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Update Currency' }))
-    await waitFor(() => assert.deepEqual(feedback.notify.error.mock.calls.at(-1), ['Update refused']))
+    await waitFor(() => assert.equal(feedback.closeLoading.mock.calls.length, 1))
+    assert.equal(feedback.notify.error.mock.calls.length, 0, '"Update refused" is toasted once, by the notification link')
     assert.deepEqual(sentOf('update')[0], {
       input: { code: 'JPY', name: 'Japanese Yen', symbol: '¥', decimals: 0, exchangeRate: 149.5, isActive: false },
     })
@@ -607,5 +615,30 @@ describe('CurrencyManagementPage', () => {
     assert.equal(server.sent.length, 0)
     assert.equal(window.localStorage.getItem('defaultCurrency'), 'USD')
     assert.equal(feedback.notify.success.mock.calls.length, 0)
+  })
+
+  test('an admin who may only read currencies is offered no change', async () => {
+    useAuthStore.setState({ permissions: [{ domain: 'currency', actions: ['read'] }] })
+    await renderLoaded()
+
+    assert.equal(screen.queryByRole('button', { name: 'Add Currency' }), null)
+    for (const code of ['USD', 'JPY']) {
+      for (const action of ['Edit', 'Deactivate', 'Activate', 'Delete']) {
+        assert.equal(screen.queryByRole('button', { name: `${action} ${code}` }), null, `${action} ${code}`)
+      }
+    }
+    assert.ok(within(rowOf('Japanese Yen')).getByText('Inactive'), 'inactive currencies are still listed')
+    assert.ok(screen.getByRole('button', { name: 'Export Excel' }), 'reading and exporting stay available')
+  })
+
+  test('each kind of change needs its own permission', async () => {
+    useAuthStore.setState({ permissions: [{ domain: 'currency.list', actions: ['view', 'update'] }] })
+    await renderLoaded()
+
+    assert.equal(screen.queryByRole('button', { name: 'Add Currency' }), null)
+    assert.ok(within(rowOf('Euro')).getByRole('button', { name: 'Edit EUR' }))
+    assert.ok(within(rowOf('Euro')).getByRole('button', { name: 'Deactivate EUR' }))
+    assert.ok(within(rowOf('Japanese Yen')).getByRole('button', { name: 'Activate JPY' }))
+    assert.equal(within(rowOf('Japanese Yen')).queryByRole('button', { name: 'Delete JPY' }), null)
   })
 })

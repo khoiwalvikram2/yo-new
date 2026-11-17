@@ -34,11 +34,17 @@ type Variables = Record<string, unknown>
 
 const feedback = vi.hoisted(() => ({ confirm: vi.fn(), toast: vi.fn() }))
 const auth = vi.hoisted(() => ({ roles: ['SUPER_ADMIN'] as string[] }))
+// A Super Admin working on one whitelabel unless a test says otherwise; core mode has its own test.
+const ui = vi.hoisted(() => ({ directorMode: 'whitelabel' as string }))
 const rbacCalls = vi.hoisted(() => [] as Array<{ required: Array<{ domain: string; actions: string[] }> }>)
 const rbacState = vi.hoisted(() => ({ allowed: true }))
 
 vi.mock('@/shared/core/authStore', () => ({
   useAuthStore: (selector: (state: { roles: string[] }) => unknown) => selector({ roles: auth.roles }),
+}))
+
+vi.mock('@/shared/core/uiStore', () => ({
+  useUIStore: (selector: (state: { directorMode: string }) => unknown) => selector({ directorMode: ui.directorMode }),
 }))
 
 vi.mock('@/shared/core/RBACGuard', () => ({
@@ -283,6 +289,7 @@ beforeEach(() => {
     bulkReply: 'ok',
   }
   auth.roles = ['SUPER_ADMIN']
+  ui.directorMode = 'whitelabel'
   rbacCalls.length = 0
   rbacState.allowed = true
   feedback.confirm.mockReset()
@@ -369,6 +376,27 @@ describe('VendorManagementPage contracts', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Filter by Category' }), { target: { value: 'SLOTS' } })
     await waitFor(() => assert.deepStrictEqual(server.vendorRequests.at(-1), { category: 'SLOTS' }))
     await waitFor(() => assert.equal(bodyRows().length, 1))
+  })
+
+  test('core mode lists the vendors with no per-whitelabel figure, switch or selection', async () => {
+    // Core mode reads every whitelabel at once: the enabled flag and enabled-game count belong to one
+    // whitelabel, and the switch said "Vendor disabled" while it wrote the pseudo-whitelabel "default".
+    ui.directorMode = 'core'
+    await renderLoaded()
+
+    assert.ok(screen.getByText(/Core mode lists every vendor on the platform/))
+    const stats = screen.getByRole('group', { name: 'Vendor statistics' })
+    for (const text of ['Total Vendors', '4', 'Total Games', '450']) {
+      assert.ok(within(stats).getByText(text), text)
+    }
+    assert.equal(within(stats).queryByText('Enabled'), null)
+    assert.equal(within(stats).queryByText('Disabled'), null)
+    const headers = within(table()).getAllByRole('columnheader').map((th) => (th.textContent ?? '').trim())
+    assert.deepStrictEqual(headers, ['Vendor Details', 'Slug', 'Total Games'])
+    assert.deepStrictEqual(cellTexts(rowOf('Pragmatic Play')), ['Pragmatic Play', 'pragmatic-play', '216'])
+    assert.equal(screen.queryByRole('switch'), null)
+    assert.equal(screen.queryByRole('checkbox'), null)
+    assert.equal(screen.queryByRole('group', { name: 'Bulk actions' }), null)
   })
 
   test('provider and category filter on the server; search filters locally; Clear all resets them', async () => {

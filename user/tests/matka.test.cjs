@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loader } = require('./load-source.cjs');
 const load = loader({ '@/lib/currency': { formatAmount: value => Number(value).toFixed(2), formatWholeAmount: value => String(Math.round(value)) } });
-const { asKitMarket, asKitEntry, matkaChartRange } = load('src/features/matka/model.ts');
+const { asKitMarket, asKitEntry, matkaChartRange, orderMarketsForBoard } = load('src/features/matka/model.ts');
 const { getGameNumbers, generateMotorNumbers } = load('src/features/matka/kit/market-data.js');
 const { getWeeklyChart } = load('src/features/matka/kit/chart-data.js');
 const { money } = load('src/features/matka/kit/data.js');
@@ -67,4 +67,25 @@ test('weekly chart uses only supplied results and leaves all missing dates unpub
 test('history preserves fractional amounts, payout and net profit', () => {
   const entry=asKitEntry({amount:10.25,actualWin:92.25,netProfit:82,status:'won',createdAt:'2026-10-25T04:00:00Z',bidType:'SINGLE',selection:'0',session:'OPEN',runDate:'2026-10-25'},'Asia/Kolkata');
   assert.equal(entry.number,'0');assert.equal(entry.actualWin,92.25);assert.equal(entry.timezoneLabel,'IST');assert.equal(money(10.25),'10.25');
+});
+
+// Owner 2026-11-02: the directory lists the player's favourites first, then every market by game time (the Open
+// result time of day on its card, in the market's own timezone).
+test('the directory orders favourites first, then by the Open time of day, morning to night', () => {
+  const at = (id, open, close = open, extra = {}) => ({ ...market(), id, code: id, name: id,
+    sessions: [{ side: 'OPEN', enabled: open !== null, accepting: true, lockAt: open ?? close, resultAt: open ?? close },
+      { side: 'CLOSE', enabled: true, accepting: true, lockAt: close, resultAt: close }], ...extra });
+  const markets = [
+    at('night', '2026-10-25T15:30:00Z'), // 21:00 IST
+    at('morning', '2026-10-25T04:30:00Z'), // 10:00 IST
+    at('afternoon', '2026-10-25T08:30:00Z'), // 14:00 IST
+    at('close-only', null, '2026-10-25T06:30:00Z'), // no Open session: its Close, 12:00 IST
+    at('next-day-early', '2026-10-25T19:00:00Z'), // 00:30 IST the next day: the earliest time of day
+  ];
+  const order = list => Array.from(list, item => item.id);
+  assert.deepEqual(order(orderMarketsForBoard(markets, [])), ['next-day-early', 'morning', 'close-only', 'afternoon', 'night']);
+  assert.deepEqual(order(orderMarketsForBoard(markets, ['night', 'afternoon'])), ['afternoon', 'night', 'next-day-early', 'morning', 'close-only'], 'favourites lead, still by time');
+  const same = [at('b', '2026-10-25T04:30:00Z'), at('a', '2026-10-25T04:30:00Z')];
+  assert.deepEqual(order(orderMarketsForBoard(same, [])), ['b', 'a'], 'equal times keep the catalogue order');
+  assert.deepEqual(order(markets), ['night', 'morning', 'afternoon', 'close-only', 'next-day-early'], 'the input list is not reordered in place');
 });

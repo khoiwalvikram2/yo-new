@@ -2,15 +2,18 @@ import { describe, test } from 'vitest'
 import assert from 'node:assert/strict'
 import {
   CONFIRM_LABELS,
-  DELETE_CONFIRM,
+  END_CONFIRM,
   DOMAIN_FILTER_OPTIONS,
   EMPTY_BONUS_FILTERS,
   STATUS_FILTER_OPTIONS,
   TYPE_FILTER_OPTIONS,
   activeBonusFilterCount,
+  activeShareNote,
   bonusAmountDisplay,
   bonusAmountTypeLabel,
   bonusCampaignStats,
+  bonusDisplayStatusKey,
+  bonusDisplayStatusLabel,
   bonusDomainLabel,
   bonusExportColumns,
   bonusPageSlice,
@@ -21,14 +24,17 @@ import {
   buildBonusCampaignsVariables,
   campaignCountLabel,
   canDistribute,
+  canEnd,
   distributeBlocked,
   distributedMessage,
   formatBonusType,
   formatDistributionType,
   isDistributed,
+  isPastEnd,
   pausedShareNote,
   type BonusCampaignRow,
 } from './bonusesListModel'
+import { OFFERED_BONUS_TYPES } from './bonusCreateModel'
 
 function campaign(overrides: Partial<BonusCampaignRow> = {}): BonusCampaignRow {
   return {
@@ -75,18 +81,24 @@ describe('bonusesListModel', () => {
     assert.equal(activeBonusFilterCount({ search: 'a', status: 'a', domain: 'a', type: 'a' }), 4)
   })
 
-  test('keeps the legacy filter lists and order behind an "All" choice', () => {
+  test('keeps the legacy status and domain lists behind an "All" choice', () => {
     assert.deepEqual(STATUS_FILTER_OPTIONS.map((option) => option.value), ['', 'draft', 'active', 'paused', 'ended'])
     assert.deepEqual(DOMAIN_FILTER_OPTIONS.map((option) => option.label), [
       'All domains', 'Sports', 'Casino', 'Matka', 'Global',
     ])
+  })
+
+  test('filters by every type the create form offers, labelled as the table labels it (MAR-03)', () => {
     assert.deepEqual(TYPE_FILTER_OPTIONS.map((option) => [option.value, option.label]), [
       ['', 'All types'],
       ['deposit', 'Deposit'],
+      ['daily_first_deposit', 'First Day First Time Deposit'],
       ['signup', 'Signup'],
       ['direct_amount', 'Direct Bonus'],
-      ['referral_deposit', 'Referral Deposit'],
+      ['losing_bonus', 'Losing Bonus'],
+      ['special', 'Special Bonus'],
     ])
+    assert.deepEqual(TYPE_FILTER_OPTIONS.slice(1).map((option) => option.value), [...OFFERED_BONUS_TYPES])
   })
 
   test('slices client-side pages and clamps a page past the end to the last page', () => {
@@ -108,11 +120,34 @@ describe('bonusesListModel', () => {
       { status: 'ended' },
       { status: 'ended', budgetNumeric: '' },
     ])
-    assert.deepEqual(stats, { total: 6, active: 2, draft: 1, paused: 1, totalBudget: 3500.5, activeRate: 33 })
+    assert.deepEqual(stats, { total: 6, active: 2, expired: 0, draft: 1, paused: 1, totalBudget: 3500.5, activeRate: 33 })
     assert.equal(pausedShareNote(stats), '17% of total')
+    assert.equal(activeShareNote(stats), '2 campaigns, 6 total')
     const none = bonusCampaignStats([])
-    assert.deepEqual(none, { total: 0, active: 0, draft: 0, paused: 0, totalBudget: 0, activeRate: 0 })
+    assert.deepEqual(none, { total: 0, active: 0, expired: 0, draft: 0, paused: 0, totalBudget: 0, activeRate: 0 })
     assert.equal(pausedShareNote(none), '—')
+  })
+
+  test('counts an active campaign past its end date apart from the live ones (MAR-18)', () => {
+    const now = Date.parse('2026-11-03T08:00:00.000Z')
+    const stats = bonusCampaignStats([
+      { status: 'active', endDate: '2026-03-14T18:30:00.000Z' },
+      { status: 'active', endDate: '2026-10-15T18:29:59.999Z' },
+      { status: 'active', endDate: '2030-01-31T13:00:00.000Z' },
+      { status: 'active', endDate: null },
+      { status: 'ended', endDate: '2026-01-01T00:00:00.000Z' },
+    ], now)
+    assert.deepEqual([stats.active, stats.expired, stats.total, stats.activeRate], [2, 2, 5, 40])
+    assert.equal(activeShareNote(stats), '2 past end date, 5 total')
+
+    assert.equal(isPastEnd({ status: 'active', endDate: '2026-11-03T07:59:59.000Z' }, now), true)
+    assert.equal(isPastEnd({ status: 'active', endDate: '2026-11-03T08:00:01.000Z' }, now), false)
+    assert.equal(isPastEnd({ status: 'paused', endDate: '2026-01-01T00:00:00.000Z' }, now), false, 'only an active campaign expires')
+    assert.equal(isPastEnd({ status: 'active', endDate: 'not a date' }, now), false)
+
+    const expired = { status: 'active', endDate: '2026-03-14T18:30:00.000Z' }
+    assert.deepEqual([bonusDisplayStatusKey(expired, now), bonusDisplayStatusLabel(expired, now)], ['expired', 'Expired'])
+    assert.deepEqual([bonusDisplayStatusKey({ status: 'active' }, now), bonusDisplayStatusLabel({ status: 'archived' }, now)], ['active', 'Ended'])
   })
 
   test('reads Active, Draft and Paused by name and every other status as Ended', () => {
@@ -179,14 +214,14 @@ describe('bonusesListModel', () => {
     assert.equal(isDistributed(campaign({ type: 'signup', distributedAt: '2026-10-01T10:00:00.000Z' })), false)
   })
 
-  test('keeps the legacy confirmation copy for status changes and delete', () => {
+  test('keeps the legacy confirmation copy for status changes, and says what End does (MAR-07)', () => {
     assert.deepEqual(bonusStatusAction(campaign({ status: 'active' })), {
       action: 'deactivate',
       tooltip: 'Deactivate',
       title: 'Deactivate campaign?',
       description: 'This will pause the campaign and prevent new awards.',
     })
-    for (const status of ['draft', 'paused', 'ended']) {
+    for (const status of ['draft', 'paused']) {
       assert.deepEqual(bonusStatusAction(campaign({ status })), {
         action: 'activate',
         tooltip: 'Activate',
@@ -194,7 +229,17 @@ describe('bonusesListModel', () => {
         description: 'This will make the campaign active and allow new awards.',
       })
     }
-    assert.deepEqual(DELETE_CONFIRM, { title: 'Delete campaign?', description: 'This action cannot be undone.' })
+    assert.deepEqual(bonusStatusAction(campaign({ status: 'ended' })), {
+      action: 'activate',
+      tooltip: 'Reactivate',
+      title: 'Reactivate campaign?',
+      description: 'This ended campaign becomes active again and allows new awards.',
+    })
+    assert.deepEqual(END_CONFIRM, {
+      title: 'End campaign?',
+      description: 'It stops new awards. The campaign stays in the list and can be activated again.',
+    })
+    assert.deepEqual(['draft', 'active', 'paused', 'ended'].map((status) => canEnd({ status })), [true, true, true, false])
     assert.deepEqual(CONFIRM_LABELS, { confirmLabel: 'Yes', cancelLabel: 'No' })
   })
 
@@ -218,9 +263,9 @@ describe('bonusesListModel', () => {
     assert.equal(campaignCountLabel(0), '0 campaigns')
   })
 
-  test('keeps the legacy export columns and getters', () => {
+  test('keeps the legacy export columns, with Type and Status read as the table reads them (MAR-05)', () => {
     const formatDate = (date?: string | null) => (date ? `on ${date}` : '—')
-    const columns = bonusExportColumns(formatAmount, formatDate)
+    const columns = bonusExportColumns(formatAmount, formatDate, Date.parse('2026-11-03T08:00:00.000Z'))
     assert.deepEqual(columns.map((column) => [column.header, column.key, column.width]), [
       ['Campaign', 'name', 24],
       ['Domain', 'domain', 10],
@@ -235,15 +280,17 @@ describe('bonusesListModel', () => {
     ])
     const row = (overrides: Partial<BonusCampaignRow>) => columns.map((column) => column.getter(campaign(overrides)))
     assert.deepEqual(row({}), [
-      'Welcome 100%', 'SPORTS', 'deposit', 'active', 'Roll Over', 'INR 1000.00', '—',
+      'Welcome 100%', 'SPORTS', 'Deposit', 'Active', 'Roll Over', 'INR 1000.00', '—',
       'on 2026-09-22T09:00:00.000Z', '—', 'INR',
     ])
     assert.deepEqual(row({
       domain: 'global', type: 'daily_first_deposit', distributionType: null, amountType: 'percentage', percentage: null,
       numberOfPlayers: 0,
-    }).slice(1, 7), ['All', 'daily_first_deposit', 'active', '', '0%', 0])
+    }).slice(1, 7), ['All', 'First Day First Time Deposit', 'Active', '', '0%', 0])
     // A fixed amount with no figure exports a dash (the table shows 0).
     assert.equal(row({ amount: null })[5], '—')
     assert.equal(row({ type: 'special' })[2], 'Special Bonus')
+    assert.deepEqual(row({ type: 'losing_bonus', status: 'paused' }).slice(2, 4), ['Losing Bonus', 'Paused'])
+    assert.equal(row({ endDate: '2026-10-15T18:29:59.999Z' })[3], 'Expired')
   })
 })

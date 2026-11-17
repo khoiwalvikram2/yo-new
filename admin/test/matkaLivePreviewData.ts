@@ -10,7 +10,7 @@ export const matkaBetsFixture: MatkaBet[] = Array.from({ length: 52 }, (_, index
   actualWin: index >= 40 ? 1000 : null, payoutMultiplier: 9, status: index < 30 ? 'pending' : index < 40 ? 'active' : index < 46 ? 'won' : 'lost', currency: 'INR', createdAt: new Date(stamp - index * 60000).toISOString(),
 }))
 export const matkaDashboardFixture: MatkaDashboard = {
-  kpis: { at: new Date(stamp).toISOString(), betsPerMin: 20, wagered: 10000, payouts: 9500, ggr: 500, rtp: 95, activePlayers: 4 },
+  kpis: { at: new Date(stamp).toISOString(), betsPerMin: 20, wagered: 10000, payouts: 9500, ggr: 500, rtp: 95, potentialPayouts: 90000, activePlayers: 4 },
   breakdown: {
     byMatka: Array.from({ length: 7 }, (_, i) => ({ matkaId: `matka-${i}`, matkaName: ['Kalyan', 'Main Bazar', 'Milan Day', 'Milan Night', 'Rajdhani', 'Starline', 'Jackpot'][i], wagered: 2000 - i * 150, payouts: 1800 - i * 140, ggr: 200 - i * 10, bets: 30 - i * 2 })),
     byType: [{ matkaType: 'worli', wagered: 6000, payouts: 5500, ggr: 500, bets: 30 }, { matkaType: 'starline', wagered: 4000, payouts: 4000, ggr: 0, bets: 20 }],

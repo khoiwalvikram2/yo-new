@@ -62,6 +62,48 @@
 
 .envChevron { flex: none; color: var(--ink-3); display: flex; }
 
+/* The IST clock under the card. Its side padding is the card's padding plus the card's 1px border, and
+   the icon box is as wide as the brand tile, so the icon sits under the tile and the two lines of text
+   start where the brand name starts. No width breakpoints: below 1024px the panel is the drawer, and the
+   clock shows there too. */
+.clock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 0 13px;
+}
+
+.clockIcon {
+  width: 26px;
+  flex: none;
+  display: flex;
+  justify-content: center;
+  color: var(--ink-3);
+}
+
+.clockText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+.clockDate {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.clockTime {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
 
 /* Player skin (admin UI kit; off under <html data-skin="classic">): a flat field-like card with a red
    brand tile, like the kit's "Viewing" switch. */
@@ -84,5 +126,13 @@
 }
 
 :global(html:not([data-skin='classic'])) .envName {
+  font-weight: 700;
+}
+
+:global(html:not([data-skin='classic'])) .clock {
+  padding: 0 11px;
+}
+
+:global(html:not([data-skin='classic'])) .clockDate {
   font-weight: 700;
 }

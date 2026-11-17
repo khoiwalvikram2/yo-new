@@ -2,7 +2,7 @@
 .m99-kit.gw-matka .m99-market-details,
 .m99-kit.gw-matka .m99-chart-page {
   --m99-detail-radius: 9px;
-  --m99-detail-tint: #c51a1b06;
+  --m99-detail-tint: color-mix(in srgb, var(--mb-red) 2.4%, transparent);
   --m99-detail-accent: var(--m99-brand);
 }
 .m99-kit.gw-matka[data-theme='dark'] .m99-market-details,
@@ -32,7 +32,7 @@
   padding: 15px 18px;
   border: 1px solid #ffffff0c;
   border-radius: 7px;
-  background: linear-gradient(120deg, #2b2f35, #202329);
+  background: linear-gradient(120deg, var(--mb-chrome), var(--mb-chrome-foot));
   box-shadow: 0 7px 18px #1113180c;
 }
 .gw-matka .m99-market-details .m99-workspace-result::after { top: -60px; right: -45px; width: 170px; height: 170px; border-color: #ffffff06; }
@@ -70,28 +70,50 @@
 .gw-matka .m99-market-details .m99-picker-toolbar { padding: 10px 20px; background: var(--m99-sidebar); }
 .gw-matka .m99-market-details .m99-picker-toolbar > .m99-segmented > button { min-height: 33px; padding: 7px 13px; font-size: 12px; }
 .gw-matka .m99-market-details .m99-picker-toolbar > span { font-size: 11px; white-space: nowrap; }
-.gw-matka .m99-market-details .m99-game-picker-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; padding: 20px; }
+/* Game cards: each game wears its own colour (gameTypes' accent, set inline as --m99-game-accent). A gradient icon
+   tile with a soft glow, the family as a coloured dot, the payout as a pill in the game's ink, a ghost sequence
+   numeral and a corner wash; on hover the card lifts and its border, wash and arrow take the game's colour. Text
+   uses an inked mix of the accent (lighter in dark) so light accents such as cyan still pass contrast. */
+.gw-matka .m99-market-details .m99-game-picker-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; padding: 20px; }
 .gw-matka .m99-market-details .m99-game-card {
-  min-height: 191px;
-  padding: 17px 16px 0;
-  border-radius: 7px;
+  --g: var(--m99-game-accent, var(--m99-brand));
+  --g-ink: color-mix(in oklab, var(--g) 76%, black);
+  --g-soft: color-mix(in oklab, var(--g) 11%, var(--m99-surface));
+  --ui-radius: 8px;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 196px;
+  padding: 18px 16px 0;
   background: var(--m99-surface);
-  box-shadow: 0 2px 4px #11131803;
-  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--m99-ink) 5%, transparent);
+  transition: border-color .2s ease, box-shadow .25s ease, transform .25s cubic-bezier(.2, .7, .2, 1);
+  animation: m99-game-arrive .45s cubic-bezier(.2, .7, .2, 1) backwards;
+  animation-delay: calc(var(--m99-game-order, 0) * 30ms);
 }
-.gw-matka .m99-market-details .m99-game-card::before { display: none; }
+.gw-matka[data-theme='dark'] .m99-market-details .m99-game-card {
+  --g-ink: color-mix(in oklab, var(--g) 58%, white);
+  --g-soft: color-mix(in oklab, var(--g) 18%, var(--m99-surface));
+}
+.gw-matka .m99-market-details .m99-game-card::before { display: block; content: ''; position: absolute; z-index: -1; top: -46px; right: -46px; width: 160px; height: 160px; border: 0; border-radius: 50%; opacity: .6; background: radial-gradient(closest-side, color-mix(in oklab, var(--g) 18%, transparent), transparent); transition: opacity .25s ease, transform .35s ease; }
 .gw-matka .m99-market-details .m99-game-card:hover,
-.gw-matka .m99-market-details .m99-game-card:focus-visible { transform: none; border-color: var(--m99-detail-accent); background: linear-gradient(150deg, var(--m99-surface), var(--m99-detail-tint)), var(--m99-surface); box-shadow: 0 4px 13px #35101508; }
-.gw-matka .m99-market-details .m99-game-card-symbol { width: 39px; height: 39px; margin-bottom: 18px; border-radius: 7px; color: var(--m99-detail-accent); background: var(--m99-brand-soft); }
-.gw-matka .m99-market-details .m99-game-card:hover .m99-game-card-symbol { transform: none; }
-.gw-matka .m99-market-details .m99-game-card-family { left: 65px; top: 29px; max-width: calc(100% - 105px); font-size: 10px; letter-spacing: .7px; }
-.gw-matka .m99-market-details .m99-game-card-sequence { top: 20px; right: 15px; font-size: 11px; opacity: .6; }
+.gw-matka .m99-market-details .m99-game-card:focus-visible { transform: translateY(-3px); border-color: var(--g); background: var(--m99-surface); box-shadow: 0 16px 30px -18px color-mix(in oklab, var(--g) 60%, transparent); }
+.gw-matka .m99-market-details .m99-game-card:hover::before { opacity: 1; transform: scale(1.18); }
+.gw-matka .m99-market-details .m99-game-card:focus-visible { outline: 2px solid var(--g); outline-offset: 2px; }
+.gw-matka .m99-market-details .m99-game-card-symbol { --ui-radius: 12px; width: 46px; height: 46px; margin-bottom: 16px; color: #fff; background: linear-gradient(145deg, color-mix(in oklab, var(--g) 78%, white), var(--g) 55%, color-mix(in oklab, var(--g) 80%, black)); box-shadow: 0 9px 18px -9px color-mix(in oklab, var(--g) 75%, transparent), inset 0 1px 0 rgb(255 255 255 / 28%); transition: transform .3s cubic-bezier(.2, .7, .2, 1); }
+.gw-matka .m99-market-details .m99-game-card-symbol > svg { width: 26px; height: 26px; }
+.gw-matka .m99-market-details .m99-game-card:hover .m99-game-card-symbol { transform: translateY(-1px) rotate(-6deg) scale(1.05); }
+.gw-matka .m99-market-details .m99-game-card-family { display: inline-flex; align-items: center; gap: 6px; left: 74px; top: 32px; max-width: calc(100% - 130px); color: var(--g-ink); font-size: 10px; font-weight: 700; letter-spacing: .1em; }
+.gw-matka .m99-market-details .m99-game-card-family::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--g); }
+.gw-matka .m99-market-details .m99-game-card-sequence { top: 10px; right: 14px; color: color-mix(in oklab, var(--g) 26%, transparent); font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -.03em; opacity: 1; }
 .gw-matka .m99-market-details .m99-game-card > strong { font-size: 20px; line-height: 1.15; letter-spacing: -.015em; }
-.gw-matka .m99-market-details .m99-game-card-description { min-height: 30px; margin: 7px 0 10px; font-size: 12px; line-height: 1.4; }
-.gw-matka .m99-market-details .m99-game-card > small { margin-bottom: 13px; color: var(--m99-detail-accent); font-size: 12px; font-weight: 700; }
-.gw-matka .m99-market-details .m99-game-card-footer { min-height: 38px; padding: 7px 0; font-size: 11px; }
-.gw-matka .m99-market-details .m99-game-card-footer > i { width: 24px; height: 24px; color: var(--m99-detail-accent); background: var(--m99-brand-soft); }
-.gw-matka .m99-market-details .m99-game-card:disabled { opacity: .65; box-shadow: none; transform: none; border-color: var(--m99-border); background: var(--m99-sidebar); }
+.gw-matka .m99-market-details .m99-game-card-description { min-height: 30px; margin: 7px 0 12px; font-size: 12px; line-height: 1.4; }
+.gw-matka .m99-market-details .m99-game-card > small { --ui-radius: 999px; align-self: flex-start; margin-bottom: 14px; padding: 4px 10px; color: var(--g-ink); background: var(--g-soft); font-size: 12px; font-weight: 700; }
+.gw-matka .m99-market-details .m99-game-card-footer { --ui-radius: 0px; min-height: 40px; padding: 7px 0; font-size: 11px; }
+.gw-matka .m99-market-details .m99-game-card-footer > i { --ui-radius: 50%; width: 26px; height: 26px; color: var(--g-ink); background: var(--g-soft); transition: transform .2s ease, background .2s ease, color .2s ease; }
+.gw-matka .m99-market-details .m99-game-card:hover .m99-game-card-footer > i { color: #fff; background: var(--g); transform: translateX(2px); }
+.gw-matka .m99-market-details .m99-game-card:disabled { opacity: .65; filter: grayscale(.7); box-shadow: none; transform: none; border-color: var(--m99-border); background: var(--m99-sidebar); }
+.gw-matka .m99-market-details .m99-game-card:disabled::before { display: none; }
 .gw-matka .m99-market-details .m99-picker-foot { padding: 13px 20px; font-size: 11px; }
 
 .gw-matka .m99-market-details .m99-compact-panel-title,
@@ -114,7 +136,7 @@
 .gw-matka .m99-market-details .m99-number-grid { gap: 7px; }
 .gw-matka .m99-market-details .m99-number-grid > button { min-height: 41px; border-radius: 5px; background: var(--m99-sidebar); font-size: 17px; transition: background .15s ease, border-color .15s ease; }
 .gw-matka .m99-market-details .m99-number-grid > button:hover { border-color: var(--m99-detail-accent); }
-.gw-matka .m99-market-details .m99-number-grid > button.is-active { background: var(--m99-brand); border-color: var(--m99-brand); color: #fff; box-shadow: 0 2px 6px #c51a1b1c; }
+.gw-matka .m99-market-details .m99-number-grid > button.is-active { background: var(--m99-brand); border-color: var(--m99-brand); color: var(--mb-on-red); box-shadow: 0 2px 6px color-mix(in srgb, var(--mb-red) 11%, transparent); }
 .gw-matka .m99-market-details .m99-number-grid > button > svg { top: 4px; right: 4px; }
 .gw-matka .m99-market-details .m99-number-footer { padding: 12px 0; font-size: 11px; }
 .gw-matka .m99-market-details .m99-entry-amount-row { padding-top: 14px; gap: 9px; flex-wrap: wrap; }
@@ -132,6 +154,7 @@
 .gw-matka .m99-market-details .m99-slip-empty strong { font-size: 15px; color: var(--m99-ink); }
 .gw-matka .m99-market-details .m99-slip-summary { padding: 17px; border-top: 1px dashed var(--m99-border); }
 .gw-matka .m99-market-details .m99-slip-summary > div { padding: 5px 0; font-size: 13px; }
+/* the wallet the entries are paid from (it used to sit in the page's top strip) */
 .gw-matka .m99-market-details .m99-slip-total strong { font-size: 27px; letter-spacing: -.025em; }
 .gw-matka .m99-market-details .m99-slip-summary > .m99-button { min-height: 42px; }
 .gw-matka .m99-market-details .m99-draft-row { gap: 10px; padding: 12px 15px; }
@@ -204,7 +227,9 @@
   .gw-matka .m99-market-details .m99-picker-toolbar { padding: 9px 13px; overflow-x: auto; }
   .gw-matka .m99-market-details .m99-game-picker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px; }
   .gw-matka .m99-market-details .m99-game-card { padding: 14px 12px 0; min-height: 185px; }
-  .gw-matka .m99-market-details .m99-game-card-family { left: 59px; top: 27px; max-width: calc(100% - 70px); font-size: 9px; }
+  .gw-matka .m99-market-details .m99-game-card-symbol { --ui-radius: 10px; width: 40px; height: 40px; margin-bottom: 14px; }
+  .gw-matka .m99-market-details .m99-game-card-symbol > svg { width: 23px; height: 23px; }
+  .gw-matka .m99-market-details .m99-game-card-family { left: 61px; top: 27px; max-width: calc(100% - 70px); gap: 5px; font-size: 9px; }
   .gw-matka .m99-market-details .m99-game-card-sequence { display: none; }
   .gw-matka .m99-market-details .m99-game-card > strong { font-size: 19px; }
   .gw-matka .m99-market-details .m99-game-card-description { font-size: 11px; }

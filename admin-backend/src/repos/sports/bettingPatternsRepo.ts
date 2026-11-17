@@ -407,14 +407,23 @@ export async function getBettingPatterns(
   }
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
  * Update pattern status
+ *
+ * Only a pattern of the given tenant and whitelabel, the scope getBettingPatterns
+ * lists. The update matched the id alone, so one whitelabel could dismiss
+ * another's detections, and an id that matched nothing threw a TypeError on the
+ * missing row. Returns null when no pattern of that scope has the id.
  */
 export async function updatePatternStatus(
   patternId: string,
   status: PatternStatus,
-  notes?: string | null
-): Promise<BettingPattern> {
+  notes: string | null | undefined,
+  scope: { tenant: string; whitelabelId: string }
+): Promise<BettingPattern | null> {
+  if (!UUID_PATTERN.test(String(patternId))) return null
   const [updated] = await db
     .update(bettingPatternsTable)
     .set({
@@ -422,9 +431,14 @@ export async function updatePatternStatus(
       notes: notes || null,
       updatedAt: new Date(),
     })
-    .where(eq(bettingPatternsTable.id, patternId))
+    .where(and(
+      eq(bettingPatternsTable.id, patternId),
+      eq(bettingPatternsTable.tenant, scope.tenant),
+      eq(bettingPatternsTable.whitelabelId, scope.whitelabelId),
+    ))
     .returning()
-  
+  if (!updated) return null
+
   return {
     id: updated.id,
     tenant: updated.tenant,

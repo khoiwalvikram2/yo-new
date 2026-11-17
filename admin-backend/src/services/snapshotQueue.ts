@@ -46,6 +46,8 @@ export async function startSnapshotQueue(): Promise<void> {
   for (let attempt = 1; attempt <= START_RETRIES; attempt++) {
     try {
       boss = new PgBoss(pgBossConfig);
+      // pg-boss re-emits pool errors; without a listener a dropped DB connection crashes the whole server
+      boss.on('error', (err) => console.error('[snapshot-queue] pg-boss error:', err.message));
       await boss.start();
       lastError = undefined;
       break;

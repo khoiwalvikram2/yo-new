@@ -16,6 +16,8 @@ interface MarketSessionAnalyticsProps {
       wagered: number
       payouts: number
       ggr: number
+      /** What the open bets pay if they all win; null on an older cached snapshot. */
+      potentialPayouts?: number | null
       bets: number
     }>
   }
@@ -35,8 +37,9 @@ export const MarketSessionAnalytics: React.FC<MarketSessionAnalyticsProps> = ({ 
         session: s.marketSession || 'NO_SESSION',
         displayName: s.marketSession ? s.marketSession.toUpperCase() : 'No Session',
         wagered: s.wagered,
-        payouts: s.payouts,
-        exposure: Math.max(0, s.wagered - s.payouts),
+        potentialPayouts: s.potentialPayouts ?? 0,
+        // net liability if every open bet wins (the /matka/live tile rule); settled payouts are 0 on open bets
+        exposure: Math.max(0, (s.potentialPayouts ?? 0) - s.wagered),
         bets: s.bets,
       }))
       .sort((a, b) => b.wagered - a.wagered)
@@ -50,7 +53,7 @@ export const MarketSessionAnalytics: React.FC<MarketSessionAnalyticsProps> = ({ 
       const isOpen = session.session.toUpperCase().includes('OPEN')
       const isClose = session.session.toUpperCase().includes('CLOSE')
       return <Card key={session.session} title={session.displayName} sub={`${session.bets} bets`} tools={<StatusPill tone={isOpen ? 'ok' : isClose ? 'warn' : 'neutral'}>{wageredPercent.toFixed(1)}%</StatusPill>}>
-        <div className={styles.stack}><DescriptionList items={[{ term: 'Wagered', value: mask(session.wagered) }, { term: 'Potential Payouts', value: mask(session.payouts) }, { term: 'Exposure', value: <span className={styles.negative}>{mask(session.exposure)}</span> }]} /><Meter value={wageredPercent} tone={isClose ? 'warn' : 'acc'} label={`Wagered share for ${session.displayName}`} /></div>
+        <div className={styles.stack}><DescriptionList items={[{ term: 'Wagered', value: mask(session.wagered) }, { term: 'Potential Payouts', value: mask(session.potentialPayouts) }, { term: 'Exposure', value: <span className={styles.negative}>{mask(session.exposure)}</span> }]} /><Meter value={wageredPercent} tone={isClose ? 'warn' : 'acc'} label={`Wagered share for ${session.displayName}`} /></div>
       </Card>
     })}
   </div>{sessionData.length > 1 && <Card title="Session Comparison" sub="Activity distribution"><ul className={styles.list}>{sessionData.map(session => {

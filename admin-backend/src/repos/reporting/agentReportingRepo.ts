@@ -1,7 +1,7 @@
 import { financialSnapshotsAreCurrent } from './snapshotFreshness.js'
 import { getWhitelabelCurrency } from '@src/shared/whitelabelConfig.js'
 import { attributedAgentId, referralAttributions, referrerUsers, referralAttributionJoinOn, referrerJoinOn } from '@src/domains/agents/services/commissionPlayerScope.js'
-import { sportsPayoutAggregateSql } from '@src/shared/reportingSql.js'
+import { sportsPayoutAggregateSql, sqlDateBucketText } from '@src/shared/reportingSql.js'
 import { db } from '@/db/client.js';
 import {
   reportingDailySnapshots,
@@ -16,11 +16,12 @@ import {
   sportsBets,
   casinoBets,
   matkaBets,
+  agentLedger,
 } from '@shared/db/schema.js';
-import { eq, and, gte, lte, sql, desc, isNotNull, inArray, or, isNull } from 'drizzle-orm';
+import { eq, and, gt, gte, lte, sql, desc, isNotNull, inArray, or, isNull } from 'drizzle-orm';
 import { inAgentPlayers } from './agentPlayerScope.js';
 import { createAgentPerformanceReads, performanceScope } from './agentPerformanceReads.js';
-import { getStartOfDay, getEndOfYesterday, getEndOfDayForDate, parseDateFrom, parseDateTo } from '@src/shared/dateUtils.js';
+import { getStartOfDay, getEndOfYesterday, getEndOfDayForDate, parseDateFrom, parseDateTo, coerceReportingRangeStart, coerceReportingRangeEnd } from '@src/shared/dateUtils.js';
 
 export interface AgentReportingFilter {
   tenant?: string;
@@ -180,6 +181,14 @@ export async function getAgentKPIs(filter: AgentReportingFilter): Promise<AgentK
     snapshotConditions.push(isNull(reportingDailySnapshots.playerId));
   } else if (!filter.agentId) {
     snapshotConditions.push(isNotNull(reportingDailySnapshots.agentId));
+    // The same agent-level rows only: the whitelabel-wide sum also took the
+    // player-level rows, so snapshot turnover, GGR and bets were counted twice.
+    snapshotConditions.push(isNull(reportingDailySnapshots.playerId));
+    // The Agent type picker: only agents of that scheme, as in the live slice below.
+    if (filter.schemeType) {
+      snapshotConditions.push(inArray(reportingDailySnapshots.agentId, db.select({ id: agents.id }).from(agents)
+        .where(and(filter.tenant ? eq(agents.tenantId, filter.tenant) : undefined, eq(agents.schemeType, filter.schemeType)))));
+    }
   }
   if (filter.dateFrom) {
     snapshotConditions.push(gte(reportingDailySnapshots.snapshotDate, parseDateFrom(String(filter.dateFrom), tz)));
@@ -631,13 +640,16 @@ export async function getAgentPerformance(
     let filtered = results.filter((r) => r.totalTurnover > 0 || r.betCount > 0);
     filtered = filtered.sort((a, b) => b.totalTurnover - a.totalTurnover).slice(0, limit);
     
-    // Whitelabel: cut % = whitelabel % - agent % per domain; cut amount = (wl% - agent%) × domain GGR
+    // Whitelabel: cut % = whitelabel % - agent % per domain; cut amount = (wl% - agent%) × domain GGR.
+    // Under a domain tab, that domain's cut only: the tab used to skip this, so its Share tile and cut columns read
+    // 0.00 and Cut fell back to commission alone, while All Domains showed them (the bets above are that domain's).
+    const inTab = (d: { domain: string }) => !filter.domain || d.domain === filter.domain;
     let totals: AgentPerformanceTotals | null = null;
-    if (isWhitelabelView && filtered.length > 0 && !filter.domain) {
+    if (isWhitelabelView && filtered.length > 0) {
       const wlId = filter.whitelabelId || filter.tenant;
       const wlRates = wlId ? await getWhitelabelRates(wlId) : { sports: 0, casino: 0, matka: 0 };
       for (const row of filtered) {
-        const breakdown = reads.breakdown(row.agentId);
+        const breakdown = reads.breakdown(row.agentId).filter(inTab);
         const { commission: agentComm, share: agentShare } = row.schemeType
           ? reads.rates(row.agentId, row.schemeType, true)
           : { commission: { sports: 0, casino: 0, matka: 0 }, share: { sports: 0, casino: 0, matka: 0 } };
@@ -683,7 +695,8 @@ export async function getAgentPerformance(
     }
 
     // Agent view: cut % = parent % - sub-agent % per domain; cut amount = (parent% - subAgent%) × domain GGR
-    if (filter.parentAgentId && filtered.length > 0 && !filter.domain) {
+    // (under a domain tab, that domain's, as above).
+    if (filter.parentAgentId && filtered.length > 0) {
       const [parentRow] = await db
         .select({ schemeType: agents.schemeType })
         .from(agents)
@@ -700,7 +713,7 @@ export async function getAgentPerformance(
             : parentSchemeType === 'CREDIT' ? (parentCommission[d] ?? 0) + (parentShare[d] ?? 0)
               : 0;
       for (const row of filtered) {
-        const breakdown = reads.breakdown(row.agentId);
+        const breakdown = reads.breakdown(row.agentId).filter(inTab);
         const { commission: subComm, share: subShare } = row.schemeType
           ? reads.rates(row.agentId, row.schemeType, true)
           : { commission: { sports: 0, casino: 0, matka: 0 }, share: { sports: 0, casino: 0, matka: 0 } };
@@ -875,34 +888,125 @@ export async function getAgentPerformance(
 }
 
 /**
- * Get agent trends over time
+ * Agent activity per IST day, for the Agent Overview's Activity Trends.
+ *
+ * Turnover, GGR and players come from the settled bets placed that day (created_at, as the agentKPIs
+ * cards count them) by the agents' players, those reached by referral included: an agent's subtree, or
+ * the whitelabel's agents of the chosen type. Commission and share are the posted COMMISSION and SHARE
+ * ledger lines, on the IST day their settlement period ends: an agent's own lines (its card's figure),
+ * or every agent's for the whitelabel (each agent's own share, so they sum over every agent).
+ *
+ * It read reporting_agent_rollups, which nothing writes, so every range said there was no activity
+ * while the cards above showed the turnover (F-REP-05).
  */
 export async function getAgentTrends(filter: AgentReportingFilter): Promise<AgentTrendPoint[]> {
   filter = await normalizedAgentFilter(filter);
-  const conditions = buildConditions(filter);
+  const tz = await getTenantTimezone(filter.tenant);
+  const tenant = filter.tenant || filter.whitelabelId;
 
-  const results = await db
-    .select({
-      date: sql<string>`DATE(${reportingAgentRollups.periodFrom})`,
-      turnover: sql<number>`COALESCE(SUM(${reportingAgentRollups.totalTurnover}::numeric), 0)`,
-      ggr: sql<number>`COALESCE(SUM(${reportingAgentRollups.totalGGR}::numeric), 0)`,
-      commission: sql<number>`COALESCE(SUM(${reportingAgentRollups.commissionEarned}::numeric), 0)`,
-      share: sql<number>`COALESCE(SUM(${reportingAgentRollups.shareEarned}::numeric), 0)`,
-      playerCount: sql<number>`COALESCE(MAX(${reportingAgentRollups.playerCount}), 0)`,
-    })
-    .from(reportingAgentRollups)
-    .where(and(...conditions))
-    .groupBy(sql`DATE(${reportingAgentRollups.periodFrom})`)
-    .orderBy(sql`DATE(${reportingAgentRollups.periodFrom})`);
+  let agentIds: string[] = [];
+  if (filter.agentId) {
+    const descendants = await db
+      .select({ descendantId: agentHierarchyClosure.descendantId })
+      .from(agentHierarchyClosure)
+      .where(eq(agentHierarchyClosure.ancestorId, filter.agentId));
+    agentIds = [...new Set([filter.agentId, ...descendants.map((r) => r.descendantId)])];
+  } else if (tenant) {
+    const tenantAgents = await db
+      .select({ id: agents.id })
+      .from(agents)
+      .where(and(eq(agents.tenantId, tenant), filter.schemeType ? eq(agents.schemeType, filter.schemeType) : undefined));
+    agentIds = tenantAgents.map((r) => r.id);
+  }
+  if (!agentIds.length) return [];
 
-  return results.map((r) => ({
-    date: r.date,
-    turnover: Number(r.turnover) || 0,
-    ggr: Number(r.ggr) || 0,
-    commission: Number(r.commission) || 0,
-    share: Number(r.share) || 0,
-    playerCount: Number(r.playerCount) || 0,
-  }));
+  const from = coerceReportingRangeStart(filter.dateFrom, tz) ?? null;
+  const to = coerceReportingRangeEnd(filter.dateTo, tz) ?? new Date();
+  // One target over every agent in scope: each player belongs to one agent, so nothing counts twice.
+  const scope = performanceScope(new Map([['00000000-0000-0000-0000-000000000000', agentIds]]));
+  const member = sql<string>`performance_scope.agent_id`;
+  const betWhere = (table: typeof sportsBets | typeof casinoBets | typeof matkaBets, statuses: string[]) => [
+    inArray(table.status as any, statuses),
+    filter.tenant ? eq(table.tenant, filter.tenant) : undefined,
+    filter.whitelabelId ? eq(table.whitelabelId, filter.whitelabelId) : undefined,
+    filter.currency ? eq(table.currency, filter.currency) : undefined,
+    from ? gte(table.createdAt, from) : undefined,
+    lte(table.createdAt, to),
+  ];
+  const sportsDay = sqlDateBucketText(sportsBets.createdAt, tz);
+  const casinoDay = sqlDateBucketText(casinoBets.createdAt, tz);
+  const matkaDay = sqlDateBucketText(matkaBets.createdAt, tz);
+  const players = sql<number[]>`array_agg(DISTINCT ${users.id})`;
+  type DayRow = { day: string; stakes: number | string; payouts: number | string; players: number[] | null };
+
+  const [sports, casino, matka] = await Promise.all([
+    !filter.domain || filter.domain === 'sports' ? db.select({ day: sportsDay, stakes: sql<number>`COALESCE(SUM(${sportsBets.liability}::numeric), 0)`, payouts: sportsPayoutAggregateSql(), players })
+      .from(sportsBets).innerJoin(users, eq(sportsBets.userId, users.id))
+      .leftJoin(referralAttributions, referralAttributionJoinOn(tenant || users.tenant)).leftJoin(referrerUsers, referrerJoinOn(tenant || users.tenant))
+      .innerJoin(scope, eq(attributedAgentId, member))
+      .where(and(...betWhere(sportsBets, ['won', 'lost', 'settled']))).groupBy(sportsDay) : [],
+    !filter.domain || filter.domain === 'casino' ? db.select({ day: casinoDay, stakes: sql<number>`COALESCE(SUM(${casinoBets.stake}::numeric), 0)`,
+      payouts: sql<number>`COALESCE(SUM(COALESCE(${casinoBets.payout}, ${casinoBets.winAmount}, 0)::numeric), 0)`, players })
+      .from(casinoBets).innerJoin(users, eq(casinoBets.userId, users.id))
+      .leftJoin(referralAttributions, referralAttributionJoinOn(tenant || users.tenant)).leftJoin(referrerUsers, referrerJoinOn(tenant || users.tenant))
+      .innerJoin(scope, eq(attributedAgentId, member))
+      .where(and(...betWhere(casinoBets, ['won', 'lost']), eq(casinoBets.walletType, 'cash'))).groupBy(casinoDay) : [],
+    !filter.domain || filter.domain === 'matka' ? db.select({ day: matkaDay, stakes: sql<number>`COALESCE(SUM(${matkaBets.betAmount}::numeric), 0)`,
+      payouts: sql<number>`COALESCE(SUM(COALESCE(${matkaBets.actualWin}, 0)::numeric), 0)`, players })
+      .from(matkaBets).innerJoin(users, eq(matkaBets.userId, users.id))
+      .leftJoin(referralAttributions, referralAttributionJoinOn(tenant || users.tenant)).leftJoin(referrerUsers, referrerJoinOn(tenant || users.tenant))
+      .innerJoin(scope, eq(attributedAgentId, member))
+      .where(and(...betWhere(matkaBets, ['won', 'lost']))).groupBy(matkaDay) : [],
+  ]);
+
+  // A line belongs to the day its period ends (period_to is exclusive, so the instant before it).
+  // Only this tenant's agents' lines: the bets above are tenant-filtered, the ledger is not, so an
+  // agentId of another whitelabel read that agent's commission (as getPostedPerformanceCommissions joins).
+  const ledgerDay = sqlDateBucketText(sql`${agentLedger.periodTo} - interval '1 millisecond'`, tz);
+  const ledger = await db
+    .select({ day: ledgerDay, lineType: agentLedger.lineType, total: sql<number>`COALESCE(SUM(CAST(${agentLedger.amount} AS NUMERIC)), 0)` })
+    .from(agentLedger)
+    .innerJoin(agents, eq(agentLedger.agentId, agents.id))
+    .where(and(
+      tenant ? eq(agents.tenantId, tenant) : undefined,
+      inArray(agentLedger.agentId, filter.agentId ? [filter.agentId] : agentIds),
+      inArray(agentLedger.lineType, ['COMMISSION', 'SHARE']),
+      filter.domain ? eq(agentLedger.domain, filter.domain) : undefined,
+      filter.currency ? eq(agentLedger.currency, filter.currency) : undefined,
+      from ? gt(agentLedger.periodTo, from) : undefined,
+      lte(agentLedger.periodTo, new Date(to.getTime() + 1)),
+    ))
+    .groupBy(ledgerDay, agentLedger.lineType);
+
+  const days = new Map<string, { turnover: number; ggr: number; commission: number; share: number; players: Set<number> }>();
+  const dayOf = (day: string) => {
+    let point = days.get(day);
+    if (!point) days.set(day, (point = { turnover: 0, ggr: 0, commission: 0, share: 0, players: new Set<number>() }));
+    return point;
+  };
+  for (const row of [...sports, ...casino, ...matka] as DayRow[]) {
+    const point = dayOf(String(row.day));
+    const stakes = Number(row.stakes) || 0;
+    point.turnover += stakes;
+    point.ggr += stakes - (Number(row.payouts) || 0);
+    for (const id of row.players ?? []) point.players.add(Number(id));
+  }
+  for (const row of ledger) {
+    const point = dayOf(String(row.day));
+    if (row.lineType === 'COMMISSION') point.commission += Number(row.total) || 0;
+    else point.share += Number(row.total) || 0;
+  }
+
+  return [...days.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, point]) => ({
+      date,
+      turnover: point.turnover,
+      ggr: point.ggr,
+      commission: point.commission,
+      share: point.share,
+      playerCount: point.players.size,
+    }));
 }
 
 /**

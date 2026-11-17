@@ -7,6 +7,7 @@ import { Button } from '@/ui/components/Button'
 import { DataTable, type DataTableColumn } from '@/ui/components/DataTable'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { FilterBar } from '@/ui/components/FilterBar'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { strokeFor } from '@/ui/components/icons'
 import { Notice } from '@/ui/components/Notice'
 import { SearchField } from '@/ui/components/SearchField'
@@ -58,13 +59,12 @@ const gameColumns: readonly DataTableColumn<CasinoGameRow>[] = [
     emphasis: 'key',
     cell: (game) => (
       <span className={styles.gameCell}>
-        {game.thumbnailUrl ? (
-          <img className={styles.thumbnail} src={game.thumbnailUrl} alt="" loading="lazy" />
-        ) : (
+        {/* No thumbnail, or one that will not load: the same fallback tile, never a broken image (SYS-18). */}
+        <StoredImage className={styles.thumbnail} src={game.thumbnailUrl} alt="" loading="lazy" fallback={(
           <span className={styles.thumbnailFallback} aria-hidden="true">
             <IconPhotoOff size={18} stroke={strokeFor(18)} />
           </span>
-        )}
+        )} />
         <span className={styles.gameCopy}>
           <strong>{game.name || 'Unnamed game'}</strong>
           <span>{game.vendorName || 'Unknown vendor'}</span>

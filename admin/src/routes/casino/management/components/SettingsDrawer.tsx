@@ -44,6 +44,7 @@ import {
   EMPTY_BET_VALUES,
   betSettingsVariables,
   betTargetIds,
+  betValuesError,
   betValuesFromSetting,
   enabledVipTierIds,
   groupBetSettings,
@@ -165,13 +166,19 @@ export function SettingsDrawer({
   const [accessSaving, setAccessSaving] = useState(false)
   const [betSaving, setBetSaving] = useState(false)
   const [busyGroup, setBusyGroup] = useState<string | null>(null)
+  const [betFieldError, setBetFieldError] = useState<ReturnType<typeof betValuesError>>(null)
   const betFormRef = useRef<HTMLElement | null>(null)
+  const updateBetValue = (field: 'minStake' | 'maxStake' | 'maxWin', value: number | null) => {
+    setBetValues((current) => ({ ...current, [field]: value }))
+    setBetFieldError(null)
+  }
 
   const resetBetForm = useCallback((collapse = false) => {
     setTargetPlayerTab('all')
     setTargetPlayers([])
     setBetValues({ ...EMPTY_BET_VALUES })
     setEditingSettingId(null)
+    setBetFieldError(null)
     if (collapse) setBetFormCollapsed(true)
   }, [])
 
@@ -298,6 +305,10 @@ export function SettingsDrawer({
       notify.warning('Add at least one player in the Specific players tab before saving.')
       return
     }
+    // A minimum above the maximum would refuse every stake on this game; the server refuses it too.
+    const invalid = betValuesError(betValues)
+    setBetFieldError(invalid)
+    if (invalid) return
     const targets = betTargetIds(targetPlayerTab, targetPlayers)
     const wasEditing = Boolean(editingSettingId)
     setBetSaving(true)
@@ -499,34 +510,40 @@ export function SettingsDrawer({
                         <NumberField
                           label="Minimum"
                           value={betValues.minStake}
-                          onChange={(value) => setBetValues((current) => ({ ...current, minStake: value }))}
+                          onChange={(value) => updateBetValue('minStake', value)}
                           min={0}
                           step={0.01}
                           precision={2}
                           prefix={currencySymbol}
                           placeholder="0.00"
+                          error={betFieldError?.field === 'minStake' ? betFieldError.message : undefined}
                         />
                         <NumberField
                           label="Maximum"
                           value={betValues.maxStake}
-                          onChange={(value) => setBetValues((current) => ({ ...current, maxStake: value }))}
+                          onChange={(value) => updateBetValue('maxStake', value)}
                           min={0}
                           step={0.01}
                           precision={2}
                           prefix={currencySymbol}
                           placeholder="0.00"
+                          error={betFieldError?.field === 'maxStake' ? betFieldError.message : undefined}
                         />
                         <NumberField
                           label="Max Win (daily)"
                           value={betValues.maxWin}
-                          onChange={(value) => setBetValues((current) => ({ ...current, maxWin: value }))}
+                          onChange={(value) => updateBetValue('maxWin', value)}
                           min={0}
                           step={0.01}
                           precision={2}
                           prefix={currencySymbol}
                           placeholder="0.00"
+                          error={betFieldError?.field === 'maxWin' ? betFieldError.message : undefined}
                         />
                       </div>
+                      <p className={styles.helpCopy}>
+                        Once the player&apos;s net win on this game for the day reaches Max Win, their further bets on it are refused until the next day.
+                      </p>
                       <div className={styles.betFormFooter}>
                         <Switch
                           checked={betValues.betEnabled}
@@ -598,6 +615,7 @@ export function SettingsDrawer({
                             })))
                             setEditingSettingId(String(setting.id))
                             setBetValues(betValuesFromSetting(setting))
+                            setBetFieldError(null)
                             setBetFormCollapsed(false)
                             window.requestAnimationFrame(() => betFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
                           }}
@@ -747,7 +765,7 @@ function AccessSettings({
           <span className={styles.settingIcon} aria-hidden="true"><IconStar size={18} stroke={strokeFor(18)} /></span>
           <span>
             <strong>{drawerMode === 'single' ? 'Premium Game' : 'Bulk premium'}</strong>
-            <small>{drawerMode === 'single' ? 'Mark this casino game as premium' : 'Set premium status for all selected games'}</small>
+            <small>{drawerMode === 'single' ? 'Premium games are for active VIP members only' : 'Set premium (VIP members only) for all selected games'}</small>
           </span>
         </div>
         {drawerMode === 'single' ? (

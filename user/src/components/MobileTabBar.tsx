@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Home, Trophy, Ticket, Gamepad2, Rocket, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { Home, Trophy, Ticket, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getUserBets } from '@/lib/api/user'
 import { useAuth } from '@/lib/auth'
@@ -7,6 +7,7 @@ import { BetListCard, formatStart } from '@/components/sports'
 import { generateEventId } from '@/lib/sportsHelpers'
 import { useTranslation } from 'react-i18next'
 import { useFeatureFlags } from '../hooks/useAppSettings'
+import { ChipIcon, CherriesIcon, MatkaIcon } from './nova/productIcons'
 
 type TabItem = {
   key: 'home' | 'sports' | 'bet-slip' | 'casino' | 'slots' | 'matka'
@@ -143,9 +144,9 @@ export default function MobileTabBar() {
       { key: 'home', label: t('nav.home'), to: '/', icon: (p) => <Home className={p.className} /> },
       { key: 'sports', label: t('nav.sports'), to: '/sports', icon: (p) => <Trophy className={p.className} /> },
       { key: 'bet-slip', label: t('nav.betSlip'), to: '/sports', icon: (p) => <Ticket className={p.className} /> },
-      { key: 'matka', label: t('nav.matka', { defaultValue: 'Matka' }), to: '/matka', icon: (p) => <Gamepad2 className={p.className} /> },
-      { key: 'casino', label: t('nav.casino'), to: '/casino', icon: (p) => <Gamepad2 className={p.className} /> },
-      { key: 'slots', label: t('nav.slots'), to: '/slots', icon: (p) => <Rocket className={p.className} /> },
+      { key: 'matka', label: t('nav.matka', { defaultValue: 'Matka' }), to: '/matka', icon: (p) => <MatkaIcon className={p.className} /> },
+      { key: 'casino', label: t('nav.casino'), to: '/casino', icon: (p) => <ChipIcon className={p.className} /> },
+      { key: 'slots', label: t('nav.slots'), to: '/slots', icon: (p) => <CherriesIcon className={p.className} /> },
       ]
       
       // Filter tabs based on feature flags
@@ -160,46 +161,33 @@ export default function MobileTabBar() {
     [t, features]
   )
 
-  // The glow sits under the tab for the current route (or Bet Slip while its sheet is open); none on other pages.
-  const activeIndex = showBetsDrawer
-    ? tabs.findIndex(tab => tab.key === 'bet-slip')
-    : tabs.findIndex(tab => tab.key !== 'bet-slip' && (tab.to === '/' ? location.pathname === '/' : location.pathname.startsWith(tab.to)))
-  // Bet Slip is raised only when it is the middle tab (all five tabs); otherwise it is an ordinary tab.
-  const centerIndex = tabs.length % 2 === 1 && tabs[Math.floor(tabs.length / 2)]?.key === 'bet-slip' ? Math.floor(tabs.length / 2) : -1
+  // The tabs that navigate sit in the capsule; Bet Slip is the round button docked over its end.
+  const linkTabs = tabs.filter(tab => tab.key !== 'bet-slip')
+  const hasSlip = tabs.some(tab => tab.key === 'bet-slip')
 
   return (
     <div className="nova-mobile-nav min-[801px]:hidden fixed bottom-0 left-0 right-0 z-[9999]" data-ui-radius="square">
-      {/* Floating dock (topbar-controls.css): a red glow slides to the active tab; Bet Slip, when it is the middle
-          tab, is a raised red button carrying the open-bet count. */}
-      <nav
-        className="nova-dock"
-        data-ui-radius="square"
-        aria-label="Primary navigation"
-        role="navigation"
-        style={{ '--dock-count': tabs.length, '--dock-active': Math.max(activeIndex, 0) } as React.CSSProperties}
-      >
-        <span className={`nova-dock-glow${activeIndex < 0 || activeIndex === centerIndex ? ' is-hidden' : ''}`} aria-hidden="true" />
-        {tabs.map((tab, index) => tab.key === 'bet-slip' ? (
+      {/* Split dock (topbar-controls.css; owner 2026-11-01 picked mockup "I5"): a frosted capsule of tabs, with
+          Bet Slip as a round red button docked over its end, carrying the open-bet count. */}
+      <nav className={`nova-dock${hasSlip ? ' has-slip' : ''}`} aria-label="Primary navigation" role="navigation">
+        <div className="nova-dock-bar" style={{ '--dock-count': linkTabs.length } as React.CSSProperties}>
+          {linkTabs.map(tab => <NavTabLink key={tab.key} item={tab} />)}
+        </div>
+        {hasSlip && (
           <button
-            key={tab.key}
             type="button"
             ref={triggerRef}
             disabled={isHydrating}
             aria-haspopup="dialog"
             aria-expanded={showBetsDrawer}
             onClick={() => { if (isAuthenticated) setShowBetsDrawer(true); else openAuthModal('login') }}
-            className={`nova-dock-item${index === centerIndex ? ' is-center' : ''}${showBetsDrawer ? ' is-active' : ''}`}
+            className={`nova-dock-slip${showBetsDrawer ? ' is-active' : ''}`}
             aria-label={t('mobile.openBetSlip')}
           >
-            <span className="nova-dock-icon">
-              <Ticket aria-hidden="true" />
-              {bets.length > 0 && <b className="nova-dock-badge">{bets.length}</b>}
-            </span>
-            <span className="nova-dock-label">{tab.label}</span>
+            <Ticket aria-hidden="true" />
+            {bets.length > 0 && <b className="nova-dock-badge">{bets.length}</b>}
           </button>
-        ) : (
-          <NavTabLink key={tab.key} item={tab} />
-        ))}
+        )}
       </nav>
 
       {/* Bets Drawer - mobile only (stake state slate colors) */}
@@ -240,7 +228,7 @@ export default function MobileTabBar() {
                           const urlId = group.eventId ? `${generateEventId(group.name)}?id=${encodeURIComponent(group.eventId)}` : generateEventId(group.name)
                           closeDrawer()
                           navigate(`/sports/event/${urlId}`)
-                        }} className="mr-2 p-1 rounded-md text-white bg-[color:var(--brand-primary)] hover:opacity-90 border border-[color:var(--brand-primary)]/50 shadow-sm" aria-label={t('userPanel.openEvent', { event: group.name, defaultValue: `Open ${group.name}` })}>
+                        }} className="mr-2 p-1 rounded-md text-[color:var(--mb-on-red)] bg-[color:var(--brand-primary)] hover:opacity-90 border border-[color:var(--brand-primary)]/50 shadow-sm" aria-label={t('userPanel.openEvent', { event: group.name, defaultValue: `Open ${group.name}` })}>
                           <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       </div>

@@ -1,13 +1,16 @@
 /* The Bet List's page logic, free of React: the filter payload, paging clamp, date presets, filter
  * options and counts, and every rule a table cell or export uses to turn a bet into text. Each function
  * keeps the legacy page's behaviour (BetListPage / BetListFiltersBar / BetListTable before Task 140). */
-import type { BetDomain, BetsPageFilters } from '@/lib/graphql/bets'
+import type { BetDomain, BetsPageFilters as BetsPageQueryFilters } from '@/lib/graphql/bets'
 import type { ListboxOption } from '@/ui/components/Combobox'
 import { istDayOf } from '@/ui/components/istDate'
 import type { SelectOption } from '@/ui/components/Select'
 import type { StatusPillTone } from '@/ui/components/StatusPill'
 
-export type { BetDomain, BetsPageFilters }
+/** The page's filters: the query's own plus `userId`, the one player picked from the Player list. */
+export type BetsPageFilters = BetsPageQueryFilters & { userId?: string }
+
+export type { BetDomain }
 
 /** Backend caps `betsPage` limit at 500 — use for paged export fetches. */
 export const BETS_EXPORT_BATCH = 500
@@ -119,6 +122,7 @@ export function buildBetsFiltersPayload(filters: BetsPageFilters): BetsPageFilte
     playerSearch: filters.playerSearch ?? undefined,
     search: filters.search ?? undefined,
     walletType: filters.walletType ?? undefined,
+    userId: filters.userId ?? undefined,
   }
 }
 
@@ -154,6 +158,14 @@ export function betCountLabel(total: number): string {
 /* ---------- date presets ---------- */
 
 export type BetDatePreset = 'today' | 'yesterday' | 'last7days' | 'last30days' | 'custom'
+
+/**
+ * The date field's state: a preset, or 'any' when a link opened the list with no date bound. 'any' is not
+ * offered in the panel; picking a preset or Reset leaves it.
+ */
+export type BetDateSelection = BetDatePreset | 'any'
+
+export const ANY_DATE_LABEL = 'Any date'
 
 export const BET_DATE_PRESETS: ReadonlyArray<{ value: BetDatePreset; label: string }> = [
   { value: 'today', label: 'Today' },
@@ -211,10 +223,12 @@ export function isBetDomain(value: string): value is BetDomain {
   return BET_DOMAIN_OPTIONS.some((option) => option.value === value)
 }
 
+// `matched` is the Open choice everywhere: the server reads it as pending+active for casino and matka, so an
+// open (or stuck) casino round can be listed, which the casino and matka lists could not offer.
 const STATUS_OPTIONS_ALL = ['matched', 'won', 'lost', 'void', 'cancelled', 'settled']
 const STATUS_OPTIONS_SPORTS = ['matched', 'cancelled', 'settled', 'won', 'lost', 'void']
-const STATUS_OPTIONS_CASINO = ['won', 'lost', 'cancelled', 'void']
-const STATUS_OPTIONS_MATKA = ['won', 'lost', 'cancelled', 'void']
+const STATUS_OPTIONS_CASINO = ['matched', 'won', 'lost', 'cancelled', 'void']
+const STATUS_OPTIONS_MATKA = ['matched', 'won', 'lost', 'cancelled', 'void']
 
 /** The statuses a domain offers, in the legacy order; `matched` reads `Open`, the rest keep the raw value. */
 export function betStatusOptions(domain: BetDomain): ListboxOption[] {
@@ -224,6 +238,49 @@ export function betStatusOptions(domain: BetDomain): ListboxOption[] {
     : domain === 'MATKA' ? STATUS_OPTIONS_MATKA
     : STATUS_OPTIONS_ALL
   return statuses.map((status) => ({ value: status, label: status === 'matched' ? 'Open' : status }))
+}
+
+const OPEN_STATUS_ALIASES = new Set(['open', 'active', 'pending', 'matched'])
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+export interface BetListInitialState {
+  domain: BetDomain
+  filters: BetsPageFilters
+  datePreset: BetDateSelection
+}
+
+/**
+ * The page's opening state from its URL, so a link can open a filtered list. The page read no URL at all:
+ * the stuck casino rounds alert (/bets?domain=casino&status=active) opened on Today across all domains, which
+ * did not hold the rounds it warned about, and the global search's /bets?search= lost its text.
+ *
+ * - `domain`: sports, casino, matka or all, in any case.
+ * - `status`: repeated or comma-separated; open, active, pending and matched all read Open. A status the
+ *   domain does not offer is dropped.
+ * - `dateFrom` (with `dateTo`, else today): a custom range.
+ * - `search`: the search text.
+ *
+ * Without dates the list opens on Today, as a plain /bets always has, unless the link asks only for open bets
+ * or carries a search: an open bet, or the one bet looked for, can be of any date, so those open with no date
+ * bound.
+ */
+export function betListStateFromSearch(params: URLSearchParams, today: string): BetListInitialState {
+  const rawDomain = (params.get('domain') ?? '').toUpperCase()
+  const domain: BetDomain = isBetDomain(rawDomain) ? rawDomain : 'ALL'
+  const offered = new Set(betStatusOptions(domain).map((option) => option.value))
+  const requested = params.getAll('status').flatMap((value) => value.split(',')).map((value) => value.trim().toLowerCase()).filter(Boolean)
+  const status = [...new Set(requested.map((value) => (OPEN_STATUS_ALIASES.has(value) ? 'matched' : value)))].filter((value) => offered.has(value))
+  const search = params.get('search')?.trim() || undefined
+  const dateFrom = params.get('dateFrom') ?? ''
+  const dateTo = params.get('dateTo') ?? ''
+
+  const filters: BetsPageFilters = { status: status.length ? status : undefined, search }
+  if (DAY_PATTERN.test(dateFrom)) {
+    return { domain, filters: { ...filters, dateFrom, dateTo: DAY_PATTERN.test(dateTo) && dateTo >= dateFrom ? dateTo : today }, datePreset: 'custom' }
+  }
+  const onlyOpen = status.length > 0 && status.every((value) => value === 'matched')
+  if (onlyOpen || search) return { domain, filters, datePreset: 'any' }
+  return { domain, filters: { ...filters, dateFrom: today, dateTo: today }, datePreset: 'today' }
 }
 
 export const BET_WALLET_OPTIONS: readonly ListboxOption[] = [
@@ -239,14 +296,15 @@ export function showsBetWalletFilter(domain: BetDomain): boolean {
 
 /**
  * Each chosen status counts, and so does every other set filter; the date counts only when its preset is
- * not the default Today (a custom range of today still counts, as before).
+ * not the default Today (a custom range of today still counts, as before). The Player field is one filter,
+ * whether it holds typed text or a picked player.
  */
-export function countActiveBetFilters(filters: BetsPageFilters, datePreset: BetDatePreset): number {
+export function countActiveBetFilters(filters: BetsPageFilters, datePreset: BetDateSelection): number {
   return (
     (filters.status?.length ?? 0) +
     (datePreset !== 'today' ? 1 : 0) +
     (filters.agentUsername ? 1 : 0) +
-    (filters.playerSearch ? 1 : 0) +
+    (filters.playerSearch || filters.userId ? 1 : 0) +
     (filters.search ? 1 : 0) +
     (filters.walletType ? 1 : 0)
   )
@@ -283,13 +341,17 @@ export interface BetPlayerRow {
   phone?: string | null
 }
 
+/**
+ * Each option's value is the player's id: a pick filters by that one player (`userId`). The value was the
+ * username, sent as the substring search, so picking ROHIT listed the bets of every player whose username,
+ * name or phone contained it, and two players with one username shared an option.
+ */
 export function betPlayerOptions(players: readonly BetPlayerRow[]): ListboxOption[] {
   return players.map((player) => {
     const label = [player.username || player.name || `User ${player.id}`, player.phone ? `(${player.phone})` : '']
       .filter(Boolean)
       .join(' ')
-    const value = (player.username || player.name || String(player.id)).trim() || String(player.id)
-    return { label, value }
+    return { label, value: String(player.id) }
   })
 }
 

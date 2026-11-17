@@ -8,7 +8,8 @@ import { beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
+import { ApolloLink, from } from '@apollo/client'
+import { MockedProvider, MockLink, type MockedResponse } from '@apollo/client/testing'
 import { GraphQLError } from 'graphql'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import {
@@ -60,6 +61,8 @@ interface ServerState {
   role: typeof STORED_ROLE | null
   roleError: string | null
   permissionsError: string | null
+  /** Each operation sent, with whether it told the global notification link to stay quiet. */
+  sent: Array<{ name: string; skipNotification: boolean }>
 }
 
 let server: ServerState
@@ -161,9 +164,17 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>
 }
 
+/** Records each operation's name and skipNotification context before the mocks answer it. */
+function recordSent() {
+  return new ApolloLink((operation, forward) => {
+    server.sent.push({ name: operation.operationName, skipNotification: operation.getContext().skipNotification === true })
+    return forward(operation)
+  })
+}
+
 function renderAt(path: string, mocks: MockedResponse[] = [permissionsMock(), roleMock(), createMock(), updateMock()]) {
   return render(
-    <MockedProvider mocks={mocks}>
+    <MockedProvider link={from([recordSent(), new MockLink(mocks)])}>
       <MemoryRouter initialEntries={[path]}>
         <PageEyebrowProvider value="System">
           <Routes>
@@ -201,6 +212,7 @@ beforeEach(() => {
     role: STORED_ROLE,
     roleError: null,
     permissionsError: null,
+    sent: [],
   }
   auth.permissions = EDITOR
   feedback.success.mockReset()
@@ -306,6 +318,8 @@ describe('creating a role', () => {
     assert.deepEqual(Object.keys(server.creates[0]), ['name', 'permissions'])
     await waitFor(() => assert.deepEqual(feedback.success.mock.calls, [['Role created']]))
     assert.equal((await screen.findByTestId('location')).textContent, '/security/roles')
+    // The page's toast is the only one: the global notification link is told to stay quiet (it doubled it).
+    assert.deepEqual(server.sent.filter((op) => op.name === 'CreateRBACRole'), [{ name: 'CreateRBACRole', skipNotification: true }])
   })
 
   test('a refused create keeps the page and toasts the fallback; a failed request toasts its error', async () => {
@@ -375,6 +389,7 @@ describe('editing a role', () => {
     assert.equal(server.creates.length, 0)
     await waitFor(() => assert.deepEqual(feedback.success.mock.calls, [['Role updated successfully!']]))
     assert.equal((await screen.findByTestId('location')).textContent, '/security/roles')
+    assert.ok(server.sent.some((op) => op.name === 'UpdateRBACRole' && op.skipNotification), 'the update let the global link toast it again')
   })
 
   test('a refused update toasts the server message and stays', async () => {
@@ -396,11 +411,14 @@ describe('editing a role', () => {
     assert.equal(screen.queryByRole('textbox'), null)
   })
 
-  test('a role the server does not return opens an empty form, as before', async () => {
+  test('a role the server does not return (another whitelabel\'s id) is not found, with no form to save', async () => {
     server.role = null
     renderAt('/security/roles/r7/edit')
-    const field = (await screen.findByRole('textbox', { name: /^Role Name/ })) as HTMLInputElement
-    assert.equal(field.value, '')
+    assert.ok(await screen.findByText('Role not found'))
+    assert.ok(screen.getByText('There is no such role in this whitelabel. It may have been deleted.'))
+    assert.equal(screen.getByRole('link', { name: 'Back to Roles' }).getAttribute('href'), '/security/roles')
+    assert.equal(screen.queryByRole('textbox'), null)
+    assert.equal(screen.queryByRole('button', { name: 'Update Role' }), null)
   })
 
   test('a failed permission list shows the closable load error and keeps the form', async () => {

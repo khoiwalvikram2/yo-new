@@ -126,9 +126,9 @@ const AGENT_PLAYER_EXPORT_COLUMNS = {
   vipTierId: users.vipTierId,
   playerType: users.playerType,
   agentId: users.agentId,
+  // The credit reference. A credit player's chips are its wallet (ExportJobProcessor reads them through
+  // ChipService); the retired credit_used / credit_available are not exported.
   creditLimit: users.creditLimit,
-  creditUsed: users.creditUsed,
-  creditAvailable: users.creditAvailable,
 }
 
 export function agentPlayersQuery(scope: AgentExportQueryScope, status?: unknown) {
@@ -256,9 +256,12 @@ export function agentDepositConditions(scope: AgentExportQueryScope, window: Exp
   ])
 }
 
+/** Every deposit_requests column but proof_data: an export never carries the screenshots (up to 2 MB each). */
+const { proofData: _depositScreenshot, ...depositExportColumns } = getTableColumns(depositRequests)
+
 export function agentDepositsQuery(scope: AgentExportQueryScope, window: ExportWindow, status?: unknown) {
   return db
-    .select()
+    .select(depositExportColumns)
     .from(depositRequests)
     .where(and(...agentDepositConditions(scope, window, status)))
     .orderBy(desc(depositRequests.createdAt), desc(depositRequests.id))

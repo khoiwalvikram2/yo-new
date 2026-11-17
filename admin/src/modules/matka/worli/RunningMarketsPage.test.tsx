@@ -15,6 +15,8 @@ import type { ReactNode } from 'react'
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import { useWorliFilters } from '@/state/matkaWorli'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { todayISTString } from '@/shared/utils/date'
 import { WORLI_INSTANCES, WORLI_INSTANCE_UPDATED } from './gql'
 import RunningMarketsPage from './RunningMarketsPage'
@@ -239,6 +241,7 @@ describe('RunningMarketsPage', () => {
       variables: variablesFor(BASE),
       fetchPolicy: 'cache-and-network',
       pollInterval: 5000,
+      skip: false,
     })
 
     assert.equal(statValue('Open'), '1')
@@ -299,11 +302,32 @@ describe('RunningMarketsPage', () => {
 
     await waitFor(() => assert.ok(within(table()).getByText('O: LOCKED')))
     assert.equal(statValue('Open'), '0')
+    // An operator action's payload names no market (marketName null): the row keeps its name.
+    act(() => {
+      o1.observer?.next({ data: { worliInstanceUpdated: { id: 'o1', status: 'CLOSED', marketName: null } } })
+    })
+    await waitFor(() => assert.ok(within(table()).getByText('O: CLOSED')))
+    assert.ok(screen.getByRole('button', { name: 'Kalyan Worli' }))
     // An empty payload changes nothing.
     act(() => {
       o1.observer?.next({ data: { worliInstanceUpdated: null } })
     })
-    assert.ok(within(table()).getByText('O: LOCKED'))
+    assert.ok(within(table()).getByText('O: CLOSED'))
+  })
+
+  test('a Super Admin in core mode is asked to select a whitelabel; nothing is queried or polled', async () => {
+    const auth = useAuthStore.getState(), ui = useUIStore.getState()
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      renderPage([listMock()])
+      assert.ok(await screen.findByText('Select a whitelabel'))
+      assert.equal(lastListOptions()?.skip, true)
+      assert.equal(lastListOptions()?.pollInterval, 0)
+      assert.equal(server.requests.length, 0)
+      assertAbsent(screen.queryByRole('table'))
+    } finally {
+      useAuthStore.setState({ roles: auth.roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
   })
 
   test('quick filters narrow the sessions and the stats, and picking the active one clears it', async () => {

@@ -141,6 +141,32 @@ describe('CategoryFormDrawer', () => {
     assert.equal(feedback.toast.mock.calls.at(-1)?.[0].message, 'Icon ready to save')
   })
 
+  test('an unchanged stored icon is not sent back; a removed one is sent as null with the emptied subtitle', async () => {
+    const stored = 'data:image/png;base64,c3RvcmVk'
+    const kept = renderDrawer({
+      mode: 'edit',
+      initial: { mainCategory: 'LIVE_CASINO', name: 'Live', slug: 'live', subtitle: 'Old sub', iconData: stored },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => assert.equal(kept.onSubmit.mock.calls.length, 1))
+    // The stored data URI is only the preview: an unchanged icon is left as stored, not sent back.
+    assert.equal(kept.onSubmit.mock.calls[0]?.[0].iconData, undefined)
+    assert.equal(kept.onSubmit.mock.calls[0]?.[0].subtitle, 'Old sub')
+    kept.unmount()
+
+    const removed = renderDrawer({
+      mode: 'edit',
+      initial: { mainCategory: 'LIVE_CASINO', name: 'Live', slug: 'live', subtitle: 'Old sub', iconData: stored },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Optional subtitle (max 200 chars)'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove category icon' }))
+    assert.equal(screen.queryByAltText('Category icon preview'), null)
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => assert.equal(removed.onSubmit.mock.calls.length, 1))
+    assert.equal(removed.onSubmit.mock.calls[0]?.[0].iconData, null)
+    assert.equal(removed.onSubmit.mock.calls[0]?.[0].subtitle, undefined, 'the update patch turns it into null')
+  })
+
   test('Reset restores opening values and Cancel requests a close', () => {
     const { onClose } = renderDrawer({
       mode: 'edit',

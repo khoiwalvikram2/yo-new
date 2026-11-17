@@ -16,16 +16,23 @@
   container-type: inline-size;
 }
 
+/* Three choices: stacked on a phone, two and one from a 520px card, all three in a row from 760px. */
 .typeGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
-  max-width: 576px;
+  max-width: 864px;
 }
 
 @container (min-width: 520px) {
   .typeGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 760px) {
+  .typeGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -82,6 +89,11 @@
   background: var(--h-vio-bg);
 }
 
+.cryptoIcon {
+  color: var(--h-amb);
+  background: var(--h-amb-bg);
+}
+
 .typeText {
   display: grid;
   gap: 2px;
@@ -118,6 +130,13 @@
 /* A control that spans the field grid, as the legacy 24-column rows did. */
 .fullRow {
   grid-column: 1 / -1;
+}
+
+/* A wallet address reads character by character, so it is set in a monospaced face. The element in the
+   selector outranks TextField's own .input face, whatever order the two stylesheets load in. */
+input.address {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  letter-spacing: 0;
 }
 
 /* The QR row's thumbnail when there is no image to show: a short note inside FileField's tile. */

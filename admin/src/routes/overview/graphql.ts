@@ -122,8 +122,10 @@ export const EXPOSURE_BY_MARKET_QUERY = gql`
 `;
 
 /* The Overview's operations sections (the owner's list, 2026-10-29), which replaced Advanced Analytics.
-   Period figures follow the dateRange; pending counts, online, balances, the credit pool and head counts
-   are what is true now. showB2C / showCredit say which sections apply to the whitelabel being viewed. */
+   Period figures follow the dateRange; pending counts, online, balances, the chip pool and head counts
+   are what is true now. showB2C / showCredit say which sections apply to the whitelabel being viewed.
+   The credit scheme is on chips (spec 2026-11-02): the chips* figures are Deposit / Withdraw moves, and
+   creditLimit / creditUsed / creditAvailable are the whitelabel pool's limit, given out and available. */
 export const DASHBOARD_OPERATIONS_QUERY = gql`
   query DashboardOperations($dateRange: DashboardDateRange) {
     dashboardOperations(dateRange: $dateRange) {
@@ -159,8 +161,6 @@ export const DASHBOARD_OPERATIONS_QUERY = gql`
       creditLimit
       creditUsed
       creditAvailable
-      settlementDue
-      settledAmount
       chipsWithPlayers
       directPlayers
       agentPlayers
@@ -176,7 +176,8 @@ export const DASHBOARD_OPERATIONS_QUERY = gql`
   }
 `;
 
-/** The Overview's insight cards: top risk events, big bets and winners, agents near their credit limit. */
+/** The Overview's insight cards: top risk events, and big bets and winners. (The credit scheme is on chips since
+ *  2026-11-02: a CREDIT agent has no credit limit to be near, so the near-limit card is gone.) */
 export const DASHBOARD_INSIGHTS_QUERY = gql`
   query DashboardInsights($dateRange: DashboardDateRange) {
     dashboardInsights(dateRange: $dateRange) {
@@ -210,17 +211,6 @@ export const DASHBOARD_INSIGHTS_QUERY = gql`
         profit
         staked
         bets
-      }
-      creditAgents
-      nearLimitShare
-      agentsNearLimit {
-        agentId
-        username
-        creditLimit
-        creditUsed
-        creditAvailable
-        usedShare
-        settlementBalance
       }
     }
   }
@@ -298,7 +288,8 @@ export const DASHBOARD_PLAYERS_TAB_QUERY = gql`
   }
 `;
 
-/** The Agents tab: network, commission and settlement, leaderboard, credit agents. */
+/** The Agents tab: network, commission and settlement, leaderboard. Its credit agents card reads the chips API
+ *  (Query.agents.chipDownline), the CREDIT scheme being on chips since 2026-11-02. */
 export const DASHBOARD_AGENTS_TAB_QUERY = gql`
   query DashboardAgentsTab($dateRange: DashboardDateRange) {
     dashboardAgentsTab(dateRange: $dateRange) {
@@ -311,9 +302,6 @@ export const DASHBOARD_AGENTS_TAB_QUERY = gql`
       settlementsPosted
       settlementsAmount
       leaderboard { agentId username scheme status subAgents players activePlayers turnover ggr commission }
-      creditAgents { agentId username creditLimit creditUsed creditAvailable usedShare }
-      creditLimit
-      creditUsed
     }
   }
 `;

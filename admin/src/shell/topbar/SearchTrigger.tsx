@@ -20,7 +20,9 @@ export function SearchTrigger({ onOpen }: SearchTriggerProps) {
         <IconSearch size={16} stroke={1.75} />
       </span>
       <span className={styles.placeholder}>
-        <span className={styles.placeholderLong}>Search players, transactions, or reports...</span>
+        {/* What GlobalSearch finds: players, agents and the other records it lists, and pages such as the reports.
+            It has no transactions category, so a deposit's UTR found nothing although this promised it. */}
+        <span className={styles.placeholderLong}>Search players, agents, or reports...</span>
         <span className={styles.placeholderShort}>Search...</span>
       </span>
       <Kbd aria-hidden="true" className={styles.kbd}>

@@ -364,20 +364,10 @@ export default function EnterpriseBetSlip({
     [stake, updateQuickBet]
   );
 
-  // Get available balance (cash - exposure for regular players, creditAvailable for credit players)
+  // Get available balance: cash - exposure, for credit players too (their chips are the wallet cash)
   const getAvailableBalance = useCallback(() => {
     if (!isAuthenticated || !user) return 0;
-    
-    // Check if user is a credit player
-    const playerType = (user as any)?.playerType || 'REGULAR'
-    const isCreditPlayer = playerType === 'AGENT_CREDIT' || playerType === 'WHITELABEL_CREDIT'
-    
-    // Credit players should use creditAvailable (no exposure deduction needed)
-    if (isCreditPlayer) {
-      return Number(user.creditAvailable ?? 0)
-    }
-    
-    // Regular players: balance - exposure
+
     const currentBalance = Number(user.balance || 0);
     const currentExposure = Math.abs(Number((user as any)?.exposure || 0));
     const netBalance = currentBalance - currentExposure;
@@ -1120,7 +1110,7 @@ export default function EnterpriseBetSlip({
                     ? "bg-[color:var(--ds-color-slate-700)] text-[color:var(--ds-color-slate-400)] cursor-not-allowed"
                     : bet.isCashout
                     ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                    : "bg-[var(--brand-primary)] text-white hover:opacity-90 border border-[var(--brand-primary)] shadow-md shadow-[var(--brand-primary)]/20"
+                    : "bg-[var(--brand-primary)] text-[color:var(--mb-on-red)] hover:opacity-90 border border-[var(--brand-primary)] shadow-md shadow-[var(--brand-primary)]/20"
                 }`}
               >
                 <Zap className="w-4 h-4" />

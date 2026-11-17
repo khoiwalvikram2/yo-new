@@ -7,8 +7,8 @@ import {
   IconInbox,
   IconPencil,
   IconPlayerPause,
+  IconPlayerStop,
   IconSend,
-  IconTrash,
 } from '@tabler/icons-react'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { useFormatDate } from '@/shared/core/useFormatDate'
@@ -24,17 +24,18 @@ import { StatusPill } from '@/ui/components/StatusPill'
 import { Tooltip } from '@/ui/components/Tooltip'
 import {
   CONFIRM_LABELS,
-  DELETE_CONFIRM,
+  END_CONFIRM,
   bonusAmountDisplay,
   bonusAmountTypeLabel,
+  bonusDisplayStatusKey,
+  bonusDisplayStatusLabel,
   bonusDomainLabel,
   bonusExportColumns,
   bonusPlayersCell,
   bonusStatusAction,
-  bonusStatusKey,
-  bonusStatusLabel,
   campaignCountLabel,
   canDistribute,
+  canEnd,
   formatBonusType,
   formatDistributionType,
   isDistributed,
@@ -47,8 +48,11 @@ type RowAction = (id: string) => unknown
 
 interface BonusesTableProps {
   campaigns: BonusCampaignRow[]
+  /** Every campaign the filters match, for Export Excel (B007); without it the export takes the rows shown. */
+  exportRows?: BonusCampaignRow[]
   loading?: boolean
-  onDelete: RowAction
+  /** Ends a campaign (deleteBonusCampaign sets status ended; the row stays). */
+  onEnd: RowAction
   onActivate?: RowAction
   onDeactivate?: RowAction
   onDistribute?: (id: string) => void
@@ -61,12 +65,13 @@ interface RowActionsProps {
   onEdit: () => void
   onDistribute?: () => void
   onStatus?: () => void
-  onDelete: () => void
+  onEnd?: () => void
 }
 
 /* The legacy icon actions, in their legacy order, as named kit icon buttons with the legacy tooltips
-   (`.acts` M:1034-1049 holds them in the sticky end cell). */
-function RowActions({ campaign, onView, onEdit, onDistribute, onStatus, onDelete }: RowActionsProps) {
+   (`.acts` M:1034-1049 holds them in the sticky end cell). The last one ends the campaign: it was a
+   trash icon named Delete although nothing is deleted (MAR-07), and an ended campaign has none. */
+function RowActions({ campaign, onView, onEdit, onDistribute, onStatus, onEnd }: RowActionsProps) {
   const status = bonusStatusAction(campaign)
   return (
     <span className={styles.rowActions}>
@@ -108,19 +113,21 @@ function RowActions({ campaign, onView, onEdit, onDistribute, onStatus, onDelete
           />
         </Tooltip>
       ) : null}
-      <Tooltip content="Delete">
-        <IconButton
-          size="sm"
-          label={`Delete ${campaign.name}`}
-          icon={<IconTrash size={15} stroke={strokeFor(15)} />}
-          onClick={onDelete}
-        />
-      </Tooltip>
+      {onEnd ? (
+        <Tooltip content="End campaign">
+          <IconButton
+            size="sm"
+            label={`End ${campaign.name}`}
+            icon={<IconPlayerStop size={15} stroke={strokeFor(15)} />}
+            onClick={onEnd}
+          />
+        </Tooltip>
+      ) : null}
     </span>
   )
 }
 
-export function BonusesTable({ campaigns, loading, onDelete, onActivate, onDeactivate, onDistribute, footer }: BonusesTableProps) {
+export function BonusesTable({ campaigns, exportRows, loading, onEnd, onActivate, onDeactivate, onDistribute, footer }: BonusesTableProps) {
   const navigate = useNavigate()
   const { formatAmount } = useCurrency()
   const { formatDateTime } = useFormatDate()
@@ -135,12 +142,14 @@ export function BonusesTable({ campaigns, loading, onDelete, onActivate, onDeact
     [formatAmount, formatDateDisplay],
   )
 
+  // The page is a client-side slice of the whole filtered list; the export took that slice only (B007).
+  const exported = exportRows ?? campaigns
   const { exporting, handleExport } = useTableExport({
-    data: campaigns,
+    data: exported,
     columns: exportColumns,
     filename: 'Bonus-Campaigns',
     sheetName: 'Campaigns',
-    title: `Bonus Campaigns — ${campaigns.length} campaign(s)`,
+    title: `Bonus Campaigns — ${exported.length} campaign(s)`,
   })
 
   /* The legacy Popconfirms, now the modal confirmation (D5) with the same copy and Yes / No. The
@@ -159,13 +168,13 @@ export function BonusesTable({ campaigns, loading, onDelete, onActivate, onDeact
     })
   }
 
-  const requestDelete = (campaign: BonusCampaignRow) => {
+  const requestEnd = (campaign: BonusCampaignRow) => {
     void confirm({
-      title: DELETE_CONFIRM.title,
-      description: DELETE_CONFIRM.description,
+      title: END_CONFIRM.title,
+      description: END_CONFIRM.description,
       ...CONFIRM_LABELS,
       onConfirm: async () => {
-        await onDelete(campaign.id)
+        await onEnd(campaign.id)
       },
     })
   }
@@ -188,7 +197,7 @@ export function BonusesTable({ campaigns, loading, onDelete, onActivate, onDeact
       header: 'Status',
       cell: (campaign) => (
         <div className={styles.statusCell}>
-          <StatusPill status={bonusStatusKey(campaign.status)}>{bonusStatusLabel(campaign.status)}</StatusPill>
+          <StatusPill status={bonusDisplayStatusKey(campaign)}>{bonusDisplayStatusLabel(campaign)}</StatusPill>
           {isDistributed(campaign) ? (
             <>
               <StatusPill tone="ok">Distributed</StatusPill>
@@ -239,12 +248,13 @@ export function BonusesTable({ campaigns, loading, onDelete, onActivate, onDeact
   const statusHandlerFor = (campaign: BonusCampaignRow) =>
     (bonusStatusAction(campaign).action === 'deactivate' ? onDeactivate : onActivate)
 
-  /* The card repeats the page title (O7, M:3366) as the legacy card did; its count is the rows on this
-     page, as before. The legacy gift tile is not drawn: the mockup's card head has none (M:860-867). */
+  /* The card repeats the page title (O7, M:3366) as the legacy card did; its count is every campaign the
+     filters match, like the export and the pager total (the page shows only a slice of them). The legacy
+     gift tile is not drawn: the mockup's card head has none (M:860-867). */
   return (
     <Card
       title="Bonus Campaigns"
-      sub={campaignCountLabel(campaigns.length)}
+      sub={campaignCountLabel(exported.length)}
       body="table"
       tools={(
         <Button
@@ -253,7 +263,7 @@ export function BonusesTable({ campaigns, loading, onDelete, onActivate, onDeact
           icon={<IconDownload size={15} stroke={strokeFor(15)} />}
           loading={exporting}
           onClick={() => void handleExport()}
-          disabled={!campaigns.length || !!loading}
+          disabled={!exported.length || !!loading}
         >
           Export Excel
         </Button>
@@ -275,7 +285,7 @@ export function BonusesTable({ campaigns, loading, onDelete, onActivate, onDeact
               onEdit={() => navigate(`/bonuses/${campaign.id}/edit`)}
               onDistribute={canDistribute(campaign) && onDistribute ? () => onDistribute(campaign.id) : undefined}
               onStatus={statusHandlerFor(campaign) ? () => requestStatusChange(campaign) : undefined}
-              onDelete={() => requestDelete(campaign)}
+              onEnd={canEnd(campaign) ? () => requestEnd(campaign) : undefined}
             />
           ),
         })}

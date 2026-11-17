@@ -1,5 +1,11 @@
 import { z } from 'zod'
 import defaults from './appConfigurationDefaults.json'
+import { normalizeHex } from '../../../../shared/src/theme/color'
+import {
+  CUSTOM_PRESET_ID, MATCHBOOK_COLORS, MATCHBOOK_PRESET_ID, normalizePlayerThemeColors, playerThemeErrors, playerThemeSchema,
+  resolvePlayerTheme, type ModeColors, type PlayerTheme, type PlayerThemeColors,
+} from '../../../../shared/src/theme/playerTheme'
+import { SPORTS_ICON_STYLES, type SportsIconStyle } from '../../../../shared/src/theme/sportsIcons'
 
 export type ConfigRecord = Record<string, unknown>
 export type ConfigValue = string | number | boolean | null | undefined | string[]
@@ -188,10 +194,80 @@ export function sectionPayload(tab: Exclude<ConfigTab, 'branding'>, values: Sect
   return namespace ? { [namespace]: values } : values
 }
 
-export interface BrandingValues { logoUrl: string | null; faviconUrl: string | null; primary: string; success: string; warning: string; danger: string; dark: Record<string, string>; light: Record<string, string> }
-export function brandingInitialValues(whitelabel: ConfigRecord, config: ConfigRecord): BrandingValues {
-  const theme = record(config.theme)
-  const mode = (name: 'dark' | 'light') => Object.fromEntries(Object.entries(DEFAULT_THEME_COLORS[name]).map(([key, fallback]) => [key, text(record(theme[name])[key]) || (name === 'dark' ? text(theme[key]) : '') || fallback]))
-  return { logoUrl: text(whitelabel.logoUrl) || null, faviconUrl: text(whitelabel.faviconUrl) || null, primary: text(theme.primary) || INITIAL_PRIMARY, success: text(theme.success) || DEFAULT_THEME_COLORS.success, warning: text(theme.warning) || DEFAULT_THEME_COLORS.warning, danger: text(theme.danger) || DEFAULT_THEME_COLORS.danger, dark: mode('dark'), light: mode('light') }
+/** The Branding & Theme form: logo and favicon (whitelabel) plus the player theme (app config `playerTheme`). */
+export interface BrandingValues {
+  logoUrl: string | null
+  faviconUrl: string | null
+  presetId: string
+  sportsIconStyle: SportsIconStyle
+  action: string
+  link: string
+  chrome: string
+  light: ModeColors
+  dark: ModeColors
 }
+type BrandingColorValues = Pick<BrandingValues, 'action' | 'link' | 'chrome' | 'light' | 'dark'>
+
+export function brandingColorValues(colors: PlayerThemeColors): BrandingColorValues {
+  return { action: colors.action, link: colors.link, chrome: colors.chrome, light: { ...colors.light }, dark: { ...colors.dark } }
+}
+export function brandingColors(values: BrandingColorValues): PlayerThemeColors {
+  return { action: values.action, link: values.link, chrome: values.chrome, light: { ...values.light }, dark: { ...values.dark } }
+}
+
+/** The editor opens on what players see now: the stored theme, else Matchbook (legacy colours are never applied here). */
+export function brandingInitialValues(whitelabel: ConfigRecord, config: ConfigRecord): BrandingValues {
+  const theme = resolvePlayerTheme(config.playerTheme)
+  return {
+    logoUrl: text(whitelabel.logoUrl) || null,
+    faviconUrl: text(whitelabel.faviconUrl) || null,
+    presetId: theme?.colors ? theme.presetId ?? CUSTOM_PRESET_ID : MATCHBOOK_PRESET_ID,
+    sportsIconStyle: theme?.sportsIconStyle ?? 'default',
+    ...brandingColorValues(theme?.colors ?? MATCHBOOK_COLORS),
+  }
+}
+
+/** What Save sends as `playerTheme`. */
+export function brandingThemeInput(values: BrandingValues): PlayerTheme {
+  return { presetId: values.presetId, sportsIconStyle: values.sportsIconStyle, colors: normalizePlayerThemeColors(brandingColors(values)) }
+}
+
+/** A stored `playerTheme` the schema refuses: players get Matchbook, and saving replaces it. */
+export function storedThemeUnreadable(config: ConfigRecord): boolean {
+  return config.playerTheme != null && !playerThemeSchema.safeParse(config.playerTheme).success
+}
+
+/** Colours the old editor saved (app config `theme`), mapped onto the key colours; null when it saved none. */
+export function legacyThemeColors(value: unknown): PlayerThemeColors | null {
+  const theme = record(value)
+  const action = normalizeHex(theme.primary)
+  const hasMode = (name: 'light' | 'dark') => Object.keys(record(theme[name])).length > 0
+  if (!action && !hasMode('light') && !hasMode('dark')) return null
+  const mode = (name: 'light' | 'dark'): ModeColors => {
+    const stored = record(theme[name])
+    const base = MATCHBOOK_COLORS[name]
+    return { page: normalizeHex(stored.bgPage) ?? base.page, panel: base.panel, text: normalizeHex(stored.textPrimary) ?? base.text, line: normalizeHex(stored.border) ?? base.line }
+  }
+  return { action: action ?? MATCHBOOK_COLORS.action, link: MATCHBOOK_COLORS.link, chrome: MATCHBOOK_COLORS.chrome, light: mode('light'), dark: mode('dark') }
+}
+
+const brandColor = z.string().superRefine((value, context) => {
+  if (!value.trim()) context.addIssue({ code: 'custom', message: 'Please choose a color' })
+  else if (!normalizeHex(value)) context.addIssue({ code: 'custom', message: 'Use a hex color such as #C51A1B' })
+})
+const modeColorFields = z.object({ page: brandColor, panel: brandColor, text: brandColor, line: brandColor })
+/** Field checks, then the shared readability rules on the whole palette (errors land on their field paths). */
+export const brandingSchema = z.object({
+  logoUrl: z.string().nullable(),
+  faviconUrl: z.string().nullable(),
+  presetId: z.string(),
+  sportsIconStyle: z.enum(SPORTS_ICON_STYLES),
+  action: brandColor, link: brandColor, chrome: brandColor,
+  light: modeColorFields, dark: modeColorFields,
+}).superRefine((values, context) => {
+  const colors = normalizePlayerThemeColors(brandingColors(values))
+  const all = [colors.action, colors.link, colors.chrome, ...Object.values(colors.light), ...Object.values(colors.dark)]
+  if (all.some((color) => !normalizeHex(color))) return
+  for (const [path, message] of Object.entries(playerThemeErrors(colors))) context.addIssue({ code: 'custom', path: path.split('.'), message })
+})
 export function errorMessage(error: unknown, fallback: string): string { return error instanceof Error && error.message ? error.message : fallback }

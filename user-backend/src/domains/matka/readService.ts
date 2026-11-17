@@ -3,9 +3,9 @@ import { matkaRateFingerprint } from '@shared/matka/catalogue.js'
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 import { appConfigs, matkaBets, matkaDefaultRates, matkaRateVersions, matkaResults, matkas, matkaWorliInstances, users, wallets } from '@shared/db/schema.js'
-import { matkaKind, BID_LABELS, allowedBids, normalizeBid, resultDigit, payoutMinor, type MatkaSession } from '@shared/matka/rules.js'
-import { matkaSchedule } from '@shared/matka/schedule.js'
-import { creditPlayer } from '@shared/matka/wallet.js'
+import { matkaKind, BID_LABELS, allowedBids, normalizeBid, resultDigit, payoutMinor } from '@shared/matka/rules.js'
+import { matkaSchedule, matkaSessionResults } from '@shared/matka/schedule.js'
+import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
 import { db } from '../../db/client.js'
 
 export const matkaMeta = (total = 0, page = 1, limit = 50) => ({ code: 200, message: 'ok', total, page, hasMore: page * limit < total })
@@ -24,15 +24,16 @@ async function snapshots(markets: Array<typeof matkas.$inferSelect>, tenant: str
   const scope = markets.map((market, i) => and(eq(matkaResults.matkaId, market.id), eq(matkaResults.date, schedules[i].runDate)))
   const instanceScope = markets.map((market, i) => and(eq(matkaWorliInstances.marketId, market.id), eq(matkaWorliInstances.runDate, schedules[i].runDate)))
   const [results, instances, versions, defaults] = await Promise.all([
-    db.select().from(matkaResults).where(and(eq(matkaResults.tenant, tenant), isNull(matkaResults.rolledBackAt), or(...scope))),
+    db.select().from(matkaResults).where(and(eq(matkaResults.tenant, tenant), or(...scope))),
     db.select().from(matkaWorliInstances).where(or(...instanceScope)),
     db.select().from(matkaRateVersions).where(and(eq(matkaRateVersions.tenant, tenant), inArray(matkaRateVersions.matkaId, ids), lte(matkaRateVersions.effectiveFrom, now), or(isNull(matkaRateVersions.effectiveTo), sql`${matkaRateVersions.effectiveTo}>${now}`))).orderBy(desc(matkaRateVersions.effectiveFrom)),
     db.select().from(matkaDefaultRates).where(eq(matkaDefaultRates.tenant, tenant)).limit(1),
   ])
   return markets.map((market, index) => {
-    const published: Partial<Record<MatkaSession, string>> = {}
-    for (const result of results) if (result.matkaId === market.id) published[result.type] = result.result
-    const schedule = matkaSchedule(market, now, instances.filter(row => row.marketId === market.id), published), kind = schedule.kind
+    // Only results in force are shown, but a session that ever had one, rolled back since or not, is not open: the bet
+    // path refuses it the same way (betService.ts).
+    const { published, declared } = matkaSessionResults(results.filter(result => result.matkaId === market.id))
+    const schedule = matkaSchedule(market, now, instances.filter(row => row.marketId === market.id), published, declared), kind = schedule.kind
     const raw = (versions.find(row => row.matkaId === market.id)?.entries || defaults[0]?.entries || {}) as { entries?: Array<{ betType: string; payoutMultiplier: number }> }
     const rateMap = new Map()
     for (const entry of (Array.isArray(raw) ? raw : raw.entries || [])) {
@@ -104,14 +105,16 @@ export async function ownMatkaBets(tenant: string, userId: number, input: { mark
   const [items, counts] = await Promise.all([db.select().from(matkaBets).where(and(...filters)).orderBy(desc(matkaBets.createdAt), desc(matkaBets.id)).limit(limit).offset((page - 1) * limit), db.select({ total: sql<number>`count(*)::int` }).from(matkaBets).where(and(...filters))])
   return { meta: matkaMeta(Number(counts[0].total), page, limit), data: items.map(playerMatkaBet) }
 }
-export async function ownMatkaWallet(tenant: string, userId: number) {
-  const [row] = await db.select({ player: users, wallet: wallets }).from(users).innerJoin(wallets, and(eq(wallets.userId, users.id), eq(wallets.tenant, users.tenant))).where(and(eq(users.id, userId), eq(users.tenant, tenant))).limit(1)
+export async function ownMatkaWallet(tenant: string, userId: number, executor: any = db) {
+  const [row] = await executor.select({ playerType: users.playerType, wallet: wallets }).from(users).innerJoin(wallets, and(eq(wallets.userId, users.id), eq(wallets.tenant, users.tenant))).where(and(eq(users.id, userId), eq(users.tenant, tenant))).limit(1)
   if (!row) return { meta: { code: 404, message: 'Wallet not found' }, data: [], canBet: false }
-  const { player, wallet } = row, isCredit = creditPlayer(player.playerType)
-  const access = (await loadPlayerDomains(db, tenant, userId)).matka
+  const { wallet } = row, isCredit = isCreditPlayer(row.playerType)
+  const access = (await loadPlayerDomains(executor, tenant, userId)).matka
   const canBet = access.canBet
+  // A credit player's chips are its cash wallet, so it gets the same figure as a cash player:
+  // balance - exposure. It has no bonus or referral wallets; chips come only from the upline.
   return { meta: matkaMeta(), canBet, message: access.message, data: [
-    { walletType: 'CASH', label: isCredit ? 'Available credit' : 'Main wallet', balance: isCredit ? Math.max(0, Number(player.creditLimit) - Number(player.creditUsed) + Number(player.settlementBalance)) : Math.max(0, Number(wallet.cash) - Number(wallet.exposure)), currency: wallet.currency },
+    { walletType: 'CASH', label: 'Main wallet', balance: Math.max(0, Number(wallet.cash) - Number(wallet.exposure)), currency: wallet.currency },
     ...isCredit ? [] : [{ walletType: 'BONUS', label: 'Bonus wallet', balance: Number(wallet.bonus), currency: wallet.currency }, { walletType: 'REFERRAL_BONUS', label: 'Referral bonus', balance: Number(wallet.referralBonus), currency: wallet.currency }],
   ] }
 }

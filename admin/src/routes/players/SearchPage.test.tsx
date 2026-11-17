@@ -1,13 +1,34 @@
 import assert from 'node:assert/strict'
 import { beforeEach, test, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within, cleanup } from '@testing-library/react'
-import { ApolloLink, InMemoryCache, Observable } from '@apollo/client'
+import { ApolloLink, InMemoryCache, Observable, type FetchResult } from '@apollo/client'
 import { MockedProvider } from '@apollo/client/testing'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/shared/core/authStore'
 import { usePlayersUiStore } from '@/state/playersUiStore'
+import { chipAccountFixture, chipPoolFixture } from '@/modules/chips/chipTestKit'
 import { playersSearchResponse, type SearchFixtureOptions } from '../../../test/playersSearchPreviewData'
 import PlayersSearchPage from './SearchPage'
+// The credit players' chips (spec 2026-11-02 §7: Player.chips), added to the fixture's rows here.
+const CREDIT_CHIPS: Record<string, ReturnType<typeof chipAccountFixture>> = {
+  'wl-credit-1': chipAccountFixture({ accountType: 'PLAYER', id: 'wl-credit-1', username: 'wlcredit', parentAgentId: null, playerType: 'WHITELABEL_CREDIT', creditReference: 1000, balance: 1200, exposure: 10, available: 1190, refPnl: 200 }),
+  'agent-credit-1': chipAccountFixture({ accountType: 'PLAYER', id: 'agent-credit-1', username: 'agentcredit', parentAgentId: 'agent-1', playerType: 'AGENT_CREDIT', creditReference: 1000, balance: 700, exposure: 10, available: 690, refPnl: -300 }),
+}
+// The two reads that carry Player.chips: the list's rows and the drawer's user.
+interface ChipsCarrier { id: string | number; chips?: ReturnType<typeof chipAccountFixture> | null }
+interface ChipsReadData { usersPage?: { items?: ChipsCarrier[] | null } | null; user?: ChipsCarrier | null }
+function withChips(name: string, result: FetchResult): FetchResult {
+  const data = result.data as ChipsReadData | null | undefined
+  if (name === 'UsersPage') for (const item of data?.usersPage?.items ?? []) item.chips = CREDIT_CHIPS[String(item.id)] ?? null
+  if (name === 'DrawerUser' && data?.user) data.user.chips = CREDIT_CHIPS[String(data.user.id)] ?? null
+  return result
+}
+function chipsAnswer(name: string, variables: Record<string, unknown>): FetchResult | null {
+  const agents = (payload: Record<string, unknown>) => ({ data: { agents: { __typename: 'AgentsQuery', ...payload } } })
+  if (name === 'ChipAccount') return agents({ chipAccount: CREDIT_CHIPS[String(variables.accountId)] ?? null })
+  if (name === 'ChipPool') return agents({ chipPool: chipPoolFixture() })
+  return null
+}
 const mocks = vi.hoisted(() => ({ notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn() }, excel: vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve()) }))
 vi.mock('@/shared/services/notification', () => ({ notify: mocks.notify }))
 vi.mock('./utils/exportPlayerList', () => ({ exportPlayerListToExcel: mocks.excel }))
@@ -30,7 +51,7 @@ function page(route = '/players/search') {
   const currentCalls = calls; const fixtureOptions = options
   const link = new ApolloLink(operation => new Observable(observer => {
     currentCalls.push({ name: operation.operationName, variables: JSON.parse(JSON.stringify(operation.variables)) as Record<string, unknown>, context: operation.getContext() })
-    queueMicrotask(() => { try { observer.next(operation.operationName === 'AgentSubtreeChildren' ? subtreeResponse(String(operation.variables.parentAgentId)) : playersSearchResponse(operation, fixtureOptions)); observer.complete() } catch (cause) { observer.error(cause) } })
+    queueMicrotask(() => { try { observer.next(operation.operationName === 'AgentSubtreeChildren' ? subtreeResponse(String(operation.variables.parentAgentId)) : chipsAnswer(operation.operationName, operation.variables) ?? withChips(operation.operationName, playersSearchResponse(operation, fixtureOptions))); observer.complete() } catch (cause) { observer.error(cause) } })
   }))
   return render(<MockedProvider cache={new InMemoryCache({ typePolicies: { Query: { fields: { agents: { merge: true } } } } })} link={link}><MemoryRouter initialEntries={[route]}><Location /><Routes><Route path="/players/search" element={<PlayersSearchPage />} /><Route path="*" element={<div>Destination page</div>} /></Routes></MemoryRouter></MockedProvider>)
 }
@@ -76,8 +97,12 @@ test('sharing and credit agents map Direct/Sub-Agent views to onlyDirect; their 
     fireEvent.click(screen.getByRole('radio', { name: 'Sub-Agent Players' }))
     await waitFor(() => assert.deepEqual(calls.filter(c => c.name === 'UsersPage').at(-1)?.variables, { onlyDirect: false, offset: 0, limit: 10 }))
     const table = screen.getByRole('table', { name: 'Players' })
-    assert.equal(!!within(table).queryByRole('columnheader', { name: 'Credit' }), schemeType === 'CREDIT')
-    assert.equal(!!within(table).queryByRole('columnheader', { name: 'Balance' }), schemeType === 'SHARING')
+    // A CREDIT agent's players are on chips: Credit Ref and Ref P/L beside the Balance, no cash Deposits/Withdrawals.
+    assert.equal(!!within(table).queryByRole('columnheader', { name: 'Credit Ref' }), schemeType === 'CREDIT')
+    assert.equal(!!within(table).queryByRole('columnheader', { name: 'Ref P/L' }), schemeType === 'CREDIT')
+    assert.equal(!!within(table).queryByRole('columnheader', { name: 'Deposits/Withdrawals' }), schemeType === 'SHARING')
+    assert.ok(within(table).getByRole('columnheader', { name: 'Balance' }))
+    assert.equal(within(table).queryByRole('columnheader', { name: 'Settlement' }), null)
     view.unmount(); cleanup(); calls = []
   }
 })
@@ -100,11 +125,21 @@ test('search minimum, balance/status/type and IST custom range filters retain ex
   await waitFor(() => assert.equal(calls.filter(c => c.name === 'UsersPage').at(-1)?.variables.limit, 20))
   assert.equal(calls.filter(c => c.name === 'UsersPage').at(-1)?.variables.offset, 0)
 })
-test('wallet figures are converted/masked, metadata copying and Excel current-page export remain available', async () => {
+test('a link with ?search= (the global search "See all Players") opens the list already filtered by the term', async () => {
+  page('/players/search?search=vfypsh'); await list()
+  assert.equal((screen.getByRole('searchbox', { name: 'Search players' }) as HTMLInputElement).value, 'vfypsh')
+  // The first list request already carries it: no unfiltered page first.
+  assert.equal(calls.find(c => c.name === 'UsersPage')?.variables.query, 'vfypsh')
+})
+test('wallet figures are converted/masked, metadata copying and an Excel export of the whole filtered list', async () => {
   page(); await list(); screen.getAllByText('Main: ₹1000.00')
   fireEvent.click(screen.getByRole('button', { name: 'Copy phone regular-1' })); assert.equal((navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock.calls[0][0], '9000000001')
   fireEvent.click(screen.getByRole('button', { name: 'Export Excel' })); await waitFor(() => assert.equal(mocks.excel.mock.calls.length, 1))
-  assert.equal(mocks.excel.mock.calls[0].length, 2); assert.equal(mocks.excel.mock.calls[0][1], 80)
+  // Every row of the list (the fixture's total is 80, served 5 a request), with its stats, and a title that counts them.
+  const [exported, count] = mocks.excel.mock.calls[0] as [Array<{ stats?: unknown }>, number]
+  assert.equal(exported.length, 80); assert.equal(count, 80); assert.ok(exported.every(row => row.stats), 'every exported row carries its stats')
+  const exportPages = calls.filter(c => c.name === 'UsersPage' && c.variables.limit === 100)
+  assert.equal(exportPages.length, 16); assert.deepEqual(exportPages.slice(0, 2).map(c => c.variables.offset), [0, 5])
   cleanup(); calls = []; useAuthStore.setState({ permissions: [{ domain: 'players.list', actions: ['view'] }] }); page(); await list()
   assert.equal(Boolean(screen.queryByRole('button', { name: 'Special Bonus regular-1' })), false); assert.ok(screen.getAllByText(/Main: ••••/).length)
 })
@@ -163,27 +198,49 @@ test('deposit/withdrawal send signed amounts, bonus flags and trimmed audit reas
   options.refuseMutation = 'AdjustWallet'; await act(async () => { fireEvent.click(within(d).getByRole('button', { name: 'Deposit' })) })
   await within(d).findByText('Preview mutation refused'); assert.equal((screen.getByRole('textbox', { name: 'Reason' }) as HTMLTextAreaElement).value, ' Manual correction ')
   options.refuseMutation = undefined; await act(async () => { fireEvent.click(within(d).getByRole('button', { name: 'Deposit' })) }); await waitFor(() => assert.equal(Boolean(screen.queryByRole('dialog')), false))
-  const deposit = calls.find(c => c.name === 'AdjustWallet')!; assert.deepEqual(deposit.variables, { userId: 'regular-1', amount: 25, applyBonus: true }); assert.deepEqual(deposit.context.meta, { reason: 'Manual correction', type: 'deposit' })
+  // The reason is a mutation argument (the server stores it with the ledger and audit rows), not client context.
+  const deposit = calls.find(c => c.name === 'AdjustWallet')!; assert.deepEqual(deposit.variables, { userId: 'regular-1', amount: 25, applyBonus: true, reason: 'Manual correction' }); assert.equal(deposit.context.meta, undefined)
   fireEvent.click(screen.getByRole('button', { name: 'Adjust Balance regular-1' })); fireEvent.click(screen.getByRole('tab', { name: 'Withdrawal' }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Withdrawal Amount' }), { target: { value: '10' } }); fireEvent.change(screen.getByRole('textbox', { name: 'Reason' }), { target: { value: 'Return funds' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Withdraw' })); await waitFor(() => assert.deepEqual(calls.filter(c => c.name === 'AdjustWallet').at(-1)?.variables, { userId: 'regular-1', amount: -10 }))
+  fireEvent.click(screen.getByRole('button', { name: 'Withdraw' })); await waitFor(() => assert.deepEqual(calls.filter(c => c.name === 'AdjustWallet').at(-1)?.variables, { userId: 'regular-1', amount: -10, reason: 'Return funds' }))
 })
-test('credit limit/increase/decrease/settle retain business boundaries, initial tabs and exact payloads', async () => {
-  page(); await list(); fireEvent.click(screen.getByRole('button', { name: 'Adjust Credit wl-credit-1' }))
-  await screen.findByRole('dialog', { name: 'Credit Management' }); screen.getByRole('tab', { name: 'Add/Remove Credit', selected: true })
-  fireEvent.change(screen.getByRole('textbox', { name: 'Amount' }), { target: { value: '801' } }); assert.equal((screen.getByRole('button', { name: 'Add Credit' }) as HTMLButtonElement).disabled, true)
-  fireEvent.change(screen.getByRole('textbox', { name: 'Amount' }), { target: { value: '20' } }); fireEvent.change(screen.getByRole('textbox', { name: 'Reason' }), { target: { value: ' correction ' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Add Credit' })); await waitFor(() => assert.equal(Boolean(screen.queryByRole('dialog')), false))
-  assert.deepEqual(calls.find(c => c.name === 'AdjustPlayerCredit')?.variables.input, { playerId: 'wl-credit-1', adjustmentType: 'INCREASE', amount: 20, notes: 'correction' })
-  fireEvent.click(screen.getByRole('button', { name: 'Adjust Credit wl-credit-1' })); fireEvent.click(screen.getByRole('tab', { name: 'Adjust Limit' }))
-  fireEvent.change(screen.getByRole('textbox', { name: 'New Credit Limit' }), { target: { value: '100' } }); assert.equal((screen.getByRole('button', { name: 'Update Limit' }) as HTMLButtonElement).disabled, true)
-  fireEvent.change(screen.getByRole('textbox', { name: 'New Credit Limit' }), { target: { value: '900' } }); fireEvent.click(screen.getByRole('button', { name: 'Update Limit' })); await waitFor(() => assert.equal(Boolean(screen.queryByRole('dialog')), false))
-  assert.deepEqual(calls.filter(c => c.name === 'AdjustPlayerCredit').at(-1)?.variables.input, { playerId: 'wl-credit-1', adjustmentType: 'LIMIT_CHANGE', amount: 900, notes: '' })
-  fireEvent.click(screen.getByRole('button', { name: 'Settle Credit wl-credit-1' })); screen.getByRole('tab', { name: 'Settle', selected: true }); fireEvent.click(screen.getByRole('button', { name: 'Settle Credit' }))
-  await waitFor(() => assert.deepEqual(calls.filter(c => c.name === 'AdjustPlayerCredit').at(-1)?.variables.input, { playerId: 'wl-credit-1', adjustmentType: 'SETTLE', amount: 50, notes: '' }))
+test('a withdrawal above the balance keeps the typed amount, warns and is not sent', async () => {
+  page(); await list(); fireEvent.click(screen.getByRole('button', { name: 'Adjust Balance regular-1' }))
+  const d = await screen.findByRole('dialog', { name: 'Adjust Balance' }); fireEvent.click(within(d).getByRole('tab', { name: 'Withdrawal' }))
+  const amount = within(d).getByRole('textbox', { name: 'Withdrawal Amount' }) as HTMLInputElement
+  // 495 is within the cash (500) but above what a withdrawal may take, the cash less its exposure (10): the server's rule.
+  fireEvent.change(amount, { target: { value: '495' } }); fireEvent.blur(amount); fireEvent.change(within(d).getByRole('textbox', { name: 'Reason' }), { target: { value: 'Chargeback' } })
+  assert.equal(amount.value.replace(/,/g, ''), '495', 'the typed amount is not clamped to the balance')
+  assert.ok(within(d).queryAllByText('Withdrawal amount exceeds available balance').length > 0, 'the warning shows while the amount is above the available balance')
+  await act(async () => { fireEvent.click(within(d).getByRole('button', { name: 'Withdraw' })) })
+  assert.equal(calls.some(c => c.name === 'AdjustWallet'), false, 'nothing is sent')
+  assert.ok(Boolean(screen.queryByRole('dialog', { name: 'Adjust Balance' })), 'the dialog stays open')
+})
+test('credit rows show their chips, credit reference and Ref P/L; the admin moves chips for whitelabel credit players only', async () => {
+  useAuthStore.setState({ permissions: [...adminPermissions, { domain: 'agents.credit', actions: ['update'] }] })
+  page(); await list()
+  const table = screen.getByRole('table', { name: 'Players' })
+  const wl = within(within(table).getByText('Preview whitelabel credit').closest('tr') as HTMLElement)
+  // Chips are shown in the whitelabel's currency, unconverted, as the server keeps them.
+  for (const text of ['Chips: ₹1200.00', 'Available: ₹1190.00', '₹1000.00', '+₹200.00', 'Upline owes']) assert.ok(wl.getByText(text), text)
+  for (const text of [/Limit:/, /Used:/, /Pending:/]) assert.equal(wl.queryByText(text), null, String(text))
+  const own = within(within(table).getByText('Preview agent credit').closest('tr') as HTMLElement)
+  assert.ok(own.getByText('−₹300.00')); assert.ok(own.getByText('Owes upline'))
+  // A whitelabel credit player's direct parent is the admin: D / W / CR. An agent credit player's is its agent.
+  for (const name of ['Deposit chips to wlcredit', 'Withdraw chips from wlcredit', 'Set credit reference for wlcredit']) assert.ok(wl.getByRole('button', { name }), name)
+  assert.equal(own.queryByRole('button', { name: 'Deposit chips to agentcredit' }), null)
+  assert.equal((own.getByRole('button', { name: "Chips managed by the player's agent" }) as HTMLButtonElement).disabled, true)
+  fireEvent.click(wl.getByRole('button', { name: 'Deposit chips to wlcredit' }))
+  assert.ok(await screen.findByRole('dialog'))
+  assert.equal(calls.some(c => c.name === 'AdjustPlayerCredit' || c.name === 'DepositChips'), false)
+  // The old credit-limit actions are gone.
+  for (const name of ['Adjust Credit wl-credit-1', 'Settle Credit wl-credit-1']) assert.equal(screen.queryByRole('button', { name }), null, name)
 })
 test('special bonus and remark retain validation and refused drafts before an explicit successful save', async () => {
-  page(); await list(); fireEvent.click(screen.getByRole('button', { name: 'Special Bonus regular-1' }))
+  page(); await list()
+  // Credit players get no bonus (the server refuses them), so their rows offer none.
+  for (const id of ['wl-credit-1', 'agent-credit-1']) assert.equal(Boolean(screen.queryByRole('button', { name: 'Special Bonus ' + id })), false, id)
+  fireEvent.click(screen.getByRole('button', { name: 'Special Bonus regular-1' }))
   await screen.findByRole('dialog', { name: 'Grant Special Bonus' }); fireEvent.click(screen.getByRole('button', { name: 'Grant' })); screen.getByText('Please select a campaign and enter a positive amount')
   await choose('Campaign', 'Preview reward (INR)'); fireEvent.change(screen.getByRole('textbox', { name: 'Amount' }), { target: { value: '10' } })
   options.refuseMutation = 'GrantSpecialBonus'; fireEvent.click(screen.getByRole('button', { name: 'Grant' })); await screen.findByText('Preview mutation refused')
@@ -213,19 +270,21 @@ test('list server errors have an explicit retry without hiding unrelated account
   options.failUsers = false; fireEvent.click(screen.getByRole('button', { name: 'Retry' })); await list()
 })
 
-test('credit decrease validates current used and refuses non-owned agent credit before any mutation', async () => {
-  page(); await list(); fireEvent.click(screen.getByRole('button', { name: 'Adjust Credit wl-credit-1' }))
-  await screen.findByRole('dialog', { name: 'Credit Management' })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Adjustment Type' }), { target: { value: 'DECREASE' } })
-  fireEvent.change(screen.getByRole('textbox', { name: 'Amount' }), { target: { value: '201' } }); assert.equal((screen.getByRole('button', { name: 'Remove Credit' }) as HTMLButtonElement).disabled, true)
-  fireEvent.change(screen.getByRole('textbox', { name: 'Amount' }), { target: { value: '40' } }); await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove Credit' })) })
-  await waitFor(() => assert.equal(Boolean(screen.queryByRole('dialog')), false))
-  assert.deepEqual(calls.find(c => c.name === 'AdjustPlayerCredit')?.variables.input, { playerId: 'wl-credit-1', adjustmentType: 'DECREASE', amount: 40, notes: '' })
-  const row = within(screen.getByRole('table', { name: 'Players' })).getByText('Preview agent credit').closest('tr')!
-  fireEvent.click(within(row).getByRole('button', { name: 'Settle' }))
-  await screen.findByRole('dialog', { name: 'Credit Management' }); fireEvent.click(screen.getByRole('button', { name: 'Settle Credit' }))
-  screen.getByText("Credit adjustments for AGENT_CREDIT players are only available when you are the player's agent.")
-  assert.equal(calls.filter(c => c.name === 'AdjustPlayerCredit').length, 1)
+test('a CREDIT agent moves chips for its own players only; chip figures are masked without players.credit:view', async () => {
+  useAuthStore.setState({ agent: { id: 'agent-1', username: 'Partner', tenantId: 'preview', phone: null, parentAgentId: null, levelIndex: 1, schemeType: 'CREDIT', status: 'ACTIVE', allowedDomains: [], tallyEnabled: false, tallyDomains: [], createdAt: '' }, permissions: [], isReadOnly: false })
+  const view = page(); await list()
+  const table = screen.getByRole('table', { name: 'Players' })
+  const own = within(within(table).getByText('Preview agent credit').closest('tr') as HTMLElement)
+  for (const name of ['Deposit chips to agentcredit', 'Withdraw chips from agentcredit', 'Set credit reference for agentcredit']) assert.ok(own.getByRole('button', { name }), name)
+  const wl = within(within(table).getByText('Preview whitelabel credit').closest('tr') as HTMLElement)
+  assert.equal((wl.getByRole('button', { name: 'Chips managed by the whitelabel' }) as HTMLButtonElement).disabled, true)
+  view.unmount(); cleanup(); calls = []
+  // An admin without players.credit:view sees the credit rows but not their chips.
+  useAuthStore.setState({ agent: undefined, permissions: [{ domain: 'players.list', actions: ['view'] }] })
+  page(); await list()
+  const masked = within(within(screen.getByRole('table', { name: 'Players' })).getByText('Preview whitelabel credit').closest('tr') as HTMLElement)
+  assert.equal(masked.queryByText('Chips: ₹1200.00'), null); assert.ok(masked.getByText('Chips: ••••'))
+  assert.equal(masked.queryByText('+₹200.00'), null)
 })
 
 test('sharing agents cannot submit balance adjustments through an already-open modal', async () => {

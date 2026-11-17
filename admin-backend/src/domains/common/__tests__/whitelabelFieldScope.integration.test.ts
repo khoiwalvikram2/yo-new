@@ -46,6 +46,16 @@ async function read(target: string, ctx: unknown) {
 const leaked = (v: Record<string, unknown> | null) =>
   v ? Object.entries(v).filter(([, x]) => x !== null && x !== undefined).map(([k]) => k) : []
 
+/**
+ * Other integration files running in the same process create and sweep throwaway whitelabels (the chips and
+ * agent-subtree tests do). A brand listed in before() may be gone by the time a test reads it; that is not a
+ * scope failure, so a brand that no longer exists is skipped.
+ */
+async function stillExists(id: string): Promise<boolean> {
+  const { pool } = await import('@src/db/client.js')
+  return ((await pool.query(`SELECT 1 FROM whitelabels WHERE id = $1`, [id])).rowCount ?? 0) > 0
+}
+
 before(async () => {
   assert.ok(process.env.DATABASE_URL, 'DATABASE_URL must be set')
   const { pool } = await import('@src/db/client.js')
@@ -78,7 +88,10 @@ describe('Whitelabel money is not branding', () => {
   it('still leaves the branding fields readable before sign-in', async () => {
     // The whole point of leaving the operation open. If this breaks, the login
     // page cannot render the brand it is serving.
-    const row = await Query.whitelabel(undefined, { id: brands[0] }, ctxOf('default', [], false), undefined)
+    let brand: string | undefined
+    for (const b of brands) if (await stillExists(b)) { brand = b; break }
+    assert.ok(brand, 'no whitelabel left to read')
+    const row = await Query.whitelabel(undefined, { id: brand }, ctxOf('default', [], false), undefined)
     assert.ok(row, 'the branding query stopped returning anything')
     assert.ok(row.name, 'the brand name is gone')
   })
@@ -117,6 +130,7 @@ describe('Whitelabel money is not branding', () => {
     const ctx = ctxOf('default', [{ domain: 'all', actions: ['*'] }])
     for (const b of brands) {
       const v = await read(b, ctx)
+      if (!v && !(await stillExists(b))) continue // swept by another test file meanwhile
       assert.ok(v, `a super admin got nothing for ${b}`)
       assert.notEqual(v!.creditLimit, null, `a super admin lost creditLimit for ${b}`)
     }

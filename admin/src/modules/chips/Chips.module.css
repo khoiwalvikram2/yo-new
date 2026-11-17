@@ -1,0 +1,247 @@
+/* The chips module (CREDIT scheme on Deposit/Withdraw chips). Tokens only, so both skins and both themes
+   follow. Money's direction is coloured text, never a coloured box or border (the owner's colour pass):
+   chips in are green, chips out rose. */
+
+/* Figures: the five of an account (or the pool's four) on one row. The wrapper answers the container
+   query, because an element cannot query its own width. */
+.figuresWrap {
+  container-type: inline-size;
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* The pool's four (limit, used, available, given out): four to a row, two by two on a narrower page. */
+.figures[data-count='4'] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@container (max-width: 1000px) {
+  .figures {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .figures[data-count='4'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 620px) {
+  .figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* The pool's figures run to crores: two to a row on a phone cut them to "₹100,0…", so one per row, as the
+     deposit and withdrawal pages stack theirs. */
+  .figures[data-count='4'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 340px) {
+  .figures,
+  .figures[data-count='4'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.gain {
+  color: var(--viz-green, var(--pos-ink));
+}
+
+.loss {
+  color: var(--viz-rose, var(--neg-ink));
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dim {
+  color: var(--ink-3);
+}
+
+/* A cell or line with a quieter second line under it. */
+.stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sub {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+/* D / W / CR */
+.actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.actions[data-variant='compact'] {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.compactButton {
+  min-width: 30px;
+  padding-inline: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Transfer and credit reference dialogs */
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.sides {
+  display: grid;
+  margin: 0;
+  border: 1px solid var(--line);
+}
+
+.side {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.side + .side {
+  border-top: 1px solid var(--hair, var(--line));
+}
+
+.side dt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.side dd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin: 0;
+  color: var(--ink);
+  font-weight: 700;
+  text-align: right;
+}
+
+.after {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.settle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.settleText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ink-2);
+}
+
+.settleText b {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Downline table */
+.toolbar {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.trail [aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.parentLine {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.parentLine b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.who {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.whoTop {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* An agent's name opens its downline: clickable text in the link blue (the owner's rule for plain text
+   that can be clicked). */
+.drill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link, var(--acc-ink));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drill:hover {
+  text-decoration: underline;
+}
+
+.drill:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

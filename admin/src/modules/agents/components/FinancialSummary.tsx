@@ -14,7 +14,8 @@ interface FinancialSummaryProps {
   agentId: string
   periodFrom: string
   periodTo: string
-  schemeType: 'COMMISSION' | 'SHARING' | 'CREDIT'
+  /** A CREDIT agent has no settlement summary since 2026-11-02: its dashboard shows its chips instead. */
+  schemeType: 'COMMISSION' | 'SHARING'
 }
 
 // Commission cycles historically use the browser's calendar day, not the dashboard's IST day.
@@ -54,7 +55,7 @@ export default function FinancialSummary({ agentId, periodFrom, periodTo, scheme
 
   const { data: settlementData } = useQuery(SETTLEMENT_SUMMARY_QUERY, {
     variables: { agentId, periodFrom, periodTo },
-    skip: schemeType !== 'SHARING' && schemeType !== 'CREDIT',
+    skip: schemeType !== 'SHARING',
   })
 
   const fmt = (n: number) => formatAmount(convertFromWhitelabelCurrency(n))

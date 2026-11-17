@@ -156,6 +156,23 @@ describe('panelRows: single-child item', () => {
       badgeKey: 'payments',
     })
   })
+
+  test('a lone child shows its standalone label, since the heading it leans on is gone', () => {
+    const matka: NavItem = {
+      key: 'matka',
+      to: '/matka/results',
+      icon: 'fa-solid fa-ticket',
+      label: 'Matka',
+      keywords: ['matka'],
+      children: [
+        { to: '/matka/management', icon: 'fa-solid fa-sliders', label: 'Management', standaloneLabel: 'Matka Management', keywords: ['manage'] },
+      ],
+    }
+    const entries = panelRows('trading', navSection('Trading', [matka]))
+    if (entries[0].kind !== 'row') throw new Error('unreachable')
+    assert.equal(entries[0].row.label, 'Matka Management')
+    assert.deepEqual(entries[0].row.keywords, ['manage', 'matka'])
+  })
 })
 
 describe('panelRows: group (>= 2 children)', () => {

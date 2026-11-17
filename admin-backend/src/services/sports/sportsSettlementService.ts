@@ -3,14 +3,11 @@ import { eq, and, sql, inArray, gte, or } from 'drizzle-orm'
 import { wallets, ledgerEntries, users } from '@src/db/schema.js'
 import { createWalletLedgerEntry } from '@shared/services/walletLedgerService.js'
 import { applySportsSingleBetSettlement } from '@shared/services/sportsSingleBetSettlementApply.js'
-import { syncCreditPlayerOpenExposureInTx } from '@shared/services/credit/creditPlayerExposure.js'
 import { isCreditPlayer as isCreditPlayerType } from '@shared/services/credit/isCreditPlayer.js'
 import {
   sportsBets,
   sportsMarketsTable,
   sportsRunnersTable,
-  agents,
-  agentPlayerCredits,
 } from '@shared/db/schema.js'
 import { getOpenBetsForMarket, settleSportsBet } from '@src/repos/sports/sportsBetsRepo.js'
 import { referralIntegrationService } from '@src/services/referrals/referralIntegrationService.js'
@@ -175,30 +172,13 @@ function calculateFancyMarketExposure(bets: BetDataForExposure[]): number {
  * Recalculate and update wallet exposure for a user
  * Uses book-based calculation from remaining open bets.
  * Exported for use by voidBetWithRefund / cancelBet (manual void-invalid from admin).
+ *
+ * Every player type, credit players included: wallets.exposure is the only figure written.
+ * Credit players hold their chips in wallets.cash (D/W model), so their exposure is held
+ * against cash exactly like a cash player's; users.credit_used is no longer maintained.
  */
 export async function recalculateUserExposure(userId: number, tenant: string, tx?: any): Promise<number> {
   const dbCtx = tx || db
-
-  // Credit players (plan W7, same rule as user-backend W5/D1): credit_used is rewritten
-  // from scratch below as sports book exposure + open casino stake, so the whole
-  // read-modify-write runs under the users row lock (the lock the casino credit lock and
-  // sports placement take). Without a caller transaction, open one.
-  const [creditProbe] = await dbCtx
-    .select({ playerType: users.playerType })
-    .from(users)
-    .where(and(eq(users.id, userId), eq(users.tenant, tenant)))
-    .limit(1)
-  const isCreditUser = isCreditPlayerType(creditProbe?.playerType)
-  if (isCreditUser && !tx) {
-    return db.transaction((innerTx) => recalculateUserExposure(userId, tenant, innerTx))
-  }
-  if (isCreditUser) {
-    await dbCtx.execute(sql`
-      SELECT id FROM users
-      WHERE id = ${userId} AND tenant = ${tenant}
-      FOR UPDATE
-    `)
-  }
 
   // Get all open bets for the user
   const openBets = await dbCtx
@@ -229,12 +209,6 @@ export async function recalculateUserExposure(userId: number, tenant: string, tx
       .update(wallets)
       .set({ exposure: '0' })
       .where(and(eq(wallets.userId, userId), eq(wallets.tenant, tenant)))
-    // A credit player's last sports bet just settled: its sports exposure is 0 now, but
-    // open casino stake still counts. (This early return used to skip the credit sync, so
-    // credit_used kept the settled bets' exposure.)
-    if (isCreditUser) {
-      await syncCreditPlayerOpenExposureInTx(dbCtx, { userId, tenant, sportsExposure: 0 })
-    }
     return 0
   }
 
@@ -314,15 +288,6 @@ export async function recalculateUserExposure(userId: number, tenant: string, tx
     .update(wallets)
     .set({ exposure: String(totalExposure) })
     .where(and(eq(wallets.userId, userId), eq(wallets.tenant, tenant)))
-
-  // Credit players: credit_used = sports book exposure + open casino stake, written under
-  // the users row lock taken above; agent_player_credits follows. The old code wrote the
-  // sports figure alone (erasing casino locks) and cascaded the exposure delta into the
-  // agent's credit_used (counting it twice; the agent's credit_used is the credit it handed
-  // down). See shared/services/credit/creditPlayerExposure.ts.
-  if (isCreditUser) {
-    await syncCreditPlayerOpenExposureInTx(dbCtx, { userId, tenant, sportsExposure: totalExposure })
-  }
 
   return totalExposure
 }
@@ -519,7 +484,7 @@ export async function settleSportsBetsForResult(
     const affectedUserIds = new Set<number>() // Track users that need exposure recalculation
     const settledBetTimestamps = new Set<string>()
     const userMarketPnl: Record<number, number> = {}
-    const userWalletInfo: Record<number, { walletId: number; balanceBefore: number; exposureBefore: number; isCreditPlayer: boolean }> = {}
+    const userWalletInfo: Record<number, { walletId: number; balanceBefore: number; exposureBefore: number }> = {}
 
     const run = async (tx: any) => {
       for (const bet of betsToSettle) {
@@ -556,54 +521,21 @@ export async function settleSportsBetsForResult(
 
           if (!userWalletInfo[bet.userId]) {
             userWalletInfo[bet.userId] = {
-              walletId: 0,
+              walletId: wallet.id,
               balanceBefore: Number(wallet.cash ?? 0),
               exposureBefore: Number(wallet.exposure ?? 0),
-              isCreditPlayer: false,
             }
           }
 
+          // Credit players settle into wallets.cash like everyone else (their chips live
+          // there); the type is still needed so the apply step skips their bonus and
+          // referral hooks. Nothing is pushed to the agent or the whitelabel.
           const [playerInfo] = await tx
-            .select({ playerType: users.playerType, agentId: users.agentId })
+            .select({ playerType: users.playerType })
             .from(users)
             .where(eq(users.id, bet.userId))
             .limit(1)
-
-          const isCreditPlayer = Boolean(
-            playerInfo && (playerInfo.playerType === 'AGENT_CREDIT' || playerInfo.playerType === 'WHITELABEL_CREDIT')
-          )
-          if (userWalletInfo[bet.userId]) {
-            userWalletInfo[bet.userId].walletId = wallet.id
-            userWalletInfo[bet.userId].isCreditPlayer = isCreditPlayer
-          }
-
-          const releaseCredit = async (args: {
-            tx: unknown
-            userId: number
-            originalExposure: number
-            kind: 'win' | 'loss' | 'void'
-            amount: number
-            tenant: string
-            betId: string
-          }) => {
-            const { BetCreditValidationService } = await import('@src/domains/agents/services/BetCreditValidationService.js')
-            const { AgentsRepo } = await import('@src/repos/agents/AgentsRepo.js')
-            const { AgentPlayerCreditsRepo } = await import('@src/repos/agents/AgentPlayerCreditsRepo.js')
-            const agentsRepo = new AgentsRepo()
-            const playerCreditsRepo = new AgentPlayerCreditsRepo()
-            const betCreditService = new BetCreditValidationService(agentsRepo, playerCreditsRepo)
-            const betResult = args.kind === 'win' ? 'win' : args.kind === 'loss' ? 'loss' : 'void'
-            await betCreditService.releaseCreditForBet(
-              args.userId,
-              args.originalExposure,
-              betResult,
-              args.amount,
-              args.tenant,
-              args.betId,
-              'sports',
-              args.tx
-            )
-          }
+          const isCreditPlayer = isCreditPlayerType(playerInfo?.playerType)
 
           const step = await applySportsSingleBetSettlement(
             tx,
@@ -620,8 +552,7 @@ export async function settleSportsBetsForResult(
             },
             async (tt, betId, status, w, s, pl) => settleSportsBet(betId, status, w, s, tt, pl),
             (a, c) => currencyService.toBaseCurrency(a, c as any),
-            () => currencyService.getBaseCurrency(),
-            releaseCredit
+            () => currencyService.getBaseCurrency()
           )
 
           if (!step.ok) {
@@ -630,9 +561,7 @@ export async function settleSportsBetsForResult(
           }
 
           affectedUserIds.add(bet.userId)
-          if (!step.isCreditPlayer) {
-            userMarketPnl[bet.userId] = (userMarketPnl[bet.userId] ?? 0) + step.userMarketPnlDelta
-          }
+          userMarketPnl[bet.userId] = (userMarketPnl[bet.userId] ?? 0) + step.userMarketPnlDelta
           settlementResult.winners += step.settlementCounts.winners
           settlementResult.losers += step.settlementCounts.losers
           settlementResult.voids += step.settlementCounts.voids
@@ -668,7 +597,7 @@ export async function settleSportsBetsForResult(
       for (const userId of affectedUserIds) {
         const info = userWalletInfo[userId]
         const pnl = userMarketPnl[userId] ?? 0
-        if (info && !info.isCreditPlayer) {
+        if (info) {
           const virtualBefore = info.balanceBefore - info.exposureBefore
           const [walletAfter] = await tx.select().from(wallets).where(and(eq(wallets.userId, userId), eq(wallets.tenant, tenant))).limit(1)
           const availableAfter = walletAfter
@@ -889,7 +818,7 @@ async function reverseSportsBetSettlementsForWhitelabel(
 
   const affectedUserIdsForReversal = new Set<number>()
   const userReversalPnl: Record<number, number> = {}
-  const userReversalInfo: Record<number, { walletId: number; balanceBefore: number; exposureBefore: number; isCreditPlayer: boolean }> = {}
+  const userReversalInfo: Record<number, { walletId: number; balanceBefore: number; exposureBefore: number }> = {}
   const lockKey = settlementLockKey(tenant, whitelabelId, marketId, eventId)
   await withSettlementLock(lockKey, async () => {
     await db.transaction(async (tx) => {
@@ -909,10 +838,11 @@ async function reverseSportsBetSettlementsForWhitelabel(
           throw new Error(`Wallet not found for user ${bet.userId}`)
         }
         const currency = (bet.currency || wallet.currency || fallbackCurrency) as any
-        const [playerRow] = await tx.select({ playerType: users.playerType, agentId: users.agentId }).from(users).where(eq(users.id, bet.userId)).limit(1)
-        const isCreditPlayer = Boolean(playerRow && (playerRow.playerType === 'AGENT_CREDIT' || playerRow.playerType === 'WHITELABEL_CREDIT'))
+        // Every player type reverses in wallets.cash, credit players included (their chips
+        // live there), so the cash rules below apply to them too: a won bet whose profit is
+        // no longer in cash cannot be reversed.
         if (!userReversalInfo[bet.userId]) {
-          userReversalInfo[bet.userId] = { walletId: wallet.id, balanceBefore: Number(wallet.cash ?? 0), exposureBefore: Number(wallet.exposure ?? 0), isCreditPlayer }
+          userReversalInfo[bet.userId] = { walletId: wallet.id, balanceBefore: Number(wallet.cash ?? 0), exposureBefore: Number(wallet.exposure ?? 0) }
         }
 
         let profitToReverse = 0
@@ -932,46 +862,30 @@ async function reverseSportsBetSettlementsForWhitelabel(
         }
 
         if (originalStatus === 'won') {
-          if (!isCreditPlayer) {
-            userReversalPnl[bet.userId] = (userReversalPnl[bet.userId] ?? 0) - profitToReverse
-            const currentCash = Number(wallet.cash || 0)
-            if (currentCash < profitToReverse) {
-              errorsArr.push(`Insufficient cash to reverse profit for bet ${bet.id}`)
-              throw new Error(`Insufficient cash to reverse profit for bet ${bet.id}`)
-            }
-            await tx.update(wallets).set({ cash: sql`GREATEST(0, ${wallets.cash} - ${profitToReverse})` }).where(eq(wallets.id, wallet.id))
-            const baseAmount = currencyService.toBaseCurrency(Math.abs(profitToReverse), currency)
-            await tx.insert(ledgerEntries).values({ tenant, walletId: wallet.id, type: 'debit', amount: String(baseAmount), meta: { type: 'sports_bet_settlement_reversal', betId: bet.id, originalOutcome: 'won', reversedProfit: profitToReverse, marketType, originalCurrency: currency, baseAmount, baseCurrency: currencyService.getBaseCurrency(), resultId, marketId, eventId } as any })
+          userReversalPnl[bet.userId] = (userReversalPnl[bet.userId] ?? 0) - profitToReverse
+          const currentCash = Number(wallet.cash || 0)
+          if (currentCash < profitToReverse) {
+            errorsArr.push(`Insufficient cash to reverse profit for bet ${bet.id}`)
+            throw new Error(`Insufficient cash to reverse profit for bet ${bet.id}`)
           }
+          await tx.update(wallets).set({ cash: sql`GREATEST(0, ${wallets.cash} - ${profitToReverse})` }).where(eq(wallets.id, wallet.id))
+          const baseAmount = currencyService.toBaseCurrency(Math.abs(profitToReverse), currency)
+          await tx.insert(ledgerEntries).values({ tenant, walletId: wallet.id, type: 'debit', amount: String(baseAmount), meta: { type: 'sports_bet_settlement_reversal', betId: bet.id, originalOutcome: 'won', reversedProfit: profitToReverse, marketType, originalCurrency: currency, baseAmount, baseCurrency: currencyService.getBaseCurrency(), resultId, marketId, eventId } as any })
           out.winners++
           out.totalPayout += profitToReverse
+          // Not skipped for credit players: the reversal only offsets referral earnings
+          // recorded for this bet, and settlement records none for a credit player.
           postReversalReferral.push({ tenant, userId: bet.userId, betId: bet.id })
         } else if (originalStatus === 'lost') {
-          if (!isCreditPlayer) {
-            userReversalPnl[bet.userId] = (userReversalPnl[bet.userId] ?? 0) + lossToReverse
-            await tx.update(wallets).set({ cash: sql`${wallets.cash} + ${lossToReverse}` }).where(eq(wallets.id, wallet.id))
-            const baseAmount = currencyService.toBaseCurrency(Math.abs(lossToReverse), currency)
-            await tx.insert(ledgerEntries).values({ tenant, walletId: wallet.id, type: 'credit', amount: String(baseAmount), meta: { type: 'sports_bet_settlement_reversal', betId: bet.id, originalOutcome: 'lost', restoredLoss: lossToReverse, marketType, originalCurrency: currency, baseAmount, baseCurrency: currencyService.getBaseCurrency(), resultId, marketId, eventId } as any })
-          }
+          userReversalPnl[bet.userId] = (userReversalPnl[bet.userId] ?? 0) + lossToReverse
+          await tx.update(wallets).set({ cash: sql`${wallets.cash} + ${lossToReverse}` }).where(eq(wallets.id, wallet.id))
+          const baseAmount = currencyService.toBaseCurrency(Math.abs(lossToReverse), currency)
+          await tx.insert(ledgerEntries).values({ tenant, walletId: wallet.id, type: 'credit', amount: String(baseAmount), meta: { type: 'sports_bet_settlement_reversal', betId: bet.id, originalOutcome: 'lost', restoredLoss: lossToReverse, marketType, originalCurrency: currency, baseAmount, baseCurrency: currencyService.getBaseCurrency(), resultId, marketId, eventId } as any })
           out.losers++
           postReversalReferral.push({ tenant, userId: bet.userId, betId: bet.id })
         } else if (originalStatus === 'void') {
-          if (!isCreditPlayer) {
-            await tx.insert(ledgerEntries).values({ tenant, walletId: wallet.id, type: 'void', amount: '0', meta: { type: 'sports_bet_settlement_reversal', betId: bet.id, originalOutcome: 'void', stake, liability, marketType, originalCurrency: currency, baseCurrency: currencyService.getBaseCurrency(), resultId, marketId, eventId, note: 'No cash reversal needed' } as any })
-          }
+          await tx.insert(ledgerEntries).values({ tenant, walletId: wallet.id, type: 'void', amount: '0', meta: { type: 'sports_bet_settlement_reversal', betId: bet.id, originalOutcome: 'void', stake, liability, marketType, originalCurrency: currency, baseCurrency: currencyService.getBaseCurrency(), resultId, marketId, eventId, note: 'No cash reversal needed' } as any })
           out.voids++
-        }
-
-        if (isCreditPlayer) {
-          const { BetCreditValidationService } = await import('@src/domains/agents/services/BetCreditValidationService.js')
-          const { AgentsRepo } = await import('@src/repos/agents/AgentsRepo.js')
-          const { AgentPlayerCreditsRepo } = await import('@src/repos/agents/AgentPlayerCreditsRepo.js')
-          const agentsRepo = new AgentsRepo()
-          const playerCreditsRepo = new AgentPlayerCreditsRepo()
-          const betCreditService = new BetCreditValidationService(agentsRepo, playerCreditsRepo)
-          const originalBetAmount = bet.side === 'back' ? stake : liability
-          let balanceChange = originalStatus === 'won' ? profitToReverse : (originalStatus === 'lost' ? -lossToReverse : 0)
-          await betCreditService.reLockCreditForBet(bet.userId, originalBetAmount, balanceChange, tenant, bet.id, 'sports', tx)
         }
 
         const originalOpenStatus = bet.matchedAt ? 'matched' : 'unmatched'
@@ -992,7 +906,7 @@ async function reverseSportsBetSettlementsForWhitelabel(
     for (const userId of affectedUserIdsForReversal) {
       const info = userReversalInfo[userId]
       const pnl = userReversalPnl[userId] ?? 0
-      if (info && !info.isCreditPlayer && pnl !== 0) {
+      if (info && pnl !== 0) {
         const virtualBefore = info.balanceBefore - info.exposureBefore
         const [walletAfter] = await tx.select().from(wallets).where(and(eq(wallets.userId, userId), eq(wallets.tenant, tenant))).limit(1)
         const availableAfter = walletAfter

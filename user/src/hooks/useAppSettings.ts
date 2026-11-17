@@ -1,4 +1,6 @@
 import { useAppSettings as useAppSettingsContext, type ParsedAppSettings, type AppFeatures, type PaymentsConfig, type RiskConfig } from '../lib/app-settings'
+import { playerSportsIconStyle } from '../lib/playerTheme'
+import type { SportsIconStyle } from '../../../shared/src/theme/sportsIcons'
 
 export function useAppSettings() {
   return useAppSettingsContext()
@@ -157,4 +159,9 @@ export function useBanners() {
     banners: advertisements,
     isLoading
   }
+}
+
+/** The whitelabel's sport icon set (App Configuration → Sports Icons). */
+export function useSportsIconStyle(): SportsIconStyle {
+  return playerSportsIconStyle(useParsedSettings().playerTheme)
 }

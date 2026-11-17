@@ -2,7 +2,7 @@ import { useState } from 'react'
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { useOverflowCue } from './useOverflowCue'
+import { VIEW_WIDTH_PROPERTY, useOverflowCue } from './useOverflowCue'
 
 const OriginalResizeObserver = globalThis.ResizeObserver
 
@@ -161,6 +161,30 @@ describe('useOverflowCue', () => {
     setMetric(scroller, 'clientWidth', 500)
     rerender(<Probe revision={1} />)
     assert.equal(scroller.dataset.over, 'true')
+  })
+
+  test('publishes the visible width on the scroller, for content pinned to the visible part', () => {
+    globalThis.ResizeObserver = ResizeObserverHarness
+    render(<Probe />)
+    const scroller = screen.getByTestId('scroller')
+    const observer = ResizeObserverHarness.instances.at(-1)
+    assert.ok(observer)
+
+    setMetric(scroller, 'scrollWidth', 1385)
+    setMetric(scroller, 'clientWidth', 774)
+    act(() => observer.notify())
+    assert.equal(scroller.style.getPropertyValue(VIEW_WIDTH_PROPERTY), '774px')
+
+    // A narrower viewport (a phone) re-measures it.
+    setMetric(scroller, 'clientWidth', 336)
+    fireEvent(window, new Event('resize'))
+    assert.equal(scroller.style.getPropertyValue(VIEW_WIDTH_PROPERTY), '336px')
+
+    // Hidden (a tab not shown) it measures 0: no width to pin to, so readers fall back to their own.
+    setMetric(scroller, 'clientWidth', 0)
+    setMetric(scroller, 'scrollWidth', 0)
+    act(() => observer.notify())
+    assert.equal(scroller.style.getPropertyValue(VIEW_WIDTH_PROPERTY), '')
   })
 
   test('disconnects its ResizeObserver on unmount', () => {

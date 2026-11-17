@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { gql, useQuery } from '@apollo/client'
 import { Combobox, type ListboxOption } from '@/ui/components/Combobox'
 import { MultiSelect } from '@/ui/components/MultiSelect'
+import { playerSearchLabel } from '../casinoManagementModel'
 
 const USERS_SEARCH_QUERY = gql`
   query UsersSearch($query: String, $limit: Int, $offset: Int) {
@@ -11,6 +12,7 @@ const USERS_SEARCH_QUERY = gql`
         name
         email
         username
+        phone
       }
       total
     }
@@ -29,7 +31,7 @@ interface PlayerSearchSelectProps {
 
 interface UsersSearchData {
   usersPage?: {
-    items?: Array<{ id: string; name?: string | null; email?: string | null; username?: string | null }>
+    items?: Array<{ id: string; name?: string | null; email?: string | null; username?: string | null; phone?: string | null }>
   } | null
 }
 
@@ -53,7 +55,8 @@ export function PlayerSearchSelect({
 
   const options = useMemo<ListboxOption[]>(
     () => (data?.usersPage?.items ?? []).map((player) => ({
-      label: `${player.name || player.username} (${player.email})`,
+      // Players sign in by phone and most have no email, which showed as "Name (null)".
+      label: playerSearchLabel(player),
       value: player.id,
     })),
     [data?.usersPage?.items],

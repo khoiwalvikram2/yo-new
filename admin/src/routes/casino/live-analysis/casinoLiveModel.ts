@@ -28,3 +28,7 @@ export function filterCasinoBets(bets: CasinoBet[], searchQuery: string, vendorF
   if (stakeRange) { if (stakeRange.includes('-')) { const [min, max] = stakeRange.split('-').map(Number); result = result.filter(bet => bet.stake >= min && bet.stake <= max); } else if (stakeRange.endsWith('+')) { const min = Number(stakeRange.replace('+', '')); result = result.filter(bet => bet.stake >= min); } }
   return result;
 }
+/** A bet's net with its sign in the text: a loss read "₹80.00" like a gain, and only the colour told them apart. */
+export function signedNet(net: number, format: (value: number) => string): string {
+  return `${net > 0 ? '+' : net < 0 ? '-' : ''}${format(Math.abs(net))}`
+}

@@ -7,7 +7,6 @@ import { Form, FormField } from '@/ui/components/Form'
 import { strokeFor } from '@/ui/components/icons'
 import {
   EMPTY_STAGED_FILTERS,
-  EVENT_COMPETITION_OPTIONS,
   EVENT_FILTER_PRESETS,
   EVENT_SPORT_OPTIONS,
   EVENT_STATUS_OPTIONS,
@@ -16,6 +15,7 @@ import {
   stagedFromFilters,
   stagedRangeErrors,
   type EventFilterPreset,
+  type EventOption,
   type EventsFiltersValues,
   type StagedEventFilters,
   type StagedRangeErrors,
@@ -29,6 +29,8 @@ interface EventsFiltersProps {
   loading?: boolean
   /** The filters in force: the form opens on them. */
   initialValues?: EventsFiltersValues
+  /** The competitions to choose from: those of the loaded events (eventCompetitionOptions). */
+  competitionOptions?: readonly EventOption[]
 }
 
 /* The presets' glyphs replace the legacy emoji (a red circle, a calendar, a cricket bat). */
@@ -42,8 +44,12 @@ const PRESET_ICONS: Record<EventFilterPreset, ReactNode> = {
  * The Advanced Filters form. Nothing applies until Apply (or a preset, or Reset), as before: Apply sends
  * every field, Reset clears the form and every filter, and a preset applies its one filter on its own.
  */
-export function EventsFilters({ onFilter, loading = false, initialValues }: EventsFiltersProps) {
+export function EventsFilters({ onFilter, loading = false, initialValues, competitionOptions = [] }: EventsFiltersProps) {
   const [staged, setStaged] = useState<StagedEventFilters>(() => stagedFromFilters(initialValues))
+  // A chosen competition stays on offer even once no loaded event belongs to it, so the field still names it.
+  const competitions = staged.competition && !competitionOptions.some((option) => option.value === staged.competition)
+    ? [...competitionOptions, { label: staged.competition, value: staged.competition }]
+    : competitionOptions
   const [errors, setErrors] = useState<StagedRangeErrors>({})
   const startRef = useRef<HTMLInputElement>(null)
   const endRef = useRef<HTMLInputElement>(null)
@@ -130,7 +136,7 @@ export function EventsFilters({ onFilter, loading = false, initialValues }: Even
             searchable={false}
             clearable
             placeholder="Select competition..."
-            options={EVENT_COMPETITION_OPTIONS}
+            options={competitions}
             value={staged.competition}
             onChange={(value) => update({ competition: value })}
           />

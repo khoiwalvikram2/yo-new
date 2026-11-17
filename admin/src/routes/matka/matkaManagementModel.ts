@@ -99,6 +99,34 @@ export const BET_TYPES = [
 
 export const BID_TYPE_OPTIONS = BET_TYPES.map(({ key, label }) => ({ value: key, label }))
 
+export type BidRuleMarketKind = 'worli' | 'starline' | 'jackpot' | 'sattaMatka'
+
+/** The bid types admin-backend accepts in a rule for each market kind: allowedBids in shared/src/matka/rules.ts,
+ *  which the bid-rule save checks ("This bid type is unavailable for the market"). Keep the two in step. */
+const BIDS_BY_KIND: Record<BidRuleMarketKind, readonly string[]> = {
+  worli: ['SINGLE', 'JODI', 'SINGLE_PANNA', 'DOUBLE_PANNA', 'TRIPLE_PANNA', 'HALF_SANGAM', 'FULL_SANGAM'],
+  starline: ['SINGLE', 'SINGLE_PANNA', 'DOUBLE_PANNA', 'TRIPLE_PANNA'],
+  jackpot: ['JODI'],
+  sattaMatka: ['AB', 'A', 'B'],
+}
+
+/** A market's kind as the server reads it (matkaKind in shared/src/matka/rules.ts): settings.matkaType in any case,
+ *  Worli when unset; null for a kind the server does not know. */
+export function bidRuleMarketKind(settings: unknown): BidRuleMarketKind | null {
+  const value = String((settings as { matkaType?: unknown } | null | undefined)?.matkaType || 'worli').toLowerCase()
+  if (value === 'sattamatka' || value === 'satta_matka') return 'sattaMatka'
+  if (value === 'worli' || value === 'starline' || value === 'jackpot') return value
+  return null
+}
+
+/** The Bid Type choices for a market: only its kind's bid types (a Worli market offered Satta AB, A and B, which the
+ *  server refused). A kind the server does not know keeps the full list; the server's refusal then names it. */
+export function bidTypeOptionsFor(settings: unknown): readonly { value: string; label: string }[] {
+  const kind = bidRuleMarketKind(settings)
+  if (!kind) return BID_TYPE_OPTIONS
+  return BID_TYPE_OPTIONS.filter((option) => BIDS_BY_KIND[kind].includes(option.value))
+}
+
 export function buildMatkaFilters(
   debouncedQuery: string,
   status: string,
@@ -354,11 +382,12 @@ export function bidRuleError(draft: BidRuleDraft): string | null {
   return null
 }
 
-export function bidRuleInput(matka: Pick<MatkaRecord, 'id' | 'name'>, draft: BidRuleDraft) {
+export function bidRuleInput(matka: Pick<MatkaRecord, 'id' | 'name'> & { settings?: unknown }, draft: BidRuleDraft) {
   const playerIds = draft.includeAll ? [] : draft.includedPlayers
   return {
     matkaId: matka.id,
-    matkaType: 'worli',
+    // The market's own kind (the server keeps the market's kind whatever is sent).
+    matkaType: String((matka.settings as { matkaType?: unknown } | null | undefined)?.matkaType || 'worli'),
     marketName: matka.name,
     marketSession: null,
     bidType: draft.bidType,
@@ -371,6 +400,19 @@ export function bidRuleInput(matka: Pick<MatkaRecord, 'id' | 'name'>, draft: Bid
     status: draft.status ? 'active' : 'inactive',
     notes: draft.notes || null,
   }
+}
+
+/**
+ * What a refused Matka mutation tells the operator: the server's own reason (the first GraphQL error), not a
+ * catch-all. The mutation error link toasts nothing for mutations, so each page reports its own. A driver
+ * error ("Failed query: <SQL> params: <values>") is never shown; the fallback stands in for it.
+ */
+export function matkaErrorText(error: unknown, fallback: string): string {
+  const graphQLErrors = (error as { graphQLErrors?: Array<{ message?: unknown }> } | null)?.graphQLErrors
+  const first = Array.isArray(graphQLErrors) ? graphQLErrors.find((entry) => typeof entry?.message === 'string' && entry.message) : undefined
+  const message = typeof first?.message === 'string' ? first.message : error instanceof Error ? error.message : ''
+  if (!message.trim() || /^Failed query|\bparams:/i.test(message)) return fallback
+  return message
 }
 
 export function cloneVariables(matka: Pick<MatkaRecord, 'id' | 'name' | 'code'>) {

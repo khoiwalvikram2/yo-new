@@ -1,40 +1,40 @@
-import { CurrencyCode, Currency, CurrencyConversion, SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, BASE_CURRENCY } from '@src/types/currency'
+import { CurrencyCode, Currency, CurrencyConversion, DEFAULT_CURRENCY, BASE_CURRENCY } from '@src/types/currency'
+import { currencyManagementService, type CurrencyManagementService } from './currencyManagementService.js'
 
+/**
+ * Conversions, validation and formatting for the whole backend (wallet ledgers, chips, casino, marketing,
+ * referrals and Query.convertCurrency). It reads the currencies the Currency Management page keeps
+ * (currencyManagementService). It used to read its own copy of the built-in list, so a currency created on
+ * the page could not be converted and a rate saved there was never used.
+ */
 export class CurrencyService {
-  private exchangeRates: Record<string, number> = {}
+  constructor(private readonly currencies: CurrencyManagementService = currencyManagementService) {}
 
-  constructor() {
-    this.initializeExchangeRates()
-  }
-
-  private initializeExchangeRates() {
-    // Initialize with base rates from SUPPORTED_CURRENCIES
-    Object.values(SUPPORTED_CURRENCIES).forEach(currency => {
-      if (currency.exchangeRate) {
-        this.exchangeRates[currency.code] = currency.exchangeRate
-      }
-    })
+  private currency(code: string): Currency | null {
+    this.currencies.refreshIfStale()
+    return this.currencies.getCurrency(code as CurrencyCode)
   }
 
   /**
    * Get all supported currencies
    */
   getSupportedCurrencies(): Currency[] {
-    return Object.values(SUPPORTED_CURRENCIES).filter(c => c.isActive)
+    this.currencies.refreshIfStale()
+    return this.currencies.getActiveCurrencies()
   }
 
   /**
    * Get currency details by code
    */
   getCurrency(code: CurrencyCode): Currency | null {
-    return SUPPORTED_CURRENCIES[code] || null
+    return this.currency(code)
   }
 
   /**
    * Validate if currency code is supported
    */
   isValidCurrency(code: string): code is CurrencyCode {
-    return code in SUPPORTED_CURRENCIES && SUPPORTED_CURRENCIES[code as CurrencyCode].isActive
+    return Boolean(this.currency(code)?.isActive)
   }
 
   /**
@@ -43,8 +43,8 @@ export class CurrencyService {
   getExchangeRate(from: CurrencyCode, to: CurrencyCode): number {
     if (from === to) return 1.0
 
-    const fromRate = this.exchangeRates[from] || 1.0
-    const toRate = this.exchangeRates[to] || 1.0
+    const fromRate = this.currency(from)?.exchangeRate || 1.0
+    const toRate = this.currency(to)?.exchangeRate || 1.0
 
     // Convert from -> USD -> to
     return toRate / fromRate
@@ -90,10 +90,12 @@ export class CurrencyService {
   }
 
   /**
-   * Update exchange rates (for real-time rate updates)
+   * Update exchange rates (for real-time rate updates); saved like a change made on the page
    */
   updateExchangeRates(rates: Record<string, number>) {
-    this.exchangeRates = { ...this.exchangeRates, ...rates }
+    return this.currencies.updateExchangeRates(
+      Object.entries(rates).map(([currency, rate]) => ({ currency: currency as CurrencyCode, rate }))
+    )
   }
 
   /**

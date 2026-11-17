@@ -1,8 +1,8 @@
 /* Login / register modal in the matchbook theme: a dark showcase beside a flat white form.
    Behaviour lives in LoginModal / RegisterModal / AuthIntro; this file only paints them, in either app theme. */
 .nova-modal-surface.nova-auth-modal {
-  --auth-red: #C51A1B;
-  --auth-red-hover: #A81516;
+  --auth-red: var(--mb-red);
+  --auth-red-hover: var(--mb-brand-deep);
   --auth-ink: var(--mb-ink);
   --auth-text: var(--mb-text);
   --auth-muted: var(--mb-muted);
@@ -39,11 +39,11 @@
   padding: 30px 28px 24px;
   overflow: hidden;
   border: 0;
-  color: #FFFFFF;
+  color: #FFFFFF; /* theme: fixed — white on the dark hero; the brand is only a glow */
   background:
-    radial-gradient(90% 55% at 0% 0%, rgb(197 26 27 / 34%), transparent 62%),
+    radial-gradient(in srgb 90% 55% at 0% 0%, color-mix(in srgb, var(--mb-red) 34%, transparent), transparent 62%),
     radial-gradient(70% 45% at 100% 100%, rgb(11 128 64 / 20%), transparent 62%),
-    linear-gradient(165deg, #2B2F35 0%, #1B1D21 100%);
+    linear-gradient(165deg, var(--mb-chrome) 0%, var(--mb-chrome-base) 100%);
 }
 /* Faint pitch hatching behind everything. */
 .nova-modal-surface.nova-auth-modal .nova-auth-intro::before {
@@ -59,7 +59,7 @@
 .nova-modal-surface.nova-auth-modal .nova-auth-intro-copy > span {
   display: inline-block;
   margin-bottom: 10px;
-  color: #FF6B6B;
+  color: var(--mb-chrome-red);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .14em;
@@ -115,7 +115,7 @@
 .nova-auth-board-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px 52px; align-items: center; gap: 4px; padding: 6px 10px; }
 .nova-auth-board-row + .nova-auth-board-row { border-top: 1px solid rgb(255 255 255 / 6%); }
 .nova-auth-board-runner { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.nova-auth-board-runner i { flex: none; width: 8px; height: 8px; border-radius: var(--ui-radius); background: #FF6B6B; }
+.nova-auth-board-runner i { flex: none; width: 8px; height: 8px; border-radius: var(--ui-radius); background: var(--mb-chrome-red); }
 .nova-auth-board-runner b { width: 72%; height: 7px; border-radius: var(--ui-radius); background: rgb(255 255 255 / 16%); }
 .nova-auth-board-row:nth-child(3) .nova-auth-board-runner i { background: #8DCDF3; }
 .nova-auth-board-row:nth-child(3) .nova-auth-board-runner b { width: 54%; }
@@ -281,7 +281,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.nova-modal-surface.nova-auth-modal .nova-auth-inline button:hover:not(:disabled) { text-decoration: underline; }
+.nova-modal-surface.nova-auth-modal .nova-auth-inline button:hover:not(:disabled) { color: var(--mb-link-hover); text-decoration: underline; }
 .nova-modal-surface.nova-auth-modal .nova-auth-inline button:disabled { color: var(--mb-faint); cursor: not-allowed; }
 
 .nova-modal-surface.nova-auth-modal .nova-auth-code { min-width: 0; margin: 0; padding: 0; border: 0; }
@@ -316,7 +316,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: var(--ui-radius);
-  color: #FFFFFF;
+  color: var(--mb-on-red);
   background: var(--auth-red);
   box-shadow: none;
   font-family: var(--font-inter);
@@ -354,7 +354,7 @@
 
 .nova-modal-surface.nova-auth-modal .nova-auth-footer { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--mb-line); color: var(--auth-muted); font-size: 15px; text-align: center; }
 .nova-modal-surface.nova-auth-modal .nova-auth-footer button { padding: 0; border: 0; color: var(--mb-red-text); background: transparent; font-family: var(--font-inter); font-size: 15px; font-weight: 700; cursor: pointer; }
-.nova-modal-surface.nova-auth-modal .nova-auth-footer button:hover:not(:disabled) { text-decoration: underline; }
+.nova-modal-surface.nova-auth-modal .nova-auth-footer button:hover:not(:disabled) { color: var(--mb-link-hover); text-decoration: underline; }
 .nova-modal-surface.nova-auth-modal .nova-auth-legal { margin-top: 8px; color: var(--mb-faint); font-size: 12px; line-height: 1.5; }
 .nova-modal-surface.nova-auth-modal .nova-auth-legal a { color: var(--auth-text); font-weight: 600; text-decoration: underline; }
 

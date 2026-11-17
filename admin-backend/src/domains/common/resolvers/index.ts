@@ -6,28 +6,23 @@ import { requirePermission } from '@src/domains/common/auth.js'
 import { requireReadPermission } from '@src/domains/common/auth.js'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { hasPermission } from '@src/domains/common/auth.js'
+import { userChips } from '@src/domains/agents/resolvers/chipResolvers.js'
+import { userAccessField } from '@src/domains/players/services/userAccessField.js'
+import { displayableAsset } from '@shared/utils/dataUri.js'
+import { storedImageProblem } from '@src/services/storage/storedImage.js'
 
-// Helper to convert stored S3 keys (or base64/data URLs) into displayable URLs
-async function convertS3KeyToUrl(key: string | null | undefined): Promise<string | null> {
-  if (!key) return null
+// A whitelabel's logo and favicon are read with displayableAsset: as stored (data URIs, or links), and a legacy S3
+// key as null, since nothing can fetch it any more (owner decision 2026-11-04: S3 is gone).
 
-  // Already a usable URL or data URI
-  if (key.startsWith('http://') || key.startsWith('https://') || key.startsWith('data:')) {
-    return key
+/** Why a whitelabel's new logo or favicon cannot be stored, or null: each is an image of at most 2 MB, or a link. */
+function brandingImageProblem(input: { logoUrl?: string | null; faviconUrl?: string | null }): string | null {
+  for (const [value, label] of [[input?.logoUrl, 'Logo'], [input?.faviconUrl, 'Favicon']] as const) {
+    if (typeof value === 'string' && value.trim() !== '') {
+      const problem = storedImageProblem(value, label)
+      if (problem) return problem
+    }
   }
-
-  try {
-    // Prefer presigned URL so private buckets also work
-    const { generatePresignedGetUrl, getS3ObjectUrl } = await import('@src/services/storage/s3.js')
-    try {
-      const presigned = await generatePresignedGetUrl(key, 7 * 24 * 3600) // 7 days
-      if (presigned) return presigned
-    } catch {}
-    // Fallback to public URL construction (for public buckets/CloudFront)
-    return getS3ObjectUrl(key)
-  } catch (err) {
-    return key
-  }
+  return null
 }
 
 /**
@@ -52,6 +47,10 @@ async function convertS3KeyToUrl(key: string | null | undefined): Promise<string
  */
 function mayReadWhitelabelMoney(root: any, ctx: any): boolean {
   if (!ctx?.user) return false
+  // An agent's flat `agents:view` grants `agents.credit:view` below, so every agent (sub-agents included) read its
+  // brand's pool through whitelabelCurrent { creditLimit creditUsed creditAvailable }. The pool is not an agent's
+  // to see: myWhitelabelCredit refuses agents by principal (FIN-01), and so does this.
+  if (ctx.user.type === 'agent') return false
   const perms = ctx?.permissions ?? []
   if (hasPermission(perms, 'all', '*')) return true
   const callerTenant =
@@ -63,9 +62,32 @@ function mayReadWhitelabelMoney(root: any, ctx: any): boolean {
   )
 }
 
+/**
+ * What a failed whitelabel write may tell its caller.
+ *
+ * Both write paths returned `e.message` as the payload, and a driver error carries the failing SQL and its bound
+ * parameters: measured, a refused update handed back another brand's logo and favicon data. A duplicate key is
+ * worth naming; any other database failure is logged and reported generically, and a message thrown by the
+ * services on purpose ("Invalid credit amount" and the like) passes through.
+ */
+function whitelabelWriteFailure(e: any, ctx: any, fallback: string): string {
+  const pg = e?.cause ?? e
+  if (pg?.code === '23505') {
+    return /domain/i.test(String(pg?.constraint ?? '')) ? 'That domain is already used by another whitelabel' : 'A whitelabel with these details already exists'
+  }
+  const message = typeof e?.message === 'string' ? e.message : ''
+  if (!message || pg?.code || /^Failed query/i.test(message)) {
+    ctx?.request?.log?.error?.({ err: e }, fallback)
+    return fallback
+  }
+  return message
+}
+
 /** The same question for the brand's sharing configuration. */
 function mayReadWhitelabelSharing(root: any, ctx: any): boolean {
   if (!ctx?.user) return false
+  // As above: `agents:view` grants `agents.sharing:view`, and myWhitelabelSharing refuses agents (FIN-01).
+  if (ctx.user.type === 'agent') return false
   const perms = ctx?.permissions ?? []
   if (hasPermission(perms, 'all', '*')) return true
   const callerTenant =
@@ -92,8 +114,8 @@ export const commonResolvers = {
 
       return {
         ...row,
-        logoUrl: await convertS3KeyToUrl(row.logoUrl),
-        faviconUrl: await convertS3KeyToUrl(row.faviconUrl),
+        logoUrl: displayableAsset(row.logoUrl),
+        faviconUrl: displayableAsset(row.faviconUrl),
       }
     }
   },
@@ -155,8 +177,8 @@ export const commonResolvers = {
           message: 'Whitelabel credit adjusted successfully',
           whitelabel: {
             ...whitelabel,
-            logoUrl: await convertS3KeyToUrl(whitelabel.logoUrl),
-            faviconUrl: await convertS3KeyToUrl(whitelabel.faviconUrl),
+            logoUrl: displayableAsset(whitelabel.logoUrl),
+            faviconUrl: displayableAsset(whitelabel.faviconUrl),
           },
         }
       } catch (error: any) {
@@ -169,9 +191,22 @@ export const commonResolvers = {
     },
     async createWhitelabel(_: any, { input }: any, ctx: any) {
       requirePermission(ctx, 'config.whitelabels', 'create')
-      const { upsertWhitelabel, setWhitelabelSharingConfig, copyDefaultCasinoGameSettingsToWhitelabel } = await import('@src/repos/common/whitelabelRepo.js')
+      // Creating a brand is a platform action. `config.whitelabels:create` maps from flat `config:write`, which
+      // every Whitelabel Admin holds for its own app settings, so that gate alone let grandwinn's admin run this
+      // for any id: measured, the INSERT ran. Ask for platform standing, as `whitelabels` does to list brands.
+      if (!hasPermission(ctx?.permissions ?? [], 'all', '*')) {
+        throw new Error('Forbidden: only a platform administrator can create a whitelabel')
+      }
+      const createImageProblem = brandingImageProblem(input)
+      if (createImageProblem) return { success: false, message: createImageProblem, whitelabel: null }
+      const { getWhitelabelById, upsertWhitelabel, setWhitelabelSharingConfig, copyDefaultCasinoGameSettingsToWhitelabel } = await import('@src/repos/common/whitelabelRepo.js')
       const { ensureAdminUser } = await import('@src/repos/users/usersRepo.js')
       const { seedDefaultRBAC } = await import('@src/repos/rbac/rbacRepo.js')
+      // upsertWhitelabel overwrites a row that already exists, and this flow then seeds RBAC and makes the
+      // caller's chosen e-mail that brand's Whitelabel Admin. A create must never become an edit of a live brand.
+      if (await getWhitelabelById(input.id)) {
+        return { success: false, message: 'A whitelabel with this id already exists', whitelabel: null }
+      }
       try {
         await upsertWhitelabel({
           id: input.id,
@@ -218,7 +253,7 @@ export const commonResolvers = {
         await copyDefaultCasinoGameSettingsToWhitelabel(input.id)
         return { success: true, message: 'Whitelabel created', whitelabel: { id: input.id, name: input.name, domain: input.domain, logoUrl: input.logoUrl, faviconUrl: input.faviconUrl } }
       } catch (e: any) {
-        return { success: false, message: e?.message || 'Failed to create whitelabel', whitelabel: null }
+        return { success: false, message: whitelabelWriteFailure(e, ctx, 'Failed to create whitelabel'), whitelabel: null }
       }
     },
     async resetWhitelabelAdminPassword(_: any, args: any, ctx: any) {
@@ -293,7 +328,8 @@ export const commonResolvers = {
         action: 'reset_whitelabel_admin_password',
         resourceType: 'user',
         resourceId: String(targetId),
-        after: { passwordReset: true, targetEmail },
+        // The target is always that whitelabel's admin: the Audit Trail opens Support Admins for it, not a player profile.
+        after: { passwordReset: true, targetEmail, accountKind: 'admin' },
       }).catch(() => {})
 
       return { success: true, message: 'Whitelabel admin password reset successfully' }
@@ -352,16 +388,35 @@ export const commonResolvers = {
     },
     async updateWhitelabel(_: any, { input }: any, ctx: any) {
       requirePermission(ctx, 'config.whitelabels', 'update')
+      // The same flat `config:write` passes that gate for every Whitelabel Admin, and nothing compared `input.id`
+      // with the caller's brand: measured, grandwinn's admin ran the UPDATE on kondareddi's row. Without platform
+      // standing a caller edits only its own brand's name, logo and favicon (what App Configuration saves); the
+      // domain and the platform's sharing rates are the platform's to set, like the credit line beside them.
+      const platformWide = hasPermission(ctx?.permissions ?? [], 'all', '*')
+      if (!platformWide) {
+        const ownTenant = getEffectiveTenantForDirector(ctx) ?? ctx?.tenant ?? ctx?.whitelabel?.id ?? null
+        if (!ownTenant || String(input?.id ?? '') !== String(ownTenant)) {
+          throw new Error('Forbidden: you can only update your own whitelabel')
+        }
+        if (input?.sharingRates != null) {
+          throw new Error('Forbidden: only a platform administrator can change sharing rates')
+        }
+      }
+      const updateImageProblem = brandingImageProblem(input)
+      if (updateImageProblem) return { success: false, message: updateImageProblem, whitelabel: null }
       const { getWhitelabelById, upsertWhitelabel, setWhitelabelSharingConfig } = await import('@src/repos/common/whitelabelRepo.js')
       const { recordAuditDb } = await import('@src/repos/audit/auditRepo.js')
-      
+
       try {
         // Get existing whitelabel
         const existing = await getWhitelabelById(input.id)
         if (!existing) {
           return { success: false, message: 'Whitelabel not found', whitelabel: null }
         }
-        
+        if (!platformWide && input.domain != null && input.domain !== existing.domain) {
+          return { success: false, message: 'Forbidden: only a platform administrator can change a whitelabel domain', whitelabel: null }
+        }
+
         // Update only provided fields
         await upsertWhitelabel({
           id: input.id,
@@ -406,12 +461,12 @@ export const commonResolvers = {
           message: 'Whitelabel updated successfully',
           whitelabel: updated ? {
             ...updated,
-            logoUrl: await convertS3KeyToUrl(updated.logoUrl),
-            faviconUrl: await convertS3KeyToUrl(updated.faviconUrl),
+            logoUrl: displayableAsset(updated.logoUrl),
+            faviconUrl: displayableAsset(updated.faviconUrl),
           } : null,
         }
       } catch (e: any) {
-        return { success: false, message: e?.message || 'Failed to update whitelabel', whitelabel: null }
+        return { success: false, message: whitelabelWriteFailure(e, ctx, 'Failed to update whitelabel'), whitelabel: null }
       }
     },
     async generateSettlement(_: any, { input }: any, ctx: any) {
@@ -530,8 +585,8 @@ export const commonResolvers = {
   Subscription: commonSubscriptionResolvers,
   Whitelabel: {
     // Field resolvers ensure logo/favicons are always usable URLs for any query
-    logoUrl: async (root: any) => convertS3KeyToUrl(root.logoUrl),
-    faviconUrl: async (root: any) => convertS3KeyToUrl(root.faviconUrl),
+    logoUrl: (root: any) => displayableAsset(root.logoUrl),
+    faviconUrl: (root: any) => displayableAsset(root.faviconUrl),
     // Credit fields - fetch from database if not already loaded
     creditLimit: async (root: any, _args: any, ctx: any) => {
       if (!mayReadWhitelabelMoney(root, ctx)) return null
@@ -565,6 +620,12 @@ export const commonResolvers = {
       const credit = await repo.getCreditFields(root.id)
       return credit ? credit.creditAlertThreshold : 80
     },
+    // The brand's platform settlement balances had no resolver, so they came straight off the row that
+    // whitelabel(id) and whitelabelCurrent select in full: to any caller, no session needed. Money, like the above.
+    settlementBalance: (root: any, _args: any, ctx: any) => (mayReadWhitelabelMoney(root, ctx) ? root.settlementBalance ?? null : null),
+    settlementBalanceSports: (root: any, _args: any, ctx: any) => (mayReadWhitelabelMoney(root, ctx) ? root.settlementBalanceSports ?? null : null),
+    settlementBalanceCasino: (root: any, _args: any, ctx: any) => (mayReadWhitelabelMoney(root, ctx) ? root.settlementBalanceCasino ?? null : null),
+    settlementBalanceMatka: (root: any, _args: any, ctx: any) => (mayReadWhitelabelMoney(root, ctx) ? root.settlementBalanceMatka ?? null : null),
     // Theme is now fetched from app_config, not whitelabel table
     theme: async (root: any, __: any, ctx: any) => {
       const { getAppConfigDb } = await import('@src/repos/app-config/appConfigRepo.js')
@@ -613,9 +674,7 @@ export const commonResolvers = {
   CategoryNode: { tenant: (_: any, __: any, ctx: any) => ctx?.whitelabel?.id ?? null },
   CategoryTree: { tenant: (_: any, __: any, ctx: any) => ctx?.whitelabel?.id ?? null },
   Limit: { tenant: (_: any, __: any, ctx: any) => ctx?.whitelabel?.id ?? null },
-  Promotion: { tenant: (_: any, __: any, ctx: any) => ctx?.whitelabel?.id ?? null },
-  Content: { tenant: (_: any, __: any, ctx: any) => ctx?.whitelabel?.id ?? null },
-  User: { 
+  User: {
     tenant: (_: any, __: any, ctx: any) => ctx?.whitelabel?.id ?? null,
     username: (user: any) => user.username || null,
     wallet: async (user: any, _args: any, _ctx: any, info: any) => {
@@ -630,7 +689,22 @@ export const commonResolvers = {
         exposure: Number(w.exposure ?? 0),
         updatedAt: w.updatedAt,
       } : null
-    }
+    },
+    /**
+     * A credit player's chip figures (spec 2026-11-02 §7); null for every other player type. These are the User
+     * field resolvers the schema actually uses (domains/index.ts), so single-user reads such as user(id) get chips
+     * too. A list that already filled chips in one batch (usersPage, through attachPlayerChips) keeps its value;
+     * any other row is read through the request's batch loader, in the caller's tenant and agent subtree.
+     */
+    chips: (user: any, args: unknown, ctx: any) => userChips(user, args, ctx),
+    /**
+     * PlayerAccess is non-null and no User mapper fills it, so without this every `user { access }` selection (on
+     * setUserStatus's reply, for one) failed with "Cannot return null for non-nullable field User.access". The same
+     * rule as PlayerProfile.access: only an active player may log in (players/PLA-09). A User built from a lookup
+     * (referralReferees, ReferrerProfile.referees, Deposit.user, SportsPlayerProfile.user) lacks the fields the rule
+     * reads; userAccessField reads them by id in one batch per request, in the caller's tenant (E102).
+     */
+    access: userAccessField,
   },
   Wallet: { tenant: (_: any, __: any, ctx: any) => ctx?.whitelabel?.id ?? null },
   Role: { tenant: (_: any, __: any, ctx: any) => ctx?.whitelabel?.id ?? null },

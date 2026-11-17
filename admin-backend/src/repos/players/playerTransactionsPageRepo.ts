@@ -12,24 +12,31 @@ export async function getPlayerTransactionsPage(tenant: string, userId: number, 
   const search = filter.search?.trim() ? `%${filter.search.trim()}%` : null
   // Merge before filtering/counting/paging. Foreign-key references, never amount/minute guesses,
   // identify requests already represented by a ledger entry.
+  // A credit player's money moves only as chips (spec 2026-11-02, CREDIT on Deposit/Withdraw chips): its upline's
+  // Deposit / Withdraw chips writes a CHIP_DEPOSIT / CHIP_WITHDRAW ledger row on its cash wallet, listed here as
+  // chip_deposit / chip_withdrawal ("Chip deposit" / "Chip withdrawal"), with the remark (or who moved the chips) as
+  // the reference. They are the wallet's own rows, like deposits, so includeCredit does not gate them.
   const result = await db.execute<{ total: number; items: any[] }>(sql`
     WITH ledger_base AS (
       SELECT l.*, w.currency,
-        CASE WHEN l.type='withdrawal_pending' OR l.meta->>'type'='withdrawal' THEN 'withdrawal'
+        CASE WHEN l.type='CHIP_DEPOSIT' THEN 'chip_deposit' WHEN l.type='CHIP_WITHDRAW' THEN 'chip_withdrawal'
+          WHEN l.type='withdrawal_pending' OR l.meta->>'type'='withdrawal' THEN 'withdrawal'
           WHEN l.meta->>'type'='admin_adjustment' THEN CASE WHEN l.type='credit' THEN 'manual_deposit' ELSE 'manual_withdrawal' END
           WHEN l.meta->>'type'='deposit' THEN 'deposit' ELSE 'transfer' END AS display_type
       FROM ledger_entries l JOIN wallets w ON w.id=l.wallet_id AND w.tenant=l.tenant
       WHERE l.tenant=${tenant} AND w.user_id=${userId}
         AND ((l.type='credit' AND l.meta->>'type' IN ('deposit','bonus_release','bonus_instant_cash','bonus_instant_cash_transfer','bonus_to_cash','referral_balance_to_cash'))
           OR (l.type='debit' AND l.meta->>'type'='withdrawal') OR l.type='withdrawal_pending'
-          OR l.meta->>'type'='admin_adjustment')
+          OR l.meta->>'type'='admin_adjustment' OR l.type IN ('CHIP_DEPOSIT','CHIP_WITHDRAW'))
     ), sources AS (
       SELECT 'ledger_'||l.id AS id, l.display_type AS type,
-        coalesce(l.meta->>'method',CASE WHEN l.meta->>'type'='admin_adjustment' THEN 'Admin Adjustment' END) AS method,
+        coalesce(l.meta->>'method',CASE WHEN l.meta->>'type'='admin_adjustment' THEN 'Admin Adjustment'
+          WHEN l.type='CHIP_DEPOSIT' THEN 'Chip deposit' WHEN l.type='CHIP_WITHDRAW' THEN 'Chip withdrawal' END) AS method,
         abs(coalesce(CASE WHEN l.meta->>'originalAmount' ~ '^-?[0-9]+([.][0-9]+)?$' THEN (l.meta->>'originalAmount')::numeric END,l.amount)) AS amount,
         coalesce(CASE WHEN l.meta->>'fees' ~ '^-?[0-9]+([.][0-9]+)?$' THEN (l.meta->>'fees')::numeric END,0) AS fees,
         coalesce(d.status::text,w.status::text,l.meta->>'status',CASE WHEN l.type='withdrawal_pending' THEN 'pending' ELSE 'completed' END) AS raw_status,
-        coalesce(l.meta->>'reference',d.utr,d.reference_id,CASE WHEN l.meta->>'type'='admin_adjustment' THEN l.meta->>'reason' END) AS reference,
+        coalesce(l.meta->>'reference',d.utr,d.reference_id,CASE WHEN l.meta->>'type'='admin_adjustment' THEN l.meta->>'reason'
+          WHEN l.type IN ('CHIP_DEPOSIT','CHIP_WITHDRAW') THEN coalesce(nullif(l.meta->>'remark',''),l.meta->>'description') END) AS reference,
         l.meta->>'provider' AS provider,coalesce(l.meta->>'originalCurrency',l.currency) AS currency,
         l.created_at,l.meta,l.balance_before,l.balance_after
       FROM ledger_base l
@@ -61,8 +68,8 @@ export async function getPlayerTransactionsPage(tenant: string, userId: number, 
     ), filtered AS (
       SELECT * FROM normalized WHERE (${from}::timestamptz IS NULL OR created_at>=${from}::timestamptz)
         AND (${to}::timestamptz IS NULL OR created_at<=${to}::timestamptz)
-        AND (${type}='' OR type=${type} OR (${type}='all_deposit' AND type IN ('deposit','manual_deposit'))
-          OR (${type}='all_withdrawal' AND type IN ('withdrawal','manual_withdrawal')))
+        AND (${type}='' OR type=${type} OR (${type}='all_deposit' AND type IN ('deposit','manual_deposit','chip_deposit'))
+          OR (${type}='all_withdrawal' AND type IN ('withdrawal','manual_withdrawal','chip_withdrawal')))
         AND (${status}='' OR status=${status})
         AND (${filter.method || null}::text IS NULL OR method ILIKE ${filter.method || null})
         AND (${filter.amountMin ?? null}::numeric IS NULL OR amount>=${filter.amountMin ?? null}::numeric)

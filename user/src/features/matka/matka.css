@@ -11,7 +11,7 @@
 .gw-matka-page-header p { color: #d6d8dc; margin-top: 5px; }
 .gw-matka-nav { display: flex; align-items: stretch; flex-wrap: wrap; margin-block: 18px; border: 1px solid var(--m99-border); background: var(--m99-surface); }
 .gw-matka-nav > a { padding: 13px 18px; font-weight: 700; color: var(--m99-ink); border-right: 1px solid var(--m99-border); text-decoration: none; }
-.gw-matka-nav > a[aria-current=page] { color: white; background: var(--m99-brand); }
+.gw-matka-nav > a[aria-current=page] { color: var(--mb-on-red); background: var(--m99-brand); }
 .gw-matka-nav > div { margin-left: auto; display: flex; gap: 12px; align-items: center; padding: 8px 12px; }
 .gw-matka-nav label { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--m99-muted); }
 .m99-kit .gw-matka-nav select, .m99-kit .gw-matka-toolbar select { background: var(--m99-surface); color: var(--m99-ink); border: 1px solid var(--m99-border); padding: 8px; min-height: 36px; }

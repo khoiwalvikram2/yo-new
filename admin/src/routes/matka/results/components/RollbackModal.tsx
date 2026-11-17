@@ -23,13 +23,15 @@ interface RollbackModalProps {
   onClose: () => void
   onConfirm: (reason: string, tag?: string) => void
   result: MatkaResult | null
+  /** The market's name as the table shows it; without one the facts name the market by its id. */
+  marketName?: string
   /** The rollback is being sent: the confirm button is busy, so a second click cannot send it again. */
   busy?: boolean
   /** The row control that opened the dialog, which takes focus back when it closes. */
   restoreFocusTo?: { readonly current: HTMLElement | null }
 }
 
-export function RollbackModal({ open, onClose, onConfirm, result, busy = false, restoreFocusTo }: RollbackModalProps) {
+export function RollbackModal({ open, onClose, onConfirm, result, marketName, busy = false, restoreFocusTo }: RollbackModalProps) {
   const [reason, setReason] = useState('')
   const [tag, setTag] = useState('')
   const [confirmText, setConfirmText] = useState('')
@@ -103,7 +105,7 @@ export function RollbackModal({ open, onClose, onConfirm, result, busy = false, 
           should only be performed when a correction is needed.
         </Notice>
 
-        {result ? <DescriptionList items={rollbackFacts(result)} /> : null}
+        {result ? <DescriptionList items={rollbackFacts(result, marketName)} /> : null}
 
         <Textarea
           ref={reasonRef}

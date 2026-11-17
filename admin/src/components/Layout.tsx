@@ -1,5 +1,4 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useNotificationSubscription } from './topbar/useNotificationSubscription'
 import { useAuthStore } from '@/shared/core/authStore'
 import { ErrorBoundary } from '@/shared/core/ErrorBoundary'
@@ -9,40 +8,16 @@ import { AppShell } from '@/shell/AppShell'
 import { Notice } from '@/ui/components/Notice'
 import styles from './Layout.module.css'
 
-/** Admin-only path prefixes; agents must never see these (defense-in-depth). */
-const ADMIN_ONLY_PATH_PREFIXES = [
-  '/sports-exchange/',
-  '/sports/manual-results',
-  '/casino/management',
-  '/casino/vendors',
-  '/casino/providers',
-  '/casino/categories',
-  '/matka/list',
-  '/matka/management',
-  '/matka/create',
-  '/matka/edit/',
-  '/matka/settings',
-  '/matka/worli',
-]
-
+/* Which pages an agent may open is the router's to decide: every admin-only route is wrapped in AdminOnly
+   (app/router/index.tsx), which sends an agent to /agent. This layout used to repeat that for a list of path
+   prefixes and send the agent to /login instead. Its effect ran after AdminOnly's, still holding the old
+   path, so a signed-in agent landed on the sign-in form (with its session intact) for some pages and on
+   /agent for others; two of its prefixes could never match. */
 export function Layout() {
   useNotificationSubscription()
   const location = useLocation()
-  const navigate = useNavigate()
   const isAgent = useAuthStore((s) => s.isAgent())
   const isReadOnly = useAuthStore((s) => s.isAgentReadOnly())
-
-  // Defense-in-depth: if agent landed on an admin-only path, redirect to login
-  useEffect(() => {
-    if (!isAgent) return
-    const path = location.pathname
-    const isAdminOnly = ADMIN_ONLY_PATH_PREFIXES.some(
-      (prefix) => path === prefix || path.startsWith(prefix + '/')
-    )
-    if (isAdminOnly) {
-      navigate('/login', { replace: true })
-    }
-  }, [isAgent, location.pathname, navigate])
 
   return (
     <AppShell

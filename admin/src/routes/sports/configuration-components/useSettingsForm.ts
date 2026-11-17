@@ -9,6 +9,8 @@ export function useSettingsForm(initialValues: ConfigValues = {}) {
     clear: (keys: string[]) => { for (const key of keys) ref.current.setValue(key, undefined) },
     reset: () => ref.current.reset(),
     values: () => ref.current.values,
+    // Puts the schema's errors for these fields on them (the stake and odds limit rules).
+    validate: (fields: string[]) => ref.current.validate(fields),
   }), [])
   return { form, methods }
 }

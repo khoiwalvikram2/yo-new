@@ -1,6 +1,8 @@
 import { usersQueryResolvers } from '@src/domains/users/resolvers/queries.js'
 import { usersMutationResolvers } from '@src/domains/users/resolvers/mutations.js'
 import { usersSubscriptionResolvers } from '@src/domains/users/resolvers/subscriptions.js'
+import { userAccessField } from '@src/domains/players/services/userAccessField.js'
+import { hasPermission } from '@src/domains/common/auth.js'
 
 export const usersResolvers = {
   Query: usersQueryResolvers,
@@ -8,6 +10,9 @@ export const usersResolvers = {
   Subscription: usersSubscriptionResolvers,
   User: {
     vipDepositAccess: async (user: any, _args: unknown, ctx: any) => {
+      // The player's monthly deposits and tier: the VIP read's figures. It was never served before it was wired
+      // (domains/index.ts), so this keeps it to the callers of the VIP screens (agents derive players.vip:view).
+      if (!hasPermission(ctx?.permissions ?? [], 'players.vip', 'view')) return null
       const { db } = await import('@/db/client.js')
       const { getVipDepositContext } = await import('@shared/vip/depositAccess.js')
       try {
@@ -53,30 +58,8 @@ export const usersResolvers = {
         return null
       }
     },
-    access: (user: any) => {
-      const status = String(user.status ?? 'active').toLowerCase()
-      const isActive = status === 'active'
-      const isInactive = status === 'inactive'
-      const isSuspended = status === 'suspended'
-
-      const canLogin = isActive || isInactive
-      const canTransact = isActive
-      const bonusEligible = isActive && !!user.bonusAllowed
-
-      const domain = (visible: any, canBet: any) => ({
-        visible: isSuspended ? false : !!visible,
-        canBet: isActive ? !!canBet : false,
-      })
-
-      return {
-        canLogin,
-        canDeposit: canTransact,
-        canWithdraw: canTransact && !user.withdrawalLock,
-        bonusEligible,
-        sports: domain(user.sportsVisible, user.sportsBetAllowed),
-        casino: domain(user.casinoVisible, user.casinoBetAllowed),
-        matka: domain(user.matkaVisible, user.matkaBetAllowed),
-      }
-    }
+    // Not what serves User.access: domains/index.ts spreads commonResolvers.User after this map, so its access (the
+    // same rule) wins. Kept on the one resolver so this map cannot answer the old "an inactive player can log in" (PLA-09).
+    access: userAccessField,
   }
 }

@@ -1,7 +1,6 @@
 import {
   listVIPSchedules,
   listVIPAudit,
-  validateTiers,
   listVIPVersions
 } from '@/stores/index.js'
 import { listVipTiersDb, getVipTierDb, listVipMembersDb, getVipMemberDb, getVipMemberByUserIdDb, listVipTransactionsDb, listVipHistoryDb, getVipStatsDb } from '@src/repos/vip/vipRepo.js'
@@ -9,6 +8,7 @@ import { listVipAuditDb } from '@src/repos/vip/vipRepo.js'
 import { z } from 'zod'
 import { hasPermission } from '@src/domains/common/auth.js'
 import { resolveVipTenant } from '@src/domains/vip/vipTenantContext.js'
+import { vipTierIssues } from '@src/domains/vip/tierValidation.js'
 
 const IdInput = z.object({ id: z.string().min(1) })
 const UserIdInput = z.object({ userId: z.string().min(1) })
@@ -124,10 +124,10 @@ export const vipQueryResolvers = {
     return input.limit ? sorted.slice(0, input.limit) : sorted
   },
 
-  // The three below read the process-wide in-memory vipStore rather than the
-  // database. That is a pre-existing design issue, not a cross-tenant database read;
-  // they are gated on the permission here so they are at least not open to any
-  // authenticated admin.
+  // vipTierSchedules and vipTierVersions read the process-wide in-memory vipStore
+  // rather than the database. That is a pre-existing design issue, not a cross-tenant
+  // database read; they are gated on the permission here so they are at least not open
+  // to any authenticated admin.
   vipTierSchedules: (_: unknown, __: unknown, ctx: any) => {
     requireVipRead(ctx, 'vip.tiers')
     return listVIPSchedules()
@@ -148,9 +148,14 @@ export const vipQueryResolvers = {
     }
   },
 
-  vipTierValidate: (_: unknown, __: unknown, ctx: any) => {
+  /**
+   * The Validation card on /vip/tiers. It ran over the in-memory mock tiers, so it
+   * answered "no issues" for every tenant whatever its real tiers held (MAR-12); it now
+   * checks the caller's own tiers, the list vipTiers returns.
+   */
+  vipTierValidate: async (_: unknown, __: unknown, ctx: any) => {
     requireVipRead(ctx, 'vip.tiers')
-    return validateTiers()
+    return vipTierIssues(await listVipTiersDb(resolveVipTenant(ctx)))
   },
 
   vipTierVersions: (_: unknown, args: unknown, ctx: any) => {

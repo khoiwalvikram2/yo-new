@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
 import { MemoryRouter } from 'react-router-dom'
-import { ADMIN_DEPOSIT_REQUESTS } from '@/lib/graphql/deposits'
+import { ADMIN_DEPOSIT_REQUESTS, DEPOSIT_REQUEST_PROOF } from '@/lib/graphql/deposits'
 import type { DepositRequest } from '../DepositRequests'
 import { DepositRequestsTable, type DepositRequestsExportFilter } from './DepositRequestsTable'
 
@@ -52,8 +53,8 @@ function request(id: number | string, overrides: Partial<DepositRequest> = {}): 
     method: 'UPI',
     utr: `UTR-${key}`,
     referenceId: `REF-${key}`,
-    proofKey: `deposits/proof-${key}.png`,
-    proofUrl: `/proof-${key}.png`,
+    proofKey: 'inline',
+    hasProof: true,
     status: 'PENDING',
     reviewerId: null,
     reviewedAt: null,
@@ -157,6 +158,17 @@ describe('DepositRequestsTable', () => {
     assert.ok(screen.getByText('Server pagination'))
   })
 
+  test('labels a crypto deposit and cuts its long TxID to its ends, the whole hash on hover', () => {
+    const hash = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90'
+    renderTable({ requests: [request(3, { method: 'CRYPTO', utr: hash, referenceId: hash })] })
+
+    assert.ok(screen.getByText('Crypto (USDT)'))
+    const cut = screen.getAllByText('a1b2c3d4e5…7e8f90')
+    assert.equal(cut.length, 2, 'the UTR and the reference both hold the TxID')
+    assert.ok(cut.every((cell) => cell.getAttribute('title') === hash))
+    assert.equal(screen.queryByText('CRYPTO'), null)
+  })
+
   test('keeps a real player link only when the row has a player id and invokes the matching view action', () => {
     const onView = vi.fn()
     const withoutId = request(2, {
@@ -172,28 +184,49 @@ describe('DepositRequestsTable', () => {
     assert.equal(onView.mock.calls[0][0], withoutId)
   })
 
-  test('uses the exact proof-validity matrix and exposes previews only for real stored files', () => {
+  test("offers a proof only where the server says there is one, and reads none until a row's is pressed", async () => {
+    const screenshot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    const asked: string[] = []
+    const proof: MockedResponse = {
+      request: { query: DEPOSIT_REQUEST_PROOF },
+      variableMatcher: (variables: Record<string, unknown>) => {
+        asked.push(String(variables.id))
+        return true
+      },
+      maxUsageCount: Number.POSITIVE_INFINITY,
+      result: { data: { depositRequestProof: screenshot } },
+    }
     const rows = [
-      request('valid'),
-      request('valid-trimmed', {
-        proofKey: '  deposits/folder/proof.jpeg  ',
-        proofUrl: '  /proof.jpeg  ',
-      }),
-      request('manual', { proofKey: 'manual' }),
-      request('missing-marker', { proofKey: 'proof-missing' }),
-      request('no-url', { proofUrl: null }),
-      request('non-string-url', { proofUrl: 42 as unknown as string }),
-      request('blank-url', { proofUrl: '   ' }),
-      request('null-url', { proofUrl: 'null' }),
-      request('undefined-url', { proofUrl: 'undefined' }),
-      request('non-string-key', { proofKey: 42 as unknown as string }),
-      request('wrong-prefix', { proofKey: 'uploads/proof.png' }),
-      request('no-extension', { proofKey: 'deposits/proof' }),
-      request('empty-key', { proofKey: '' }),
+      request('inline'),
+      request('also-inline', { proofKey: 'inline', hasProof: true }),
+      // Whatever proofKey says, the server's hasProof decides: the sentinels and an old S3 key have none.
+      request('manual', { proofKey: 'manual', hasProof: false }),
+      request('missing', { proofKey: 'proof-missing', hasProof: false }),
+      request('gateway', { proofKey: 'welivepay', hasProof: false }),
+      request('s3-era', { proofKey: 'deposits/folder/proof.jpeg', hasProof: false }),
     ]
-    renderTable({ requests: rows })
+    render(
+      <MockedProvider mocks={[proof]}>
+        <MemoryRouter>
+          <DepositRequestsTable requests={rows} fetching={false} total={rows.length} exportFilter={FILTER} onView={() => {}} />
+        </MemoryRouter>
+      </MockedProvider>,
+    )
 
-    assert.equal(screen.getAllByRole('button', { name: /View payment proof: Payment proof/ }).length, 2)
+    const buttons = screen.getAllByRole('button', { name: /^View payment proof for deposit / })
+    assert.deepEqual(
+      buttons.map((button) => button.getAttribute('aria-label')),
+      ['View payment proof for deposit inline', 'View payment proof for deposit also-inline'],
+    )
+    assert.equal(screen.getAllByText('—').length, 4, 'the four rows without a proof show the no-proof dash')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.deepEqual(asked, [], 'a page of requests read no screenshot')
+
+    fireEvent.click(buttons[1])
+    const dialog = await screen.findByRole('dialog', { name: 'Payment proof - #also-inline' })
+    const image = await within(dialog).findByRole('img', { name: 'Payment proof' })
+    assert.equal(image.getAttribute('src'), screenshot)
+    assert.deepEqual(asked, ['also-inline'], 'one read, for the row pressed')
   })
 
   test('keeps old rows and actions visible during refetch, but disables export', () => {

@@ -78,8 +78,16 @@ export async function debitWalletForCasino(
   const [lockedDebit] = await executor.select().from(wallets).where(eq(wallets.id, walletRow.id))
   const wallet = lockedDebit ?? walletRow
   const balanceBefore = getBalanceForWalletType(wallet, walletType)
-  if (balanceBefore < amount) {
-    throw new Error(`Insufficient balance for casino debit (available ${balanceBefore.toFixed(2)}, required ${amount.toFixed(2)})`)
+  // A cash stake may take only free chips: cash minus the sports liability held as exposure,
+  // re-checked here under the row lock. GAP and GMAG check the same figure on a wallet read
+  // taken before this lock, so two stakes at once (or a sports bet raising exposure meanwhile)
+  // could otherwise leave cash below the exposure it must cover. Credit players (D/W chips)
+  // stake from cash too. Never more lenient than the raw cash check this replaces.
+  const available = walletType === 'cash'
+    ? Math.min(balanceBefore, Math.round(getCasinoSpendableCashBalance(wallet) * 100) / 100)
+    : balanceBefore
+  if (available < amount) {
+    throw new Error(`Insufficient balance for casino debit (available ${available.toFixed(2)}, required ${amount.toFixed(2)})`)
   }
   const balanceAfter = balanceBefore - amount
   const ledgerBefore = walletType === 'cash' ? getLedgerBalanceForWalletType(wallet, walletType) : balanceBefore

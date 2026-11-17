@@ -53,6 +53,17 @@ export const AUDIT_STATS_QUERY = gql`
   }
 `
 
+/** The Domain, Action and Resource Type values this tenant's trail holds (the filter lists). */
+export const AUDIT_FILTER_OPTIONS_QUERY = gql`
+  query AuditFilterOptions {
+    auditFilterOptions {
+      domains
+      actions
+      resourceTypes
+    }
+  }
+`
+
 export const AUDIT_EXPORT_CSV_QUERY = gql`
   query AuditExportCSV($filters: AuditListFilter) {
     auditExportCSV(filters: $filters)
@@ -89,6 +100,13 @@ export const AUDIT_ANNOTATIONS_QUERY = gql`
       createdAt
       updatedAt
     }
+  }
+`
+
+/** A finished audit export's file, as a base64 data URI (2026-11-04: exports are kept in their job row). */
+export const AUDIT_EXPORT_JOB_DOWNLOAD_QUERY = gql`
+  query AuditExportJobDownload($id: ID!) {
+    auditExportJobDownload(id: $id)
   }
 `
 

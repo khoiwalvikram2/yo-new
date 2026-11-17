@@ -145,6 +145,8 @@ function BonusEditPageContent() {
     UPDATE_BONUS_CAMPAIGN_MUTATION,
     {
       refetchQueries: [{ query: GET_BONUS_CAMPAIGN_QUERY, variables: { id } }],
+      // The form toasts the outcome itself; the global mutation toast said it a second time (MAR-06).
+      context: { skipNotification: true },
     },
   )
 

@@ -15,7 +15,9 @@ import {
   IconTicket,
 } from '@tabler/icons-react'
 import { useWorliFilters } from '@/state/matkaWorli'
+import { SELECT_WHITELABEL_HINT, SELECT_WHITELABEL_TITLE, useNeedsWhitelabelSelection } from '../whitelabelScope'
 import { useCurrency } from '@/shared/core/CurrencyContext'
+import { Notice } from '@/ui/components/Notice'
 import { RBACGuard } from '@/shared/core/RBACGuard'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { Card } from '@/ui/components/Card'
@@ -93,7 +95,9 @@ function RunningMarketsPageContent() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [quickFilter, setQuickFilter] = useState<QuickFilter | null>(null)
-  const { data, refetch, loading, error } = useQuery<WorliInstancesData>(WORLI_INSTANCES, { variables: { date, marketId, status, search, hasResult, page: 1, limit: 50, sort }, fetchPolicy: 'cache-and-network', pollInterval: autoRefresh ? 5000 : 0 })
+  // Core mode has no whitelabel to list sessions for; the server refuses, so nothing is asked or polled.
+  const needsWhitelabel = useNeedsWhitelabelSelection()
+  const { data, refetch, loading, error } = useQuery<WorliInstancesData>(WORLI_INSTANCES, { variables: { date, marketId, status, search, hasResult, page: 1, limit: 50, sort }, fetchPolicy: 'cache-and-network', pollInterval: autoRefresh && !needsWhitelabel ? 5000 : 0, skip: needsWhitelabel })
   const [rows, setRows] = useState<WorliInstance[]>([])
   const subsRef = useRef<Record<string, boolean>>({})
 
@@ -114,7 +118,8 @@ function RunningMarketsPageContent() {
         next: ({ data: payload }) => {
           const updated = payload?.worliInstanceUpdated
           if (!updated) return
-          setRows((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)))
+          // An operator action's payload carries no market name; keep the row's.
+          setRows((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated, marketName: updated.marketName ?? r.marketName } : r)))
         },
         error: () => {},
       })
@@ -145,6 +150,14 @@ function RunningMarketsPageContent() {
   const loadError = error ? loadErrorText(error.message) : null
 
   const handleRowClick = (id: string) => navigate(`/matka/worli/${id}`)
+  if (needsWhitelabel) {
+    return (
+      <Page maxWidth="wide">
+        <PageHeader eyebrow={pageEyebrow} title={PAGE_TITLE} sub={PAGE_SUB} />
+        <Notice tone="info" title={SELECT_WHITELABEL_TITLE}>{SELECT_WHITELABEL_HINT}</Notice>
+      </Page>
+    )
+  }
   return (
     <Page maxWidth="wide">
       <PageHeader eyebrow={pageEyebrow} title={PAGE_TITLE} sub={PAGE_SUB} />

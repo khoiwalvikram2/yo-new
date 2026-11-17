@@ -176,10 +176,10 @@ function serverLink() {
   }))
 }
 
-function renderPage() {
+function renderPage(path = '/sports/events') {
   return render(
     <MockedProvider link={serverLink()}>
-      <MemoryRouter initialEntries={['/sports/events']}>
+      <MemoryRouter initialEntries={[path]}>
         <PageEyebrowProvider value="Trading">
           <Routes>
             <Route path="/sports/events" element={<EventsPage />} />
@@ -297,6 +297,13 @@ describe('EventsPage', () => {
     assert.equal(screen.getByRole('button', { name: 'Filters, 1 applied' }).getAttribute('aria-expanded'), 'false')
   })
 
+  test('a link with ?search= (the global search "See all Sports") opens the list already searched', async () => {
+    renderPage('/sports/events?search=epl')
+    await waitFor(() => assert.deepEqual(rowNames(), ['Man City vs Arsenal']))
+    assert.equal((screen.getByRole('searchbox', { name: 'Search events' }) as HTMLInputElement).value, 'epl')
+    assert.equal(calls().length, 1, 'the search runs here, over the one RunningEvents answer')
+  })
+
   test('the quick filters apply one at a time and a second press clears them', async () => {
     await renderLoaded()
     fireEvent.click(quick('Live'))
@@ -336,7 +343,8 @@ describe('EventsPage', () => {
     await waitFor(() => assert.deepEqual(lastSent(), { sport: 'Football' }))
     await waitFor(() => assert.equal(rowNames().length, 4))
 
-    choose('Event Status', 'Suspended')
+    // Finished is a status the server reports (Closed and Suspended were offered and matched nothing).
+    choose('Event Status', 'Finished')
     fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-10-07T17:30' } })
     fireEvent.change(screen.getByLabelText('End date'), { target: { value: '2026-10-08T17:30' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
@@ -347,11 +355,11 @@ describe('EventsPage', () => {
         to: '2026-10-08T12:00:00.000Z',
       }),
     )
-    await waitFor(() => assert.deepEqual(rowNames(), ['Alcaraz vs Sinner']))
+    await waitFor(() => assert.deepEqual(rowNames(), ['Lakers vs Celtics']))
     assert.ok(screen.getByRole('button', { name: 'Filters, 3 applied' }))
     assert.ok(within(panel).getByText('3 applied'))
 
-    choose('Competition', 'NBA - National Basketball')
+    choose('Competition', 'Wimbledon')
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await waitFor(() => assert.ok(screen.getByText('No events found')))
 
@@ -416,13 +424,20 @@ describe('EventsPage', () => {
   test('the panel reopens on the filters in force', async () => {
     await renderLoaded()
     openFilters()
-    choose('Competition', 'Wimbledon Championships')
+    // The competitions offered are those of the loaded events.
+    fireEvent.keyDown(combobox('Competition'), { key: 'ArrowDown' })
+    assert.deepEqual(
+      within(screen.getByRole('listbox', { name: 'Competition' })).getAllByRole('option').map((option) => option.textContent),
+      ['EPL', 'IPL', 'NBA', 'Wimbledon'],
+    )
+    fireEvent.keyDown(combobox('Competition'), { key: 'Escape' })
+    choose('Competition', 'Wimbledon')
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     assert.deepEqual(rowNames(), ['Alcaraz vs Sinner'])
     fireEvent.click(screen.getByRole('button', { name: 'Filters, 1 applied' }))
     assert.equal(screen.queryByRole('region', { name: 'Advanced Filters' }), null)
     fireEvent.click(screen.getByRole('button', { name: 'Filters, 1 applied' }))
-    assert.equal(combobox('Competition').value, 'Wimbledon Championships')
+    assert.equal(combobox('Competition').value, 'Wimbledon')
   })
 
   test('switches to the cards and back, keeping the choice in the saved view', async () => {

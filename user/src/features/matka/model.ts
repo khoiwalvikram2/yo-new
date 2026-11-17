@@ -52,6 +52,37 @@ export function asKitMarket(market: MatkaMarket, history: MatkaResult[] = [], op
   }
 }
 export type KitMarket = ReturnType<typeof asKitMarket>
+
+/** Where a player's Matka favourites are kept on this device: per whitelabel and account ("anonymous" for guests).
+ *  The Matka page writes it; the page and the home strip read it to put favourites first. */
+export function matkaFavoritesKey(tenant: string, authenticated: boolean, userId?: string | null) {
+  return `gw:matka:favorites:${tenant}:${authenticated ? userId || 'pending' : 'anonymous'}`
+}
+export function readMatkaFavorites(key: string): string[] {
+  try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value.filter(id => typeof id === 'string') : [] } catch { return [] }
+}
+
+/** Minutes after midnight, in the market's own timezone, of a session's result time; null when the session is off. */
+function sessionMinutes(market: MatkaMarket, side: MatkaSession) {
+  const session = market.sessions.find(item => item.side === side)
+  const time = session?.enabled ? new Date(session.resultAt) : null
+  if (!time || !Number.isFinite(time.getTime())) return null
+  const parts = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: market.timezone }).formatToParts(time)
+  const value = (type: string) => Number(parts.find(part => part.type === type)?.value)
+  return value('hour') * 60 + value('minute')
+}
+
+/**
+ * The directory's order (owner 2026-11-02): the player's favourites first, then by game time, the Open result time of
+ * day shown on each card (morning to night; a market without an Open session by its Close time). Ties keep the
+ * catalogue's order.
+ */
+export function orderMarketsForBoard<T extends MatkaMarket>(markets: T[], favorites: string[]): T[] {
+  const time = (market: T) => sessionMinutes(market, 'OPEN') ?? sessionMinutes(market, 'CLOSE') ?? 24 * 60
+  return markets.map((market, index) => ({ market, index, favorite: favorites.includes(market.id), time: time(market) }))
+    .sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.time - b.time || a.index - b.index)
+    .map(item => item.market)
+}
 export function asKitEntry(entry: MatkaBet, timezone: string) {
   return { ...entry, game: entry.bidType.replaceAll('_', ' '), number: entry.selection.replace('-', ' / '), amount: entry.amount,
     session: entry.session === 'OPEN' ? 'Open' : 'Close', date: entry.runDate,

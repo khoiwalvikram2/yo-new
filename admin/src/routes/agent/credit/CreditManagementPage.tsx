@@ -1,100 +1,50 @@
 import { useState, type ReactNode } from 'react'
-import { useQuery } from '@apollo/client'
-import {
-  IconArrowLeft,
-  IconArrowsExchange,
-  IconChartPie,
-  IconCircleX,
-  IconHistory,
-} from '@tabler/icons-react'
+import { IconArrowLeft, IconCircleX, IconHistory, IconSitemap } from '@tabler/icons-react'
 import { useNavigate } from 'react-router-dom'
-import {
-  MY_AGENT_CREDIT_HISTORY_QUERY,
-  MY_AGENT_CREDIT_QUERY,
-  MY_AGENT_SETTLEMENTS_QUERY,
-} from '@/lib/graphql/agentCredit'
+import { ChipDownlineTable, ChipFigures, ChipStatementTable, chipErrorMessage, useMyChipAccount } from '@/modules/chips'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { useAuthStore } from '@/shared/core/authStore'
 import { Button } from '@/ui/components/Button'
+import { Card } from '@/ui/components/Card'
 import { Notice } from '@/ui/components/Notice'
 import { Page } from '@/ui/components/Page'
 import { PageHeader } from '@/ui/components/PageHeader'
 import { Tabs, type TabItem } from '@/ui/components/Tabs'
 import { strokeFor } from '@/ui/components/icons'
 import { tabId, tabPanelId } from '@/ui/components/tabIds'
-import {
-  AGENT_CREDIT_PAGE_SIZE,
-  AGENT_CREDIT_TABS,
-  agentCreditAccess,
-  type AgentCredit,
-  type AgentCreditTab,
-  type AgentCreditTransaction,
-  type AgentSettlementSummary,
-} from './agentCreditManagementModel'
-import { AgentCreditHistoryPanel } from './components/AgentCreditHistoryPanel'
-import { AgentCreditOverviewPanel } from './components/AgentCreditOverviewPanel'
-import { AgentCreditSettlementsPanel } from './components/AgentCreditSettlementsPanel'
+import { AGENT_CHIPS_TABS, agentChipsAccess, type AgentChipsTab } from './agentCreditManagementModel'
 import styles from './CreditManagementPage.module.css'
 
-const TAB_ID_PREFIX = 'agent-credit'
+const TAB_ID_PREFIX = 'agent-chips'
 
-const TAB_ICONS: Record<AgentCreditTab, ReactNode> = {
-  overview: <IconChartPie size={15} stroke={strokeFor(15)} />,
-  history: <IconHistory size={15} stroke={strokeFor(15)} />,
-  settlements: <IconArrowsExchange size={15} stroke={strokeFor(15)} />,
+const TAB_ICONS: Record<AgentChipsTab, ReactNode> = {
+  downline: <IconSitemap size={15} stroke={strokeFor(15)} />,
+  statement: <IconHistory size={15} stroke={strokeFor(15)} />,
 }
 
-const TAB_ITEMS: readonly TabItem<AgentCreditTab>[] = AGENT_CREDIT_TABS.map((tab) => ({
+const TAB_ITEMS: readonly TabItem<AgentChipsTab>[] = AGENT_CHIPS_TABS.map((tab) => ({
   ...tab,
   icon: TAB_ICONS[tab.value],
 }))
 
-interface CreditQueryData {
-  myAgentCredit?: AgentCredit | null
-}
-
-interface HistoryQueryData {
-  myAgentCreditHistory?: AgentCreditTransaction[] | null
-}
-
-interface SettlementsQueryData {
-  myAgentSettlements?: AgentSettlementSummary | null
-}
-
+/**
+ * /agent/credit: a CREDIT agent's Chips page (spec 2026-11-02 §8). Its five figures from myChipAccount, its
+ * direct downline (sub-agents and its own players) with D / W / CR, and its chip statement. A move made
+ * here refetches the figures on screen, the topbar wallet included.
+ */
 export default function AgentCreditManagementPage() {
   const navigate = useNavigate()
   const pageEyebrow = usePageEyebrow()
   const agent = useAuthStore((state) => state.agent)
-  const access = agentCreditAccess(agent)
-  const [activeTab, setActiveTab] = useState<AgentCreditTab>('overview')
-  const [historyPage, setHistoryPage] = useState(1)
-  const [settlementsPage, setSettlementsPage] = useState(1)
-
-  const { data: creditData, loading: creditLoading } = useQuery<CreditQueryData>(MY_AGENT_CREDIT_QUERY, {
-    fetchPolicy: 'cache-and-network',
-  })
-  const { data: historyData, loading: historyLoading } = useQuery<HistoryQueryData>(MY_AGENT_CREDIT_HISTORY_QUERY, {
-    variables: {
-      limit: AGENT_CREDIT_PAGE_SIZE,
-      offset: (historyPage - 1) * AGENT_CREDIT_PAGE_SIZE,
-    },
-    skip: activeTab !== 'history',
-    fetchPolicy: 'cache-and-network',
-  })
-  const { data: settlementsData, loading: settlementsLoading } = useQuery<SettlementsQueryData>(MY_AGENT_SETTLEMENTS_QUERY, {
-    variables: {
-      limit: AGENT_CREDIT_PAGE_SIZE,
-      offset: (settlementsPage - 1) * AGENT_CREDIT_PAGE_SIZE,
-    },
-    skip: activeTab !== 'settlements',
-    fetchPolicy: 'cache-and-network',
-  })
+  const access = agentChipsAccess(agent)
+  const [activeTab, setActiveTab] = useState<AgentChipsTab>('downline')
+  const { account, loading, error, refetch } = useMyChipAccount({ skip: access !== 'allowed' })
 
   const header = (
     <PageHeader
       eyebrow={pageEyebrow}
-      title="Credit Management"
-      sub="Manage your agent credit and view history"
+      title="Chips"
+      sub="Your balance, your downline and every chip movement"
       actions={access === 'allowed' ? (
         <Button icon={<IconArrowLeft size={16} stroke={strokeFor(16)} />} onClick={() => navigate(-1)}>
           Back
@@ -103,7 +53,7 @@ export default function AgentCreditManagementPage() {
     />
   )
 
-  if (access === 'unauthenticated') {
+  if (access === 'unauthenticated' || !agent) {
     return (
       <Page>
         {header}
@@ -131,18 +81,35 @@ export default function AgentCreditManagementPage() {
     )
   }
 
-  const transactions = historyData?.myAgentCreditHistory || []
+  const figures = error && !account ? (
+    <Notice
+      className={styles.notice}
+      tone="error"
+      title="Your chips could not be loaded"
+      action={<Button size="sm" onClick={() => void refetch().catch(() => { /* the notice stays with the read's error */ })}>Try again</Button>}
+    >
+      {chipErrorMessage(error, 'Try again in a moment.')}
+    </Notice>
+  ) : !loading && !account ? (
+    <Notice className={styles.notice} tone="warn" title="No chips account">
+      Chips appear here once your upline deposits to this account.
+    </Notice>
+  ) : (
+    <ChipFigures account={account} loading={loading} label="My chips" self />
+  )
 
   return (
     <Page maxWidth="wide">
       {header}
       <div className={styles.content}>
+        {figures}
+
         <div className={styles.tabs}>
           <Tabs
             value={activeTab}
             items={TAB_ITEMS}
             onChange={setActiveTab}
-            label="Agent credit management tabs"
+            label="Chips page sections"
             idPrefix={TAB_ID_PREFIX}
           />
         </div>
@@ -153,27 +120,15 @@ export default function AgentCreditManagementPage() {
           id={tabPanelId(TAB_ID_PREFIX, activeTab)}
           aria-labelledby={tabId(TAB_ID_PREFIX, activeTab)}
         >
-          {activeTab === 'overview' ? (
-            <AgentCreditOverviewPanel credit={creditData?.myAgentCredit} loading={creditLoading} />
-          ) : null}
-          {activeTab === 'history' ? (
-            <AgentCreditHistoryPanel
-              transactions={transactions}
-              loading={historyLoading}
-              page={historyPage}
-              pageSize={AGENT_CREDIT_PAGE_SIZE}
-              onPageChange={setHistoryPage}
-            />
-          ) : null}
-          {activeTab === 'settlements' ? (
-            <AgentCreditSettlementsPanel
-              settlements={settlementsData?.myAgentSettlements}
-              loading={settlementsLoading}
-              page={settlementsPage}
-              pageSize={AGENT_CREDIT_PAGE_SIZE}
-              onPageChange={setSettlementsPage}
-            />
-          ) : null}
+          {activeTab === 'downline' ? (
+            <Card title="My downline" sub="Your sub-agents and players. Deposit, withdraw or set a credit reference; an agent opens its own downline.">
+              <ChipDownlineTable label="My downline" />
+            </Card>
+          ) : (
+            <Card title="Chip statement" sub="Every deposit, withdrawal and credit reference change on your account" body="table">
+              <ChipStatementTable accountType="AGENT" accountId={agent.id} currency={account?.currency} label="My chip statement" />
+            </Card>
+          )}
         </div>
       </div>
     </Page>

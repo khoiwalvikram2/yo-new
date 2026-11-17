@@ -17,7 +17,8 @@ type NotificationStats {
 }
 
 extend type Query {
-  myNotifications(category: String, limit: Int, offset: Int): [Notification!]!
+  # unreadOnly: the bells' list. Without it an unread notification older than the newest few read ones never shows.
+  myNotifications(category: String, limit: Int, offset: Int, unreadOnly: Boolean): [Notification!]!
   notificationStats: NotificationStats!
 }
 

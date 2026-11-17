@@ -265,6 +265,18 @@ export function resolveBackfillRange(draft: BackfillRangeDraft): BackfillRange |
     : { dateFrom: draft.to, dateTo: draft.from }
 }
 
+/** The range form's error when the server refuses the backfill: its own reason, or a generic one. */
+export function backfillRefusalMessage(refusal: unknown): string {
+  const message = (refusal as { message?: unknown } | null | undefined)?.message
+  return typeof message === 'string' && message.trim() ? message.trim() : 'The backfill could not be queued. Please try again.'
+}
+
+/** Which book the range form backfills: the first missing row's (there is no tenant picker), said so. */
+export function backfillTargetText(row: Pick<MissingRow, 'tenant' | 'whitelabelId' | 'currency'>): string {
+  const book = row.whitelabelId && row.whitelabelId !== row.tenant ? `${row.tenant} / ${row.whitelabelId}` : row.tenant
+  return `Backfills ${book} (${row.currency}), the first tenant listed below; at most 31 days at a time.`
+}
+
 /* ---------- runs, events and pg-boss ---------- */
 
 export function dedupeNodesById<T extends { id: string }>(nodes: T[]): T[] {

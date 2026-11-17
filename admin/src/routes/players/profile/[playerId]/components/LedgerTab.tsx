@@ -101,6 +101,7 @@ const CATEGORY_SELECT_OPTIONS = [
       { label: 'Deposit', value: 'deposit' },
       { label: 'Deposit Pending', value: 'deposit_pending' },
       { label: 'Manual Deposit', value: 'manual_deposit' },
+      { label: 'Crypto Deposit Bonus', value: 'crypto_deposit_bonus' },
     ],
   },
   {

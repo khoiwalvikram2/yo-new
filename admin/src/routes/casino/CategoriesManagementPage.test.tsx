@@ -370,6 +370,23 @@ describe('/casino/categories', () => {
     await waitFor(() => assert.equal(feedback.toast.mock.calls.at(-1)?.[0].title, 'Category Updated'))
   })
 
+  test('clearing the subtitle sends null, so the update clears it', async () => {
+    // The emptied field used to be left out of the patch: "Category Updated", and the old subtitle stayed.
+    renderPage()
+    await screen.findByText('VIP Live')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit VIP Live' }))
+    assert.ok(await screen.findByRole('heading', { name: 'Edit Category - VIP Live' }))
+    fireEvent.change(screen.getByPlaceholderText('Optional subtitle (max 200 chars)'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => assert.ok(calls('UpdateCasinoCategory').some((call) => call.variables.id === 'vip')))
+    const call = calls('UpdateCasinoCategory').find((entry) => entry.variables.id === 'vip')
+    assert.deepEqual(call?.variables, {
+      id: 'vip',
+      input: { mainCategory: 'LIVE_CASINO', name: 'VIP Live', slug: 'vip-live', subtitle: null, isActive: true, type: 'FEATURED' },
+    })
+  })
+
   test('renders the list empty state', async () => {
     server.categories = []
     renderPage()

@@ -18,14 +18,32 @@ const base = z.object({
   casinoVisible: z.boolean(), casinoBetAllowed: z.boolean(), matkaVisible: z.boolean(), matkaBetAllowed: z.boolean(),
   dailyStakeLimit: amount, weeklyStakeLimit: amount, exposureCapOverride: amount, cooldownSeconds: amount,
   maxBetSports: amount, maxBetCasino: amount, maxBetMatka: amount, _phoneError: z.string(),
-  // Admin credit players only (AGENT_CREDIT / WHITELABEL_CREDIT). Blank is sent as 0: credit can be given later.
+  // Credit players only (AGENT_CREDIT / WHITELABEL_CREDIT, spec 2026-11-02 §4.4). creditLimit is the input's name
+  // for the credit reference: a reference only, which moves no chips. Blank is sent as 0: it can be set later.
   creditLimit: amount,
+  // Chips deposited to the new player from its parent. Blank or 0: none. Offered only when the creator may give them
+  // (givesOpeningChips).
+  openingChips: amount,
+  // The parent's free chips, read by the form; null while unknown (the server checks it then).
+  _chipsFree: z.number().nullable(),
 })
 export type PlayerCreateValues = z.infer<typeof base>
 export function isCreditPlayer(type: string) { return type === 'AGENT_CREDIT' || type === 'WHITELABEL_CREDIT' }
 export function isAgentPlayer(type: string) { return ['AGENT_CREDIT', 'SHARING_AGENT_PLAYER', 'COMMISSION_AGENT_PLAYER'].includes(type) }
 export function playerTypeForScheme(scheme: string) {
   return scheme === 'CREDIT' ? 'AGENT_CREDIT' : scheme === 'SHARING' ? 'SHARING_AGENT_PLAYER' : scheme === 'COMMISSION' ? 'COMMISSION_AGENT_PLAYER' : 'REGULAR'
+}
+/**
+ * Whether the creator may give the new credit player opening chips. They come only from its direct parent (spec
+ * 2026-11-02 decision 3), at creation too: a CREDIT agent gives them to its own AGENT_CREDIT player; an admin gives a
+ * WHITELABEL_CREDIT player chips from the whitelabel pool and, once its CREDIT agent is chosen, an AGENT_CREDIT player
+ * chips from that agent's own free chips (owner decision 2026-11-04). In the admin form this also decides when the
+ * Credit Reference and Opening Chips fields show. A player an agent creates for a sub-agent gets its chips from that
+ * sub-agent after the account exists; the server refuses them from anyone else.
+ */
+export function givesOpeningChips(value: Pick<PlayerCreateValues, 'playerType' | 'targetAgentId' | 'agentId'>, agentMode: boolean): boolean {
+  if (agentMode) return value.playerType === 'AGENT_CREDIT' && value.targetAgentId === 'self'
+  return value.playerType === 'WHITELABEL_CREDIT' || (value.playerType === 'AGENT_CREDIT' && Boolean(value.agentId))
 }
 export function playerCreateSchema(agentMode: boolean) {
   return base.superRefine((value, context) => {
@@ -36,20 +54,32 @@ export function playerCreateSchema(agentMode: boolean) {
     else if (!new RegExp(agentMode ? '^[0-9]{10}$' : '^[0-9]{6,15}$').test(value.phone)) issue('phone', agentMode ? 'Please enter a valid 10-digit phone number' : 'Please enter a valid phone number')
     else if (value._phoneError) issue('phone', value._phoneError)
     if (value.email && !z.email().safeParse(value.email).success) issue('email', 'Please enter a valid email')
+    // Every player needs a password of at least 8 characters, surrounding spaces not counted: the server refuses
+    // anything else. The admin form called it optional and the agent form accepted 6, so both were refused only
+    // after the last step.
+    const password = value.password.trim()
+    if (!password) issue('password', 'Password is required')
+    else if (password.length < 8) issue('password', 'Password must be at least 8 characters')
     if (agentMode) {
       if (!value.username) issue('username', 'Username is required')
       else if (value.username.length < 3) issue('username', 'Username must be at least 3 characters')
       else if (value.username.length > 50) issue('username', 'Username must not exceed 50 characters')
       else if (!/^[a-zA-Z0-9_]+$/.test(value.username)) issue('username', 'Username can only contain letters, numbers, and underscores')
-      if (!value.password) issue('password', 'Password is required')
-      else if (value.password.length < 6) issue('password', 'Password must be at least 6 characters')
     } else {
-      // The old admin validator permits an omitted password, but requires eight
-      // characters when supplied. Preserve that rule, not its contradictory help.
-      if (value.password.trim() && value.password.trim().length < 8) issue('password', 'Password must be at least 8 characters')
       if (isAgentPlayer(value.playerType) && !value.agentId) issue('agentId', 'Please select an agent')
     }
+    // The opening deposit cannot take more than the parent's free chips (spec 2026-11-02 decision 4), when the
+    // creator gives them at all (givesOpeningChips).
+    if (givesOpeningChips(value, agentMode) && value.openingChips != null && value._chipsFree != null && value.openingChips > value._chipsFree) {
+      issue('openingChips', `Not enough chips: ${Math.max(0, value._chipsFree).toFixed(2)} free`)
+    }
   })
+}
+
+/** Opening chips go on the input only when there are some (spec 2026-11-02 §4.4: openingChips > 0). */
+function openingChipsInput(value: PlayerCreateValues): { openingChips?: number } {
+  const chips = value.openingChips
+  return chips != null && Number.isFinite(chips) && chips > 0 ? { openingChips: chips } : {}
 }
 export function playerCreateValues(tenant?: string | null, scheme?: string, currency = 'INR'): PlayerCreateValues {
   const agentMode = scheme !== undefined
@@ -59,7 +89,7 @@ export function playerCreateValues(tenant?: string | null, scheme?: string, curr
     requirePasswordReset: false, bonusAllowed: scheme !== 'CREDIT', sportsVisible: true, sportsBetAllowed: true,
     casinoVisible: true, casinoBetAllowed: true, matkaVisible: false, matkaBetAllowed: false,
     ...Object.fromEntries(PLAYER_LIMITS.map(({ key }) => [key, agentMode ? undefined : null])),
-    exposureCapOverride: undefined, cooldownSeconds: undefined, _phoneError: '', creditLimit: null }
+    exposureCapOverride: undefined, cooldownSeconds: undefined, _phoneError: '', creditLimit: null, openingChips: null, _chipsFree: null }
 }
 export function phoneAvailabilityValue(phone: string, dialCode?: string) {
   const digits = phone.replace(/\D/g, '')
@@ -78,17 +108,24 @@ export function adminPlayerInput(value: PlayerCreateValues, baseCurrency: string
     matkaVisible: value.matkaVisible, matkaBetAllowed: value.matkaBetAllowed, initialBalance: 0, currency: credit ? baseCurrency || 'INR' : value.currency || baseCurrency || 'INR',
     dailyStakeLimit: value.dailyStakeLimit ?? null, weeklyStakeLimit: value.weeklyStakeLimit ?? null, exposureCapOverride: value.exposureCapOverride ?? null,
     cooldownSeconds: value.cooldownSeconds ?? null, maxBetSports: value.maxBetSports ?? null, maxBetCasino: value.maxBetCasino ?? null, maxBetMatka: value.maxBetMatka ?? null,
-    riskType: value.riskType ? value.riskType.toUpperCase() : undefined, vipTierId: credit ? undefined : value.vipTier || undefined }
+    riskType: value.riskType ? value.riskType.toUpperCase() : undefined, vipTierId: credit ? undefined : value.vipTier || undefined,
+    // From the whitelabel pool for a whitelabel credit player, from the chosen agent's chips for an agent credit player.
+    ...(givesOpeningChips(value, false) ? openingChipsInput(value) : {}) }
 }
 /**
  * createPlayerForAgent input. No playerType: the API derives it (and the betting flags) from the owning
  * agent, and ignores a type sent by an agent. The owner is the agent itself or one of its ACTIVE sub-agents.
+ * A CREDIT agent's own player gets the credit reference and opening chips it was given; a sub-agent's player
+ * starts at zero, because only its direct parent (the sub-agent) moves its chips (spec 2026-11-02 decision 3,
+ * givesOpeningChips).
  */
 export function agentPlayerInput(value: PlayerCreateValues, creator: { id: string; schemeType: string }, baseCurrency: string) {
   const credit = creator.schemeType === 'CREDIT'
+  const own = value.targetAgentId === 'self'
   return { username: value.username, password: value.password, name: value.name, phone: value.phone, email: value.email || undefined,
-    agentId: value.targetAgentId === 'self' ? creator.id : value.targetAgentId,
-    creditLimit: credit ? 0 : undefined, initialBalance: 0, currency: credit || creator.schemeType === 'SHARING' ? baseCurrency : value.currency || baseCurrency,
+    agentId: own ? creator.id : value.targetAgentId,
+    creditLimit: credit ? own ? value.creditLimit ?? 0 : 0 : undefined, initialBalance: 0, currency: credit || creator.schemeType === 'SHARING' ? baseCurrency : value.currency || baseCurrency,
     bonusAllowed: ['SHARING', 'COMMISSION'].includes(creator.schemeType) ? value.bonusAllowed : false,
-    maxBetSports: value.maxBetSports, maxBetCasino: value.maxBetCasino, maxBetMatka: value.maxBetMatka, dailyStakeLimit: value.dailyStakeLimit }
+    maxBetSports: value.maxBetSports, maxBetCasino: value.maxBetCasino, maxBetMatka: value.maxBetMatka, dailyStakeLimit: value.dailyStakeLimit,
+    ...(credit && own ? openingChipsInput(value) : {}) }
 }

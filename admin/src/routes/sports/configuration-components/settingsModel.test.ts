@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { tabsFor,tabFields,valuesForVisitedTabs,hydrateSettings } from './settingsModel'
+import { tabsFor,tabFields,valuesForVisitedTabs,hydrateSettings,limitErrors,configSchema,defaultStakeLimitsError,tabOfField } from './settingsModel'
+test('stake and odds limits that contradict each other are refused on the field to change',()=>{
+  assert.deepEqual(limitErrors({exchangeMinStake:5000,exchangeMaxStake:100}),{exchangeMinStake:'Exchange Min Stake cannot exceed the Max Stake (100)'})
+  assert.deepEqual(limitErrors({exchangeMinOdds:50,exchangeMaxOdds:1.5}),{exchangeMinOdds:'Min Odds cannot exceed the Max Odds (1.5)'})
+  assert.deepEqual(limitErrors({exchangeMinOdds:0,exchangeMaxOdds:1}),{exchangeMinOdds:'Min Odds must be at least 1.01',exchangeMaxOdds:'Max Odds must be at least 1.01'})
+  assert.deepEqual(limitErrors({exchangeMinStake:100,exchangeMaxStake:100,fancyMinStake:5,fancyMaxStake:null,exchangeMinOdds:1.01,exchangeMaxOdds:1000}),{})
+  const parsed=configSchema.safeParse({bookmakerMinStake:20,bookmakerMaxStake:10})
+  assert.equal(parsed.success,false);assert.deepEqual(parsed.error?.issues.map(issue=>issue.path),[['bookmakerMinStake']])
+  assert.equal(tabOfField('exchangeMinOdds'),'odds');assert.equal(tabOfField('fancyMinStake'),'stake')
+  assert.equal(defaultStakeLimitsError({exchangeMin:10,exchangeMax:100000,fancyMin:500,fancyMax:50}),'Fancy Min Stake cannot exceed the Fancy Max Stake (50)')
+  assert.equal(defaultStakeLimitsError({exchangeMin:10,exchangeMax:100000}),null)
+})
 test('all field variants and unvisited omission match the named legacy controls',()=>{
   assert.equal(tabsFor('sport').flatMap(t=>tabFields[t]).length+2,35)
   assert.equal(tabsFor('league').flatMap(t=>tabFields[t]).length,29)

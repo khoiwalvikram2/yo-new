@@ -4,7 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import ConfettiBurst from "../animations/ConfettiBurst";
 import { generateEventId } from "@/lib/sportsHelpers";
 import { normalizeSportKey } from "@/components/sports/useSportsEventsData";
-import { istClock, sportIcon, sportTitle, useDayLabel } from "@/components/nova/exchange-home/exchangeShared";
+import { istClock, sportIcon, sportIconClass, sportTitle, useDayLabel } from "@/components/nova/exchange-home/exchangeShared";
+import { useSportsIconStyle } from "@/hooks/useAppSettings";
 import { LivePulse } from "@/components/nova/exchange-home/LivePulse";
 import type { EventDetails } from "./types";
 import "./nova-sports-event.css";
@@ -46,7 +47,8 @@ export default function EventHeader({
   const hasStart = !isNaN(start.getTime());
   const [hh, mm, ss] = (timeRemaining || "00:00:00").split(":");
   const sport = normalizeSportKey(String(event.sportName ?? ""));
-  const icon = sport ? sportIcon(sport) : undefined;
+  const iconStyle = useSportsIconStyle();
+  const icon = sport ? sportIcon(sport, iconStyle) : undefined;
   const competition = [sport ? sportTitle(sport) : "", event.league].filter(Boolean).join(" · ");
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export default function EventHeader({
       </div>
 
       <div className="nova-ev-head-sub">
-        {icon && <img className="nova-ev-sport" src={icon} alt="" />}
+        {icon && <span className="nova-ev-sport-tile"><img className={sportIconClass(sport ?? "", iconStyle, "nova-ev-sport")} src={icon} alt="" /></span>}
         {competition && <span className="nova-ev-competition" title={competition} data-page-meta="">{competition}</span>}
         <div className="nova-ev-switch" ref={switchRef}>
           <button type="button" aria-expanded={switchOpen} aria-controls="nova-ev-switch-menu" onClick={() => setSwitchOpen((open) => !open)}>
@@ -122,7 +124,7 @@ export default function EventHeader({
           )}
         </div>
         {status === "upcoming" && (
-          <span className="nova-ev-countdown"><span>Starts in</span><strong>{hh}:{mm}:{ss}</strong></span>
+          <span className="nova-ev-countdown"><span>Starts in</span><strong><b>{hh}</b>:<b>{mm}</b>:<b>{ss}</b></strong></span>
         )}
         {hasStart && (
           <span className="nova-ev-when"><Clock aria-hidden="true" />{dayLabel(start)}, {istClock(start)}</span>

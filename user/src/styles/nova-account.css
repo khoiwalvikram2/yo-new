@@ -5,12 +5,12 @@
    white hairline fields and status colours dark enough for white panels. */
 
 html .nova-shell-matchbook {
-  --brand-primary-dark: #A01516;
-  --brand-primary-shadow-light: rgb(197 26 27 / 18%);
+  --brand-primary-dark: var(--mb-brand-press);
+  --brand-primary-shadow-light: color-mix(in srgb, var(--mb-red) 18%, transparent);
 }
 .nova-acct {
-  --acct-red: #C51A1B;
-  --acct-red-hover: #A81516;
+  --acct-red: var(--mb-red);
+  --acct-red-hover: var(--mb-brand-deep);
   --acct-ink: var(--mb-ink);
   --acct-text: var(--mb-text);
   --acct-muted: var(--mb-muted);
@@ -30,7 +30,7 @@ html .nova-shell-matchbook {
 /* ------------------------------------------------------------ page header */
 /* StakePageHeader: the dark matchbook bar with back, title and help. */
 .nova-shell-matchbook .user-account-header { margin: 0 0 12px; padding: 0; border: 0; }
-.nova-shell-matchbook .user-account-header-row { display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 8px 12px 8px 8px; color: #FFFFFF; background: var(--acct-bar, #43444A); }
+.nova-shell-matchbook .user-account-header-row { display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 8px 12px 8px 8px; color: #FFFFFF; background: var(--acct-bar, var(--mb-chrome-2)); }
 .nova-shell-matchbook .user-account-back {
   display: grid;
   flex: none;
@@ -62,7 +62,7 @@ html .nova-shell-matchbook {
 
 /* PageHeader (Settings): the same bar, with the page icon in a tile. */
 .nova-shell-matchbook .user-page-header { gap: 10px; margin: 0 0 12px; }
-.nova-shell-matchbook .user-page-heading { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px; color: #FFFFFF; background: var(--acct-bar, #43444A); }
+.nova-shell-matchbook .user-page-heading { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px; color: #FFFFFF; background: var(--acct-bar, var(--mb-chrome-2)); }
 .nova-shell-matchbook .user-page-icon { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: rgb(255 255 255 / 10%); }
 .nova-shell-matchbook .user-page-icon svg { width: 20px; height: 20px; }
 .nova-shell-matchbook .user-page-title { color: #FFFFFF; font: 700 24px/1.15 var(--font-inter); }
@@ -104,10 +104,10 @@ html .nova-shell-matchbook {
 .nova-seg.is-full .nova-seg-tab { flex: 1 1 0; min-width: 0; }
 .nova-seg-tab:last-child { border-right: 0; }
 .nova-seg-tab:hover { background: var(--mb-soft); }
-.nova-seg-tab.is-active { color: #FFFFFF; background: #C51A1B; }
+.nova-seg-tab.is-active { color: var(--mb-on-red); background: var(--mb-red); }
 .nova-seg-icon { display: inline-flex; color: var(--mb-faint); }
 .nova-seg-icon svg { width: 17px; height: 17px; }
-.nova-seg-tab.is-active .nova-seg-icon { color: #FFFFFF; }
+.nova-seg-tab.is-active .nova-seg-icon { color: var(--mb-on-red); }
 .nova-seg-tab:focus-visible { outline: 2px solid var(--mb-focus); outline-offset: -2px; }
 /* Phones: three icon tabs (Referral, Withdrawal) must fit 390px without touching the edges. */
 @media (max-width: 480px) {
@@ -170,9 +170,9 @@ html .nova-shell-matchbook {
 /* 404 and route error: one centred card with a charcoal code tile and red/outline actions. Works inside the
    shell and on its own (the router's error screen can render without the layout). */
 .nova-acct-error { display: grid; min-height: 56vh; place-items: center; padding: 24px 0; }
-.nova-acct-error-card { display: grid; justify-items: center; gap: 10px; width: min(520px, 100%); padding: 34px 28px 30px; border: 1px solid var(--mb-line); border-top: 4px solid #C51A1B; background: var(--mb-panel); text-align: center; }
+.nova-acct-error-card { display: grid; justify-items: center; gap: 10px; width: min(520px, 100%); padding: 34px 28px 30px; border: 1px solid var(--mb-line); border-top: 4px solid var(--mb-red); background: var(--mb-panel); text-align: center; }
 .nova-acct-error-code { display: grid; min-width: 96px; height: 64px; place-items: center; padding: 0 14px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar-2); font-family: var(--font-inter); font-size: 36px; font-weight: 700; letter-spacing: .04em; }
-.nova-acct-error-code.is-alert { min-width: 64px; background: #C51A1B; }
+.nova-acct-error-code.is-alert { min-width: 64px; color: var(--mb-on-red); background: var(--mb-red); }
 .nova-acct-error-card h1 { margin: 6px 0 0; color: var(--mb-ink); font-family: var(--font-inter); font-size: 26px; font-weight: 700; line-height: 1.2; }
 .nova-acct-error-card p { max-width: 420px; margin: 0; color: var(--mb-muted); font-size: 15px; line-height: 1.5; }
 .nova-acct-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
@@ -193,5 +193,5 @@ html .nova-shell-matchbook {
   cursor: pointer;
 }
 .nova-acct-error-actions :is(a, button):hover { border-color: var(--mb-line-3); }
-.nova-acct-error-actions .is-primary { border-color: #C51A1B; color: #FFFFFF; background: #C51A1B; }
-.nova-acct-error-actions .is-primary:hover { border-color: #A81516; background: #A81516; }
+.nova-acct-error-actions .is-primary { border-color: var(--mb-red); color: var(--mb-on-red); background: var(--mb-red); }
+.nova-acct-error-actions .is-primary:hover { border-color: var(--mb-brand-deep); background: var(--mb-brand-deep); }

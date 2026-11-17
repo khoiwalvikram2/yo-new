@@ -34,6 +34,11 @@ function wrapSportsQueries(queries: Record<string, (...args: any[]) => any>) {
  */
 export const SPORTS_MUTATION_PERMISSIONS: Record<string, [string, string]> = {
   // Catalogue and presentation.
+  // The four status writes and the two reorders also carry
+  // `requirePlatformCatalogueAccess` (mutations.ts): sports, leagues, events and
+  // markets are one catalogue with no whitelabel column, and every Whitelabel
+  // Admin reaches these entries through the flat `sports:write`. The settings
+  // writes change the whitelabel's own rows, so they stay on the map alone.
   seedSportsFromProvider: ['sports.configuration', 'update'],
   setSportStatus: ['sports.configuration', 'update'],
   persistSportsSelections: ['sports.configuration', 'update'],

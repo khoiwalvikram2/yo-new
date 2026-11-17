@@ -9,6 +9,9 @@ import { db } from '../../db/client.js'
 import { users } from '@shared/db/schema.js'
 import { and, eq } from 'drizzle-orm'
 import { assertPlayerAgentAllowsBetting } from '../userApp/services/agentBettingGate.js'
+import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
+import { getCasinoGameByExternalIdAndProviderKey } from '../../repos/casinoGameRepo.js'
+import { CasinoGameAccessError, checkCasinoGameAccess } from './casinoGameAccess.js'
 
 const LOG_PREFIX = '[GmagCasinoLaunch]'
 
@@ -48,6 +51,13 @@ export async function getGmagCasinoRedirectUrl(params: GmagLaunchParams): Promis
   // player the reason up front.
   await assertPlayerAgentAllowsBetting(db, { userId: params.userId, tenant: params.tenant }, 'casino')
   await assertPlayerDomainBetting(db, params.tenant, params.userId, 'casino')
+  // The whitelabel's per-game rules (betting switched off, the day's win cap, premium, VIP
+  // tiers). Every stake checks them again; refusing here tells the player why up front.
+  const game = await getCasinoGameByExternalIdAndProviderKey(params.gameId, 'gmagcasino', db)
+  if (game) {
+    const refusal = await checkCasinoGameAccess(db, { tenant: params.tenant, userId: params.userId, gameId: game.id })
+    if (refusal) throw new CasinoGameAccessError(refusal.reason, refusal.message)
+  }
 
   const currency = await getWhitelabelCurrency(params.tenant)
 
@@ -58,7 +68,11 @@ export async function getGmagCasinoRedirectUrl(params: GmagLaunchParams): Promis
   const exposure = Number(wallet.exposure ?? 0)
 
   let walletType: 'bonus' | 'cash' | 'referralBonus'
-  if (params.walletType === 'referralBonus') {
+  if (isCreditPlayer(userRow.playerType)) {
+    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) play with their chips, held in cash.
+    // They have no bonus or referral-bonus funds, whatever wallet the launch asked for.
+    walletType = 'cash'
+  } else if (params.walletType === 'referralBonus') {
     walletType = 'referralBonus'
   } else if (params.walletType === 'bonus') {
     walletType = 'bonus'

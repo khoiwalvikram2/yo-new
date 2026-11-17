@@ -73,7 +73,7 @@ export default function EventSidebar({
             onClick={() => onSidebarModeChange('score')}
             className={`relative z-10 flex-1 px-4 py-2 text-xs font-semibold transition-colors duration-300 rounded-[5px] ${
               sidebarMode === 'score'
-                ? 'text-white'
+                ? 'text-[color:var(--mb-on-red)]'
                 : 'text-[color:var(--ds-color-slate-400)] hover:text-[color:var(--ds-color-slate-100)]'
             }`}
           >
@@ -86,7 +86,7 @@ export default function EventSidebar({
             onClick={() => onSidebarModeChange('tv')}
             className={`relative z-10 flex-1 px-4 py-2 text-xs font-semibold transition-colors duration-300 rounded-[5px] ${
               sidebarMode === 'tv'
-                ? 'text-white'
+                ? 'text-[color:var(--mb-on-red)]'
                 : 'text-[color:var(--ds-color-slate-400)] hover:text-[color:var(--ds-color-slate-100)]'
             }`}
           >

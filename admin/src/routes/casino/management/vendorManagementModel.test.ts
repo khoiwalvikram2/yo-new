@@ -27,6 +27,7 @@ import {
   statusSwitchLabel,
   toggleAllVendors,
   toggleVendorSelection,
+  totalVendorGames,
   vendorCountLabel,
   vendorStats,
   vendorStatusLabel,
@@ -74,6 +75,11 @@ describe('vendorManagementModel', () => {
     assert.equal(vendorStatusLabel(false), 'Disabled')
     assert.deepStrictEqual(vendorStats(VENDORS), { total: 4, enabled: 3, disabled: 1 })
     assert.deepStrictEqual(vendorStats([]), { total: 0, enabled: 0, disabled: 0 })
+  })
+
+  test('core mode counts the vendors\' games, the one figure that is not a whitelabel setting', () => {
+    assert.equal(totalVendorGames(VENDORS), 40)
+    assert.equal(totalVendorGames([]), 0)
   })
 
   test('the row action flips the state and the controls are named for it', () => {

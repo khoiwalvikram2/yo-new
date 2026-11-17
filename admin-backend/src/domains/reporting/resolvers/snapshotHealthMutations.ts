@@ -19,28 +19,35 @@ function requireSnapshotHealthTrigger(ctx: any): void {
   if (!hasPermission(ctx.permissions ?? [], 'reporting.snapshot-health', 'trigger')) {
     throw new Error('Forbidden: reporting.snapshot-health trigger required');
   }
+  // Super Admin only, the same rule as the Snapshot Health reads (snapshotHealthQueries.ts). Every whitelabel role
+  // can hold the trigger through the flat reporting:write grant, and these mutations queue rebuilds for any tenant.
+  if (!hasPermission(ctx.permissions ?? [], 'all', '*')) {
+    throw new Error('Forbidden: snapshot health is only available to Super Admin');
+  }
   // Snapshot health is only for Super Admin in core mode; reject whitelabel mode
   if (ctx?.directorMode === 'whitelabel') {
     throw new Error('Forbidden: snapshot health is only available in core mode');
   }
 }
 
-function resolveTenantForMutation(ctx: any, tenantArg?: string | null): string {
+// Only a platform caller (Super Admin in core mode) may name the tenant and whitelabel to rebuild. Any other caller
+// gets its own whatever the arguments say, so it can never queue rebuilds for another whitelabel. Exported for tests.
+export function resolveTenantForMutation(ctx: any, tenantArg?: string | null): string {
   if (shouldSkipTenantFiltering(ctx)) {
     return tenantArg ?? ctx?.tenant ?? 'default';
   }
   const directorWl = getEffectiveTenantForDirector(ctx);
   if (directorWl) return directorWl;
-  return tenantArg ?? ctx?.tenant ?? 'default';
+  return ctx?.tenant ?? 'default';
 }
 
-function resolveWhitelabelForMutation(ctx: any, wlArg?: string | null): string {
+export function resolveWhitelabelForMutation(ctx: any, wlArg?: string | null): string {
   if (shouldSkipTenantFiltering(ctx)) {
     return wlArg ?? ctx?.whitelabelId ?? ctx?.whitelabel?.id ?? 'default';
   }
   const directorWl = getEffectiveTenantForDirector(ctx);
   if (directorWl) return directorWl;
-  return wlArg ?? ctx?.whitelabelId ?? ctx?.whitelabel?.id ?? 'default';
+  return ctx?.whitelabelId ?? ctx?.whitelabel?.id ?? 'default';
 }
 
 export const snapshotHealthMutationResolvers = {

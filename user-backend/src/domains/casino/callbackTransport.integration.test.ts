@@ -29,8 +29,8 @@ test.afterEach(()=>mock.restoreAll())
 async function setup(tx:any,provider:string,type='REGULAR') {
   const f=await fixture(tx)
   const owner=type.includes('AGENT')?await f.agent(type==='AGENT_CREDIT'?'CREDIT':type.startsWith('SHARING')?'SHARING':'COMMISSION'):undefined
+  // Every type starts with 10000 cash; for a credit player that cash is its Deposit/Withdraw chips.
   const player=await f.player(type,owner)
-  if(credits.has(type))await tx.update(t.wallets).set({cash:'0'}).where(eq(t.wallets.userId,player.id))
   const [api]=await tx.insert(t.casinoApiProviders).values({key:provider,name:'Isolated HTTP QA'}).onConflictDoUpdate({target:t.casinoApiProviders.key,set:{name:'Isolated HTTP QA'}}).returning()
   const code=randomUUID(),[vendor]=await tx.insert(t.casinoVendors).values({name:'HTTP QA vendor',slug:code}).returning()
   await tx.insert(t.casinoGames).values({apiProviderId:api.id,vendorId:vendor.id,mainCategory:'casino',externalId:code,slug:code,name:'HTTP QA game'})
@@ -69,10 +69,11 @@ for(const provider of ['gapcasino','gmagcasino'])for(const type of types) {
     await rollback(db,async tx=>{
       const f=await setup(tx,provider,type)
       const send=async(kind:string,id:string,amount:number)=>{const request=transaction(f,provider,kind,id,amount);return http(provider,request.url,request.body)}
+      const opening=(await f.state()).player
       for(const [id,amount] of [['a',113.25],['b',227.5],['c',349.75]] as const)okay(provider,await send('bet',id,amount))
       const held=await f.state()
-      if(credits.has(type))assert.equal(Number(held.player.creditUsed),690.5)
-      else assert.equal(Number(held.wallet.cash),9309.5)
+      // Credit players are on the cash-wallet path too: the stake comes off their chips in cash.
+      assert.equal(Number(held.wallet.cash),9309.5)
       await send('bet','a',113.25)
       const replay=await f.state()
       assert.equal(replay.wallet.cash,held.wallet.cash);assert.equal(replay.player.creditUsed,held.player.creditUsed)
@@ -81,10 +82,9 @@ for(const provider of ['gapcasino','gmagcasino'])for(const type of types) {
       await send('win','a',271.5);await send('cancel','c',349.75)
       const after=await f.state()
       assert.equal(after.wallet.cash,settled.wallet.cash);assert.equal(after.player.settlementBalance,settled.player.settlementBalance)
-      if(credits.has(type)) {
-        assert.equal(Number(after.wallet.cash),0);assert.equal(Number(after.player.creditUsed),0)
-        assert.equal(Number(after.player.settlementBalance),-69.25);assert.equal(Number(after.player.creditAvailable),9930.75)
-      } else assert.equal(Number(after.wallet.cash),9930.75)
+      assert.equal(Number(after.wallet.cash),9930.75)
+      // The retired credit figures never move for a credit player's casino bets.
+      if(credits.has(type))for(const field of ['creditUsed','creditAvailable','settlementBalance','settlementBalanceCasino'])assert.equal(after.player[field],opening[field],field)
       const bets=await tx.select().from(t.casinoBets).where(eq(t.casinoBets.tenant,f.tenant))
       assert.deepEqual(bets.map((b:any)=>b.status).sort(),['lost','void','won'])
       assert.equal(bets.filter((b:any)=>b.status!=='void').reduce((sum:number,b:any)=>sum+Number(b.stake)-Number(b.payout??b.winAmount),0),69.25)

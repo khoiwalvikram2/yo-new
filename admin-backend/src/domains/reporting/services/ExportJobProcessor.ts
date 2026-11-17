@@ -2,7 +2,7 @@ import { db } from '@/db/client.js';
 import { reportingExportJobs } from '@shared/db/schema.js';
 import { eq, and, inArray } from 'drizzle-orm';
 import { ExportService } from './ExportService.js';
-import { uploadToS3 } from '@/services/storage/s3.js';
+import { exportFileDataUri } from '@/services/storage/exportFile.js';
 import { assertAgentMayExport } from './agentExportPolicy.js';
 import {
   AGENT_SCOPE_MISSING,
@@ -26,6 +26,7 @@ import {
   type AgentExportQueryScope,
 } from '@/repos/reporting/agentExportQueries.js';
 import type { CommissionCycleInfo } from '@/domains/agents/services/CommissionCycleService.js';
+import { tallyIsOn } from '@/domains/agents/services/agentMutationRules.js';
 
 interface ExportFilters {
   dateFrom?: string;
@@ -175,24 +176,18 @@ export class ExportJobProcessor {
         ? Buffer.from(fileContent, 'utf-8')
         : fileContent;
 
-      // Upload to S3 (store S3 key in fileUrl so download can use presigned URL on demand)
-      const fileName = `exports/${exportJob.tenant}/${exportJob.whitelabelId}/${exportJob.reportType}-${jobId}-${Date.now()}.${fileExtension}`;
-      try {
-        await uploadToS3(
-          fileBuffer,
-          fileName,
-          contentType
-        );
-      } catch (s3Error: any) {
-        throw new Error(`Failed to upload file to S3: ${s3Error?.message || 'Unknown S3 error'}`);
-      }
+      // The file is kept in the job row as a data URI (S3 is gone, owner decision 2026-11-04), which
+      // exportJobDownloadUrl hands out; file_url keeps the bare file name, so the list still names it.
+      // A file too large to store throws here and fails the job with its size.
+      const fileName = `${exportJob.reportType}-${jobId}-${Date.now()}.${fileExtension}`;
+      const fileData = exportFileDataUri(fileBuffer, contentType);
 
-      // Update job with completed status and file key (used by exportJobDownloadUrl for presigned URL)
       await db
         .update(reportingExportJobs)
         .set({
           status: 'completed',
           fileUrl: fileName,
+          fileData,
           completedAt: new Date(),
         })
         .where(eq(reportingExportJobs.id, jobId));
@@ -510,13 +505,14 @@ export class ExportJobProcessor {
     // Enhance based on report type and agent type
     switch (reportType) {
       case 'PLAYERS':
-        // For credit agents: add credit-specific columns
+        // For credit agents: the players' chip figures (CREDIT on Deposit/Withdraw chips; Balance is the
+        // chips, and Ref P/L = balance - credit reference). Empty for a player that is not a credit player.
         if (agentType === 'CREDIT') {
           enhancedColumns.push(
-            { header: 'Credit Limit', key: 'creditLimit', format: (v: any) => String(v || 0) },
-            { header: 'Credit Used', key: 'creditUsed', format: (v: any) => String(v || 0) },
-            { header: 'Credit Available', key: 'creditAvailable', format: (v: any) => String(v || 0) },
+            { header: 'Credit Reference', key: 'creditReference', format: (v: any) => String(v || 0) },
             { header: 'Exposure', key: 'exposure', format: (v: any) => String(v || 0) },
+            { header: 'Available', key: 'available', format: (v: any) => String(v || 0) },
+            { header: 'Ref P/L', key: 'refPnl', format: (v: any) => String(v || 0) },
             { header: 'Player Type', key: 'playerType' }
           );
         }
@@ -565,14 +561,26 @@ export class ExportJobProcessor {
           );
         }
         
-        // For sharing/credit agents: add sharing/credit-specific columns
-        if (agentType === 'SHARING' || agentType === 'CREDIT') {
+        // For sharing agents: add the credit and wallet columns they always had
+        if (agentType === 'SHARING') {
           enhancedColumns.push(
             { header: 'Credit Limit', key: 'creditLimit', format: (v: any) => String(v || 0) },
             { header: 'Credit Used', key: 'creditUsed', format: (v: any) => String(v || 0) },
             { header: 'Credit Alert Threshold', key: 'creditAlertThreshold', format: (v: any) => v ? `${v}%` : '80%' },
             { header: 'Wallet Balance', key: 'walletBalance', format: (v: any) => String(v || 0) },
             { header: 'Locked Balance', key: 'lockedBalance', format: (v: any) => String(v || 0) }
+          );
+        }
+
+        // For credit agents: the sub-agents' chip figures (CREDIT on Deposit/Withdraw chips since 2026-11-02;
+        // credit used and alert thresholds no longer mean anything)
+        if (agentType === 'CREDIT') {
+          enhancedColumns.push(
+            { header: 'Credit Reference', key: 'creditReference', format: (v: any) => String(v || 0) },
+            { header: 'Chips', key: 'chips', format: (v: any) => String(v || 0) },
+            { header: 'Downline Chips', key: 'downlineChips', format: (v: any) => String(v || 0) },
+            { header: 'Exposure', key: 'exposure', format: (v: any) => String(v || 0) },
+            { header: 'Ref P/L', key: 'refPnl', format: (v: any) => String(v || 0) }
           );
         }
         
@@ -853,30 +861,20 @@ export class ExportJobProcessor {
       ])
     );
     
-    // Fetch credit info for credit agents
-    let creditMap = new Map<number, any>();
-    if (exportContext?.agentContext?.schemeType === 'CREDIT' && exportContext.agentContext.agentId) {
-      try {
-        const { AgentPlayerCreditsRepo } = await import('@/repos/agents/AgentPlayerCreditsRepo.js');
-        const creditRepo = new AgentPlayerCreditsRepo();
-        const credits = await creditRepo.listAgentPlayers(exportContext.agentContext.agentId);
-        credits.forEach((c: any) => {
-          creditMap.set(c.playerId, {
-            creditLimit: c.creditLimit,
-            creditUsed: c.creditUsed,
-            creditAvailable: c.creditAvailable,
-            exposure: c.openExposure,
-          });
-        });
-      } catch (error) {
-      }
+    // A credit agent's export carries its credit players' chip figures, from ChipService (CREDIT on
+    // Deposit/Withdraw chips since 2026-11-02; agent_player_credits and users.credit_used are retired).
+    // Keyed by player id as a string; players that are not credit players are left out.
+    let chipMap = new Map<string, { creditReference: number; exposure: number; available: number; refPnl: number }>();
+    if (exportContext?.agentContext?.schemeType === 'CREDIT') {
+      const { chipService } = await import('@/domains/agents/services/ChipService.js');
+      chipMap = await chipService.chipAccountsForPlayers(context.tenant, userIds);
     }
-    
+
     // Map users with enhanced data
     return list.map((u: any) => {
       const wallet = walletMap.get(u.id);
-      const credit = creditMap.get(u.id);
-      
+      const chips = chipMap.get(String(u.id));
+
       return {
         id: u.id,
         name: u.name || '',
@@ -895,11 +893,11 @@ export class ExportJobProcessor {
           whitelabelName: exportContext?.whitelabelMetadata?.name || '',
           whitelabelDomain: exportContext?.whitelabelMetadata?.domain || '',
         }),
-        // Credit agent specific fields
-        creditLimit: credit?.creditLimit || u.creditLimit || 0,
-        creditUsed: credit?.creditUsed || u.creditUsed || 0,
-        creditAvailable: credit?.creditAvailable || u.creditAvailable || 0,
-        exposure: credit?.exposure || wallet?.exposure || 0,
+        // Credit agent specific fields (chip figures; null for a player that is not a credit player)
+        creditReference: chips?.creditReference ?? null,
+        exposure: chips?.exposure ?? wallet?.exposure ?? 0,
+        available: chips?.available ?? null,
+        refPnl: chips?.refPnl ?? null,
         playerType: u.playerType || 'REGULAR',
         agentId: u.agentId || '',
         vipTier: u.vipTierId || '',
@@ -1003,10 +1001,16 @@ export class ExportJobProcessor {
       ])
     );
     
+    // CREDIT agents hold chips (Deposit/Withdraw since 2026-11-02): their figures come from ChipService, keyed
+    // by lower-case agent id; their retired credit_used / credit_available are not read.
+    const creditAgentIds = filteredAgents.filter((a: any) => a.schemeType === 'CREDIT').map((a: any) => String(a.id));
+    const { chipService } = await import('@/domains/agents/services/ChipService.js');
+    const chipMap = await chipService.chipAccountsForAgents(context.tenant, creditAgentIds);
+
     // Fetch commission/sharing configs if needed
     const now = new Date();
     const configsMap = new Map();
-    
+
     if (agentIds.length > 0) {
       for (const agent of filteredAgents) {
         if (agent.schemeType === 'COMMISSION') {
@@ -1034,13 +1038,15 @@ export class ExportJobProcessor {
     return filteredAgents.map((a: any) => {
       const wallet = walletMap.get(a.id);
       const configs = configsMap.get(a.id);
-      
+      const chips = chipMap.get(String(a.id).toLowerCase());
+
       return {
         id: a.id,
         name: a.username || '',
         email: a.phone || '',
         type: a.schemeType || '',
-        credit: Number(a.creditAvailable || 0),
+        // A CREDIT agent's credit is its own chips; other schemes keep credit_available.
+        credit: chips ? chips.balance : Number(a.creditAvailable || 0),
         status: a.status || '',
         username: a.username || '',
         phone: a.phone || '',
@@ -1056,17 +1062,24 @@ export class ExportJobProcessor {
           whitelabelDomain: exportContext?.whitelabelMetadata?.domain || '',
         }),
         // Commission agent specific
-        tallyEnabled: a.tallyEnabled ? 'Yes' : 'No',
+        // AGE-09: tally applies only with a tally domain; the bare flag said Yes for agents that have none.
+        tallyEnabled: tallyIsOn(a.tallyEnabled, a.tallyDomains) ? 'Yes' : 'No',
         tallyDomains: Array.isArray(a.tallyDomains) ? a.tallyDomains.join(', ') : '',
         commissionRateSports: configs?.commissionRateSports || null,
         commissionRateCasino: configs?.commissionRateCasino || null,
         commissionRateMatka: configs?.commissionRateMatka || null,
-        // Sharing/Credit agent specific
+        // Sharing agent specific
         creditLimit: Number(a.creditLimit || 0),
         creditUsed: Number(a.creditUsed || 0),
         creditAlertThreshold: Number(a.creditAlertThreshold || 80),
         walletBalance: wallet?.balance || 0,
         lockedBalance: wallet?.lockedBalance || 0,
+        // Credit agent specific: chip figures (null for other schemes)
+        creditReference: chips?.creditReference ?? null,
+        chips: chips?.balance ?? null,
+        downlineChips: chips?.downlineBalance ?? null,
+        exposure: chips?.exposure ?? null,
+        refPnl: chips?.refPnl ?? null,
         // Sharing agent specific
         sharingRateSports: configs?.sharingRateSports || null,
         sharingRateCasino: configs?.sharingRateCasino || null,

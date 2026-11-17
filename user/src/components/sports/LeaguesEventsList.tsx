@@ -1,4 +1,4 @@
-import { Clock, Calendar, Bookmark } from 'lucide-react'
+import { Clock, Calendar, Bookmark, Lock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatStart } from './utils'
@@ -11,6 +11,7 @@ import tennisImg from '@/assets/images/tennis.png'
 import { useBookmarkedEvents, useRecentEvents, generateEventId } from '@/lib/sportsHelpers'
 // useMemo/useState already imported above
 import ConfettiBurst from '../animations/ConfettiBurst'
+import { hasPrice } from '../nova/exchange-home/exchangeShared'
 
 function ListRow({ e, compact = false }: { e: EventItem, compact?: boolean }) {
   const navigate = useNavigate()
@@ -207,6 +208,9 @@ function ListRow({ e, compact = false }: { e: EventItem, compact?: boolean }) {
           <div className={`grid grid-cols-3 sm:flex gap-1 sm:gap-1.5 flex-1 min-w-0 order-1 sm:order-2`}>
             {[0, 1, 2].map((index) => {
               const r = e.runners[index]
+              const backPrice = snapshot?.[index]?.back !== undefined ? Number(snapshot[index]!.back) : r?.back
+              const layPrice = snapshot?.[index]?.lay !== undefined ? Number(snapshot[index]!.lay) : r?.lay
+              const suspendedLabel = t('exchangeHome.suspended', { defaultValue: 'Suspended' })
               return (
                 <div
                   key={index}
@@ -214,14 +218,16 @@ function ListRow({ e, compact = false }: { e: EventItem, compact?: boolean }) {
                 >
                   <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
                     <span
-                      className={`nova-odds-back ${compact ? 'py-2 text-[10px] sm:text-[11px]' : 'py-2.5 text-xs sm:text-sm'} text-center rounded-[5px] border font-semibold`}
+                      {...(!hasPrice(backPrice) ? { role: 'img', 'aria-label': suspendedLabel, title: suspendedLabel, 'data-locked': 'true' } : {})}
+                      className={`nova-odds-back ${compact ? 'py-2 text-[10px] sm:text-[11px]' : 'py-2.5 text-xs sm:text-sm'} text-center rounded-[5px] border font-semibold${!hasPrice(backPrice) ? ' inline-flex items-center justify-center opacity-60' : ''}`}
                     >
-                      {snapshot?.[index]?.back !== undefined ? Number(snapshot[index]!.back).toFixed(2) : (r && typeof r.back === 'number' ? r.back.toFixed(2) : '-')}
+                      {hasPrice(backPrice) ? backPrice.toFixed(2) : <Lock aria-hidden="true" className="w-3.5 h-3.5" />}
                     </span>
                     <span
-                      className={`nova-odds-lay ${compact ? 'py-2 text-[10px] sm:text-[11px]' : 'py-2.5 text-xs sm:text-sm'} text-center rounded-[5px] border font-semibold`}
+                      {...(!hasPrice(layPrice) ? { role: 'img', 'aria-label': suspendedLabel, title: suspendedLabel, 'data-locked': 'true' } : {})}
+                      className={`nova-odds-lay ${compact ? 'py-2 text-[10px] sm:text-[11px]' : 'py-2.5 text-xs sm:text-sm'} text-center rounded-[5px] border font-semibold${!hasPrice(layPrice) ? ' inline-flex items-center justify-center opacity-60' : ''}`}
                     >
-                      {snapshot?.[index]?.lay !== undefined ? Number(snapshot[index]!.lay).toFixed(2) : (r && typeof r.lay === 'number' ? r.lay.toFixed(2) : '-')}
+                      {hasPrice(layPrice) ? layPrice.toFixed(2) : <Lock aria-hidden="true" className="w-3.5 h-3.5" />}
                     </span>
                   </div>
                 </div>

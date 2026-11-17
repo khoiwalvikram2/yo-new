@@ -7,8 +7,9 @@ import { randomUUID } from 'node:crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import * as tables from '@shared/db/schema.js'
 import { moneyMinor } from '@shared/matka/rules.js'
+import { ensureMatkaInstance } from '@shared/matka/catalogue.js'
+import { matkaSchedule } from '@shared/matka/schedule.js'
 import { declareAndSettleMatka, reverseMatkaResult, voidAndRefundMatkaBet } from '@shared/matka/settlement.js'
-import { syncCreditPlayerOpenExposureInTx } from '@shared/services/credit/creditPlayerExposure.js'
 
 // Setup is deliberately explicit; this test can never target the configured app DB.
 const record = JSON.parse(fs.readFileSync(path.resolve('../tmp/matka-test-database-2026-10-25.json'), 'utf8'))
@@ -19,7 +20,18 @@ target.pathname = '/' + record.name
 process.env.DATABASE_URL = target.toString()
 const { db, pool } = await import('../../db/client.js')
 const { placeMatkaEntries } = await import('./betService.js')
+const { ownMatkaWallet, playerMatkaMarket } = await import('./readService.js')
 const resultRows = (value: any) => value?.rows ?? value ?? []
+// The credit-limit and upline figures that a credit player's Matka bet must never move.
+const CREDIT_FIGURES = ['creditLimit', 'creditUsed', 'creditAvailable', 'settlementBalance', 'settlementBalanceSports', 'settlementBalanceCasino', 'settlementBalanceMatka', 'chipBalance', 'currentBalance', 'openExposure']
+const creditFigures = (row: any) => Object.fromEntries(CREDIT_FIGURES.filter(key => key in row).map(key => [key, Number(row[key] ?? 0)]))
+async function cashLedgerReconciles(tx: any, tenant: string) {
+  const rows = await tx.select().from(tables.walletLedger).where(eq(tables.walletLedger.tenant, tenant))
+  assert.ok(rows.length > 0 && rows.every((row: any) => row.walletType === 'cash' && row.meta?.walletType === 'cash'), 'every Matka movement is on the cash wallet')
+  const inconsistent = resultRows(await tx.execute(sql`SELECT count(*) n FROM wallet_ledger WHERE tenant=${tenant} AND balance_after<>balance_before+CASE WHEN direction='credit' THEN amount ELSE -amount END`))[0]
+  assert.equal(Number(inconsistent.n), 0)
+  assert.equal((await tx.select().from(tables.creditChipLedger).where(eq(tables.creditChipLedger.tenantId, tenant))).length, 0, 'a bet writes no chip ledger rows')
+}
 const clock = new Date('2026-10-25T04:00:00Z')
 class Rollback extends Error {}
 
@@ -151,20 +163,68 @@ test('void refunds the original stake once, and published/spent winnings cannot 
     assert.equal((await tx.select().from(tables.matkaBets).where(eq(tables.matkaBets.id, next.bets[0].id)))[0].status, 'won')
   })
 })
-test('credit locks coexist with sports exposure and settle/rollback in the Matka domain only', async t => {
+test('a WHITELABEL_CREDIT player stakes, wins, loses, rolls back and voids on its cash chips only', async t => {
   freeze(t)
   await rollback(async tx => {
     const f = await seed(tx, 'worli', 'WHITELABEL_CREDIT')
-    await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5', 100)]), tx)
-    const sports = await syncCreditPlayerOpenExposureInTx(tx, { userId: f.player.id, tenant: f.tenant, sportsExposure: 200 }); assert.equal(sports!.creditUsed, 300)
+    await tx.update(tables.wallets).set({ cash: '1000', bonus: '0', referralBonus: '0' }).where(eq(tables.wallets.id, f.wallet.id))
+    const [playerBefore] = await tx.select().from(tables.users).where(eq(tables.users.id, f.player.id))
+    const [whitelabelBefore] = await tx.select().from(tables.whitelabels).where(eq(tables.whitelabels.id, f.tenant))
+    // The stake comes off the chips at placement, as for a cash player.
+    const placed = await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5', 100), f.entry('single', '4', 200)]), tx)
+    assert.equal(placed.balance, 700); assert.equal(await f.balance(), 700)
+    assert.ok(placed.bets.every((bet: any) => bet.walletType === 'cash'))
+    assert.equal((await tx.select().from(tables.matkaBetBatches).where(eq(tables.matkaBetBatches.id, placed.batchId)))[0].walletType, 'cash')
+    // Open 267 (digit 5): the single 5 wins the gross 900 into cash; the single 4 loses its stake.
     const result = await declareAndSettleMatka(tx, { matkaId: f.market.id, date: '2026-10-25', type: 'open', result: '267' }, f.operator)
-    let [player] = await tx.select().from(tables.users).where(eq(tables.users.id, f.player.id))
-    assert.equal(Number(player.creditUsed), 200); assert.equal(Number(player.settlementBalanceMatka), 800); assert.equal(Number(player.creditAvailable), 10600)
-    assert.equal(Number(player.settlementBalanceCasino), 0); assert.equal(await f.balance(), 100000)
-    await reverseMatkaResult(tx, { id: result.id, reason: 'qa' }, f.operator)
-    ;[player] = await tx.select().from(tables.users).where(eq(tables.users.id, f.player.id))
-    assert.equal(Number(player.creditUsed), 300); assert.equal(Number(player.settlementBalanceMatka), 0); assert.equal(Number(player.creditAvailable), 9700)
-    assert.equal(Number((await tx.select().from(tables.whitelabels).where(eq(tables.whitelabels.id, f.tenant)))[0].settlementBalanceMatka), 0)
+    assert.deepEqual(result.impact, { betsSettled: 2, winners: 1, totalPayout: 900 }); assert.equal(await f.balance(), 1600)
+    assert.deepEqual(result.settledBets.map((bet: any) => bet.status).sort(), ['lost', 'won'])
+    await reverseMatkaResult(tx, { id: result.id, reason: 'Isolated credit correction' }, f.operator)
+    assert.equal(await f.balance(), 700)
+    for (const bet of placed.bets) await voidAndRefundMatkaBet(tx, bet.id, 'Isolated credit refund', f.operator)
+    assert.equal(await f.balance(), 1000)
+    const [playerAfter] = await tx.select().from(tables.users).where(eq(tables.users.id, f.player.id))
+    const [whitelabelAfter] = await tx.select().from(tables.whitelabels).where(eq(tables.whitelabels.id, f.tenant))
+    assert.deepEqual(creditFigures(playerAfter), creditFigures(playerBefore))
+    assert.deepEqual(creditFigures(whitelabelAfter), creditFigures(whitelabelBefore))
+    await cashLedgerReconciles(tx, f.tenant)
+  })
+})
+test('a credit player can stake only its free chips (balance - exposure), from the main wallet only', async t => {
+  freeze(t)
+  await rollback(async tx => {
+    const f = await seed(tx, 'worli', 'WHITELABEL_CREDIT')
+    // 150 of the 500 chips are held by an open sports liability, so 350 are free.
+    await tx.update(tables.wallets).set({ cash: '500', exposure: '150', bonus: '0', referralBonus: '0' }).where(eq(tables.wallets.id, f.wallet.id))
+    assert.deepEqual((await ownMatkaWallet(f.tenant, f.player.id, tx)).data, [{ walletType: 'CASH', label: 'Main wallet', balance: 350, currency: 'INR' }])
+    await assert.rejects(placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5', 400)]), tx), /Insufficient available balance/)
+    for (const walletType of ['BONUS', 'REFERRAL_BONUS']) await assert.rejects(placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry()], { walletType }), tx), /Credit players use the main wallet/)
+    assert.equal(await f.balance(), 500)
+    assert.equal((await tx.select().from(tables.matkaBets).where(eq(tables.matkaBets.tenant, f.tenant))).length, 0)
+    const placed = await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5', 350)]), tx)
+    assert.equal(placed.balance, 0); assert.equal(await f.balance(), 150); assert.equal(await f.balance('exposure'), 150)
+    assert.equal((await ownMatkaWallet(f.tenant, f.player.id, tx)).data[0].balance, 0)
+  })
+})
+test('a Matka bet placed before chips (wallet type credit) refunds, settles and reverses on the cash wallet', async t => {
+  freeze(t)
+  await rollback(async tx => {
+    const f = await seed(tx, 'worli', 'WHITELABEL_CREDIT')
+    await tx.update(tables.wallets).set({ cash: '1000', bonus: '0', referralBonus: '0' }).where(eq(tables.wallets.id, f.wallet.id))
+    // Migration 0019 took open credit stakes off the opening chips, so a legacy open bet looks like
+    // a cash bet whose stake is already taken: 1000 - 2 x 100 = 800.
+    const placed = await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5', 100), f.entry('single', '6', 100)]), tx)
+    await tx.update(tables.matkaBets).set({ walletType: 'credit' }).where(eq(tables.matkaBets.batchId, placed.batchId))
+    assert.equal(await f.balance(), 800)
+    const six = placed.bets.find((bet: any) => bet.betNumbers === '6')!, five = placed.bets.find((bet: any) => bet.betNumbers === '5')!
+    await voidAndRefundMatkaBet(tx, six.id, 'Isolated legacy refund', f.operator)
+    assert.equal(await f.balance(), 900)
+    const result = await declareAndSettleMatka(tx, { matkaId: f.market.id, date: '2026-10-25', type: 'open', result: '267' }, f.operator)
+    assert.deepEqual(result.impact, { betsSettled: 1, winners: 1, totalPayout: 900 }); assert.equal(await f.balance(), 1800)
+    await reverseMatkaResult(tx, { id: result.id, reason: 'Isolated legacy correction' }, f.operator)
+    assert.equal(await f.balance(), 900)
+    assert.equal((await tx.select().from(tables.matkaBets).where(eq(tables.matkaBets.id, five.id)))[0].status, 'active')
+    await cashLedgerReconciles(tx, f.tenant)
   })
 })
 test('Starline, Jackpot and Satta AB/A/B use their own result/session rules', async t => {
@@ -240,22 +300,45 @@ test('stale payout quotes, account changes, session pauses and configured exposu
   })
 })
 
-test('agent credit settlement and reversal preserve allocated credit and other domain balances', async t => {
+test('an AGENT_CREDIT player wins, loses and voids on its own chips; its agent and the agent gates are untouched', async t => {
   freeze(t)
   await rollback(async tx => {
     const f = await seed(tx, 'worli', 'AGENT_CREDIT')
-    const [agent] = await tx.insert(tables.agents).values({ tenantId: f.tenant, schemeType: 'CREDIT', allowedDomains: ['matka'], status: 'ACTIVE', creditLimit: '20000', creditUsed: '10000', creditAvailable: '10000' }).returning()
+    const [agent] = await tx.insert(tables.agents).values({ tenantId: f.tenant, schemeType: 'CREDIT', allowedDomains: ['matka'], status: 'ACTIVE', creditLimit: '20000', chipBalance: '5000' }).returning()
+    await tx.insert(tables.agentHierarchyClosure).values({ ancestorId: agent.id, descendantId: agent.id, depth: 0 })
     await tx.update(tables.users).set({ agentId: agent.id }).where(eq(tables.users.id, f.player.id))
-    await tx.insert(tables.agentPlayerCredits).values({ agentId: agent.id, playerId: f.player.id, creditLimit: '10000', creditAvailable: '10000' })
-    await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5', 100)]), tx)
+    await tx.insert(tables.agentPlayerCredits).values({ agentId: agent.id, playerId: f.player.id, creditLimit: '10000' })
+    await tx.update(tables.wallets).set({ cash: '1000', bonus: '0', referralBonus: '0' }).where(eq(tables.wallets.id, f.wallet.id))
+    const read = async () => ({
+      player: creditFigures((await tx.select().from(tables.users).where(eq(tables.users.id, f.player.id)))[0]),
+      agent: creditFigures((await tx.select().from(tables.agents).where(eq(tables.agents.id, agent.id)))[0]),
+      mirror: creditFigures((await tx.select().from(tables.agentPlayerCredits).where(eq(tables.agentPlayerCredits.playerId, f.player.id)))[0]),
+      whitelabel: creditFigures((await tx.select().from(tables.whitelabels).where(eq(tables.whitelabels.id, f.tenant)))[0]),
+    })
+    const before = await read()
+    const won = await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5', 100)]), tx)
+    const lost = await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '4', 200)]), tx)
+    const voided = await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '3', 50)]), tx)
+    assert.equal(await f.balance(), 650)
+    await voidAndRefundMatkaBet(tx, voided.bets[0].id, 'Isolated credit refund', f.operator)
+    assert.equal(await f.balance(), 700)
     const result = await declareAndSettleMatka(tx, { matkaId: f.market.id, date: '2026-10-25', type: 'open', result: '267' }, f.operator)
-    let [stored] = await tx.select().from(tables.agents).where(eq(tables.agents.id, agent.id))
-    assert.equal(Number(stored.creditUsed), 10000); assert.equal(Number(stored.settlementBalanceMatka), 800)
-    const [apc] = await tx.select().from(tables.agentPlayerCredits).where(eq(tables.agentPlayerCredits.playerId, f.player.id))
-    assert.equal(Number(apc.currentBalance), 800); assert.equal(Number(apc.creditUsed), 0); assert.equal(Number(apc.creditLimit), 10000)
+    assert.deepEqual(result.impact, { betsSettled: 2, winners: 1, totalPayout: 900 }); assert.equal(await f.balance(), 1600)
+    const status = async (id: string) => (await tx.select().from(tables.matkaBets).where(eq(tables.matkaBets.id, id)))[0].status
+    assert.equal(await status(won.bets[0].id), 'won'); assert.equal(await status(lost.bets[0].id), 'lost'); assert.equal(await status(voided.bets[0].id), 'void')
+    // P/L stays on the player's chips: the agent's chips and settlement figures, its per-player
+    // mirror, the whitelabel and the player's retired credit figures do not move.
+    assert.deepEqual(await read(), before)
     await reverseMatkaResult(tx, { id: result.id, reason: 'Isolated credit correction' }, f.operator)
-    ;[stored] = await tx.select().from(tables.agents).where(eq(tables.agents.id, agent.id))
-    assert.equal(Number(stored.creditUsed), 10000); assert.equal(Number(stored.settlementBalanceMatka), 0)
+    assert.equal(await f.balance(), 700)
+    assert.deepEqual(await read(), before)
+    await cashLedgerReconciles(tx, f.tenant)
+    // The agent betting gate and the agent's domains still apply to credit players.
+    await tx.update(tables.agents).set({ allowedDomains: ['sports'] }).where(eq(tables.agents.id, agent.id))
+    await assert.rejects(placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '2', 10)]), tx), /betting is not available for your account/)
+    await tx.update(tables.agents).set({ allowedDomains: ['matka'], status: 'SUSPENDED' }).where(eq(tables.agents.id, agent.id))
+    await assert.rejects(placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '2', 10)]), tx), /Betting is suspended/)
+    assert.equal(await f.balance(), 700)
   })
 })
 
@@ -272,5 +355,88 @@ test('a released bonus blocks rollback without partially reversing result, walle
     await assert.rejects(reverseMatkaResult(tx, { id: result.id, reason: 'QA' }, f.operator), /Bonus funds were released/)
     assert.equal(await f.balance('bonus'), before)
     assert.equal((await tx.select().from(tables.matkaResults).where(eq(tables.matkaResults.id, result.id)))[0].rolledBackAt, null)
+  })
+})
+
+test('Lock Now and Close Now stop new entries at once, also on sessions locked before the status was written', async t => {
+  freeze(t)
+  await rollback(async tx => {
+    const f = await seed(tx)
+    await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5', 10, 'OPEN'), f.entry('single', '5', 10, 'CLOSE')]), tx)
+    const session = async (side: 'OPEN' | 'CLOSE') => (await tx.select().from(tables.matkaWorliInstances).where(and(eq(tables.matkaWorliInstances.marketId, f.market.id), eq(tables.matkaWorliInstances.side, side))))[0]
+    const stoppedAt = new Date(clock.getTime() - 1000), open = await session('OPEN'), close = await session('CLOSE')
+    const place = (session: 'OPEN' | 'CLOSE') => placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '6', 10, session)]), tx)
+    // What lockNowWorliInstance and closeNowWorliInstance write (admin-backend matka-worli mutations).
+    await tx.update(tables.matkaWorliInstances).set({ status: 'LOCKED', actualLockAtUtc: stoppedAt }).where(eq(tables.matkaWorliInstances.id, open.id))
+    await tx.update(tables.matkaWorliInstances).set({ status: 'CLOSED', actualLockAtUtc: stoppedAt, actualCloseAtUtc: stoppedAt }).where(eq(tables.matkaWorliInstances.id, close.id))
+    await assert.rejects(place('OPEN'), /Open betting is closed/)
+    await assert.rejects(place('CLOSE'), /Close betting is closed/)
+    // Sessions stopped by the old Lock Now / Close Now kept status OPEN with only the stamp: the stamp alone blocks.
+    await tx.update(tables.matkaWorliInstances).set({ status: 'OPEN' }).where(eq(tables.matkaWorliInstances.marketId, f.market.id))
+    await assert.rejects(place('OPEN'), /Open betting is closed/)
+    await assert.rejects(place('CLOSE'), /Close betting is closed/)
+    // Pause still works the same way, and a cleared session takes entries again.
+    await tx.update(tables.matkaWorliInstances).set({ status: 'PAUSED', actualLockAtUtc: null, actualCloseAtUtc: null }).where(eq(tables.matkaWorliInstances.id, open.id))
+    await assert.rejects(place('OPEN'), /Open betting is closed/)
+    await tx.update(tables.matkaWorliInstances).set({ status: 'OPEN' }).where(eq(tables.matkaWorliInstances.id, open.id))
+    await place('OPEN')
+    assert.equal(await f.balance(), 100000 - 30)
+  })
+})
+
+// Owner, 2026-11-04: a session whose result was ever declared never takes entries again, as players may have seen the
+// result. A rollback re-locks only a session row that exists (shared/src/matka/settlement.ts), a session gets its row only
+// from an accepted entry or the admin start, and a result can be declared before the close: so an early result rolled
+// back on a session without a row left the clock alone to decide, and entries were accepted again.
+test('a session whose result was declared and rolled back refuses entries with or without its row, and the lobby agrees', async t => {
+  freeze(t)
+  await rollback(async tx => {
+    const f = await seed(tx)
+    // The lobby read (readService) goes through db: here it reads inside this transaction.
+    t.mock.method(db, 'select', tx.select.bind(tx))
+    const sides = async () => (await tx.select().from(tables.matkaWorliInstances).where(eq(tables.matkaWorliInstances.marketId, f.market.id))).map((row: any) => row.side).sort()
+    const lobby = async () => (await playerMatkaMarket(f.tenant, f.market.id)).data!
+    const place = (entry: any) => placeMatkaEntries(f.player.id, f.tenant, f.input([entry]), tx)
+    // Open declared at 04:00, long before its 11:45 cutoff, then rolled back: no session row exists, so none was re-locked.
+    const early = await declareAndSettleMatka(tx, { matkaId: f.market.id, date: '2026-10-25', type: 'open', result: '267' }, f.operator)
+    await reverseMatkaResult(tx, { id: early.id, reason: 'Isolated early declaration' }, f.operator)
+    assert.deepEqual(await sides(), [])
+    // Open entries are refused, and Jodi and both Sangams too, whose entry deadline is the Open one.
+    for (const entry of [f.entry('single', '5'), f.entry('single-patti', '267'), f.entry('jodi', '58', 10, 'CLOSE'), f.entry('half-sangam', '5-279', 10, 'CLOSE'), f.entry('full-sangam', '267-279', 10, 'CLOSE')]) {
+      await assert.rejects(place(entry), /Open betting is closed/, entry.bidType)
+    }
+    // The lobby's flags say the same, and the rolled-back result is not shown.
+    const shown = await lobby()
+    assert.deepEqual(shown.sessions.map((session: any) => [session.side, session.accepting]), [['OPEN', false], ['CLOSE', true]])
+    assert.deepEqual([shown.status, shown.result.openResult], ['Open', null])
+    // The Close session, never declared, still takes entries; the entry creates its row only.
+    await place(f.entry('single', '8', 10, 'CLOSE'))
+    assert.deepEqual(await sides(), ['CLOSE']); assert.equal(await f.balance(), 100000 - 10)
+    // An Open row created afterwards, OPEN by status (as an entry or the admin start creates it), changes nothing.
+    await ensureMatkaInstance(tx, f.market, matkaSchedule(f.market, new Date()), 'open')
+    assert.deepEqual(await sides(), ['CLOSE', 'OPEN'])
+    await assert.rejects(place(f.entry('single', '5')), /Open betting is closed/)
+    assert.equal((await lobby()).sessions[0].accepting, false)
+    // Only this whitelabel's results count: another one's row for the same market, date and side does not shut Close.
+    await tx.insert(tables.matkaResults).values({ tenant: f.tenant + '-foreign', matkaId: f.market.id, date: '2026-10-25', type: 'close', result: '279', declaredBy: 'qa', rolledBackAt: new Date(), rolledBackBy: 'qa', rollbackReason: 'qa' })
+    await place(f.entry('single', '9', 10, 'CLOSE'))
+    assert.equal((await lobby()).sessions[1].accepting, true); assert.equal(await f.balance(), 100000 - 20)
+  })
+})
+
+test('a close-only session whose result was declared and rolled back refuses entries; a session with a row and no result takes them', async t => {
+  freeze(t)
+  await rollback(async tx => {
+    // Jackpot declares Close only: its one session is shut the same way.
+    const jackpot = await seed(tx, 'jackpot')
+    const declared = await declareAndSettleMatka(tx, { matkaId: jackpot.market.id, date: '2026-10-25', type: 'close', result: '02' }, jackpot.operator)
+    await reverseMatkaResult(tx, { id: declared.id, reason: 'Isolated early declaration' }, jackpot.operator)
+    await assert.rejects(placeMatkaEntries(jackpot.player.id, jackpot.tenant, jackpot.input([jackpot.entry('jodi', '02', 10, 'CLOSE')]), tx), /Close betting is closed/)
+    assert.equal(await jackpot.balance(), 100000)
+    // A session whose row exists and that never had a result takes entries as before.
+    const f = await seed(tx)
+    await ensureMatkaInstance(tx, f.market, matkaSchedule(f.market, new Date()), 'open')
+    await placeMatkaEntries(f.player.id, f.tenant, f.input([f.entry('single', '5')]), tx)
+    assert.equal(await f.balance(), 100000 - 10)
   })
 })

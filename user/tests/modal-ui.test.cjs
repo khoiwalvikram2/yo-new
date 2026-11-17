@@ -286,13 +286,13 @@ test('auth backend adapters retain exact GraphQL mutation fields and variables w
   assert.equal(requests.length, cases.length);
 });
 
-function slipHarness(variant = 'desktop') {
+function slipHarness(variant = 'desktop', user = { balance: 10000, exposure: 0, playerType: 'REGULAR' }, betOverrides = {}) {
   const placeSportsBet = spy(() => new Promise(() => {})); const placeFancyBet = spy(() => { throw new Error('Unexpected fancy write'); });
-  const bet = { team: 'Team A', market: 'Match Odds', type: 'back', odds: 2, stake: 1000, teamIndex: 0, marketType: 'exchange', marketId: 'market-id', selectionId: 1, marketCode: 'market-code' };
+  const bet = { team: 'Team A', market: 'Match Odds', type: 'back', odds: 2, stake: 1000, teamIndex: 0, marketType: 'exchange', marketId: 'market-id', selectionId: 1, marketCode: 'market-code', ...betOverrides };
   const event = { id: 'event-id', eventId: 'event-id', sportId: 'sport-id', leagueId: 'league-id', homeTeam: { name: 'A' }, awayTeam: { name: 'B' }, league: 'L', venue: 'V', startTime: '2026-10-10', status: 'live', markets: [] };
   const stubs = {
     [path.join(root, 'src/components/sports/BetSlipProvider.tsx')]: { useBetSlip: () => ({ closeQuickBet: spy(), updateQuickBet: spy(), openQuickBet: spy() }) },
-    '@/lib/auth': { useAuth: () => ({ isAuthenticated: true, user: { balance: 10000, exposure: 0, playerType: 'REGULAR' }, openAuthModal: spy(), refreshUser: spy() }) },
+    '@/lib/auth': { useAuth: () => ({ isAuthenticated: true, user, openAuthModal: spy(), refreshUser: spy() }) },
     '@/lib/api/user': { placeSportsBet, placeFancyBet }, '@/lib/notify': { notify: { error: spy(), success: spy() } },
     '@/hooks/useAppSettings': { useRiskConfig: () => ({ cashoutEnabled: true, overallExposureCap: null }) },
     '@/hooks/useStakeLimits': { useStakeLimits: () => ({ canPlaceStake: () => ({ allowed: true }) }) },
@@ -312,6 +312,60 @@ test('bet slip Enter is owned by its inputs, never background/search/other dialo
   fireEvent.keyDown(stake, { key: 'Enter' }); assert.equal(view.placeSportsBet.calls.length, 1); assert.equal(view.placeFancyBet.calls.length, 0);
   assert.equal(JSON.stringify(view.placeSportsBet.calls[0][0]), JSON.stringify({ eventId: 'event-id', sportId: 'sport-id', leagueId: 'league-id', marketId: 'market-id', marketCode: 'market-code', marketType: 'exchange', selectionId: 1, selection: 'Team A', selectionType: 'back', odds: 2, stake: 1000 }));
   fireEvent.keyDown(stake, { key: 'Enter' }); assert.equal(view.placeSportsBet.calls.length, 1, 'in-flight duplicate blocked');
+});
+// Credit players play on D/W chips held in the wallet cash: MAX stakes balance - exposure for them as for cash players,
+// never the retired available-credit figure (99,999 here), and the market's max stake still caps it.
+test('bet slip MAX stakes the free balance (balance - exposure) for cash and credit players alike', () => {
+  for (const [user, expected] of [
+    [{ balance: 2500, exposure: -500, playerType: 'AGENT_CREDIT', creditAvailable: 99999 }, '2000'],
+    [{ balance: 2500, exposure: 500, playerType: 'WHITELABEL_CREDIT', creditAvailable: 99999 }, '2000'],
+    [{ balance: 2500, exposure: 500, playerType: 'REGULAR' }, '2000'],
+    [{ balance: 90000, exposure: 0, playerType: 'AGENT_CREDIT', creditAvailable: 0 }, '50000'],
+  ]) {
+    // MAX sits in the phone sheet's stake box. The fixture bet carries no stake: the slip copies a bet's own stake back
+    // into the field, and the stubbed provider never takes MAX's stake as the real one does.
+    const view = slipHarness('mobile', user, { stake: undefined });
+    try {
+      fireEvent.click(view.getByRole('button', { name: 'MAX' }));
+      assert.equal(view.getByRole('textbox', { name: 'Stake' }).value, expected, `${user.playerType} balance ${user.balance}`);
+      assert.equal(view.placeSportsBet.calls.length, 0);
+    } finally { view.unmount(); }
+  }
+});
+// The desktop side slip follows the same rule. Its fixture bet carries no stake: the slip copies a bet's own stake
+// back into the field, which would undo MAX.
+test('desktop side slip MAX stakes the free balance (balance - exposure) for cash and credit players alike', () => {
+  const bet = { team: 'Team A', market: 'Match Odds', type: 'back', odds: 2, teamIndex: 0, marketType: 'exchange', marketId: 'market-id', selectionId: 1, marketCode: 'market-code' };
+  const event = { id: 'event-id', eventId: 'event-id', sportId: 'sport-id', leagueId: 'league-id', homeTeam: { name: 'A' }, awayTeam: { name: 'B' }, league: 'L', venue: 'V', startTime: '2026-10-10', status: 'live', markets: [] };
+  for (const [user, expected] of [
+    [{ balance: 2500, exposure: -500, playerType: 'AGENT_CREDIT', creditAvailable: 99999 }, '2000'],
+    [{ balance: 2500, exposure: 500, playerType: 'WHITELABEL_CREDIT', creditAvailable: 99999 }, '2000'],
+    [{ balance: 2500, exposure: 500, playerType: 'REGULAR' }, '2000'],
+    [{ balance: 90000, exposure: 0, playerType: 'AGENT_CREDIT', creditAvailable: 0 }, '50000'],
+  ]) {
+    // Stable hook results, as the real providers give: the slip's effects depend on them.
+    const slip = { quickBet: bet, closeQuickBet: spy(), updateQuickBet: spy() };
+    const auth = { isAuthenticated: true, user, openAuthModal: spy(), refreshUser: spy() };
+    const sports = { settings: { exchange: { maxStake: 50000 } } };
+    const api = { placeSportsBet: spy(), placeFancyBet: spy() };
+    const stubs = {
+      [path.join(root, 'src/components/sports/BetSlipProvider.tsx')]: { useBetSlip: () => slip },
+      '@/lib/auth': { useAuth: () => auth },
+      '@/lib/api/user': api, '@/lib/notify': { notify: { error: spy(), success: spy() } },
+      '@/hooks/useAppSettings': { useRiskConfig: () => ({ cashoutEnabled: true, overallExposureCap: null }) },
+      '@/hooks/useStakeLimits': { useStakeLimits: () => ({ canPlaceStake: () => ({ allowed: true }) }) },
+      '@/hooks/useSportsSettings': { useSportsSettings: () => sports },
+      '@/lib/hooks/useOddsSocket': { useOddsSocket: () => undefined },
+      [path.join(root, 'src/components/sport-event/fancySocketOdds.ts')]: { getFancyLiveSnapshot: () => null },
+    };
+    const view = renderModal('src/components/sport-event/DesktopBetSlipSidebar.tsx', { event }, { stubs });
+    try {
+      fireEvent.click(view.getByRole('button', { name: 'Max' }));
+      // The field groups digits by locale ("2,000"), so compare the digits.
+      assert.equal(view.getByRole('textbox', { name: 'Stake' }).value.replace(/[^0-9]/g, ''), expected, `${user.playerType} balance ${user.balance}`);
+      assert.equal(api.placeSportsBet.calls.length, 0);
+    } finally { view.unmount(); }
+  }
 });
 test('native mobile bet slip owns its title and preserves the shared lock before any actual drag', () => {
   document.body.style.overflow = 'auto'; const view = slipHarness('mobile');

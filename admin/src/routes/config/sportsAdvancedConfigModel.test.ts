@@ -190,10 +190,34 @@ describe('sportsAdvancedConfigModel', () => {
       fancyExposureCap: 'Total Cap must be minimum 0',
     })
     assert.deepStrictEqual(
-      await issues({ exchangeDelay: -3, exchangeMinOdds: 0.5, alertRateLimit: 0, riskThreshold: -1 }),
+      await issues({ exchangeDelay: -3, alertRateLimit: 0, riskThreshold: -1 }),
       {},
       'the legacy InputNumber min only clamped these; no rule refused them',
     )
+  })
+
+  test('the stake and odds limits the server enforces are refused on their field before the save (SPO-SETTINGS-MINMAX)', async () => {
+    // The finding's case: Tennis Minimum Stake 50000 with Maximum Stake 10000 went to the server with no message.
+    assert.deepStrictEqual(await issues({ exchangeMinStake: 50000, exchangeMaxStake: 10000 }), {
+      exchangeMinStake: 'Exchange Min Stake cannot exceed the Max Stake (10000)',
+    })
+    assert.deepStrictEqual(await issues({ bookmakerMinStake: 6, bookmakerMaxStake: 5, fancyMinStake: 3, fancyMaxStake: 2 }), {
+      bookmakerMinStake: 'Bookmaker Min Stake cannot exceed the Max Stake (5)',
+      fancyMinStake: 'Fancy Min Stake cannot exceed the Max Stake (2)',
+    })
+    // Odds start at 1.01, the lowest decimal price, and the minimum may not pass the maximum.
+    assert.deepStrictEqual(await issues({ exchangeMinOdds: 0.5, exchangeMaxOdds: 1 }), {
+      exchangeMinOdds: 'Min Odds must be at least 1.01',
+      exchangeMaxOdds: 'Max Odds must be at least 1.01',
+    })
+    assert.deepStrictEqual(await issues({ exchangeMinOdds: 5, exchangeMaxOdds: 2 }), {
+      exchangeMinOdds: 'Min Odds cannot exceed the Max Odds (2)',
+    })
+    // A negative stake is its own field's error, not also a contradiction with its pair (the server reports it first).
+    assert.deepStrictEqual(await issues({ bookmakerMinStake: 50, bookmakerMaxStake: -5 }), { bookmakerMaxStake: 'Maximum Stake must be minimum 0' })
+    // Equal limits, a single set limit and empty fields all pass, as on the server.
+    assert.deepStrictEqual(await issues({ exchangeMinStake: 100, exchangeMaxStake: 100, exchangeMinOdds: 1.01, exchangeMaxOdds: 1.01 }), {})
+    assert.deepStrictEqual(await issues({ exchangeMinStake: 50000, exchangeMaxStake: null, bookmakerMaxStake: 1, exchangeMaxOdds: 1000 }), {})
   })
 
   test('a loaded record seeds the form with its 33 fields, nulls included, and nothing else', () => {

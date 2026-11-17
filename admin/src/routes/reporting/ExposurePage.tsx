@@ -32,6 +32,8 @@ import {
   PAGE_SIZE_OPTIONS,
   calculateExposureMetrics,
   calculateTotalExposure,
+  exposureDomainRows,
+  exposureKpiSkips,
   exposureRangeDays,
   filterExposureRows,
   formatExposureChange,
@@ -140,7 +142,8 @@ function ExposurePageContent() {
     notifyOnNetworkStatusChange: true,
   })
 
-  const sportsSkipped = selectedDomain === 'matka'
+  // An agent asks only for the totals of its allowed domains: the API refuses the others (SCO-07).
+  const { sportsSkipped, matkaSkipped } = exposureKpiSkips(selectedDomain, isAgent, agent?.allowedDomains)
   const {
     data: sportsKPIs,
     loading: sportsLoading,
@@ -158,7 +161,6 @@ function ExposurePageContent() {
     fetchPolicy: 'network-only',
   })
 
-  const matkaSkipped = selectedDomain === 'sports'
   const {
     data: matkaKPIs,
     loading: matkaLoading,
@@ -216,7 +218,9 @@ function ExposurePageContent() {
     [sortedExposureRows],
   )
 
-  const metrics = useMemo(() => calculateExposureMetrics(exposureRows), [exposureRows])
+  // The cards describe the domain tab, as the table and the Total card do (F-REP-17).
+  const domainRows = useMemo(() => exposureDomainRows(exposureRows, selectedDomain), [exposureRows, selectedDomain])
+  const metrics = useMemo(() => calculateExposureMetrics(domainRows), [domainRows])
   const totalExposure = useMemo(
     () => calculateTotalExposure(
       selectedDomain,
@@ -332,7 +336,7 @@ function ExposurePageContent() {
           <Stat
             label="Avg Exposure"
             value={formatAmount(convertFromWhitelabelCurrency(metrics.avgExposure))}
-            note={`${exposureRows.length} records`}
+            note={`${domainRows.length} records`}
             icon={<IconCurrencyRupee size={18} stroke={strokeFor(18)} />}
             hue="grn"
           />
@@ -345,7 +349,7 @@ function ExposurePageContent() {
           />
           <Stat
             label="Records"
-            value={exposureRows.length.toLocaleString()}
+            value={domainRows.length.toLocaleString()}
             note={`${paginatedExposureRows.length} showing`}
             icon={<IconActivity size={18} stroke={strokeFor(18)} />}
             hue="red"

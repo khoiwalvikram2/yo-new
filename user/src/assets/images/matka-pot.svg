@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 220">
+  <!-- A golden matka tipping to the right, heaped with coins that spill into a pile: the faint watermark behind
+       the Matka cards (owner 2026-11-01). Drawn for this app; the cards show it at a few percent opacity. -->
+  <defs>
+    <linearGradient id="pot" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#B07A10"/>
+      <stop offset=".28" stop-color="#EDB52E"/>
+      <stop offset=".5" stop-color="#FFE68F"/>
+      <stop offset=".64" stop-color="#F4C23A"/>
+      <stop offset="1" stop-color="#A06610"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBD965"/>
+      <stop offset="1" stop-color="#C68812"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFEBA3"/>
+      <stop offset="1" stop-color="#E5A31E"/>
+    </linearGradient>
+    <g id="coin">
+      <ellipse cy="2" rx="13" ry="5.5" fill="#B7791F"/>
+      <ellipse rx="13" ry="5.5" fill="url(#gold)" stroke="#A86B12" stroke-width="1.2"/>
+      <ellipse rx="8.5" ry="3.2" fill="none" stroke="#FFF4C4" stroke-width=".9" opacity=".85"/>
+    </g>
+    <path id="spark" d="M0-9 1.6-1.6 9 0 1.6 1.6 0 9-1.6 1.6-9 0-1.6-1.6z" fill="#FFFFFF"/>
+  </defs>
+
+  <ellipse cx="104" cy="210" rx="78" ry="7" fill="#000" opacity=".12"/>
+  <ellipse cx="196" cy="208" rx="38" ry="5" fill="#000" opacity=".1"/>
+
+  <g transform="rotate(18 95 130)">
+    <path d="M56 74C22 84 16 112 18 142c2 37 38 62 77 62s75-25 77-62c2-30-4-58-38-68z" fill="url(#pot)"/>
+    <path d="M21 118q74 28 148 0M19 144q76 30 152 0M32 178q63 24 126 0" fill="none" stroke="#9A620E" stroke-width="2.4" opacity=".45"/>
+    <path d="M60 56h70q-4 9 4 20H56q8-11 4-20z" fill="url(#pot)"/>
+    <ellipse cx="95" cy="55" rx="47" ry="11" fill="url(#rim)" stroke="#A86B12" stroke-width="1.2"/>
+    <ellipse cx="95" cy="54" rx="39" ry="7" fill="#7A4A08"/>
+    <use href="#coin" x="68" y="50"/>
+    <use href="#coin" x="95" y="52"/>
+    <use href="#coin" x="122" y="50"/>
+    <use href="#coin" x="80" y="42"/>
+    <use href="#coin" x="108" y="43"/>
+    <use href="#coin" x="92" y="34"/>
+    <use href="#coin" x="118" y="35"/>
+    <use href="#coin" x="72" y="34"/>
+    <use href="#coin" x="100" y="25"/>
+    <use href="#coin" x="84" y="26"/>
+  </g>
+
+  <use href="#coin" transform="translate(176 84) rotate(-62)"/>
+  <use href="#coin" transform="translate(196 116) rotate(-28)"/>
+  <use href="#coin" transform="translate(186 150) rotate(24)"/>
+  <use href="#coin" transform="translate(206 168) rotate(-12)"/>
+  <use href="#coin" x="182" y="200"/>
+  <use href="#coin" x="208" y="201"/>
+  <use href="#coin" x="194" y="191"/>
+  <use href="#coin" x="219" y="192"/>
+  <use href="#coin" x="205" y="182"/>
+
+  <use href="#spark" x="58" y="96"/>
+  <use href="#spark" x="156" y="22"/>
+  <use href="#spark" x="214" y="148"/>
+  <use href="#spark" x="44" y="150" opacity=".8"/>
+</svg>

@@ -93,7 +93,28 @@
   gap: 14px;
 }
 
-.positive { color: var(--ok); }
+/* A CREDIT agent's chips in the drawer: Ref P/L as coloured text (in green, out rose) with its words. */
+.refPnl {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 2px 8px;
+}
+
+.refPnl > span {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.gain { color: var(--viz-green, var(--pos-ink)); }
+.loss { color: var(--viz-rose, var(--neg-ink)); }
+
+.chipsNote {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
 
 .kpiGrid {
   display: grid;

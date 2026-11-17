@@ -22,7 +22,9 @@ import {
 import { useVIPTiers } from '@/modules/vip/hooks/useVIP'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { Button } from '@/ui/components/Button'
+import { Dialog } from '@/ui/components/Dialog'
 import { Drawer } from '@/ui/components/Drawer'
+import { Notice } from '@/ui/components/Notice'
 import { NumberField } from '@/ui/components/NumberField'
 import { Select } from '@/ui/components/Select'
 import { StatusPill } from '@/ui/components/StatusPill'
@@ -32,15 +34,17 @@ import { Tabs } from '@/ui/components/Tabs'
 import { TextField } from '@/ui/components/TextField'
 import { strokeFor } from '@/ui/components/icons'
 import { tabId, tabPanelId } from '@/ui/components/tabIds'
+import { toast } from '@/ui/components/toast'
 import {
   APPLY_MODE_OPTIONS,
-  BID_TYPE_OPTIONS,
   RISK_LEVEL_OPTIONS,
   bidRuleError,
   bidRuleInput,
+  bidTypeOptionsFor,
   drawerStatusFor,
   emptySettingsValues,
   initialBidRuleDraft,
+  matkaErrorText,
   settingsInitialValues,
   type ApplyMode,
   type BidRuleDraft,
@@ -140,8 +144,13 @@ export function SettingsEditor({
   const [updateRule] = useUpdateMatkaBidRule()
   const [deleteRule, { loading: deletingRule }] = useDeleteMatkaBidRule()
   const [bidDraft, setBidDraft] = useState<BidRuleDraft>(initialBidRuleDraft)
+  // Only the bid types this market's kind takes; the server refuses the rest.
+  const bidTypeOptions = useMemo(() => bidTypeOptionsFor(record?.settings), [record?.settings])
   const [playerInput, setPlayerInput] = useState('')
   const [bidError, setBidError] = useState<string | null>(null)
+  // The server's reason for refusing a new rule; the field errors above stay for the form's own checks.
+  const [bidFailure, setBidFailure] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<BidRuleRecord | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -188,14 +197,49 @@ export function SettingsEditor({
     const nextDraft = { ...bidDraft, includedPlayers: parsePlayerIds(playerInput) }
     const error = bidRuleError(nextDraft)
     setBidError(error)
+    setBidFailure(null)
     if (error) return
-    await createRule({
-      variables: { input: bidRuleInput(record, nextDraft) },
-      context: { uiToast: 'notification' },
-    })
+    try {
+      await createRule({
+        variables: { input: bidRuleInput(record, nextDraft) },
+        context: { uiToast: 'notification' },
+      })
+    } catch (failure) {
+      // A refused rule used to escape as an unhandled rejection with nothing on screen; the draft stays.
+      setBidFailure(matkaErrorText(failure, 'The bid configuration could not be created.'))
+      return
+    }
+    // The rule comes back as a record, not a { success, message } payload, so the link has nothing to report.
+    toast({ message: 'Bid configuration created', tone: 'ok' })
     setBidDraft(initialBidRuleDraft())
     setPlayerInput('')
     setBidError(null)
+    refetchBidRules()
+  }
+
+  const toggleRule = async (rule: BidRuleRecord, checked: boolean) => {
+    try {
+      await updateRule({
+        variables: { id: rule.id, patch: { status: checked ? 'active' : 'inactive' } },
+        context: { uiToast: 'message' },
+      })
+      toast({ message: `Bid configuration ${checked ? 'activated' : 'deactivated'}`, tone: 'ok' })
+    } catch (failure) {
+      toast({ message: matkaErrorText(failure, 'The bid configuration could not be updated.'), tone: 'error' })
+    }
+    refetchBidRules()
+  }
+
+  const confirmRemoveRule = async () => {
+    if (!removing) return
+    try {
+      await deleteRule({ variables: { id: removing.id }, context: { uiToast: 'message' } })
+    } catch (failure) {
+      toast({ message: matkaErrorText(failure, 'The bid configuration could not be removed.'), tone: 'error' })
+      return
+    }
+    toast({ message: 'Bid configuration removed', tone: 'ok' })
+    setRemoving(null)
     refetchBidRules()
   }
 
@@ -221,6 +265,7 @@ export function SettingsEditor({
     : 'Apply changes to multiple matkas'
 
   return (
+    <>
     <SettingsFrame
       presentation={presentation}
       open={open}
@@ -404,7 +449,7 @@ export function SettingsEditor({
                     layout={isPage ? 'stacked' : 'inline'}
                     value={bidDraft.bidType}
                     placeholder="Select bid type"
-                    options={BID_TYPE_OPTIONS}
+                    options={bidTypeOptions}
                     onChange={(value) => {
                       setBidDraft((current) => ({ ...current, bidType: value }))
                       setBidError(null)
@@ -469,6 +514,7 @@ export function SettingsEditor({
                     Create Configuration
                   </Button>
                 </div>
+                {bidFailure ? <Notice tone="error" live="assertive">{bidFailure}</Notice> : null}
               </form>
 
               <div className={styles.bidHeader}>
@@ -508,24 +554,15 @@ export function SettingsEditor({
                             hideLabel
                             label={`Toggle ${rule.bidType} status`}
                             size="sm"
-                            onChange={async (checked) => {
-                              await updateRule({
-                                variables: { id: rule.id, patch: { status: checked ? 'active' : 'inactive' } },
-                                context: { uiToast: 'message' },
-                              })
-                              refetchBidRules()
-                            }}
+                            onChange={(checked) => void toggleRule(rule, checked)}
                           />
                         </TD>
                         <TD align="right">
+                          {/* Remove deletes the rule outright, so it asks first, as Delete Matka does. */}
                           <Button
                             size="xs"
                             variant="danger"
-                            loading={deletingRule}
-                            onClick={async () => {
-                              await deleteRule({ variables: { id: rule.id }, context: { uiToast: 'message' } })
-                              refetchBidRules()
-                            }}
+                            onClick={() => setRemoving(rule)}
                           >
                             Remove
                           </Button>
@@ -624,6 +661,26 @@ export function SettingsEditor({
         </p>}
       </fieldset>
     </SettingsFrame>
+    <Dialog
+      open={removing !== null}
+      onOpenChange={(next) => {
+        if (!next) setRemoving(null)
+      }}
+      title="Remove bid configuration"
+      role="alertdialog"
+      size="sm"
+      footer={(
+        <div className={styles.drawerActions}>
+          <Button onClick={() => setRemoving(null)} disabled={deletingRule}>Cancel</Button>
+          <Button variant="dangerSolid" loading={deletingRule} onClick={() => void confirmRemoveRule()}>Remove</Button>
+        </div>
+      )}
+    >
+      {removing ? (
+        <p>{`Remove the ${String(removing.bidType).replace(/_/g, ' ')} configuration (${removing.percentage}%)? Its bid limit stops applying to players at once.`}</p>
+      ) : null}
+    </Dialog>
+    </>
   )
 }
 

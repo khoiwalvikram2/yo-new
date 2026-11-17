@@ -9,6 +9,7 @@ import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 import { useFormatDate } from '@/shared/core/useFormatDate'
 import { useBreakpoint } from '@/shared/hooks/useBreakpoint'
 import { AccountListMetric } from '@/modules/account-lists/AccountList'
+import { chipTone, signedChips, useChipFormat, type ChipAccount } from '@/modules/chips'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { Card } from '@/ui/components/Card'
@@ -38,13 +39,27 @@ const AGENT_PLAYERS_QUERY = gql`
           username
           status
           playerType
-          creditLimit
-          creditUsed
-          creditAvailable
           agentId
           parentAgent {
             id
             username
+          }
+          chips {
+            accountType
+            id
+            username
+            name
+            status
+            parentAgentId
+            playerType
+            currency
+            creditReference
+            balance
+            exposure
+            available
+            downlineBalance
+            refPnl
+            downlineCount
           }
           referredBy {
             id
@@ -84,6 +99,16 @@ const AGENT_PLAYER_COUNTS_QUERY = gql`
 
 interface PlayersTabProps {
   agentId: string
+}
+
+/** A credit player's chips: the balance, with its Ref P/L under it (green: the upline owes it; rose: it owes). */
+function ChipBalance({ chips, visible, mask }: { chips: ChipAccount; visible: boolean; mask: string }) {
+  const format = useChipFormat(chips.currency)
+  const tone = chipTone(chips.refPnl)
+  return <div className={clsx(styles.rowDetails, styles.cellEnd)}>
+    <span>{visible ? format(chips.balance) : mask}</span>
+    <span className={styles.muted}>Ref P/L <span className={tone && visible ? styles[tone] : undefined}>{visible ? signedChips(chips.refPnl, format) : mask}</span></span>
+  </div>
 }
 
 export function PlayersTab({ agentId }: PlayersTabProps) {
@@ -147,7 +172,7 @@ export function PlayersTab({ agentId }: PlayersTabProps) {
   }
 
   type PlayersTabRow = {
-    player?: { id: string; name?: string; username?: string; email?: string; playerType?: string; status?: string; creditLimit?: number; creditUsed?: number; creditAvailable?: number; agentId?: string; parentAgent?: { id: string; username?: string }; wallet?: { balance?: number; exposure?: number }; referredBy?: { id: string; name?: string; username?: string; phone?: string } }
+    player?: { id: string; name?: string; username?: string; email?: string; playerType?: string; status?: string; agentId?: string; parentAgent?: { id: string; username?: string }; chips?: ChipAccount | null; wallet?: { balance?: number; exposure?: number }; referredBy?: { id: string; name?: string; username?: string; phone?: string } }
     stats?: { totalExposure?: number; lastActivityAt?: string; lastLogin?: string; lastBetAt?: string; daysSinceLastBet?: number }
   }
   // Under a sub-agent: its name; directly under this agent: Direct.
@@ -167,11 +192,12 @@ export function PlayersTab({ agentId }: PlayersTabProps) {
     } },
     { key: 'subAgent', header: 'Sub-Agent', hidden: isMobile, cell: row => { const name = subAgentOf(row); return name === 'Direct' ? <span className={styles.muted}>Direct</span> : name || '—' } },
     { key: 'type', header: 'Type', hidden: isMobile, cell: row => <StatusPill tone="info">{getPlayerTypeLabel(row.player?.playerType)}</StatusPill> },
-    { key: 'balance', header: 'Balance / Credit', sort: true, align: 'right', cell: row => {
+    { key: 'balance', header: 'Balance', sort: true, align: 'right', cell: row => {
       const player = row.player
       if (!player) return '—'
-      // A credit player's figure is what is left of the limit; the used part and the limit sit under it.
-      return isCreditPlayer(row) ? <div className={clsx(styles.rowDetails, styles.cellEnd)}><span>{canViewCredit ? fmt(player.creditAvailable || 0) : mask} available</span><span className={styles.muted}>Used {canViewCredit ? fmt(player.creditUsed || 0) : mask} of {canViewCredit ? fmt(player.creditLimit || 0) : mask}</span></div> : canViewWallet ? fmt(player.wallet?.balance || 0) : mask
+      // A credit player's balance is its chips (spec 2026-11-02 §2), with its Ref P/L under it.
+      if (isCreditPlayer(row) && player.chips) return <ChipBalance chips={player.chips} visible={canViewCredit} mask={mask} />
+      return canViewWallet ? fmt(player.wallet?.balance || 0) : mask
     } },
     { key: 'exposure', header: 'Exposure', align: 'right', hidden: isMobile, cell: row => { const value = Number(row.stats?.totalExposure || row.player?.wallet?.exposure || 0); return <span className={value > 0 ? styles.warning : undefined}>{canViewWallet ? fmt(value) : mask}</span> } },
     { key: 'activity', header: 'Last Activity', hidden: isMobile, cell: row => {

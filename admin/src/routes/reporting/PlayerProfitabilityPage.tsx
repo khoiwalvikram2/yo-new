@@ -22,7 +22,6 @@ import { Button } from '@/ui/components/Button';
 import { Card } from '@/ui/components/Card';
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/ui/components/DataTable';
 import { FilterBar } from '@/ui/components/FilterBar';
-import { Notice } from '@/ui/components/Notice';
 import { Page } from '@/ui/components/Page';
 import { PageHeader } from '@/ui/components/PageHeader';
 import { SearchField } from '@/ui/components/SearchField';
@@ -32,12 +31,8 @@ import { Tabs, type TabItem } from '@/ui/components/Tabs';
 import { strokeFor } from '@/ui/components/icons';
 import { tabId, tabPanelId } from '@/ui/components/tabIds';
 import {
-  ACTIVE_PLAYERS_QUERY,
-  CASINO_KPIS_QUERY,
   CASINO_PLAYER_BREAKDOWN_QUERY,
-  MATKA_KPIS_QUERY,
   MATKA_PLAYER_BREAKDOWN_QUERY,
-  SPORTS_KPIS_QUERY,
   SPORTS_PLAYER_BREAKDOWN_QUERY,
 } from './playerProfitabilityQueries';
 import {
@@ -144,29 +139,11 @@ function PlayerProfitabilityPageContent() {
     }
   );
 
-  const { data: sportsKPIData, loading: sportsKPILoading, error: sportsKPIError, refetch: refetchSportsKPI } = useQuery(
-    SPORTS_KPIS_QUERY,
-    { variables: { filter: { dateFrom, dateTo } }, errorPolicy: 'all', fetchPolicy: 'network-only' }
-  );
-  const { data: casinoKPIData, loading: casinoKPILoading, error: casinoKPIError, refetch: refetchCasinoKPI } = useQuery(
-    CASINO_KPIS_QUERY,
-    { variables: { filter: { dateFrom, dateTo } }, errorPolicy: 'all', fetchPolicy: 'network-only' }
-  );
-  const { data: matkaKPIData, loading: matkaKPILoading, error: matkaKPIError, refetch: refetchMatkaKPI } = useQuery(
-    MATKA_KPIS_QUERY,
-    { variables: { filter: { dateFrom, dateTo } }, errorPolicy: 'all', fetchPolicy: 'network-only' }
-  );
-  const {
-    data: activePlayersData,
-    loading: activePlayersLoading,
-    error: activePlayersError,
-    refetch: refetchActivePlayers,
-  } = useQuery(
-    ACTIVE_PLAYERS_QUERY,
-    { variables: { dateRange: { dateFrom, dateTo } }, errorPolicy: 'all', fetchPolicy: 'network-only' }
-  );
-
-  const isLoading = sportsLoading || casinoLoading || matkaLoading || sportsKPILoading || casinoKPILoading || matkaKPILoading || activePlayersLoading;
+  /* The cards describe the players listed (the tab's rows, then the search), summed from those rows.
+     The three domains' KPI documents and the dashboard's active-player count they read added up every
+     domain whatever the tab (the Sports tab showed the all-domain GGR next to "53 players": F-REP-16);
+     they are no longer asked for. */
+  const isLoading = sportsLoading || casinoLoading || matkaLoading;
 
   // Merge all domains by playerId (fully dynamic from backend); one domain's tab shows its own rows.
   const players = useMemo(
@@ -185,10 +162,7 @@ function PlayerProfitabilityPageContent() {
     [players, searchQuery],
   );
 
-  const totals = useMemo(
-    () => profitabilityTotals(sportsKPIData?.sportsKPIs, casinoKPIData?.casinoKPIs, matkaKPIData?.matkaKPIs),
-    [sportsKPIData, casinoKPIData, matkaKPIData],
-  );
+  const totals = useMemo(() => profitabilityTotals(filteredPlayers), [filteredPlayers]);
 
   // Paginate players; a sort orders the page on screen only, as the legacy table did.
   const paginatedPlayers = useMemo(
@@ -204,8 +178,6 @@ function PlayerProfitabilityPageContent() {
     skipCasino ? undefined : casinoError,
     skipMatka ? undefined : matkaError,
   ].find(isReportableProfitabilityError);
-  const kpiErrors = [sportsKPIError, casinoKPIError, matkaKPIError, activePlayersError]
-    .filter(isReportableProfitabilityError);
 
   const columns = useMemo<DataTableColumn<PlayerBreakdownData>[]>(() => [
     {
@@ -278,10 +250,6 @@ function PlayerProfitabilityPageContent() {
     if (activeTab === 'sports' || activeTab === 'all') refetchSports();
     if (activeTab === 'casino' || activeTab === 'all') refetchCasino();
     if (activeTab === 'matka' || activeTab === 'all') refetchMatka();
-    refetchSportsKPI();
-    refetchCasinoKPI();
-    refetchMatkaKPI();
-    refetchActivePlayers();
   };
 
   const activeFiltersCount = profitabilityActiveFilterCount(searchQuery, datePreset);
@@ -342,7 +310,7 @@ function PlayerProfitabilityPageContent() {
             />
             <Stat
               label="Active Players"
-              value={activePlayersData?.overviewKPIs?.activePlayers ?? filteredPlayers.length}
+              value={filteredPlayers.length}
               note={`${paginatedPlayers.length} showing`}
               icon={<IconUsers size={18} stroke={strokeFor(18)} />}
               hue="red"
@@ -350,11 +318,6 @@ function PlayerProfitabilityPageContent() {
           </div>
         </div>
 
-        {kpiErrors.length > 0 ? (
-          <Notice tone="warn" title="Some totals could not be loaded">
-            The figures that did load are shown. Refresh to try again.
-          </Notice>
-        ) : null}
 
         {/* Filters Bar — same UI as Player Activity Report */}
         <FilterBar

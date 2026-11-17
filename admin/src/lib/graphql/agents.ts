@@ -96,17 +96,9 @@ export const AGENTS_PAGE_QUERY = gql`
             domain
             rate
           }
+          # A CREDIT agent's credit reference. Its chips are read beside the list, for the CREDIT tab only
+          # (routes/agents/components/agentChips.ts); the credit-limit and settlement-balance columns are retired.
           creditLimit
-          creditUsed
-          creditAvailable
-          settlementBalance
-          settlementBalanceSports
-          settlementBalanceCasino
-          settlementBalanceMatka
-          settlementBalanceByDomain {
-            domain
-            settlementBalance
-          }
           createdAt
         }
         total

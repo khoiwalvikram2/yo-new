@@ -24,7 +24,6 @@ import {
   IconSearchOff,
   IconShare,
   IconShieldHalf,
-  IconSpeakerphone,
   IconStack2,
   IconTie,
   IconUsers,
@@ -98,7 +97,6 @@ const CATEGORY_ICONS: Readonly<Record<string, TablerIcon>> = {
   audit: IconClipboardCheck,
   notifications: IconBell,
   credit: IconArrowsExchange,
-  promotions: IconSpeakerphone,
 }
 
 const HUE_CLASS: Readonly<Record<CategoryHue, string>> = {

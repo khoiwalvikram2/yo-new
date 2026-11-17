@@ -2,30 +2,65 @@ import {
   createCategory as createCat, deleteCategory as deleteCat, renameCategory as renameCat, reorderCategory as reorderCat,
   upsertLimit as upsertCasinoLimit,
   setPaused as setJackpotPaused, payout as payoutJackpotAction,
-  createPromotion as createPromo, publishPromotion as publishPromo, pausePromotion as pausePromo,
-  createContent as createCms, updateContent as updateCms, publishContent as publishCms,
   record as recordAudit,
 } from '@/stores/index.js'
 import { z } from 'zod'
 import { currencyService } from '../../../services/currencyService.js'
-import { toggleCasinoGameEnabledDb, reorderVendorGamesDb, toggleVipTierGameEnabledDb, bulkUpdateVipTierGamesDb, updateCasinoGameSettingsDb, bulkUpdateCasinoGameSettingsDb, createCasinoProviderDb, updateCasinoProviderDb, deleteCasinoProviderDb, upsertCasinoGameBetSettingsDb, deleteCasinoGameBetSettingsDb, createCasinoCategoryDb, updateCasinoCategoryDb, deleteCasinoCategoryDb, reorderCasinoCategoriesDb, assignGamesToCategoryDb, removeGamesFromCategoryDb, getCasinoCategoryDb, upsertProviderVendorShareDb, toggleCasinoVendorEnabledDb, bulkUpdateVendorSettingsDb, updateVendorDisplayOrderDb, toggleCasinoGameMasterActiveDb, toggleWhitelabelCasinoProviderDb, setWhitelabelCasinoVendorSuperAdminOverrideDb, setWhitelabelCasinoGameSuperAdminOverrideDb, reorderCategoryGamesDb, resolveCasinoBetSettingPlayerMetaDb } from '@src/repos/casino/casinoRepo.js'
+import { toggleCasinoGameEnabledDb, reorderVendorGamesDb, toggleVipTierGameEnabledDb, bulkUpdateVipTierGamesDb, updateCasinoGameSettingsDb, bulkUpdateCasinoGameSettingsDb, createCasinoProviderDb, updateCasinoProviderDb, deleteCasinoProviderDb, upsertCasinoGameBetSettingsDb, deleteCasinoGameBetSettingsDb, createCasinoCategoryDb, updateCasinoCategoryDb, deleteCasinoCategoryDb, reorderCasinoCategoriesDb, assignGamesToCategoryDb, removeGamesFromCategoryDb, getCasinoCategoryDb, upsertProviderVendorShareDb, toggleCasinoVendorEnabledDb, bulkUpdateVendorSettingsDb, updateVendorDisplayOrderDb, toggleCasinoGameMasterActiveDb, toggleWhitelabelCasinoProviderDb, setWhitelabelCasinoVendorSuperAdminOverrideDb, setWhitelabelCasinoGameSuperAdminOverrideDb, reorderCategoryGamesDb, resolveCasinoBetSettingPlayerMetaDb, vipTierBelongsToTenantDb } from '@src/repos/casino/casinoRepo.js'
 import { hasPermission } from '@src/domains/common/auth.js'
-import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
-import { generatePresignedGetUrl, getS3ObjectUrl } from '@src/services/storage/s3.js'
+import { getEffectiveTenantForDirector, shouldSkipTenantFiltering } from '@src/domains/common/directorModeUtils.js'
+import { displayableAsset } from '@shared/utils/dataUri.js'
+import { assertStorableImage } from '@src/services/storage/storedImage.js'
 import { requireDiagnosticAccess } from '@src/domains/common/auth.js'
 import { toCasinoCategoryDbType, toCasinoCategoryType, type CasinoCategoryType } from '../categoryType.js'
 import { saveCasinoLoungeGamesDb } from '@src/repos/casino/loungeImagesRepo.js'
 import type { CasinoLoungeImageInput } from '../loungeImages.js'
+import { betSettingsProblem, duplicateCategorySlugMessage } from '../casinoWriteRules.js'
 
-/** Convert a stored S3 icon key into a displayable presigned URL (data URIs / full URLs pass through). */
-async function presignIcon(icon: any): Promise<string | null> {
-  if (!icon || typeof icon !== 'string') return null
-  if (icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('data:')) return icon
-  try {
-    const presigned = await generatePresignedGetUrl(icon, 7 * 24 * 3600)
-    if (presigned) return presigned
-  } catch {}
-  try { return getS3ObjectUrl(icon) } catch { return icon }
+/**
+ * The provider catalogue is platform data.
+ *
+ * casino_api_providers has no tenant column: one row serves every whitelabel,
+ * and the player callbacks find games by its key. The map's
+ * `casino.providers:*` is also granted by the flat `casino:write` that every
+ * Whitelabel Admin holds, so one tenant could relabel, re-key or add a
+ * provider for all of them. Like `requireDiagnosticAccess`, this asks for the
+ * platform permission on top of the map.
+ */
+function requirePlatformCatalogueAccess(ctx: any, name: string): void {
+  if (!hasPermission(ctx?.permissions ?? [], 'all', '*')) {
+    throw new Error(`Forbidden: ${name} changes the platform casino catalogue and requires platform administrator permission`)
+  }
+}
+
+/**
+ * The whitelabel a tenant-scoped casino write lands on.
+ *
+ * A Super Admin in core mode reads these screens across every whitelabel,
+ * while the context's whitelabel is forced to the pseudo-whitelabel
+ * 'default'. The writes landed there: "Vendor disabled" changed a brand
+ * nobody was looking at, and the row on screen stayed as it was. Core mode
+ * is refused until a whitelabel is picked; otherwise the write goes to the
+ * tenant the screen reads.
+ */
+function tenantForWrite(ctx: any): string {
+  if (shouldSkipTenantFiltering(ctx)) {
+    throw new Error('Select a whitelabel first: core mode shows every whitelabel, and this setting belongs to one')
+  }
+  return getEffectiveTenantForDirector(ctx) ?? ctx?.whitelabel?.id ?? 'default'
+}
+
+/** VIP tiers belong to one whitelabel; a tier id from another one is refused, not written. */
+async function requireOwnVipTier(tierId: string, tenant: string): Promise<void> {
+  if (!(await vipTierBelongsToTenantDb(tierId, tenant))) {
+    throw new Error('VIP tier not found for this whitelabel')
+  }
+}
+
+/** A duplicate category slug is reported as the reason; the driver's message carried the SQL and its parameters. */
+function duplicateCategorySlugError(error: unknown, slug: string | undefined, mainCategory: string | undefined): unknown {
+  const message = duplicateCategorySlugMessage(error, slug, mainCategory)
+  return message ? new Error(message) : error
 }
 
 const CreateCategoryInput = z.object({ input: z.object({ name: z.string().min(1), parentId: z.string().optional() }) })
@@ -35,9 +70,6 @@ const IdInput = z.object({ id: z.string().min(1) })
 const UpsertLimitInput = z.object({ input: z.object({ scope: z.enum(['provider','category','game']), scopeId: z.string().min(1), maxStake: z.number(), maxPayout: z.number(), currency: z.string().min(3).max(3) }) })
 const PauseJackpotInput = z.object({ id: z.string().min(1), pause: z.boolean() })
 const PayoutJackpotInput = z.object({ id: z.string().min(1), amount: z.number().optional() })
-const CreatePromotionInput = z.object({ input: z.object({ name: z.string().min(1), targetingRules: z.string().optional(), start: z.string().min(1), end: z.string().min(1) }) })
-const CreateContentInput = z.object({ input: z.object({ name: z.string().min(1), locale: z.string().optional(), body: z.string().optional() }) })
-const UpdateContentInput = z.object({ input: z.object({ id: z.string().min(1), name: z.string().optional(), locale: z.string().optional(), body: z.string().optional() }) })
 
 export const casinoMutationResolvers = {
   createCategory: async (_: any, args: any) => { const p = CreateCategoryInput.safeParse(args); if (!p.success) throw new Error('Invalid input'); return createCat(p.data.input.name, p.data.input.parentId ?? undefined) },
@@ -75,117 +107,40 @@ export const casinoMutationResolvers = {
     ctx.pubsub.publish({ topic: 'JACKPOT', payload: { jackpotPot: jp } })
     return jp
   },
-  createPromotion: async (_: any, args: any, ctx: any) => { 
-    const p = CreatePromotionInput.safeParse(args); 
-    if (!p.success) throw new Error('Invalid input')
-    const promo = createPromo({ 
-    name: p.data.input.name, 
-    targetingRules: p.data.input.targetingRules ? JSON.parse(p.data.input.targetingRules) : undefined, 
-    schedule: { start: p.data.input.start, end: p.data.input.end } 
-    })
-    return {
-      success: true,
-      message: `Promotion "${promo.name}" created successfully`,
-      promotion: {
-        id: promo.id,
-        tenant: ctx?.whitelabel?.id || ctx?.tenant || 'default',
-        name: promo.name,
-        status: promo.status,
-        targetingJson: promo.targetingRules,
-        scheduleStart: promo.schedule.start,
-        scheduleEnd: promo.schedule.end,
-        contentJson: null,
-        createdAt: promo.updatedAt,
-        updatedAt: promo.updatedAt,
-      }
-    }
-  },
-  publishPromotion: async (_: any, args: any, ctx: any) => { 
-    const p = IdInput.safeParse(args); 
-    if (!p.success) throw new Error('Invalid input')
-    const promo = publishPromo(p.data.id)
-    return {
-      success: true,
-      message: 'Promotion published successfully',
-      promotion: {
-        id: promo.id,
-        tenant: ctx?.whitelabel?.id || ctx?.tenant || 'default',
-        name: promo.name,
-        status: promo.status,
-        targetingJson: promo.targetingRules,
-        scheduleStart: promo.schedule.start,
-        scheduleEnd: promo.schedule.end,
-        contentJson: null,
-        createdAt: promo.updatedAt,
-        updatedAt: promo.updatedAt,
-      }
-    }
-  },
-  pausePromotion: async (_: any, args: any, ctx: any) => { 
-    const p = IdInput.safeParse(args); 
-    if (!p.success) throw new Error('Invalid input')
-    const promo = pausePromo(p.data.id)
-    return {
-      success: true,
-      message: 'Promotion paused successfully',
-      promotion: {
-        id: promo.id,
-        tenant: ctx?.whitelabel?.id || ctx?.tenant || 'default',
-        name: promo.name,
-        status: promo.status,
-        targetingJson: promo.targetingRules,
-        scheduleStart: promo.schedule.start,
-        scheduleEnd: promo.schedule.end,
-        contentJson: null,
-        createdAt: promo.updatedAt,
-        updatedAt: promo.updatedAt,
-      }
-    }
-  },
-  createContent: async (_: any, args: any) => { const p = CreateContentInput.safeParse(args); if (!p.success) throw new Error('Invalid input'); return createCms({ 
-    name: p.data.input.name, 
-    locale: p.data.input.locale ?? undefined, 
-    body: p.data.input.body ?? undefined 
-  }) },
-  updateContent: async (_: any, args: any) => { const p = UpdateContentInput.safeParse(args); if (!p.success) throw new Error('Invalid input'); return updateCms({ 
-    id: p.data.input.id, 
-    name: p.data.input.name ?? undefined, 
-    locale: p.data.input.locale ?? undefined, 
-    body: p.data.input.body ?? undefined 
-  }) },
-  publishContent: async (_: any, args: any) => { const p = IdInput.safeParse(args); if (!p.success) throw new Error('Invalid input'); return publishCms(p.data.id) },
+  // createPromotion, publishPromotion, pausePromotion, createContent, updateContent and
+  // publishContent (Promotions > Campaigns and > Content) were retired on 2026-11-04 (MAR-14).
   // Casino management
   toggleCasinoGameEnabled: async (_: any, args: { gameId: string; enabled: boolean }, ctx: any) => {
-    const tenant = ctx?.whitelabel?.id || 'default'
+    const tenant = tenantForWrite(ctx)
     await toggleCasinoGameEnabledDb(tenant, Number(args.gameId), args.enabled)
     return { success: true, message: args.enabled ? 'Game enabled' : 'Game disabled' }
   },
   toggleCasinoVendorEnabled: async (_: any, args: { vendorId: string; enabled: boolean }, ctx: any) => {
-    const tenant = ctx?.whitelabel?.id || 'default'
+    const tenant = tenantForWrite(ctx)
     await toggleCasinoVendorEnabledDb(tenant, Number(args.vendorId), args.enabled)
     return { success: true, message: args.enabled ? 'Vendor enabled' : 'Vendor disabled' }
   },
   bulkUpdateVendorSettings: async (_: any, args: { vendorIds: string[]; enabled: boolean }, ctx: any) => {
-    const tenant = ctx?.whitelabel?.id || 'default'
+    const tenant = tenantForWrite(ctx)
     const vendorIds = args.vendorIds.map(id => Number(id))
     await bulkUpdateVendorSettingsDb(tenant, vendorIds, args.enabled)
     return { success: true, message: `Updated ${vendorIds.length} vendor(s)` }
   },
   updateVendorDisplayOrder: async (_: any, args: { vendorOrders: Array<{ vendorId: string; order: number }> }, ctx: any) => {
-    const tenant = ctx?.whitelabel?.id || 'default'
+    const tenant = tenantForWrite(ctx)
     const vendorOrders = args.vendorOrders.map(vo => ({ vendorId: Number(vo.vendorId), order: vo.order }))
     await updateVendorDisplayOrderDb(tenant, vendorOrders)
     return { success: true, message: 'Vendor display order updated' }
   },
   reorderVendorGames: async (_: any, args: { vendorId: string; category: 'LIVE_CASINO'|'CASINO'|'SLOTS'; gameIds: string[] }, ctx: any) => {
-    const tenant = ctx?.whitelabel?.id || 'default'
+    const tenant = tenantForWrite(ctx)
     const cat = args.category === 'LIVE_CASINO' ? 'live_casino' : (args.category as string).toLowerCase()
     const ids = (args.gameIds || []).map((g) => Number(g))
     const res = await reorderVendorGamesDb(tenant, Number(args.vendorId), cat as any, ids)
     return { success: true, message: `Updated ${res.updated} games` }
   },
   updateCasinoGameSettings: async (_: any, args: { gameId: string; enabled?: boolean; premiumOnly?: boolean; limits?: any }, ctx: any) => {
-    const tenant = ctx?.whitelabel?.id || 'default'
+    const tenant = tenantForWrite(ctx)
     const limits = args.limits ? {
       minStake: args.limits.minStake != null ? Number(args.limits.minStake) : null,
       maxStake: args.limits.maxStake != null ? Number(args.limits.maxStake) : null,
@@ -201,7 +156,7 @@ export const casinoMutationResolvers = {
     return { success: true, message: 'Game settings updated' }
   },
   bulkUpdateCasinoGameSettings: async (_: any, args: { gameIds: string[]; enabled?: boolean; premiumOnly?: boolean; limits?: any }, ctx: any) => {
-    const tenant = ctx?.whitelabel?.id || 'default'
+    const tenant = tenantForWrite(ctx)
     const ids = (args.gameIds || []).map((g) => Number(g))
     const limits = args.limits ? {
       minStake: args.limits.minStake != null ? Number(args.limits.minStake) : null,
@@ -280,6 +235,7 @@ export const casinoMutationResolvers = {
     if (!hasPermission(ctx?.permissions ?? [], 'casino.vip-games', 'update')) {
       throw new Error('Forbidden: insufficient permissions for casino VIP tier games')
     }
+    await requireOwnVipTier(args.tierId, tenantForWrite(ctx))
     await toggleVipTierGameEnabledDb(args.tierId, Number(args.gameId), args.enabled)
     return { success: true, message: args.enabled ? 'Game enabled for VIP tier' : 'Game disabled for VIP tier' }
   },
@@ -287,21 +243,25 @@ export const casinoMutationResolvers = {
     if (!hasPermission(ctx?.permissions ?? [], 'casino.vip-games', 'update')) {
       throw new Error('Forbidden: insufficient permissions for casino VIP tier games')
     }
+    await requireOwnVipTier(args.tierId, tenantForWrite(ctx))
     const ids = (args.gameIds || []).map((g) => Number(g))
     const res = await bulkUpdateVipTierGamesDb(args.tierId, ids, args.enabled)
     return { success: true, message: `Updated ${res.updated} games for VIP tier` }
   },
-  createCasinoProvider: async (_: any, args: { input: { key?: string; name?: string; status?: string } }) => {
+  createCasinoProvider: async (_: any, args: { input: { key?: string; name?: string; status?: string } }, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'createCasinoProvider')
     if (!args.input?.key || !args.input?.name) throw new Error('key and name are required')
     const row = await createCasinoProviderDb({ key: args.input.key, name: args.input.name, status: args.input.status })
     return { id: String(row.id), key: row.key, name: row.name, status: row.status, lastSyncAt: row.lastSyncAt ? new Date(row.lastSyncAt).toISOString() : null }
   },
-  updateCasinoProvider: async (_: any, args: { id: string; input: { key?: string; name?: string; status?: string } }) => {
+  updateCasinoProvider: async (_: any, args: { id: string; input: { key?: string; name?: string; status?: string } }, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'updateCasinoProvider')
     const row = await updateCasinoProviderDb(Number(args.id), { key: args.input?.key, name: args.input?.name, status: args.input?.status })
     if (!row) return null
     return { id: String(row.id), key: row.key, name: row.name, status: row.status, lastSyncAt: row.lastSyncAt ? new Date(row.lastSyncAt).toISOString() : null }
   },
-  deleteCasinoProvider: async (_: any, args: { id: string }) => {
+  deleteCasinoProvider: async (_: any, args: { id: string }, ctx: any) => {
+    requirePlatformCatalogueAccess(ctx, 'deleteCasinoProvider')
     return deleteCasinoProviderDb(Number(args.id))
   },
   upsertProviderVendorShare: async (_: any, args: { providerId: string; vendorId: string; sharePercentage: number }, ctx: any) => {
@@ -316,9 +276,12 @@ export const casinoMutationResolvers = {
   // Custom categories
   createCasinoCategory: async (_: any, args: { input: { mainCategory: 'LIVE_CASINO'|'CASINO'|'SLOTS'; type?: CasinoCategoryType; subtitle?: string; name: string; slug: string; iconData?: string; isActive?: boolean } }, ctx: any) => {
     const tenant = ctx?.whitelabel?.id || 'default'
+    // The icon is stored as a data URI (S3 is gone): an image of at most 2 MB, or a link.
+    assertStorableImage(args.input.iconData, 'Category icon')
     const cat = args.input.mainCategory === 'LIVE_CASINO' ? 'live_casino' : (args.input.mainCategory as string).toLowerCase()
     const type = toCasinoCategoryDbType(args.input.type)
     const row = await createCasinoCategoryDb(tenant, { mainCategory: cat as any, type, subtitle: args.input.subtitle ?? null, name: args.input.name, slug: args.input.slug, iconData: args.input.iconData ?? null, isActive: args.input.isActive })
+      .catch((error: unknown) => { throw duplicateCategorySlugError(error, args.input.slug, args.input.mainCategory) })
     return row ? {
       id: String(row.id),
       mainCategory: args.input.mainCategory,
@@ -326,7 +289,7 @@ export const casinoMutationResolvers = {
       name: row.name,
       subtitle: row.subtitle || null,
       slug: row.slug,
-      iconData: await presignIcon((row as any).iconData),
+      iconData: displayableAsset((row as any).iconData),
       order: row.order ?? null,
       isActive: !!row.isActive,
       gameCount: 0,
@@ -334,19 +297,22 @@ export const casinoMutationResolvers = {
       updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString(),
     } : null
   },
-  updateCasinoCategory: async (_: any, args: { id: string; input: { mainCategory?: 'LIVE_CASINO'|'CASINO'|'SLOTS'; name?: string; slug?: string; iconData?: string; isActive?: boolean; type?: CasinoCategoryType; subtitle?: string } }, ctx: any) => {
+  updateCasinoCategory: async (_: any, args: { id: string; input: { mainCategory?: 'LIVE_CASINO'|'CASINO'|'SLOTS'; name?: string; slug?: string; iconData?: string | null; isActive?: boolean; type?: CasinoCategoryType; subtitle?: string | null } }, ctx: any) => {
     const tenant = ctx?.whitelabel?.id || 'default'
+    // A new icon is stored as a data URI (S3 is gone): an image of at most 2 MB, or a link.
+    assertStorableImage(args.input?.iconData, 'Category icon')
     const row = await updateCasinoCategoryDb(tenant, Number(args.id), {
       mainCategory: args.input?.mainCategory ? (args.input.mainCategory === 'LIVE_CASINO' ? 'live_casino' : (args.input.mainCategory as string).toLowerCase() as any) : undefined,
       name: args.input?.name,
       slug: args.input?.slug,
-      iconData: typeof args.input?.iconData === 'string' ? args.input?.iconData : undefined,
+      // null removes the icon, as it clears the subtitle; a missing key leaves either one alone.
+      iconData: typeof args.input?.iconData === 'string' ? args.input?.iconData : args.input?.iconData === null ? null : undefined,
       isActive: args.input?.isActive,
       type: args.input?.type
         ? toCasinoCategoryDbType(args.input.type)
         : undefined,
       subtitle: typeof args.input?.subtitle === 'string' ? args.input.subtitle : args.input?.subtitle === null ? null : undefined,
-    })
+    }).catch((error: unknown) => { throw duplicateCategorySlugError(error, args.input?.slug, args.input?.mainCategory) })
     if (!row) return null
     const mapCat = (v: any) => v === 'live_casino' ? 'LIVE_CASINO' : (v === 'casino' ? 'CASINO' : 'SLOTS')
     return {
@@ -356,7 +322,7 @@ export const casinoMutationResolvers = {
       name: row.name,
       subtitle: row.subtitle || null,
       slug: row.slug,
-      iconData: await presignIcon((row as any).iconData),
+      iconData: displayableAsset((row as any).iconData),
       order: row.order ?? null,
       isActive: !!row.isActive,
       gameCount: undefined,
@@ -408,6 +374,9 @@ export const casinoMutationResolvers = {
     if (!hasPermission(ctx?.permissions ?? [], 'casino.bet-settings', 'update') && !hasPermission(ctx?.permissions ?? [], 'casino.bet-settings', 'create')) {
       throw new Error('Forbidden: insufficient permissions for casino game bet settings')
     }
+    // A minimum above the maximum refuses every stake, and the player only ever sees "Bet limit".
+    const problem = betSettingsProblem(args.settings)
+    if (problem) throw new Error(problem)
     const tenant = ctx?.whitelabel?.id || 'default'
     const row = await upsertCasinoGameBetSettingsDb(
       tenant,

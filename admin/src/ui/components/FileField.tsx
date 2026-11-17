@@ -12,6 +12,7 @@ import clsx from 'clsx'
 import { IconButton } from './IconButton'
 import { ImagePreview } from './ImagePreview'
 import { Spinner } from './Spinner'
+import { StoredImage } from './StoredImage'
 import { strokeFor } from './icons'
 import styles from './FileField.module.css'
 import { acceptsFile, formatFileSize } from './fileFieldUtils'
@@ -371,11 +372,12 @@ function FileRow({
   const hasError = item.error !== undefined && item.error !== null
   const removeLabel = item.removeLabel ?? (typeof item.name === 'string' ? `Remove ${item.name}` : 'Remove file')
   const progress = item.progress === undefined ? undefined : Math.min(100, Math.max(0, item.progress))
+  // A stored image that will not load fills the tile with a placeholder naming it, never a broken image (SYS-18).
   const thumbnail = item.thumbnail ?? (item.src ? (
     item.zoomable && item.alt ? (
       <ImagePreview className={styles.zoom} src={item.src} alt={item.alt} fit={fit} dialogTitle={item.dialogTitle} />
     ) : (
-      <img src={item.src} alt={item.alt ?? ''} />
+      <StoredImage src={item.src} alt={item.alt ?? ''} placeholderClassName={styles.thumbPlaceholder} />
     )
   ) : null)
 

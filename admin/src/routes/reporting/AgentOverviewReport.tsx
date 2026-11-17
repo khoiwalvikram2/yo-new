@@ -11,7 +11,6 @@ import {
   IconRefresh,
   IconShare,
   IconStack2,
-  IconTrophy,
   IconUsers,
 } from '@tabler/icons-react'
 import { useExport } from '@/shared/hooks/useExport'
@@ -50,6 +49,7 @@ import {
   agentOverviewExportRange,
   agentOverviewFilter,
   agentOverviewFilterChanged,
+  agentOverviewPeriodNote,
   agentOverviewPresetPeriod,
   clampPage,
   formatCount,
@@ -82,7 +82,6 @@ const TAB_ICONS: Record<AgentOverviewTab, ReactNode> = {
   ggr: <IconChartPie size={GLYPH} stroke={strokeFor(GLYPH)} />,
   activity: <IconChartLine size={GLYPH} stroke={strokeFor(GLYPH)} />,
   'top-players': <IconUsers size={GLYPH} stroke={strokeFor(GLYPH)} />,
-  'top-events': <IconTrophy size={GLYPH} stroke={strokeFor(GLYPH)} />,
 }
 
 const DOMAIN_ICONS: Record<AgentOverviewDomain, ReactNode> = {
@@ -438,7 +437,7 @@ function AgentOverviewReportContent() {
                     <Stat
                       label="Total Turnover"
                       value={formatAmount(convertFromWhitelabelCurrency(kpis?.totalTurnover || 0))}
-                      note="All time"
+                      note={agentOverviewPeriodNote(period)}
                       icon={<IconChartLine size={18} stroke={strokeFor(18)} />}
                       hue="blu"
                       loading={kpisPending}
@@ -543,12 +542,6 @@ function AgentOverviewReportContent() {
                   'players',
                 )}
               />
-            </Card>
-          ) : null}
-
-          {activeTab === 'top-events' ? (
-            <Card as="div" body="flush">
-              <EmptyState title="Top events and games will be displayed here" />
             </Card>
           ) : null}
         </div>

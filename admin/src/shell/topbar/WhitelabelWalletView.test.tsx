@@ -3,7 +3,8 @@
  * be credited, and what the whitelabel has earned from sharing. The rebuild must keep today's behaviour:
  * a placeholder until credit data exists (also after a credit error), the available amount on the trigger
  * (only in its name when compact below 1024px), Credit and Sharing tabs, the status pill and the
- * "View Credit Details" footer on the Credit tab only, sharing amounts in the sharing payload's currency, and
+ * "Open Chips" footer on the Credit tab only (the pool's page is the admin Chips page since 2026-11-02),
+ * sharing amounts in the sharing payload's currency, and
  * "No sharing data available" once sharing has finished loading with nothing. The trigger had no accessible
  * name before; it now names the wallet and the amount. The view takes everything as props, so it needs no mocks.
  */
@@ -119,7 +120,8 @@ describe('WhitelabelWalletView', () => {
     assert.ok(text.includes('Available Credit'))
     assert.ok(text.includes('X10000.00'), 'limit, no currency argument')
     assert.ok(text.includes('X4000.00'), 'used, no currency argument')
-    assert.ok(screen.getByRole('button', { name: 'View Credit Details' }))
+    assert.ok(screen.getByRole('button', { name: 'Open Chips' }))
+    assert.equal(screen.queryByRole('button', { name: 'View Credit Details' }), null)
   })
 
   test('the Sharing tab shows sharing figures in the payload currency and hides the pill and footer', async () => {
@@ -143,7 +145,7 @@ describe('WhitelabelWalletView', () => {
     assert.ok(text.includes('INR1000.00'), 'all-time row amount in the sharing currency')
     assert.equal(text.includes('Available Credit'), false)
     assert.equal(text.includes('Healthy'), false, 'no status pill on the Sharing tab')
-    assert.equal(screen.queryByRole('button', { name: 'View Credit Details' }), null)
+    assert.equal(screen.queryByRole('button', { name: 'Open Chips' }), null)
   })
 
   test('the Sharing tab without data shows no message while loading and the message after', async () => {
@@ -167,14 +169,14 @@ describe('WhitelabelWalletView', () => {
     assert.ok((reopened.textContent ?? '').includes('No sharing data available'))
   })
 
-  test('View Credit Details closes the popover and calls onViewDetails once', async () => {
+  test('Open Chips closes the popover and calls onViewDetails once', async () => {
     const onViewDetails = vi.fn()
     render(
       <WhitelabelWalletView state={makeState()} compact={false} formatAmount={formatAmount} onViewDetails={onViewDetails} />,
     )
     await openWallet()
 
-    fireEvent.click(screen.getByRole('button', { name: 'View Credit Details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Chips' }))
 
     assert.equal(onViewDetails.mock.calls.length, 1)
     await waitFor(() => assert.equal(screen.queryByRole('dialog'), null))

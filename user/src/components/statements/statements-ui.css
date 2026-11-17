@@ -143,11 +143,6 @@
   box-shadow: 0 10px 32px rgb(16 18 22 / 24%);
   font-family: var(--font-inter);
 }
-.nova-statement-details-modal .nova-modal-header { align-items: center; min-height: 56px; padding: 8px 8px 8px 18px; border-bottom: 0; color: #FFFFFF; background: var(--mb-bar); }
-.nova-statement-details-modal .nova-modal-header h2 { color: #FFFFFF; font-size: 19px; letter-spacing: 0; }
-.nova-statement-details-modal .nova-modal-close { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
-.nova-statement-details-modal .nova-modal-close:hover { color: #FFFFFF; background: rgb(255 255 255 / 12%); }
-.nova-statement-details-modal .nova-modal-close:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -2px; }
 .nova-statement-details-modal .nova-modal-body { padding: 4px 18px 8px; }
 
 .nova-stmt-dl { display: grid; }

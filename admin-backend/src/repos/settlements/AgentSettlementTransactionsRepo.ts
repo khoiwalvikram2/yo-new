@@ -230,15 +230,10 @@ export class AgentSettlementTransactionsRepo {
       const stats = statsMap.get(agent.id);
       let pendingAmount = 0;
       
+      // CREDIT has no pending settlement: its chips move by Deposit / Withdraw.
       if (agent.schemeType === 'SHARING' && stats?.profitLoss != null && stats.profitLoss !== 0) {
         const pl = Number(stats.profitLoss);
         pendingAmount = Number.isFinite(pl) ? Math.abs(pl) : 0;
-      } else if (agent.schemeType === 'CREDIT') {
-        const agentCredit = await agentsRepo.getCreditFields(agent.id);
-        if (agentCredit && agentCredit.settlementBalance !== 0) {
-          const bal = Number(agentCredit.settlementBalance);
-          pendingAmount = Number.isFinite(bal) ? Math.abs(bal) : 0;
-        }
       } else if (agent.schemeType === 'COMMISSION') {
         const earned = Number(stats?.commissionEarned ?? 0);
         const paid = commissionTotalPaidMap.get(agent.id) ?? 0;

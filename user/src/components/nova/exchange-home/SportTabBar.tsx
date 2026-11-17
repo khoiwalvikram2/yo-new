@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Radio, Trophy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ALL_TAB, IN_PLAY_TAB, sportIcon, type SportTab } from './exchangeShared'
+import { ALL_TAB, IN_PLAY_TAB, sportIcon, sportIconClass, type SportTab } from './exchangeShared'
+import { useSportsIconStyle } from '@/hooks/useAppSettings'
 import './nova-exchange-home.css'
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
 /** White strip of sport filters (All / In-Play / each sport, with counts); arrows appear when it overflows. */
 export default function SportTabBar({ tabs, active, onSelect, loading, controls }: Props) {
   const { t } = useTranslation()
+  const iconStyle = useSportsIconStyle()
   const track = useRef<HTMLDivElement>(null)
   const [edges, setEdges] = useState({ start: true, end: true })
   const syncEdges = useCallback(() => {
@@ -36,7 +38,7 @@ export default function SportTabBar({ tabs, active, onSelect, loading, controls 
     {!edges.start && <button type="button" className="nova-ex-tabs-arrow is-prev" tabIndex={-1} aria-hidden="true" onClick={() => scrollBy(-1)}><ChevronLeft /></button>}
     <div className="nova-ex-sport-tabs" ref={track} onScroll={syncEdges} role="group" aria-label={t('nova.discoverSports')}>
       {tabs.map(tab => {
-        const icon = tab.sport && sportIcon(tab.sport)
+        const icon = tab.sport && sportIcon(tab.sport, iconStyle)
         return <button
           key={tab.key}
           type="button"
@@ -45,7 +47,7 @@ export default function SportTabBar({ tabs, active, onSelect, loading, controls 
           aria-controls={controls}
           onClick={() => onSelect(tab.key)}
         >
-          {tab.key === ALL_TAB ? <Trophy aria-hidden="true" /> : tab.key === IN_PLAY_TAB ? <Radio aria-hidden="true" /> : icon ? <img className="sport-img" src={icon} alt="" /> : null}
+          {tab.key === ALL_TAB ? <Trophy aria-hidden="true" /> : tab.key === IN_PLAY_TAB ? <Radio aria-hidden="true" /> : icon ? <img className={sportIconClass(tab.sport ?? '', iconStyle, 'sport-img')} src={icon} alt="" /> : null}
           <span>{tab.label}</span>
           <small>{loading ? '–' : tab.count}</small>
         </button>

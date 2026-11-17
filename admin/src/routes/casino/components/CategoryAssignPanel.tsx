@@ -40,6 +40,7 @@ import { SegmentedControl } from '@/ui/components/SegmentedControl'
 import { Select } from '@/ui/components/Select'
 import { Stat } from '@/ui/components/Stat'
 import { StatusPill } from '@/ui/components/StatusPill'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { strokeFor } from '@/ui/components/icons'
 import {
   CATEGORY_FILTER_OPTIONS,
@@ -720,9 +721,10 @@ export function CategoryAssignPanel({
 }
 
 function GameThumb({ game, compact = false, image }: { game?: CatalogGame; compact?: boolean; image?: string | null }) {
+  // No image, or one that will not load: the photo glyph, never a broken image (SYS-18).
   return (
     <span className={compact ? styles.thumbCompact : styles.thumb} aria-hidden="true">
-      {image || game?.thumbnailUrl ? <img src={image || game?.thumbnailUrl} alt="" loading="lazy" /> : <IconPhoto size={compact ? 17 : 24} />}
+      <StoredImage src={image || game?.thumbnailUrl} alt="" loading="lazy" fallback={<IconPhoto size={compact ? 17 : 24} />} />
     </span>
   )
 }

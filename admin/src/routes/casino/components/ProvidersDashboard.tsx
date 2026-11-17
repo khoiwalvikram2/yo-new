@@ -6,15 +6,14 @@ import {
   IconBuildingStore,
   IconChartLine,
   IconInbox,
-  IconMinus,
   IconPercentage,
   IconPlug,
-  IconTrendingDown,
-  IconTrendingUp,
 } from '@tabler/icons-react'
 import clsx from 'clsx'
 import { PROVIDERS_WITH_VENDORS, PROVIDER_ANALYTICS, UPDATE_CASINO_PROVIDER } from '@/lib/graphql/casino'
+import { useAuthStore } from '@/shared/core/authStore'
 import { useCurrency } from '@/shared/core/CurrencyContext'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 import { useFormatDate } from '@/shared/core/useFormatDate'
 import { startOfDay, DEFAULT_ADMIN_TZ } from '@/shared/utils/date'
 import type { ProviderWithVendors } from '@/modules/casino/types'
@@ -25,25 +24,24 @@ import { IconButton } from '@/ui/components/IconButton'
 import { strokeFor } from '@/ui/components/icons'
 import { Notice } from '@/ui/components/Notice'
 import { Select } from '@/ui/components/Select'
+import { StatusPill } from '@/ui/components/StatusPill'
 import { toast } from '@/ui/components/toast'
 import { Tooltip } from '@/ui/components/Tooltip'
 import {
   MESSAGE_DURATION_MS,
   PROVIDER_COMPARATORS,
   PROVIDER_STATUS_ERROR,
-  PROVIDER_TREND_DIVISOR,
   ggrTrend,
   legacySortCycle,
   normaliseProviderStatus,
   providerCountLabel,
   providerPerformance,
+  providerStatusLabel,
   providerStatusMessage,
   providerStatusOptions,
   statusUpdateVariables,
   sumTransactions,
   toProviderRows,
-  trendPercent,
-  trendWord,
   vendorsSummary,
   withProviderStatus,
   type ProviderRow,
@@ -59,42 +57,18 @@ const DOT_CLASS: Record<Trend, string | undefined> = {
   neutral: undefined,
 }
 
-const TREND_CLASS: Record<Trend, string> = {
-  up: styles.trendUp,
-  down: styles.trendDown,
-  neutral: styles.trendNeutral,
-}
-
-function TrendGlyph({ trend }: { trend: Trend }) {
-  const icon =
-    trend === 'up' ? (
-      <IconTrendingUp size={12} stroke={strokeFor(12)} />
-    ) : trend === 'down' ? (
-      <IconTrendingDown size={12} stroke={strokeFor(12)} />
-    ) : (
-      <IconMinus size={12} stroke={strokeFor(12)} />
-    )
-  return (
-    <span className={clsx(styles.figureLine, TREND_CLASS[trend])} aria-hidden="true">
-      {icon}
-    </span>
-  )
-}
-
 /**
- * Today's figure with the legacy coloured dot and its "N% vs yesterday" line (a placeholder in the legacy page:
- * the figure divided by a constant, kept verbatim and listed for the owner). The direction is also said in
- * words for assistive tech; the glyph and the colours only repeat it. Shared with the vendors table.
+ * Today's figure with its coloured dot (the sign of the GGR; the amount carries the sign in text). Shared with the
+ * vendors table. Its legacy "N% vs yesterday" line was today's figure divided by a constant, not a comparison, and
+ * no previous day is queried, so it is gone rather than kept.
  */
 export function TodayFigure({
   amount,
   trend,
-  percent,
   children,
 }: {
   amount: string
   trend: Trend
-  percent: string
   children?: React.ReactNode
 }) {
   return (
@@ -102,14 +76,6 @@ export function TodayFigure({
       <span className={styles.figureLine}>
         <span className={clsx(styles.dot, DOT_CLASS[trend])} aria-hidden="true" />
         <span className={styles.figure}>{amount}</span>
-      </span>
-      <span className={styles.trendLine}>
-        <TrendGlyph trend={trend} />
-        <span className={TREND_CLASS[trend]}>
-          <span className={styles.srOnly}>{`${trendWord(trend)} `}</span>
-          {percent}%
-        </span>
-        <span>vs yesterday</span>
       </span>
       {children}
     </div>
@@ -136,11 +102,7 @@ const ProviderAnalyticsCell: React.FC<{ providerId: string }> = ({ providerId })
   }
 
   return (
-    <TodayFigure
-      amount={formattedGGR}
-      trend={ggrTrend(totalGGR)}
-      percent={trendPercent(totalGGR, PROVIDER_TREND_DIVISOR)}
-    >
+    <TodayFigure amount={formattedGGR} trend={ggrTrend(totalGGR)}>
       <span>Vendors: {vendorBreakdown.length} active</span>
       <span>Txns: {sumTransactions(vendorBreakdown)}</span>
     </TodayFigure>
@@ -218,9 +180,13 @@ function ProviderNameCell({ row, onNavigateToVendors }: { row: ProviderRow; onNa
 }
 
 /* The status select with its optimistic update, cache write and toasts, moved verbatim from the legacy row.
-   Its state lives per row, so a re-sort keeps each provider's pending status. */
+   Its state lives per row, so a re-sort keeps each provider's pending status. The provider record is the
+   platform catalogue every whitelabel shares, and the server lets only the platform administrator change it,
+   so anyone else reads the status instead of being offered a select that writes it for every whitelabel. */
 function ProviderStatusCell({ row }: { row: ProviderRow }) {
   const { formatDateTime } = useFormatDate()
+  const permissions = useAuthStore((state) => state.permissions)
+  const canEdit = hasPermissionWithNested(permissions ?? [], 'all', '*')
   const [localStatus, setLocalStatus] = React.useState<string>(normaliseProviderStatus(row.status))
   const [updateProvider, { loading: updating }] = useMutation(UPDATE_CASINO_PROVIDER, {
     refetchQueries: [{ query: PROVIDERS_WITH_VENDORS }],
@@ -273,15 +239,21 @@ function ProviderStatusCell({ row }: { row: ProviderRow }) {
 
   return (
     <div className={styles.statusCell}>
-      <Select
-        label={`Status of ${row.name || row.key}`}
-        hideLabel
-        size="sm"
-        value={localStatus}
-        options={providerStatusOptions(localStatus)}
-        onChange={(value) => void handleStatusChange(value)}
-        loading={updating}
-      />
+      {canEdit ? (
+        <Select
+          label={`Status of ${row.name || row.key}`}
+          hideLabel
+          size="sm"
+          value={localStatus}
+          options={providerStatusOptions(localStatus)}
+          onChange={(value) => void handleStatusChange(value)}
+          loading={updating}
+        />
+      ) : (
+        <span>
+          <StatusPill status={localStatus}>{providerStatusLabel(localStatus)}</StatusPill>
+        </span>
+      )}
       <div className={styles.syncNote}>
         {row.lastSyncAt ? (
           <>

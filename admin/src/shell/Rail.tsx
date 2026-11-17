@@ -37,8 +37,8 @@ function RailButton({ section, isShown, onSelectSection }: RailButtonProps) {
       onClick={() => onSelectSection(section.key)}
     >
       <Icon size={19} stroke={1.6} aria-hidden="true" />
-      {/* Visible short name under the icon in the player skin; hidden in the classic skin. The button's
-          accessible name stays aria-label. */}
+      {/* Visible short name under the icon (the player skin). The button's accessible name stays
+          aria-label. */}
       <span className={styles.label} aria-hidden="true">{section.title}</span>
       <Badge count={count} tone="solid" className={styles.badge} aria-hidden="true" />
     </button>

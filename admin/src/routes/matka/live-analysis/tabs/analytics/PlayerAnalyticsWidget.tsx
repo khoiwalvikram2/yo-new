@@ -7,6 +7,8 @@ import { useQuery } from '@apollo/client'
 import { useMemo } from 'react'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { gql } from '@apollo/client'
+import { useAuthStore } from '@/shared/core/authStore'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 
 const MATKA_BETS_QUERY = gql`
   query MatkaBets($query: MatkaBetsQuery) {
@@ -34,13 +36,19 @@ const USERS_QUERY = gql`
 
 export const PlayerAnalyticsWidget: React.FC = () => {
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
+  // The Players tab's rule (TopPlayersTable, PlayerProfitability): amounts only with settlements.center view, masked
+  // in the page as there; the intensity bars show shares, not amounts (G503).
+  const permissions = useAuthStore(s => s.permissions)
+  const hasFinanceView = hasPermissionWithNested(permissions, 'settlements.center', 'view')
+  const maskAmount = (amount: number) => (hasFinanceView ? formatAmount(convertFromWhitelabelCurrency(amount)) : '••••')
 
   // Get open bets (pending/active) for player analytics
   // NOTE: Don't pass tenant from frontend - let backend derive both tenant and whitelabelId from context
   const { data: betsData } = useQuery<MatkaBetsData>(MATKA_BETS_QUERY, {
     variables: {
       query: {
-        status: 'pending', // Open bets only
+        // Open bets only, as the Players tab asks: a placed bet is 'active' until it settles, so 'pending' alone missed them.
+        statuses: ['pending', 'active'],
         limit: 5000,
       },
     },
@@ -107,7 +115,7 @@ export const PlayerAnalyticsWidget: React.FC = () => {
   }, [betsData, usersData])
 
   return <Card title="Player Analytics" sub="Top players & segments"><div className={styles.grid2}>
-    <section className={styles.stack}><h3 className={styles.heading}>Top Players by Wagered</h3>{!analytics.topPlayers.length ? <EmptyState title="No player data" /> : <ol className={styles.list}>{analytics.topPlayers.map((player, idx) => <li className={styles.item} key={player.userId}><div className={styles.row}><span className={styles.inline}><span className={styles.rank}>{idx + 1}</span><strong className={styles.heading}>{player.userName}</strong></span><span className={styles.amount}>{formatAmount(convertFromWhitelabelCurrency(player.wagered))}</span></div><Meter value={player.wagered / analytics.maxWagered * 100} label={`Wagered intensity for ${player.userName}`} /></li>)}</ol>}</section>
+    <section className={styles.stack}><h3 className={styles.heading}>Top Players by Wagered</h3>{!analytics.topPlayers.length ? <EmptyState title="No player data" /> : <ol className={styles.list}>{analytics.topPlayers.map((player, idx) => <li className={styles.item} key={player.userId}><div className={styles.row}><span className={styles.inline}><span className={styles.rank}>{idx + 1}</span><strong className={styles.heading}>{player.userName}</strong></span><span className={styles.amount}>{maskAmount(player.wagered)}</span></div><Meter value={player.wagered / analytics.maxWagered * 100} label={`Wagered intensity for ${player.userName}`} /></li>)}</ol>}</section>
     <section className={styles.stack}><h3 className={styles.heading}>VIP Tier Distribution</h3>{!analytics.vipTiers.length ? <EmptyState title="No tier data" /> : <ul className={styles.list}>{analytics.vipTiers.map(({ tier, count, percentage }) => <li key={tier} className={styles.item}><div className={styles.row}><strong>{tier}</strong><span>{count}</span></div><Meter value={percentage} label={`Player share for tier ${tier}`} /></li>)}</ul>}</section>
   </div></Card>
 }

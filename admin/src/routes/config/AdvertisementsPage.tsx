@@ -29,6 +29,7 @@ import { Switch } from '@/ui/components/Switch'
 import { SearchField } from '@/ui/components/SearchField'
 import { FileField } from '@/ui/components/FileField'
 import { StatusPill } from '@/ui/components/StatusPill'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { LoadingState } from '@/ui/components/LoadingState'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { Notice } from '@/ui/components/Notice'
@@ -42,6 +43,7 @@ import styles from './AdvertisementsPage.module.css'
 
 interface AdsData { advertisements: Advertisement[] }
 interface MutationData { [key: string]: { success: boolean; message?: string } | undefined }
+const SELF_REPORTED = { context: { skipNotification: true } }
 
 function failure(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback
@@ -67,10 +69,12 @@ function AdvertisementsPageContent() {
   const { data, loading, error, refetch } = useQuery<AdsData>(ADVERTISEMENTS, {
     variables: { status: status || undefined }, errorPolicy: 'all',
   })
-  const [createAd] = useMutation<MutationData>(CREATE_ADVERTISEMENT)
-  const [updateAd] = useMutation<MutationData>(UPDATE_ADVERTISEMENT)
-  const [deleteAd] = useMutation<MutationData>(DELETE_ADVERTISEMENT)
-  const [reorderAds] = useMutation<MutationData>(REORDER_ADVERTISEMENTS)
+  // Each action below toasts its own outcome, so the global notification link stays quiet (every one was
+  // toasted twice: "Advertisement created" and "Advertisement created successfully").
+  const [createAd] = useMutation<MutationData>(CREATE_ADVERTISEMENT, SELF_REPORTED)
+  const [updateAd] = useMutation<MutationData>(UPDATE_ADVERTISEMENT, SELF_REPORTED)
+  const [deleteAd] = useMutation<MutationData>(DELETE_ADVERTISEMENT, SELF_REPORTED)
+  const [reorderAds] = useMutation<MutationData>(REORDER_ADVERTISEMENTS, SELF_REPORTED)
   const filtered = useMemo(() => filterAdvertisements(data?.advertisements || [], {
     type, deviceType, query,
   }), [data?.advertisements, type, deviceType, query])
@@ -224,7 +228,6 @@ function AdvertisementRow({ ad, onEdit, onDelete, onToggle }: {
 }) {
   const { formatDate, formatTime } = useFormatDate()
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: ad.id })
-  const [imageFailed, setImageFailed] = useState(false)
   return (
     <TR ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
       className={isDragging ? styles.dragging : undefined}>
@@ -233,9 +236,9 @@ function AdvertisementRow({ ad, onEdit, onDelete, onToggle }: {
           label={`Drag to reorder ${ad.title}`} icon={<IconGripVertical size={16} />} />
         {ad.order ?? '—'}
       </span></TD>
-      <TD>{ad.imageUrl && !imageFailed ?
-        <img src={ad.imageUrl} alt={ad.title} className={styles.thumbnail} onError={() => setImageFailed(true)} /> :
-        <span className={styles.imageFallback}>{imageFailed ? 'Failed' : 'No image'}</span>}</TD>
+      {/* No image (the server answers null for a legacy stored file) or one that will not load: a placeholder tile
+          naming the advertisement, never a broken image (SYS-18). */}
+      <TD><StoredImage src={ad.imageUrl} alt={ad.title} className={styles.thumbnail} /></TD>
       <TD><div className={styles.identity}>
         <div className={styles.title}>{ad.title}</div>
         {ad.subtitle ? <div className={styles.sub}>{ad.subtitle}</div> : null}

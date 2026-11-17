@@ -42,7 +42,7 @@ export default function BetSlipDrawer({ event }: { event: EventDetails }) {
   if (!rail || !isAuthenticated) return null
   const title = [event.homeTeam?.name, event.awayTeam?.name].filter(Boolean).join(' v ')
   return createPortal(
-    <dialog ref={dialogRef} className="nova-panel nova-rail-panel nova-betslip-panel" aria-label="Bet slip"
+    <dialog ref={dialogRef} className="nova-panel nova-rail-panel nova-betslip-panel" data-ui-radius="square" aria-label="Bet slip"
       onCancel={dialogEvent => { dialogEvent.preventDefault(); closeQuickBet() }}>
       <div className="nova-panel-content">
         <header>

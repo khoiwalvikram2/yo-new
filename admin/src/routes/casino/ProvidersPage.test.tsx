@@ -27,12 +27,16 @@ interface GuardCall {
   required: Array<{ domain: string; actions: string[] }>
 }
 
-const auth = vi.hoisted(() => ({ roles: ['Admin'] as string[] }))
+type Permission = { domain: string; actions: string[] }
+/** The platform administrator unless a test says otherwise: only `all:*` may change the provider catalogue. */
+const PLATFORM: Permission[] = [{ domain: 'all', actions: ['*'] }]
+const auth = vi.hoisted(() => ({ roles: ['Admin'] as string[], permissions: [] as Array<{ domain: string; actions: string[] }> }))
 const guard = vi.hoisted(() => ({ allowed: true, calls: [] as GuardCall[] }))
 const feedback = vi.hoisted(() => ({ toast: vi.fn(), dismiss: vi.fn() }))
 
 vi.mock('@/shared/core/authStore', () => ({
-  useAuthStore: (selector: (state: { roles: string[] }) => unknown) => selector({ roles: auth.roles }),
+  useAuthStore: (selector: (state: { roles: string[]; permissions: Array<{ domain: string; actions: string[] }> }) => unknown) =>
+    selector({ roles: auth.roles, permissions: auth.permissions }),
 }))
 
 vi.mock('@/shared/core/RBACGuard', () => ({
@@ -126,13 +130,13 @@ const ANALYTICS: Record<string, { totalGGR: number; vendorBreakdown: Array<Recor
   p1: {
     totalGGR: 1500,
     vendorBreakdown: [
-      { vendorId: 'v1', vendorName: 'Evolution', ggr: 1000, shareAmount: 100, transactionCount: 8 },
-      { vendorId: 'v2', vendorName: 'Ezugi', ggr: 500, shareAmount: 50, transactionCount: 4 },
+      { vendorId: 'v1', vendorName: 'Evolution', ggr: 1000, shareAmount: 100, transactionCount: 8, totalStake: 4000 },
+      { vendorId: 'v2', vendorName: 'Ezugi', ggr: 500, shareAmount: 50, transactionCount: 4, totalStake: 1000 },
     ],
   },
   p2: {
     totalGGR: -200,
-    vendorBreakdown: [{ vendorId: 'v3', vendorName: 'Aviator', ggr: -200, shareAmount: 0, transactionCount: 3 }],
+    vendorBreakdown: [{ vendorId: 'v3', vendorName: 'Aviator', ggr: -200, shareAmount: 0, transactionCount: 3, totalStake: 300 }],
   },
 }
 
@@ -234,6 +238,7 @@ function handle(operation: Operation): FetchResult {
             ggr: 1000,
             shareAmount: 100,
             transactionCount: 8,
+            totalStake: 4000,
           },
         },
       }
@@ -468,6 +473,7 @@ const todayEnd = () => istDayEnd(istToday())
 
 beforeEach(() => {
   auth.roles = ['Admin']
+  auth.permissions = PLATFORM
   guard.allowed = true
   guard.calls.length = 0
   feedback.toast.mockReset()
@@ -534,18 +540,19 @@ describe('ProvidersPage', () => {
     assert.equal(qtech[0], 'QTechqtech')
     assert.ok(qtech[1].endsWith('Never synced'))
     assert.equal(qtech[2], '2 vendorsEvolutionEzugi')
-    assert.equal(qtech[3], 'INR 1500.00Up 15.0%vs yesterdayVendors: 2 activeTxns: 12')
+    // No "vs yesterday" line: it was today's GGR divided by a constant.
+    assert.equal(qtech[3], 'INR 1500.00Vendors: 2 activeTxns: 12')
     assert.equal(qtech[4], '2Vendors: 2Games: 160Active: 100')
     assert.equal((screen.getByRole('combobox', { name: 'Status of QTech' }) as HTMLSelectElement).value, 'active')
 
     const spribe = cellTexts(providerRow('spribe'))
     assert.ok(spribe[1].endsWith('Last sync:at 2026-10-06T10:00:00Z'))
-    assert.equal(spribe[3], 'INR -200.00Down 2.0%vs yesterdayVendors: 1 activeTxns: 3')
+    assert.equal(spribe[3], 'INR -200.00Vendors: 1 activeTxns: 3')
     assert.equal((screen.getByRole('combobox', { name: 'Status of spribe' }) as HTMLSelectElement).value, 'suspended')
 
     const betsoft = cellTexts(providerRow('Betsoft'))
     assert.equal(betsoft[2], '4 vendorsAlphaBetaGamma+1 more')
-    assert.equal(betsoft[3], 'INR 0.00No change 0%vs yesterdayVendors: 0 activeTxns: 0')
+    assert.equal(betsoft[3], 'INR 0.00Vendors: 0 activeTxns: 0')
 
     assert.ok(screen.getByRole('button', { name: 'Manage Vendor Shares for QTech' }))
     assert.ok(screen.getByRole('button', { name: 'View Analytics for QTech' }))
@@ -609,6 +616,20 @@ describe('ProvidersPage', () => {
     )
   })
 
+  test('anyone but the platform administrator reads the provider status and cannot change it', async () => {
+    // The provider record serves every whitelabel. A Whitelabel Admin's flat casino:write reached the select,
+    // and one tenant's change relabelled the provider for all of them; the server now refuses it as well.
+    auth.roles = ['Whitelabel Admin']
+    auth.permissions = [{ domain: 'casino', actions: ['read', 'write'] }]
+    await renderLoaded()
+
+    assert.equal(screen.queryByRole('combobox', { name: 'Status of QTech' }), null)
+    assert.equal(screen.queryByRole('combobox', { name: 'Status of spribe' }), null)
+    assert.ok(cellTexts(providerRow('QTech'))[1].startsWith('Active'))
+    assert.ok(cellTexts(providerRow('spribe'))[1].startsWith('Suspended'))
+    assert.equal(calls('UpdateCasinoProvider').length, 0)
+  })
+
   test('a provider name opens its vendors; the trail and the scope tabs lead back', async () => {
     await renderLoaded()
 
@@ -632,10 +653,11 @@ describe('ProvidersPage', () => {
       'Evolutionevolution',
       'QTechIntegration active',
       '120 gamesActive: 100',
-      'INR 1000.00Up 20.0%vs yesterdayShare: INR 100.00Txns: 8',
-      '8Txns: 8Avg: INR 125.00',
+      'INR 1000.00Share: INR 100.00Txns: 8',
+      // The stake per bet (4,000 over 8); the legacy |GGR| / bets read 125.00.
+      '8Txns: 8Avg: INR 500.00',
     ])
-    assert.equal(cellTexts(rowOf('Vendors', 'Ezugi'))[3], 'INR 500.00Up 10.0%vs yesterdayShare: INR 50.00Txns: 4')
+    assert.equal(cellTexts(rowOf('Vendors', 'Ezugi'))[3], 'INR 500.00Share: INR 50.00Txns: 4')
     assert.equal(calls('VendorAnalytics').length, 0)
 
     fireEvent.click(within(trail).getByRole('button', { name: 'Providers' }))
@@ -653,7 +675,7 @@ describe('ProvidersPage', () => {
     // a vendor missing from the batched analytics reads as zeros (and shows no average)
     await waitFor(() => assert.ok(cellTexts(rowOf('Vendors', 'Evolution'))[3].startsWith('INR 1000.00')))
     assert.deepEqual(cellTexts(rowOf('Vendors', 'Alpha')).slice(3, 5), [
-      'INR 0.00No change 0%vs yesterdayShare: INR 0.00Txns: 0',
+      'INR 0.00Share: INR 0.00Txns: 0',
       '0Txns: 0',
     ])
 
@@ -888,6 +910,29 @@ describe('ProvidersPage per-whitelabel visibility (Super Admin)', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search games' }), { target: { value: 'zzz' } })
     await screen.findByText('No games match filters')
     assert.equal(lastSent('WhitelabelCasinoGameOverrideSettings').search, 'zzz')
+  })
+
+  test('clearing the search brings the whole list back from the cache, and it stays', async () => {
+    // The unfiltered page comes from the cache in the same commit as the cleared search. The page reset used to
+    // run after the copy and wipe it, leaving "Select provider..." until the tab or whitelabel was switched.
+    vi.stubGlobal('IntersectionObserver', FakeObserver)
+    await renderLoaded()
+    await chooseWhitelabel()
+    fireEvent.click(visibilityTab('Games'))
+    await screen.findByRole('table', { name: 'Game visibility' })
+    await waitFor(() => assert.equal(bodyRows('Game visibility').length, 20))
+
+    const search = screen.getByRole('searchbox', { name: 'Search games' })
+    fireEvent.change(search, { target: { value: 'Game 07' } })
+    await waitFor(() => assert.equal(bodyRows('Game visibility').length, 1))
+    fireEvent.change(search, { target: { value: '' } })
+    await waitFor(() => assert.equal(bodyRows('Game visibility').length, 20))
+    // The network answer equals the cached one; the list must still be there after it.
+    await waitFor(() => assert.equal(lastSent('WhitelabelCasinoGameOverrideSettings').search, null))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.equal(bodyRows('Game visibility').length, 20)
+    assert.ok(screen.getByText('20 of 25 games'))
+    assert.equal(screen.queryByText('Select provider (and optionally vendor) to list games'), null)
   })
 
   test('a whitelabel without games says how to list them', async () => {

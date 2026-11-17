@@ -15,6 +15,9 @@ import { Steps } from '@/ui/components/Steps'
 import { Switch } from '@/ui/components/Switch'
 import { useForm } from '@/ui/form/useForm'
 import type { Path } from '@/ui/form/paths'
+// The chips read and words only, not the module's barrel: the form needs no chips component.
+import { useMyChipAccount } from '@/modules/chips/chipHooks'
+import { OPENING_CHIPS_UPLINE_HINT } from '@/modules/chips/chipModel'
 import BasicInfo from './components/BasicInfo'
 import AccountSettings from './components/AccountSettings'
 import BettingControls from './components/BettingControls'
@@ -45,10 +48,19 @@ export function PlayerCreateForm({ creator, phoneQuery, onSave, successMessage, 
   useEffect(() => {
     if ((creator?.schemeType === 'CREDIT' || creator?.schemeType === 'SHARING') && getValue('currency') !== baseCurrency) setValue('currency', baseCurrency)
   }, [creator?.schemeType, baseCurrency, getValue, setValue])
+  // A CREDIT agent gives its own new player a credit reference and opening chips from its own free chips
+  // (spec 2026-11-02 §4.4); a sub-agent's player starts at zero, because only the sub-agent moves its chips.
+  const creditCreator = creator?.schemeType === 'CREDIT'
+  const ownPlayer = form.values.targetAgentId === 'self'
+  const myChips = useMyChipAccount({ skip: !creditCreator })
+  const myFreeChips = creditCreator && ownPlayer ? myChips.account?.available ?? null : null
+  useEffect(() => {
+    if (agentMode && getValue('_chipsFree') !== myFreeChips) setValue('_chipsFree', myFreeChips)
+  }, [agentMode, myFreeChips, getValue, setValue])
   const eyebrow = usePageEyebrow()
   async function next() {
     const fields: Path<PlayerCreateValues>[] = step === 0 ? ['name', 'email', 'phone', 'dialCode', 'password', ...(isAgentPlayer(form.values.playerType) ? ['agentId' as const] : []),
-      ...(isCreditPlayer(form.values.playerType) ? ['creditLimit' as const] : [])] : ['currency', 'status']
+      ...(isCreditPlayer(form.values.playerType) ? ['creditLimit' as const, 'openingChips' as const] : [])] : ['currency', 'status']
     if (step === 2 || await form.validate(fields)) setStep((value) => Math.min(3, value + 1))
   }
   return <Page maxWidth="wide"><PageHeader title={agentMode ? 'Create New Player' : 'Create Player'} eyebrow={eyebrow}
@@ -63,14 +75,22 @@ export function PlayerCreateForm({ creator, phoneQuery, onSave, successMessage, 
             {ownerOptions ? <Card title="Create Player For"><div className={styles.stack}>
               <Combobox label="Player owner" value={form.values.targetAgentId || 'self'} onChange={(value) => setValue('targetAgentId', value || 'self')}
                 options={ownerOptions} loading={ownersLoading} required help={`Yourself or one of your active sub-agents. Player type: ${form.values.playerType}.`} />
-              {creator?.schemeType === 'CREDIT' && form.values.targetAgentId !== 'self' && <Notice tone="info">The player starts with no credit. The sub-agent assigns its credit limit.</Notice>}
+              {creditCreator && !ownPlayer && <Notice tone="info">The player starts with no chips and a credit reference of 0. {OPENING_CHIPS_UPLINE_HINT}</Notice>}
             </div></Card> :
               <Notice tone="info" title="Create Player For">Direct — Myself ({creator?.username || 'Agent'}). Player type: {form.values.playerType}.</Notice>}
             {ownersError && <Notice tone="warn" title="Sub-agents unavailable">{ownersError}. The player can still be created for yourself.</Notice>}
             <BasicInfo form={panelForm} tenant={whitelabel?.id} agentMode phoneQuery={phoneQuery} />
             <Card title="Financial Settings"><div className={styles.stack}>
-              <p className={styles.secondary}>Currency: {form.values.currency}. Initial balance and credit allocation start at zero and are managed through the credit system.</p>
-              {creator?.schemeType === 'CREDIT' ? <Notice tone="info">Credit players are not eligible for bonuses. This is automatically enforced.</Notice> :
+              <p className={styles.secondary}>{creditCreator
+                ? `Currency: ${form.values.currency}. The player is on chips: its agent deposits and withdraws them; it cannot deposit or withdraw itself.`
+                : `Currency: ${form.values.currency}. The initial balance starts at zero.`}</p>
+              {creditCreator && ownPlayer ? <div className={styles.fields}>
+                <NumberField label="Credit Reference" {...form.field('creditLimit')} value={form.values.creditLimit ?? null} min={0} precision={2} prefix={getCurrencySymbol(form.values.currency)}
+                  help="Optional. A reference only: it moves no chips. The player's Ref P/L is its chips less this." />
+                <NumberField label="Opening Chips" {...form.field('openingChips')} value={form.values.openingChips ?? null} min={0} precision={2} prefix={getCurrencySymbol(form.values.currency)}
+                  help={`Optional. Deposited from your chips${myFreeChips != null ? ` (${Math.max(0, myFreeChips).toFixed(2)} free)` : ''}.`} />
+              </div> : null}
+              {creditCreator ? <Notice tone="info">Credit players are not eligible for bonuses. This is automatically enforced.</Notice> :
                 <Switch label="Enable Bonus Eligibility" {...form.field('bonusAllowed')} checked={form.values.bonusAllowed} />}
             </div></Card>
             <Card title="Betting Limits" sub="Player limits cannot exceed your agent limits"><div className={styles.fields}>

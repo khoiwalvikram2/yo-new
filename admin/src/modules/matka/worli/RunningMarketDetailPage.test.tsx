@@ -15,12 +15,15 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
 import type { DocumentNode } from 'graphql'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import {
   ADJUST_SUSPEND_WORLI,
   PAUSE_WORLI,
   RESUME_WORLI,
   SET_MESSAGE_WORLI,
+  UNLOCK_WORLI,
   VOID_BET,
   WORLI_ACTIVITY,
   WORLI_BETS,
@@ -34,6 +37,8 @@ import RunningMarketDetailPage from './RunningMarketDetailPage'
 interface SubscriptionCall {
   query: unknown
   variables: Record<string, unknown>
+  /** Set only when the page passes one (skipNotification would silence the error link's toast). */
+  context?: unknown
   observer?: { next: (value: unknown) => void }
   closed: boolean
 }
@@ -63,8 +68,8 @@ const dialogs = vi.hoisted(() => ({ restoreFocusTo: new Map<string, { readonly c
 vi.mock('@apollo/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@apollo/client')>()
   const client = {
-    subscribe: ({ query, variables }: { query: unknown; variables: Record<string, unknown> }) => {
-      const call: SubscriptionCall = { query, variables, closed: false }
+    subscribe: ({ query, variables, context }: { query: unknown; variables: Record<string, unknown>; context?: unknown }) => {
+      const call: SubscriptionCall = { query, variables, closed: false, ...(context === undefined ? {} : { context }) }
       apollo.subscriptions.push(call)
       return {
         subscribe: (observer: { next: (value: unknown) => void }) => {
@@ -174,6 +179,7 @@ const INSTANCE = {
   scheduledLockAt: '2099-10-07T05:30:00.000Z',
   scheduledCloseAt: '2099-10-07T06:00:00.000Z',
   operatorMessage: null as string | null,
+  canUnlock: false,
   counters: {
     betCount: 1234,
     totalStakeMinor: 1234560,
@@ -242,7 +248,6 @@ const bookMock: MockedResponse = {
 }
 
 function betsMock(filters?: Record<string, unknown>, items = BETS): MockedResponse {
-  const variables = { instanceId: ID, filters: { bidType: filters?.bidType, search: undefined }, page: 1, limit: 20 }
   return {
     request: { query: WORLI_BETS },
     variableMatcher: value => value.instanceId === ID && value.filters?.bidType === filters?.bidType,
@@ -318,6 +323,12 @@ async function ready() {
 function assertAbsent(element: Element | null, what = 'element') {
   assert.ok(element === null, `${what} should be absent`)
 }
+
+/** The tone of the live notice whose title is `title`: its CSS-module class (_warn_..., _error_...). */
+function noticeTone(title: string) {
+  const classes = [...(screen.getByText(title).closest('[role="status"]')?.classList ?? [])]
+  return ['warn', 'error', 'info', 'ok'].find((tone) => classes.some((cls) => cls.includes(`_${tone}_`))) ?? 'neutral'
+}
 beforeEach(() => {
   apollo.queries.length = 0
   apollo.subscriptions.length = 0
@@ -371,6 +382,8 @@ describe('RunningMarketDetailPage', () => {
     for (const name of ['Pause', 'Resume', 'Lock Now', 'Close Now', 'Set Message', 'Adjust Suspend Minutes']) {
       assert.ok(screen.getByRole('button', { name }))
     }
+    // An open session has nothing to unlock.
+    assertAbsent(screen.queryByRole('button', { name: 'Unlock' }), 'Unlock')
 
     // The overview tab's book-backed cards.
     await screen.findByRole('heading', { level: 2, name: 'Bid Type Distribution' })
@@ -424,15 +437,80 @@ describe('RunningMarketDetailPage', () => {
   test('a missing session says so, then returns to the list after two seconds', async () => {
     renderPage([{ request: { query: WORLI_INSTANCE, variables: { id: ID } }, result: { data: { worliInstance: null } } }])
     await screen.findByText('Market not found')
+    assert.equal(noticeTone('Market not found'), 'warn')
     assert.ok(screen.getByRole('heading', { level: 1, name: 'Market Details' }))
     assert.ok(screen.getByText('Returning to Worli Running Markets…'))
+    assert.equal(apollo.subscriptions.length, 0, 'no live feed for a session that is not there')
     await screen.findByText('Worli list route', undefined, { timeout: 4000 })
   })
 
   test('a failed lookup says why, then returns to the list', async () => {
     renderPage([{ request: { query: WORLI_INSTANCE, variables: { id: ID } }, error: new Error('Network down') }])
     await screen.findByText('Failed to load market details: Network down')
+    assert.equal(noticeTone('Failed to load market details: Network down'), 'error')
     await screen.findByText('Worli list route', undefined, { timeout: 4000 })
+  })
+
+  test('an unknown session is reported once: neither live feed starts unless the lookup finds the session', async () => {
+    // The lookup and both feeds each failed with "Market session not found", so three identical toasts went up at once.
+    renderPage([{ request: { query: WORLI_INSTANCE, variables: { id: ID } }, result: { errors: [{ message: 'Market session not found' }] } }])
+    assert.equal(apollo.subscriptions.length, 0, 'no feed while the lookup is in flight')
+    await screen.findByText('Market not found')
+    assert.equal(apollo.subscriptions.length, 0, 'no feed after the lookup failed')
+    await screen.findByText('Worli list route', undefined, { timeout: 4000 })
+    assert.equal(apollo.subscriptions.length, 0)
+  })
+
+  test("the server's not-found answer shows the calm not-found notice, not a failed load", async () => {
+    // admin-backend answers an id with no session in this whitelabel with the error "Market session not found",
+    // which read "Failed to load market details: Market session not found" in the error tone.
+    renderPage([{ request: { query: WORLI_INSTANCE, variables: { id: ID } }, result: { errors: [{ message: 'Market session not found' }] } }])
+    await screen.findByText('Market not found')
+    assert.equal(noticeTone('Market not found'), 'warn')
+    assert.ok(screen.queryByText(/Failed to load market details/) === null, 'no failed-load notice')
+    assert.ok(screen.getByRole('heading', { level: 1, name: 'Market Details' }))
+    assert.ok(screen.getByText('Returning to Worli Running Markets…'))
+    await screen.findByText('Worli list route', undefined, { timeout: 4000 })
+  })
+
+  test('a found session opens both live feeds unsilenced, so a feed that fails later is still shown', async () => {
+    renderPage(BASE_MOCKS())
+    assert.equal(apollo.subscriptions.length, 0, 'no feed while the lookup is in flight')
+    await ready()
+    assert.deepEqual(
+      apollo.subscriptions.map((call) => (call.query === WORLI_INSTANCE_UPDATED ? 'updated' : call.query === WORLI_BET_CREATED ? 'bet' : 'other')),
+      ['updated', 'bet'],
+    )
+    // No skipNotification context: the error link still toasts a real failure of either feed.
+    assert.ok(apollo.subscriptions.every((call) => call.context === undefined && !call.closed))
+  })
+
+  test('a Super Admin in core mode is asked to select a whitelabel: no lookup, feed or control is started', async () => {
+    // The server refuses Worli sessions in core mode ("Select a whitelabel to view and manage Worli sessions"): the
+    // page showed that as a failed load, with a toast, and went back to the list.
+    const auth = useAuthStore.getState(), ui = useUIStore.getState()
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      const core = renderPage(BASE_MOCKS())
+      assert.ok(await screen.findByText('Select a whitelabel'))
+      assert.ok(screen.getByRole('heading', { level: 1, name: 'Market Details' }))
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+      assert.equal(apollo.queries.length, 0, 'no WorliInstance lookup')
+      assert.equal(server.lookups, 0)
+      assert.equal(apollo.subscriptions.length, 0, 'no live feed')
+      assertAbsent(screen.queryByRole('heading', { level: 2, name: 'Operator Controls' }), 'the operator controls')
+      assertAbsent(screen.queryByText(/Failed to load market details/), 'a failed-load notice')
+      assertAbsent(screen.queryByText('Worli list route'), 'the list route')
+      core.unmount()
+      // With a site selected the same admin gets the session, as a whitelabel admin always does.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      renderPage(BASE_MOCKS())
+      await ready()
+      assert.ok(screen.queryByText('Select a whitelabel') === null, 'no select state with a site selected')
+      assert.ok(screen.getByRole('button', { name: 'Pause' }))
+    } finally {
+      useAuthStore.setState({ roles: auth.roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
   })
 
   test('an instance update refetches; Auto-refresh turns the poll off; Refresh asks again', async () => {
@@ -513,7 +591,7 @@ describe('RunningMarketDetailPage', () => {
 
   test('a failed Resume keeps its prompt open with the error', async () => {
     renderPage([
-      ...BASE_MOCKS(),
+      instanceMock({ status: 'PAUSED' }), bookMock, betsMock(), activityMock,
       { request: { query: RESUME_WORLI, variables: { id: ID, reason: 'Back' } }, error: new Error('Not allowed now') },
     ])
     await ready()
@@ -648,8 +726,35 @@ describe('RunningMarketDetailPage', () => {
     assert.equal(within(screen.getByRole('table')).getAllByRole('row').length, 2)
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search bets' }), { target: { value: '' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
-    assert.deepEqual(feedback.toasts.at(-1), { message: 'Export feature coming soon', tone: 'info', duration: 3000 })
+    // Export CSV downloads every matching bet (it used to say "Export feature coming soon").
+    const saved: Array<{ name: string; csv: Blob }> = []
+    const original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL, click: HTMLAnchorElement.prototype.click }
+    let blob: Blob | null = null
+    URL.createObjectURL = (value: Blob | MediaSource) => { blob = value as Blob; return 'blob:worli-bets' }
+    URL.revokeObjectURL = () => {}
+    HTMLAnchorElement.prototype.click = function click(this: HTMLAnchorElement) { if (blob) saved.push({ name: this.download, csv: blob }) }
+    try {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+      })
+      await waitFor(() => assert.equal(saved.length, 1, 'one CSV file is saved'))
+    } finally {
+      Object.assign(URL, { createObjectURL: original.create, revokeObjectURL: original.revoke })
+      HTMLAnchorElement.prototype.click = original.click
+    }
+    assert.equal(saved[0].name, 'worli-bets-3f2b8c1e.csv')
+    // jsdom's Blob has no text(); FileReader reads it.
+    const csv = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.readAsText(saved[0].csv)
+    })
+    const lines = csv.split('\n')
+    assert.equal(lines.length, 3)
+    assert.match(lines[0], /^"Bet ID","User ID","Bid Type","Selection","Stake"/)
+    assert.match(lines[1], /^"bet-1","user-abcdefghijkl","SP","128","100","9.5","950","ACTIVE","INR"/)
+    assert.ok(server.bets.some((value) => value.limit === 100 && value.page === 1), 'the export pages 100 bets at a time')
+    assert.ok(!feedback.toasts.some((entry) => entry.message === 'Export feature coming soon'))
 
     // The search re-rendered the rows, so the first one is looked up again.
     const firstRow = within(screen.getByRole('table')).getAllByRole('row')[1]
@@ -662,7 +767,8 @@ describe('RunningMarketDetailPage', () => {
       fireEvent.click(dialog.getByRole('button', { name: 'Confirm' }))
     })
     await waitFor(() => assert.deepEqual(server.sent, [{ field: 'voidMatkaBet', id: 'bet-1', reason: 'Duplicate' }]))
-    await waitFor(() => assert.deepEqual(feedback.toasts.at(-1), { message: 'Bet voided successfully', tone: 'ok', duration: 3000 }))
+    // The server's own answer, once.
+    await waitFor(() => assert.deepEqual(feedback.toasts.at(-1), { message: 'Done', tone: 'ok', duration: 3000 }))
     await waitFor(() => assert.ok(server.bets.length > betsBefore && server.lookups > lookupsBefore))
 
     fireEvent.change(screen.getByLabelText('Filter by bid type'), { target: { value: 'JODI' } })
@@ -694,6 +800,82 @@ describe('RunningMarketDetailPage', () => {
     assert.ok(screen.getByRole('dialog', { name: 'Confirm VOID Bet' }))
     assert.equal((dialog.getByRole('textbox', { name: /Reason/ }) as HTMLTextAreaElement).value, 'Duplicate')
     assert.ok(!feedback.toasts.some((entry) => entry.message === 'Bet voided successfully'))
+  })
+
+  test('a Void the server refuses keeps its prompt open with the server reason, and only open bets can be voided', async () => {
+    const settled = [
+      bet({ status: 'active' }),
+      bet({ id: 'bet-won', status: 'won' }),
+      bet({ id: 'bet-lost', status: 'lost' }),
+      bet({ id: 'bet-void', status: 'void' }),
+    ]
+    renderPage([
+      instanceMock(), bookMock, betsMock(undefined, settled), activityMock,
+      {
+        request: { query: VOID_BET, variables: { id: 'bet-1', reason: 'Duplicate' } },
+        result: { data: { voidMatkaBet: { success: false, message: 'Rollback the settled result before voiding this bet' } } },
+      },
+    ])
+    await ready()
+    fireEvent.click(screen.getByRole('tab', { name: 'Bets' }))
+    await waitFor(() => assert.equal(within(screen.getByRole('table')).getAllByRole('row').length, 5))
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1)
+    // The API sends statuses lower-case: won, lost and void bets cannot be voided.
+    assert.deepEqual(rows.map((row) => (within(row).getByRole('button', { name: 'Void' }) as HTMLButtonElement).disabled), [false, true, true, true])
+    fireEvent.click(within(rows[0]).getByRole('button', { name: 'Void' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Confirm VOID Bet' }))
+    fireEvent.change(dialog.getByRole('textbox', { name: /Reason/ }), { target: { value: 'Duplicate' } })
+    await act(async () => {
+      fireEvent.click(dialog.getByRole('button', { name: 'Confirm' }))
+    })
+    await waitFor(() => assert.equal(dialog.getByRole('alert').textContent, 'Rollback the settled result before voiding this bet'))
+    assert.ok(screen.getByRole('dialog', { name: 'Confirm VOID Bet' }))
+    assert.ok(!feedback.toasts.some((entry) => entry.tone === 'ok'), 'no success toast for a refusal')
+  })
+
+  test('a locked session says betting is closed and offers only the controls that still apply', async () => {
+    renderPage([instanceMock({ status: 'LOCKED' }), bookMock, betsMock(), activityMock])
+    await ready()
+    assert.equal(statNote('Total Bets'), 'ClosedBetting closed')
+    const enabled = (name: string) => !(screen.getByRole('button', { name }) as HTMLButtonElement).disabled
+    assert.deepEqual(['Pause', 'Resume', 'Lock Now', 'Close Now', 'Set Message', 'Adjust Suspend Minutes'].map(enabled), [false, false, false, true, true, true])
+    // Locked by the clock (or past the result or the close), the server says it cannot be unlocked: no button.
+    assertAbsent(screen.queryByRole('button', { name: 'Unlock' }), 'Unlock')
+  })
+
+  test('G501: a session Lock Now stopped offers Unlock next to Lock Now / Close Now; it asks for a reason, sends it and reloads', async () => {
+    renderPage([
+      instanceMock({ status: 'LOCKED', canUnlock: true }), bookMock, betsMock(), activityMock,
+      mutationMock(UNLOCK_WORLI, 'unlockWorliInstance', { id: ID, reason: 'Locked by mistake' }),
+    ])
+    await ready()
+    const controls = screen.getByRole('button', { name: 'Close Now' }).parentElement as HTMLElement
+    const names = within(controls).getAllByRole('button').map((button) => button.textContent)
+    assert.deepEqual(names.slice(names.indexOf('Lock Now'), names.indexOf('Lock Now') + 3), ['Lock Now', 'Close Now', 'Unlock'])
+    assert.equal((screen.getByRole('button', { name: 'Unlock' }) as HTMLButtonElement).disabled, false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Confirm UNLOCK' }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Confirm' }))
+    assert.ok(dialog.getByText('Please input a reason'))
+    assert.equal(server.sent.length, 0)
+    fireEvent.change(dialog.getByRole('textbox', { name: /Reason/ }), { target: { value: 'Locked by mistake' } })
+    const before = server.lookups
+    await act(async () => {
+      fireEvent.click(dialog.getByRole('button', { name: 'Confirm' }))
+    })
+    await waitFor(() => assert.deepEqual(server.sent, [{ field: 'unlockWorliInstance', id: ID, reason: 'Locked by mistake' }]))
+    await waitFor(() => assertAbsent(screen.queryByRole('dialog')))
+    await waitFor(() => assert.ok(server.lookups > before))
+  })
+
+  test('G501: Unlock stays behind matka.worli update with the other controls', async () => {
+    rbac.denied = new Set(['matka.worli:update'])
+    renderPage([instanceMock({ status: 'LOCKED', canUnlock: true }), bookMock, betsMock(), activityMock])
+    await ready()
+    const controls = screen.getByRole('heading', { level: 2, name: 'Operator Controls' }).closest('section') as HTMLElement
+    assert.equal(within(controls).getByRole('alert').textContent, 'Access denied')
+    assertAbsent(screen.queryByRole('button', { name: 'Unlock' }), 'Unlock')
   })
 
   test('the activity log lists entries newest first with their reason and actor', async () => {

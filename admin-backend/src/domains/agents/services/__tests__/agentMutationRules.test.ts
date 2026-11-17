@@ -18,6 +18,8 @@ import {
   firstChildAbove,
   firstRatePeriodStart,
   clampFirstRateEffectiveFrom,
+  tallyIsOn,
+  isRedundantRateRow,
   type RateRow,
 } from '../agentMutationRules.js'
 import { agentAccessVerdict } from '../AgentPermissionsService.js'
@@ -181,5 +183,42 @@ describe('agentAccessVerdict (owner decision 1)', () => {
   it('makes the subtree of an INACTIVE ancestor read-only, as INACTIVE is for the agent itself', () => {
     assert.deepEqual(agentAccessVerdict('ACTIVE', ['INACTIVE']), { allowed: true, isReadOnly: true })
     assert.deepEqual(agentAccessVerdict('INACTIVE', []), { allowed: true, isReadOnly: true })
+  })
+})
+
+describe('tallyIsOn (the tally the commission engine applies)', () => {
+  it('is on only with the flag and at least one domain', () => {
+    assert.equal(tallyIsOn(true, ['sports']), true)
+    assert.equal(tallyIsOn(true, ['casino', 'matka']), true)
+    assert.equal(tallyIsOn(true, []), false, 'a flag with nothing to tally pays as off')
+    assert.equal(tallyIsOn(true, null), false)
+    assert.equal(tallyIsOn(false, ['sports', 'casino']), false)
+    assert.equal(tallyIsOn(undefined, ['sports']), false)
+  })
+  it('counts only the three domains, as applyTallyRulesForSettlement does', () => {
+    assert.equal(tallyIsOn(true, ['poker']), false)
+    assert.equal(tallyIsOn(true, ['poker', 'matka']), true)
+  })
+})
+
+describe('isRedundantRateRow (re-saving the rate in force adds no row)', () => {
+  const open = [row('2026-10-01T00:00:00Z', 0.02)]
+  it('the same rate again, open-ended, after the open row in force, is redundant', () => {
+    assert.equal(isRedundantRateRow(open, { effectiveFrom: d('2026-11-02T19:13:23Z'), effectiveTo: null, rate: 0.02 }), true)
+    assert.equal(isRedundantRateRow(open, { effectiveFrom: d('2026-11-02T19:13:23Z'), effectiveTo: null, rate: 0.020000000001 }), true, 'float noise is not a new rate')
+  })
+  it('a new rate, an end date, or no row in force is a real change', () => {
+    assert.equal(isRedundantRateRow(open, { effectiveFrom: d('2026-11-02T00:00:00Z'), effectiveTo: null, rate: 0.025 }), false)
+    assert.equal(isRedundantRateRow(open, { effectiveFrom: d('2026-11-02T00:00:00Z'), effectiveTo: d('2026-12-01T00:00:00Z'), rate: 0.02 }), false)
+    assert.equal(isRedundantRateRow([], { effectiveFrom: d('2026-11-02T00:00:00Z'), effectiveTo: null, rate: 0.02 }), false)
+  })
+  it('a re-dated row is not swallowed: one dated before the row in force, or with a later row after it', () => {
+    assert.equal(isRedundantRateRow(open, { effectiveFrom: d('2026-09-01T00:00:00Z'), effectiveTo: null, rate: 0.02 }), false)
+    const withFuture = [row('2026-10-01T00:00:00Z', 0.02), row('2026-12-01T00:00:00Z', 0.03)]
+    assert.equal(isRedundantRateRow(withFuture, { effectiveFrom: d('2026-11-02T00:00:00Z'), effectiveTo: null, rate: 0.02 }), false)
+  })
+  it('a row in force that has an end is not extended silently', () => {
+    const ending = [row('2026-10-01T00:00:00Z', 0.02, '2026-12-31T00:00:00Z')]
+    assert.equal(isRedundantRateRow(ending, { effectiveFrom: d('2026-11-02T00:00:00Z'), effectiveTo: null, rate: 0.02 }), false)
   })
 })

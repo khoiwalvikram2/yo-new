@@ -2,9 +2,20 @@ import { useEffect } from 'react'
 import type { ChatBootstrap } from '../../../../shared/src/support/contracts'
 import { useAdminSupportClient } from './useAdminSupportClient'
 import { useAuthStore } from './authStore'
+import { hasPermissionWithNested } from './nestedPermissionMapping'
 import { useUIStore } from './uiStore'
 
 const REFRESH_MS = 60_000
+
+/**
+ * Whether this session may have a support inbox, so the server is worth asking (N006): the stored support.chat grant
+ * (or all:*), or a role the server gives the inbox to whatever the role lists, a Super Admin or the Whitelabel Admin
+ * who owns it (named as admin-backend recognises it). Every other admin was answered 403 "Support inbox permission is
+ * required" on each sign-in, page load, minute and focus. A role name only lets the hook ask; the answer decides.
+ */
+export function mayHaveSupportInbox(permissions: Parameters<typeof hasPermissionWithNested>[0], roles: readonly string[]): boolean {
+  return hasPermissionWithNested(permissions, 'support.chat', 'view') || roles.some((role) => /super.*admin|whitelabel/i.test(role))
+}
 
 /** Refresh only live-chat grants from authenticated server capabilities.
  * Persisted sessions may predate the feature; role names never grant access here.
@@ -15,12 +26,13 @@ export function useSupportPermissionSync() {
   const userId = useAuthStore((s) => s.user?.id)
   const agent = useAuthStore((s) => s.agent)
   const superAdmin = useAuthStore((s) => s.roles.some((role) => /super.*admin/i.test(role)))
+  const mayHaveSupport = useAuthStore((s) => mayHaveSupportInbox(s.permissions, s.roles))
   const mode = useUIStore((s) => s.directorMode)
   const selected = useUIStore((s) => s.selectedWhitelabelId)
 
   useEffect(() => {
-    if (!token || !userId || agent || (superAdmin && (mode !== 'whitelabel' || !selected))) return
-    let active = true, pending = false, lastAttempt = 0
+    if (!mayHaveSupport || !token || !userId || agent || (superAdmin && (mode !== 'whitelabel' || !selected))) return
+    let active = true, pending = false, lastAttempt = 0, refused = false
 
     const apply = (actions: string[]) => {
       if (!active) return
@@ -33,7 +45,7 @@ export function useSupportPermissionSync() {
       })
     }
     const refresh = async (force = false) => {
-      if (!active || pending || document.visibilityState !== 'visible' || (!force && Date.now() - lastAttempt < REFRESH_MS)) return
+      if (!active || refused || pending || document.visibilityState !== 'visible' || (!force && Date.now() - lastAttempt < REFRESH_MS)) return
       pending = true
       lastAttempt = Date.now()
       try {
@@ -41,7 +53,12 @@ export function useSupportPermissionSync() {
         if (actor.kind !== 'admin' || actor.id !== userId) return
         apply(['view', ...(actor.canReply ? ['reply'] : []), ...(actor.canAssign ? ['assign'] : []), ...(actor.canSettings ? ['settings'] : [])])
       } catch (error) {
-        if ([401, 403].includes(Number((error as { status?: number }).status))) apply([])
+        if ([401, 403].includes(Number((error as { status?: number }).status))) {
+          apply([])
+          // Refused: no more asking (each answer was another 403 in the console) until the session, its permissions
+          // or the chosen whitelabel change, which runs this effect again.
+          refused = true
+        }
         // Temporary network failures preserve the last server-confirmed grants.
       } finally {
         pending = false
@@ -58,5 +75,5 @@ export function useSupportPermissionSync() {
       window.removeEventListener('focus', visible)
       document.removeEventListener('visibilitychange', visible)
     }
-  }, [client, token, userId, agent, superAdmin, mode, selected])
+  }, [client, token, userId, agent, superAdmin, mayHaveSupport, mode, selected])
 }

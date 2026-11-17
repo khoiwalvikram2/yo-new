@@ -1,6 +1,7 @@
 enum DepositMethod {
   BANK_TRANSFER
   UPI
+  CRYPTO
 }
 
 enum DepositStatus {
@@ -20,15 +21,34 @@ type DepositRequest {
   utr: String
   referenceId: String
   proofKey: String!
-  proofUrl: String # Presigned URL for viewing proof
+  proofUrl: String # Always null: a request never carries its screenshot; read it with Query.depositRequestProof(id)
+  hasProof: Boolean! # The request has a screenshot or a link to show (Query.depositRequestProof answers it); false when a sentinel or a legacy S3 key is all it holds
   status: DepositStatus!
   reviewerId: ID
   reviewedAt: String
   note: String
   walletTxnId: ID
+  cryptoAmount: Float # CRYPTO only: USDT the player was told to send
+  cryptoRate: Float # CRYPTO only: currency per 1 USDT when the request was made
+  cryptoNetwork: String # CRYPTO only: network of the wallet paid to, e.g. TRC20
+  cryptoBonusPercent: Float # CRYPTO only: deposit bonus % in force when the request was made
+  cryptoBonusAmount: Float # CRYPTO only: bonus paid into the cash wallet on approval, on top of amount
+  bonusWalletTxnId: ID # CRYPTO only: ledger entry of the bonus credit
   createdAt: String!
   updatedAt: String!
   user: User # Resolved user info
+  gateway: DepositGatewayInfo # Payment-gateway deposits only
+}
+
+# The payment-gateway pay-in behind a deposit. Gateway deposits are confirmed by the gateway, never approved by hand.
+type DepositGatewayInfo {
+  provider: String! # WELIVEPAY
+  gateway: String! # Code of the gateway the pay-in used, e.g. QPC, IRISPAY
+  gatewayName: String! # e.g. QuickPayCash
+  orderId: String! # Our order reference sent to the gateway
+  status: String! # pending | success | expired | invalid
+  txnRef: String # Gateway UTR / transaction reference once paid
+  expiresAt: String # When the checkout link expires (pending only)
 }
 
 type WhitelabelPaymentMethods {
@@ -37,6 +57,9 @@ type WhitelabelPaymentMethods {
   enabledMethods: [String!]!
   banks: [BankDetails!]!
   upis: [UpiDetails!]!
+  cryptos: [CryptoDetails!]!
+  cryptoRate: Float # Deposit currency per 1 USDT, one rate for the whole whitelabel (null = not set; players see no wallet)
+  cryptoBonusPercent: Float # Extra % on approved crypto deposits, 0-50 (null = no bonus)
   limits: DepositLimits!
   createdAt: String!
   updatedAt: String!
@@ -63,11 +86,26 @@ type UpiDetails {
   upiId: String!
   displayName: String
   qrKey: String
-  qrUrl: String # Presigned URL for QR code image
+  qrUrl: String # Displayable QR (the stored data URI or link; null for a legacy S3 key)
   minAmount: Float # Minimum deposit amount for this UPI (null = no limit)
   maxAmount: Float # Maximum deposit amount for this UPI (null = no limit)
   weight: Int! # Priority/weight (higher = shown first, default: 0)
   enabled: Boolean! # Whether this UPI account is enabled (default: true)
+}
+
+# A USDT wallet players can deposit to.
+type CryptoDetails {
+  vipTierIds: [ID!]
+  id: String!
+  network: String! # TRC20 | BEP20 | ERC20 | POLYGON | SOLANA | TON
+  walletAddress: String!
+  displayName: String
+  qrKey: String
+  qrUrl: String # Displayable QR (the stored data URI or link; null for a legacy S3 key)
+  minAmount: Float # Minimum deposit for this wallet (null = no limit)
+  maxAmount: Float # Maximum deposit for this wallet (null = no limit)
+  weight: Int! # Priority/weight (higher = shown first, default: 0)
+  enabled: Boolean! # Whether this wallet is enabled (default: true)
 }
 
 type DepositLimits {
@@ -88,7 +126,7 @@ input CreateDepositRequestInput {
   method: DepositMethod!
   utr: String # Required for UPI
   referenceId: String # Optional for BANK_TRANSFER
-  proofKey: String! # S3 key after upload
+  proofKey: String! # The screenshot as a base64 image data URI, or 'manual' / 'proof-missing'
 }
 
 input ApproveDepositRequestInput {
@@ -102,9 +140,12 @@ input RejectDepositRequestInput {
 }
 
 input ListDepositRequestsInput {
+  id: ID # One request by its id (task links); combine with no status or dates to find it whatever its age
   status: DepositStatus
   userId: ID
   method: DepositMethod
+  source: String # MANUAL | GATEWAY
+  includeGatewayOrders: Boolean # Also list gateway pay-ins not yet credited (awaiting payment, expired, invalid)
   fromDate: String
   toDate: String
   query: String
@@ -116,6 +157,9 @@ input UpsertWhitelabelPaymentMethodsInput {
   enabledMethods: [String!]
   banks: [BankDetailsInput!]
   upis: [UpiDetailsInput!]
+  cryptos: [CryptoDetailsInput!] # Omit to keep the stored wallets
+  cryptoRate: Float # Omit (or null) to keep the stored rate
+  cryptoBonusPercent: Float # 0-50; omit to keep, 0 or null to switch the bonus off
   limits: DepositLimitsInput
 }
 
@@ -138,6 +182,19 @@ input UpiDetailsInput {
   vipTierIds: [ID!]
   id: String # Optional: for updates, omit for new entries
   upiId: String!
+  displayName: String
+  qrKey: String
+  minAmount: Float
+  maxAmount: Float
+  weight: Int
+  enabled: Boolean
+}
+
+input CryptoDetailsInput {
+  vipTierIds: [ID!]
+  id: String # Optional: for updates, omit for new entries
+  network: String!
+  walletAddress: String!
   displayName: String
   qrKey: String
   minAmount: Float

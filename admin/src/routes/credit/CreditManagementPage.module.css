@@ -1,8 +1,6 @@
-/* Credit Management (/credit). The mockup draws no page for this route (inventory/mockup-pages.json:
-   "not in nav; closest to the mockup credit bar"), so the page is composed from the generic page
-   template (M:3361-3409) and the Deposits / Withdrawals idioms. The utilisation card transcribes the
-   mockup's whitelabel credit line (.credit M:1092-1096 with its .bar M:1085, M:1091); everything else
-   is BEYOND-MOCKUP where it says so. */
+/* Chips (/credit): the whitelabel pool's figures, its root accounts and the pool's statement (spec
+   2026-11-02 §8). The mockup draws no page for this route, so the page is composed from the generic page
+   template (M:3361-3409); the figures and the downline come from the chips module. */
 
 .content {
   display: grid;
@@ -34,68 +32,52 @@
   min-width: 0;
 }
 
-/* ---------- overview ---------- */
+/* ---------- the pool statement ---------- */
 
-/* The "N% used" figure in the utilisation card head: the weight and figures of .credit-top b
-   (M:1094), coloured by the usage status on the semantic tokens the status pills use (M:1018-1028). */
-.usedFigure {
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.4;
-  white-space: nowrap;
+/* A cell with a quieter second line under it; the right-aligned one ends at the column's edge. */
+.stack,
+.stackEnd {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.toneOk {
-  color: var(--ok);
+.stackEnd {
+  align-items: flex-end;
+  text-align: end;
 }
 
-.toneWarn {
-  color: var(--warn);
-}
-
-.toneNeg {
-  color: var(--neg-ink);
-}
-
-/* The bar keeps the kit Meter's 6px track (.bar M:1085); the scale under it is .credit-note (M:1095)
-   laid out as the legacy three-stop scale: 0% at the start, the alert threshold, 100% at the end. */
-.scale {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 12px;
-  margin: 8px 0 0;
+.sub {
   color: var(--ink-3);
-  font-size: 12.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
-  line-height: 1.4;
+  line-height: 1.35;
 }
-
-/* ---------- tables ---------- */
 
 .dateCell {
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
 
-/* Signed amounts keep the legacy credit/debit colours on the semantic pair the KPI deltas use
-   (Stat .up / .down); the sign is printed too, so colour never carries the meaning alone. */
+/* Signed amounts: chips into the pool in green, out of it in rose (the owner's colour pass, as the chips
+   module colours them); the sign is printed too, so colour never carries the meaning alone. */
 .amount {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.positive {
-  color: var(--pos-ink);
+.gain {
+  color: var(--viz-green, var(--pos-ink));
 }
 
-.negative {
-  color: var(--neg-ink);
+.loss {
+  color: var(--viz-rose, var(--neg-ink));
 }
 
-/* The player phone links to the profile: the mockup's text link (.linkbtn M:879-886), as on the
-   Withdrawals table. */
+/* A player named on an older row links to the profile: the mockup's text link (.linkbtn M:879-886), as on
+   the Withdrawals table. */
 .playerLink {
   border-radius: var(--ui-radius);
   color: var(--acc-ink);
@@ -130,9 +112,9 @@
   white-space: normal;
 }
 
-/* ---------- the adjustments pager ---------- */
+/* ---------- the statement pager ---------- */
 
-/* BEYOND-MOCKUP: the adjustments query returns one page and no total, so the kit Pagination (which
+/* BEYOND-MOCKUP: the pool's ledger query returns one page and no total, so the kit Pagination (which
    pages a known total) cannot draw it truthfully. This keeps the legacy Previous / Page N / Next pager
    and takes the kit Pagination's embedded metrics (ui/components/Pagination.module.css): a 12px
    var(--card-pad) row, a 12px/500 summary with a 600 range, 8px between controls and a 22px rule. */

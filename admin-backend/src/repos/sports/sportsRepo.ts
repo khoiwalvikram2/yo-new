@@ -52,16 +52,29 @@ export async function listSports() {
     .orderBy(sportsTable.sort)
 }
 
-export async function setSportStatus(key: string, status: 'active'|'inactive') {
+/** Sets a sport's status by key. Returns false when no sport has that key. */
+export async function setSportStatus(key: string, status: 'active'|'inactive'): Promise<boolean> {
   // Global data - no tenant filtering
-  await db.update(sportsTable).set({ status: status as any, updatedAt: new Date() })
+  const updated = await db.update(sportsTable).set({ status: status as any, updatedAt: new Date() })
     .where(eq(sportsTable.key, key))
-  return true
+    .returning({ id: sportsTable.id })
+  return updated.length > 0
 }
 
 export async function getSportById(id: string) {
   const rows = await db.select().from(sportsTable).where(eq(sportsTable.id, id))
   return rows[0] || null
+}
+
+/**
+ * The status an upsert writes on an EXISTING catalogue row: only one the caller passes explicitly. Catalogue status is
+ * platform data (SPO-GLOBAL-STATUS, Option A), and none of the upserts' callers passes one: any brand's Sports Builder
+ * save (persistSportsSelections), runAutoSportsIngestion and the scheduled autoSportsQueue. Writing 'active' here
+ * re-activated every row a platform admin had suspended, and every event the declare form's "Disable event after
+ * result" had switched off, on the next save or ingest that included it. New rows still start 'active'.
+ */
+function statusOnUpdate(status: 'active' | 'inactive' | undefined): { status?: any } {
+  return status ? { status: status as any } : {}
 }
 
 // League upsert
@@ -79,7 +92,7 @@ export async function upsertLeague(input: UpsertLeagueInput) {
     .where(eq(sportsLeaguesTable.leagueCode, input.leagueCode))
   if (existing.length) {
     await db.update(sportsLeaguesTable)
-      .set({ name: input.name, key: input.key, sportId: input.sportId, status: (input.status ?? 'active') as any, updatedAt: new Date() })
+      .set({ name: input.name, key: input.key, sportId: input.sportId, ...statusOnUpdate(input.status), updatedAt: new Date() })
       .where(eq(sportsLeaguesTable.id, existing[0].id))
     return existing[0].id
   }
@@ -110,7 +123,7 @@ export async function upsertEvent(input: UpsertEventInput) {
   const startTimeVal = input.startTime ? new Date(input.startTime) : null
   if (existing.length) {
     await db.update(sportsEventsTable)
-      .set({ name: input.name, key: input.key, leagueId: input.leagueId, startTime: startTimeVal as any, status: (input.status ?? 'active') as any, updatedAt: new Date() })
+      .set({ name: input.name, key: input.key, leagueId: input.leagueId, startTime: startTimeVal as any, ...statusOnUpdate(input.status), updatedAt: new Date() })
       .where(eq(sportsEventsTable.id, existing[0].id))
     return existing[0].id
   }
@@ -143,7 +156,7 @@ export async function upsertMarket(input: UpsertMarketInput): Promise<string | n
     .where(eq(sportsMarketsTable.marketCode, input.marketCode))
   if (existing.length) {
     await db.update(sportsMarketsTable)
-      .set({ name: input.name, type: (input.type ?? 'match_odds'), eventId: input.eventId, status: (input.status ?? 'active') as any, updatedAt: new Date() })
+      .set({ name: input.name, type: (input.type ?? 'match_odds'), eventId: input.eventId, ...statusOnUpdate(input.status), updatedAt: new Date() })
       .where(eq(sportsMarketsTable.id, existing[0].id))
     return existing[0].id
   }

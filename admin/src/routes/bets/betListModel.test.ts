@@ -13,6 +13,7 @@ import {
   betExportCompleteMessage,
   betHeadline,
   betHeadlineLabels,
+  betListStateFromSearch,
   betLiability,
   betOutcome,
   betPL,
@@ -117,8 +118,10 @@ describe('betListModel — query contract', () => {
       playerSearch: undefined,
       search: undefined,
       walletType: undefined,
+      userId: undefined,
     })
     const full = buildBetsFiltersPayload({
+      userId: '234',
       walletType: 'bonus',
       search: 'x',
       playerSearch: 'rk',
@@ -128,9 +131,11 @@ describe('betListModel — query contract', () => {
       status: ['won'],
     })
     assert.deepEqual(Object.keys(full), [
-      'status', 'dateFrom', 'dateTo', 'agentUsername', 'playerSearch', 'search', 'walletType',
+      'status', 'dateFrom', 'dateTo', 'agentUsername', 'playerSearch', 'search', 'walletType', 'userId',
     ])
     assert.deepEqual(full.status, ['won'])
+    // A picked player reaches the server as its id, the exact filter.
+    assert.equal(full.userId, '234')
   })
 
   test('derives the page number and clamps the offset to the last page that exists', () => {
@@ -197,12 +202,30 @@ describe('betListModel — filter options and counts', () => {
     assert.deepEqual(betStatusOptions('SPORTS').map((option) => option.value), [
       'matched', 'cancelled', 'settled', 'won', 'lost', 'void',
     ])
-    assert.deepEqual(betStatusOptions('CASINO').map((option) => option.value), ['won', 'lost', 'cancelled', 'void'])
-    assert.deepEqual(betStatusOptions('MATKA').map((option) => option.value), ['won', 'lost', 'cancelled', 'void'])
+    // Open (matched) reads pending+active on the server, so open casino and matka bets can be listed too.
+    assert.deepEqual(betStatusOptions('CASINO').map((option) => option.value), ['matched', 'won', 'lost', 'cancelled', 'void'])
+    assert.deepEqual(betStatusOptions('MATKA').map((option) => option.value), ['matched', 'won', 'lost', 'cancelled', 'void'])
+    assert.equal(betStatusOptions('CASINO')[0].label, 'Open')
     assert.equal(isBetDomain('MATKA'), true)
     assert.equal(isBetDomain('POKER'), false)
     assert.deepEqual([true, false, true, false], ['ALL', 'SPORTS', 'CASINO', 'MATKA'].map((domain) =>
       showsBetWalletFilter(domain as 'ALL')))
+  })
+
+  test('opens on what the URL names: domain, statuses, a range, a search; a plain /bets on Today', () => {
+    const at = (query: string) => betListStateFromSearch(new URLSearchParams(query), '2026-11-03')
+    assert.deepEqual(at(''), { domain: 'ALL', filters: { status: undefined, search: undefined, dateFrom: '2026-11-03', dateTo: '2026-11-03' }, datePreset: 'today' })
+    // The stuck casino rounds alert: open casino bets, of any date.
+    assert.deepEqual(at('domain=casino&status=active'), { domain: 'CASINO', filters: { status: ['matched'], search: undefined }, datePreset: 'any' })
+    assert.deepEqual(at('status=pending,open&status=won').filters.status, ['matched', 'won'])
+    assert.deepEqual(at('domain=matka&status=settled'), { domain: 'MATKA', filters: { status: undefined, search: undefined, dateFrom: '2026-11-03', dateTo: '2026-11-03' }, datePreset: 'today' })
+    assert.deepEqual(at('domain=SPORTS&status=settled&dateFrom=2026-10-01&dateTo=2026-10-07'), {
+      domain: 'SPORTS', filters: { status: ['settled'], search: undefined, dateFrom: '2026-10-01', dateTo: '2026-10-07' }, datePreset: 'custom',
+    })
+    assert.deepEqual(at('dateFrom=2026-10-01').filters, { status: undefined, search: undefined, dateFrom: '2026-10-01', dateTo: '2026-11-03' })
+    assert.deepEqual(at('search=BET-77'), { domain: 'ALL', filters: { status: undefined, search: 'BET-77' }, datePreset: 'any' })
+    assert.equal(at('domain=poker').domain, 'ALL')
+    assert.equal(countActiveBetFilters({ status: ['matched'] }, 'any'), 2)
   })
 
   test('counts every chosen status and each set filter; the date only when not Today', () => {
@@ -216,6 +239,8 @@ describe('betListModel — filter options and counts', () => {
       ),
       6,
     )
+    // A picked player is the Player filter too.
+    assert.equal(countActiveBetFilters({ userId: '234' }, 'today'), 1)
   })
 
   test('chooses the agent filter by session: sub-agents for any agent with an id, search for admins', () => {
@@ -234,7 +259,7 @@ describe('betListModel — filter options and counts', () => {
     assert.equal(ALL_MY_PLAYERS_OPTION.value, '')
   })
 
-  test('labels players by username, then name, then id, with the phone in brackets', () => {
+  test('labels players by username, then name, then id, with the phone in brackets; the value is the id', () => {
     assert.deepEqual(
       betPlayerOptions([
         { id: 1, username: 'rk_sharma88', name: 'Rahul', phone: '9876543210' },
@@ -243,11 +268,16 @@ describe('betListModel — filter options and counts', () => {
         { id: 4, username: '  ', name: null },
       ]),
       [
-        { label: 'rk_sharma88 (9876543210)', value: 'rk_sharma88' },
-        { label: 'Meena ', value: 'Meena' },
+        { label: 'rk_sharma88 (9876543210)', value: '1' },
+        { label: 'Meena ', value: '2' },
         { label: 'User 3 (9000000000)', value: '3' },
         { label: '  ', value: '4' },
       ],
+    )
+    // Two players sharing a username stay two options, each picking its own player.
+    assert.deepEqual(
+      betPlayerOptions([{ id: 45, username: 'rahul' }, { id: 49, username: 'rahul' }]).map((option) => option.value),
+      ['45', '49'],
     )
   })
 

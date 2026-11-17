@@ -17,21 +17,34 @@ describe('Settlement Center report reads', () => {
     assert.deepEqual(await settlementsQueryResolvers.enhancedPendingSettlements(null, { schemeType: 'SHARING' }, context), [])
   })
 
-  it('credit totals and domain balances include root obligations once and reuse the loaded rows', async () => {
-    const row = (id: string, parentAgentId: string | null, balance: number) => ({ id, parentAgentId, tenantId: 'dashboard-test', schemeType: 'CREDIT', settlementBalance: balance,
-      settlementBalanceSports: balance, settlementBalanceCasino: 0, settlementBalanceMatka: 0 })
-    mock.method(AgentsRepo.prototype, 'list', async () => [row('root', null, 100), row('child', 'root', 60)] as any)
-    mock.method(AgentsRepo.prototype, 'getCreditFields', async () => { throw new Error('Credit balances are already loaded') })
+  // CREDIT moves chips by Deposit / Withdraw since 2026-11-02. Its agents may still carry a stale
+  // settlement_balance; the settlement centre must neither read nor show it.
+  const creditRow = (id: string, parentAgentId: string | null, balance: number) => ({ id, parentAgentId, tenantId: 'dashboard-test', schemeType: 'CREDIT', settlementBalance: balance,
+    settlementBalanceSports: balance, settlementBalanceCasino: 0, settlementBalanceMatka: 0 })
+
+  it('the dashboard carries no CREDIT pending, no credit-player count and no CREDIT domain balances', async () => {
+    mock.method(AgentsRepo.prototype, 'list', async () => [creditRow('root', null, 100), creditRow('child', 'root', 60)] as any)
+    mock.method(AgentsRepo.prototype, 'getCreditFields', async () => { throw new Error('The retired CREDIT settlement balance must not be read') })
     mock.method(AgentListStatsService.prototype, 'getStatsForAgents', async () => { throw new Error('Dashboard must not calculate unrelated player statistics') })
     mock.method(AgentSettlementTransactionsRepo.prototype, 'list', async () => [])
     mock.method(CommissionPayoutsRepo.prototype, 'list', async () => [])
     const chain: any = { from: () => chain, where: () => chain, groupBy: async () => [], then: (resolve: (rows: unknown[]) => unknown) => Promise.resolve([]).then(resolve) }
     mock.method(db, 'select', () => chain)
-    const result = await settlementsQueryResolvers.settlementDashboard(null, {}, context)
-    assert.equal(result.pendingCreditSettlements, 100)
+    const result: Record<string, unknown> = await settlementsQueryResolvers.settlementDashboard(null, {}, context)
     assert.equal(result.pendingCommissionPayouts, 0)
-    assert.deepEqual(result.domainBreakdown, [
-      { domain: 'sports', settlementBalance: 100 }, { domain: 'casino', settlementBalance: 0 }, { domain: 'matka', settlementBalance: 0 },
-    ])
+    // The three CREDIT fields left the schema (spec 2026-11-02 §6); the resolver no longer returns them either.
+    for (const key of ['pendingCreditSettlements', 'pendingDirectCreditAdjustments', 'domainBreakdown']) {
+      assert.equal(key in result, false, key)
+    }
+  })
+
+  it('admin pending lists leave CREDIT root agents out without reading their balances', async () => {
+    mock.method(AgentsRepo.prototype, 'list', async () => [creditRow('root', null, 100), creditRow('other', null, -40)] as any)
+    mock.method(AgentsRepo.prototype, 'getCreditFields', async () => { throw new Error('The retired CREDIT settlement balance must not be read') })
+    mock.method(AgentListStatsService.prototype, 'getStatsForAgents', async () => { throw new Error('No agent is left to read statistics for') })
+    mock.method(db, 'select', () => { throw new Error('No agent is left: no more SQL') })
+    assert.deepEqual(await settlementsQueryResolvers.pendingSettlements(null, {}, context), [])
+    assert.deepEqual(await settlementsQueryResolvers.enhancedPendingSettlements(null, {}, context), [])
+    assert.deepEqual(await settlementsQueryResolvers.pendingSettlements(null, { schemeType: 'CREDIT' }, context), [])
   })
 })

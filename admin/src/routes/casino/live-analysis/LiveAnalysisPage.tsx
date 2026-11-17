@@ -26,6 +26,8 @@ import { ComparisonTab } from "./tabs/comparison/ComparisonTab";
 import { PlayersTab } from "./tabs/players/PlayersTab";
 import { TestingTab } from "./tabs/testing/TestingTab";
 import { RBACGuard } from "@/shared/core/RBACGuard";
+import { useAuthStore } from "@/shared/core/authStore";
+import { hasPermissionWithNested } from "@/shared/core/nestedPermissionMapping";
 import { isGoodCasinoSnapshot, type CasinoDashboard, type CasinoKpis, type CasinoPlayerEvent } from './casinoLiveModel';
 
 export default function LiveAnalysisPage() {
@@ -38,6 +40,10 @@ export default function LiveAnalysisPage() {
 
 function CasinoLiveAnalysisPageContent() {
   const { whitelabel } = useCurrentWhitelabel();
+  // Test bets are a diagnostic: the server takes them only from the platform administrator (all:*), and never
+  // in production. Anyone else was shown the whole form and refused on every submit.
+  const permissions = useAuthStore((state) => state.permissions);
+  const canPlaceTestBets = !import.meta.env.PROD && hasPermissionWithNested(permissions ?? [], 'all', '*');
 
   const [activeTab, setActiveTab] = useState("overview");
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -346,7 +352,7 @@ function CasinoLiveAnalysisPageContent() {
           <PlayersTab windowMins={windowMins} didAnimate={didAnimate} />
         );
       case "testing":
-        return <TestingTab didAnimate={didAnimate} />;
+        return canPlaceTestBets ? <TestingTab didAnimate={didAnimate} /> : null;
       default:
         return null;
     }
@@ -386,6 +392,7 @@ function CasinoLiveAnalysisPageContent() {
           hasDashData={hasDashData && snapshotScope === scopeKey}
           isUpdating={isUpdating}
           cubeRotation={cubeRotation}
+          showTesting={canPlaceTestBets}
         />
 
         <div className={styles.contentRow}>

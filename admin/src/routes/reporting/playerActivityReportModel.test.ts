@@ -336,19 +336,22 @@ describe('search, totals, paging and sorting', () => {
     assert.deepStrictEqual(filterPlayerActivity(rows, 'bob ').map((r) => r.playerId), [])
   })
 
-  test('totals the three domain KPIs and averages over the searched players', () => {
+  test('totals the listed players’ own rows and averages over them (F-REP-16)', () => {
+    // One matka player with 3 bets: 3 bets per player, not every domain's bets over one player.
     assert.deepStrictEqual(
-      playerActivityTotals(
-        {
-          sports: { betCount: '10', totalStakes: 1000 },
-          casino: { betCount: null, totalStakes: '250.5' },
-          matka: undefined,
-        },
-        4,
-      ),
-      { totalBets: 10, totalStakes: 1250.5, totalPlayers: 4, avgBetsPerPlayer: 2.5 },
+      playerActivityTotals([row({ playerId: 1, totalBets: 3, totalStakes: 300 })]),
+      { totalBets: 3, totalStakes: 300, totalPlayers: 1, avgBetsPerPlayer: 3 },
     )
-    assert.deepStrictEqual(playerActivityTotals({}, 0), {
+    assert.deepStrictEqual(
+      playerActivityTotals([
+        row({ playerId: 1, totalBets: 10, totalStakes: 1000 }),
+        row({ playerId: 2, totalBets: 0, totalStakes: 250.5 }),
+        row({ playerId: 3, totalBets: 2, totalStakes: 0 }),
+        row({ playerId: 4, totalBets: 0, totalStakes: 0 }),
+      ]),
+      { totalBets: 12, totalStakes: 1250.5, totalPlayers: 4, avgBetsPerPlayer: 3 },
+    )
+    assert.deepStrictEqual(playerActivityTotals([]), {
       totalBets: 0,
       totalStakes: 0,
       totalPlayers: 0,

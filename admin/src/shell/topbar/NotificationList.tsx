@@ -18,6 +18,9 @@ export interface NotificationListProps {
   onNotificationClick: (id: string, actionUrl?: string | null) => void
   onMarkAllAsRead: () => void
   onViewAll: () => void
+  /** The bell's unread count. Clear all shows while it is above zero even when no row is listed: an unread item
+   *  the list does not hold still counts in the badge, and Clear all is the popover's one way to clear it. */
+  unreadCount?: number
   /** `sheet`: the tool rail's drawer, which carries the title, Clear all and View all itself, so the list
    *  renders only its rows (or the loading / empty state) at the drawer's width. @default 'popover' */
   variant?: 'popover' | 'sheet'
@@ -33,6 +36,7 @@ export function NotificationList(props: NotificationListProps) {
     onNotificationClick,
     onMarkAllAsRead,
     onViewAll,
+    unreadCount = 0,
     variant = 'popover',
   } = props
 
@@ -70,7 +74,7 @@ export function NotificationList(props: NotificationListProps) {
           {category === 'general' ? 'Notifications' : 'Tasks'}
           {notifications.length > 0 && <span className={n.count}>({notifications.length})</span>}
         </span>
-        {notifications.length > 0 && (
+        {(notifications.length > 0 || unreadCount > 0) && (
           <button type="button" className={n.clear} onClick={onMarkAllAsRead}>
             Clear all
           </button>

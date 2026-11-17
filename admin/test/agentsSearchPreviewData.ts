@@ -24,7 +24,8 @@ export function agentsSearchRow(scheme: string, id = 'root1'): AgentListRow {
     tallyEnabled: true, tallyDomains: ['sports'], allowedDomains: ['sports', 'casino', 'matka'], createdAt: '2026-09-22',
     commissionRates: [{ domain: 'sports', rate: 2 }, { domain: 'casino', rate: 3 }, { domain: 'matka', rate: 1.5 }],
     sharingRates: [{ domain: 'sports', rate: 40 }, { domain: 'casino', rate: 30 }, { domain: 'matka', rate: 20 }],
-    creditLimit: 10000, creditUsed: 3000, creditAvailable: 7000 }
+    // The credit reference; a CREDIT agent's chips are answered by the tests (AgentsChips, AgentChipTotals).
+    creditLimit: 10000 }
 }
 export function agentsSearchResponse(operation: Operation, state: AgentsSearchFixtureState = {}): FetchResult {
   let result: Record<string, unknown>
@@ -33,10 +34,10 @@ export function agentsSearchResponse(operation: Operation, state: AgentsSearchFi
     case 'AgentsPage': result = { agents: { agentsPage: { items: [agentsSearchRow(scheme, operation.variables.parentAgentId ? 'child1' : 'root1')], total: 21 } } }; break
     case 'AgentsStats': result = { agents: { agentsPage: { itemsWithStats: [{ agent: { id: operation.variables.parentAgentId ? 'child1' : 'root1' }, stats: agentListStatsFixture }] } } }; break
     case 'AgentsForSelector': result = { agents: { agentsPage: { items: [{ id: 'root1', username: 'Root Partner' }, { id: 'child1', username: 'Child Partner' }] } } }; break
-    // Per scheme: a top-level agent and its suspended sub-agent. Only the top level counts in credit and pending totals.
+    // Per scheme: a top-level agent and its suspended sub-agent. Only the top level counts in the totals.
     case 'AgentOverviewStats': result = { agents: { agentsPage: { total: 6, items: ['SHARING', 'CREDIT', 'COMMISSION'].flatMap(type => [
-      { ...agentsSearchRow(type, type.toLowerCase() + 'root'), parentAgentId: null, levelIndex: 1, creditLimit: 500000, creditUsed: 420000, settlementBalance: -6500 },
-      { ...agentsSearchRow(type, type.toLowerCase() + 'child'), status: 'SUSPENDED', parentAgentId: type.toLowerCase() + 'root', levelIndex: 2, creditLimit: 100000, creditUsed: 20000, settlementBalance: 900 },
+      { ...agentsSearchRow(type, type.toLowerCase() + 'root'), parentAgentId: null, levelIndex: 1 },
+      { ...agentsSearchRow(type, type.toLowerCase() + 'child'), status: 'SUSPENDED', parentAgentId: type.toLowerCase() + 'root', levelIndex: 2 },
     ]) } } }; break
     // The stats cards' money totals: the same two agents with their downline stats.
     case 'AgentSchemeTotals': result = { agents: { agentsPage: { itemsWithStats: [
@@ -57,8 +58,6 @@ export function agentsSearchResponse(operation: Operation, state: AgentsSearchFi
     case 'CommissionCycleReadiness': result = { commissionCycleReadiness: { ready: true, reasons: ['READY'], calculatedTotal: 1200, postedTotal: 1200, paidInCycle: 0, payableAmount: 1200, currency: 'INR', openBets: 0, unresolvedAdjustments: 0 } }; break
     case 'CommissionSummary': result = { agents: { commissionSummary: { currency: 'INR', sportsGGR: 40000, casinoGGR: 10000, matkaGGR: 0, sportsCommissionRate: .02, casinoCommissionRate: .03, matkaCommissionRate: .015, sportsCommission: 800, casinoCommission: 300, matkaCommission: 0, grossSportsCommission: 800, grossCasinoCommission: 300, grossMatkaCommission: 0, grossEffectiveSportsCommission: 900, grossEffectiveCasinoCommission: 300, grossEffectiveMatkaCommission: 0, grossEffectiveCalculatedTotal: 1200, effectiveCalculatedTotal: 1200, effectiveSportsCommission: 900, effectiveCasinoCommission: 300, effectiveMatkaCommission: 0, totalEarned: 1200, pending: 1200, paid: 0, tallyApplied: { enabled: false, domains: [] } } } }; break
     case 'CommissionHistory': result = { agents: { commissionHistory: { entries: [], total: 3 } } }; break
-    case 'AdjustSubAgentCredit': result = { agents: { adjustSubAgentCredit: { success: !state.refused, message: state.refused ? 'Credit update refused' : 'Credit limit updated', agent: { id: operation.variables.agentId, creditLimit: operation.variables.creditLimit, creditUsed: 3000, creditAvailable: Number(operation.variables.creditLimit) - 3000 } } } }; break
-    case 'AdjustAgentCredit': result = { agents: { adjustAgentCredit: { success: !state.refused, message: state.refused ? 'Credit update refused' : 'Credit adjusted', adjustment: { id: 'adjustment1', ...operation.variables.input } } } }; break
     case 'CurrentWhitelabel': result = { whitelabelCurrent: null }; break
     case 'Currencies': result = { currencies: [{ code: 'INR', name: 'Indian Rupee', symbol: '₹', decimals: 2, isActive: true, exchangeRate: 1 }] }; break
     default: throw new Error(`Unexpected agents operation: ${operation.operationName}`)

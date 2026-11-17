@@ -110,6 +110,29 @@ export function visibleExposureDomains(
   return domains
 }
 
+export interface ExposureKpiSkips {
+  sportsSkipped: boolean
+  matkaSkipped: boolean
+}
+
+/**
+ * Which of the two KPI totals the page does not ask for. A domain tab asks for its own total only, and an
+ * agent never asks for a domain its allowed domains lack (SCO-07): the API refuses that total, so the All
+ * tab showed "Some totals could not be loaded" on every visit, although the total was 0 anyway (the agent's
+ * players cannot bet there). That domain's tab is already hidden (visibleExposureDomains).
+ */
+export function exposureKpiSkips(
+  domain: ExposureDomain,
+  isAgent: boolean,
+  allowedDomains?: readonly string[] | null,
+): ExposureKpiSkips {
+  const allowed = allowedDomains || DEFAULT_ALLOWED_DOMAINS
+  return {
+    sportsSkipped: domain === 'matka' || (isAgent && !allowed.includes('sports')),
+    matkaSkipped: domain === 'sports' || (isAgent && !allowed.includes('matka')),
+  }
+}
+
 function legacyUnixSeconds(value: string): number {
   const milliseconds = new Date(value).getTime()
   return Number.isNaN(milliseconds) ? Number.NaN : Math.floor(milliseconds / 1_000)
@@ -121,6 +144,16 @@ export function formatExposureSearchDate(value: string): string {
   return Number.isNaN(date.getTime()) ? 'Invalid Date' : format(date, 'yyyy-MM-dd')
 }
 
+/** The rows of a domain tab, in the server's order: the old domain rule without the search. */
+export function exposureDomainRows(rows: readonly ExposureDataPoint[], domain: ExposureDomain): ExposureDataPoint[] {
+  if (domain === 'all') return [...rows]
+  return rows.filter((row) => {
+    const rowDomain = row.dimension?.toLowerCase()
+    if (domain === 'sports') return rowDomain === 'sports' || rowDomain === 'all'
+    return rowDomain === 'matka' || rowDomain === 'all'
+  })
+}
+
 /**
  * Apply the old domain/search rules and restore the page's default newest-first order. The search
  * guard trims only to decide whether a query exists; matching deliberately uses the raw query.
@@ -129,15 +162,7 @@ export function filterExposureRows(
   rows: readonly ExposureDataPoint[],
   { domain, search, formatDate, formatAmount, convertAmount }: ExposureFilterOptions,
 ): ExposureDataPoint[] {
-  let filtered = rows
-
-  if (domain !== 'all') {
-    filtered = filtered.filter((row) => {
-      const rowDomain = row.dimension?.toLowerCase()
-      if (domain === 'sports') return rowDomain === 'sports' || rowDomain === 'all'
-      return rowDomain === 'matka' || rowDomain === 'all'
-    })
-  }
+  let filtered: readonly ExposureDataPoint[] = exposureDomainRows(rows, domain)
 
   if (search.trim()) {
     const query = search.toLowerCase()
@@ -189,7 +214,11 @@ export function nextExposureSort(
   return null
 }
 
-/** Calculate the legacy cards from the full, raw response rows (not filtered or converted rows). */
+/**
+ * Calculate the cards from the domain tab's raw rows (exposureDomainRows: not searched, not converted).
+ * They read every row the server returned, so under the Sports tab the Records, Avg and Peak cards
+ * still counted the matka rows (F-REP-17).
+ */
 export function calculateExposureMetrics(
   fullRows: readonly ExposureDataPoint[],
 ): ExposureMetrics {

@@ -3,6 +3,7 @@ import { DateTime } from 'luxon'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { agents, appConfigs, depositRequests, users, vipMembersTable, vipTiersTable, welivepayOrders, whitelabelPaymentMethods, whitelabelPgSettings, whitelabels } from '../db/schema.js'
 import { accountAllowsTier, defaultVipDepositPolicy, intersectDepositLimits, vipEligiblePlayer, type VipDepositMethod } from './depositPolicy.js'
+import { parseCryptoRate } from '../utils/cryptoDeposit.js'
 
 export type VipDatabase = NodePgDatabase<any>
 
@@ -105,17 +106,33 @@ export function normalizedReceivingAccounts(payments: VipDepositContext['payment
   if (!payments) return []
   const banks: any[] = Array.isArray(payments.bankDetails) ? payments.bankDetails : payments.bankDetails ? [{ ...payments.bankDetails as object, id: `bank-legacy-${payments.id}` }] : []
   const upis: any[] = Array.isArray(payments.upiDetails) ? payments.upiDetails : payments.upiDetails ? [{ ...payments.upiDetails as object, id: `upi-legacy-${payments.id}` }] : []
+  const cryptos: any[] = Array.isArray(payments.cryptoDetails) ? payments.cryptoDetails : []
   return [...banks.map(account => ({ ...account, type: 'bank' as const, method: 'BANK_TRANSFER' as const })),
-    ...upis.map(account => ({ ...account, type: 'upi' as const, method: 'UPI' as const }))]
+    ...upis.map(account => ({ ...account, type: 'upi' as const, method: 'UPI' as const })),
+    ...cryptos.map(account => ({ ...account, type: 'crypto' as const, method: 'CRYPTO' as const }))]
 }
 
 export function allowedReceivingAccounts(context: VipDepositContext) {
   if (!context.policy.enabled || context.user.status !== 'active') return []
+  // A USDT wallet is offered only while the whitelabel has a rate to quote it at.
+  const cryptoQuotable = parseCryptoRate(context.payments?.cryptoRate) !== null
   return normalizedReceivingAccounts(context.payments).filter(account => account.enabled !== false &&
+    (account.method !== 'CRYPTO' || (cryptoQuotable && Boolean(account.walletAddress))) &&
     (!Array.isArray(context.payments?.enabledMethods) || !context.payments.enabledMethods.length || context.payments.enabledMethods.includes(account.method)) &&
     context.policy.methods.includes(account.method) && accountAllowsTier(account.vipTierIds, context.tier.id))
     .map(account => ({ ...account, limits: intersectDepositLimits([context.baseLimits, { min: account.minAmount, max: account.maxAmount }]) }))
     .filter(account => account.limits.available)
+}
+
+/** WeLivePay refuses a pay-in below 10 INR, whatever a whitelabel configures. */
+export const GATEWAY_MIN_DEPOSIT = 10
+
+/** The amounts one gateway deposit may take under a whitelabel's PG settings (the provider floor included). */
+export function gatewayDepositLimits(gateway: { minDeposit: string | null; maxDeposit: string | null }) {
+  return {
+    min: Math.max(GATEWAY_MIN_DEPOSIT, gateway.minDeposit == null ? 0 : Number(gateway.minDeposit)),
+    max: gateway.maxDeposit == null ? null : Number(gateway.maxDeposit),
+  }
 }
 
 /** Caller must hold lockVipPlayer until its deposit/order insert commits. */
@@ -135,7 +152,7 @@ export async function assertVipDepositAllowed(database: VipDatabase, tenant: str
   } else {
     const [gateway] = await database.select().from(whitelabelPgSettings).where(eq(whitelabelPgSettings.tenant, tenant)).limit(1)
     if (!gateway?.enabled || !gateway.secretSiteKeyEncrypted) throw new Error('Online payment is unavailable')
-    limits = intersectDepositLimits([limits, { min: gateway.minDeposit == null ? 10 : Number(gateway.minDeposit), max: gateway.maxDeposit == null ? null : Number(gateway.maxDeposit) }])
+    limits = intersectDepositLimits([limits, gatewayDepositLimits(gateway)])
   }
   if (!limits.available || input.amount < limits.min || input.amount > limits.max)
     throw new Error(`Allowed deposit amount is ${limits.min.toFixed(2)} to ${Math.max(0, limits.max).toFixed(2)}. Your tier and remaining daily/monthly limits apply.`)

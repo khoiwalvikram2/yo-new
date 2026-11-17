@@ -1,6 +1,6 @@
 import { db } from '@src/db/client.js'
 import { bonusCampaigns, bonusAwards, bonusCodes, users, wallets, walletLedger, ledgerEntries } from '@shared/db/schema.js'
-import { eq, and, or, like, sql, desc, notInArray, gte, lte, inArray, type SQL } from 'drizzle-orm'
+import { eq, and, or, ilike, sql, desc, notInArray, gte, lte, inArray, type SQL } from 'drizzle-orm'
 import { createWalletLedgerEntry } from '@shared/services/walletLedgerService.js'
 import { ensurePlayerWalletDb } from '@/repos/players/walletsRepo.js'
 import { DateTime } from 'luxon'
@@ -65,7 +65,8 @@ export async function listBonusCampaignsDb(tenant: string, filters: BonusCampaig
   }
 
   if (filters.search && filters.search.length > 0) {
-    conditions.push(like(bonusCampaigns.name, `%${filters.search}%`))
+    // Whatever its case: 'wednesday' finds 'WEDNESDAY 10%' (the Bonuses page and global search).
+    conditions.push(ilike(bonusCampaigns.name, `%${filters.search}%`))
   }
 
   return db
@@ -104,6 +105,26 @@ export async function getActiveSignupCampaignDb(tenant: string) {
 const ONLY_ONE_SIGNUP_ACTIVE_MESSAGE =
   'Only one signup bonus campaign can be active at a time. Please pause or end the current active signup campaign first.'
 
+/**
+ * A campaign bound as stored. The form sends an instant (its IST date and time, converted to ISO),
+ * which is kept exactly; only a bare `yyyy-MM-dd` (an older API caller) still means the whole IST
+ * day. parseDateFrom/parseDateTo are date-FILTER helpers that round even a full timestamp to its
+ * day, so a campaign typed to start at 10:00 went live at midnight and one typed to end at 18:30
+ * ran to 23:59:59 (MAR-04). The player side gates on these columns as instants.
+ */
+function campaignBound(value: string, edge: 'start' | 'end', label: string): Date {
+  const bareDate = /^\d{4}-\d{2}-\d{2}$/.test(value)
+  const at = bareDate
+    ? (edge === 'start' ? parseDateFrom(value, 'Asia/Kolkata') : parseDateTo(value, 'Asia/Kolkata'))
+    : new Date(value)
+  if (Number.isNaN(at.getTime())) throw new Error(`${label} is not a valid date`)
+  return at
+}
+
+function assertCampaignWindow(start: Date | null | undefined, end: Date | null | undefined) {
+  if (start && end && end.getTime() < start.getTime()) throw new Error('End date must be after start date')
+}
+
 export async function createBonusCampaignDb(input: BonusCampaignCreateInput & { tenant: string }) {
   const effectiveStatus = input.status || 'draft'
   if (input.type === 'signup' && effectiveStatus === 'active') {
@@ -116,6 +137,9 @@ export async function createBonusCampaignDb(input: BonusCampaignCreateInput & { 
   const validReleaseType = input.releaseType === 'bonus_amount_only' || input.releaseType === 'total_bonus_wallet' ? input.releaseType : undefined
   const validDistributionType = (input.distributionType === 'instant_otp' || input.distributionType === 'instant_cash' || input.distributionType === 'roll_over') ? input.distributionType : undefined
   const validAmountType = (input.amountType === 'fixed' || input.amountType === 'percentage') ? input.amountType : undefined
+  const startDate = input.startDate ? campaignBound(input.startDate, 'start', 'Start date') : null
+  const endDate = input.endDate ? campaignBound(input.endDate, 'end', 'End date') : null
+  assertCampaignWindow(startDate, endDate)
 
   const row: Record<string, unknown> = {
     tenant: input.tenant,
@@ -127,8 +151,8 @@ export async function createBonusCampaignDb(input: BonusCampaignCreateInput & { 
     currency: input.currency,
     rulesJson: input.rulesJson || null,
     codeMode: (input.codeMode || 'auto') as any,
-    validFrom: input.validFrom ? new Date(input.validFrom) : null,
-    validTo: input.validTo ? new Date(input.validTo) : null,
+    validFrom: input.validFrom ? campaignBound(input.validFrom, 'start', 'Valid from') : null,
+    validTo: input.validTo ? campaignBound(input.validTo, 'end', 'Valid to') : null,
     limitsJson: input.limitsJson || null,
     directSubType: (input.directSubType && String(input.directSubType).trim()) || null,
     depositConditionType: input.depositConditionType || null,
@@ -137,8 +161,8 @@ export async function createBonusCampaignDb(input: BonusCampaignCreateInput & { 
     percentage: input.percentage != null ? String(input.percentage) : null,
     numberOfPlayers: input.numberOfPlayers ?? null,
     usagePerPlayer: input.usagePerPlayer ?? null,
-    startDate: input.startDate ? parseDateFrom(input.startDate, 'Asia/Kolkata') : null,
-    endDate: input.endDate ? parseDateTo(input.endDate, 'Asia/Kolkata') : null,
+    startDate,
+    endDate,
     wagering: input.wagering != null ? String(input.wagering) : null,
     expiryBonusDays: input.expiryBonusDays ?? null,
     depositRequired: input.depositRequired ?? false,
@@ -167,8 +191,8 @@ export async function updateBonusCampaignDb(id: number, tenant: string, input: B
   if (input.currency !== undefined) updateData.currency = input.currency
   if (input.rulesJson !== undefined) updateData.rulesJson = input.rulesJson
   if (input.codeMode !== undefined) updateData.codeMode = input.codeMode as any
-  if (input.validFrom !== undefined) updateData.validFrom = input.validFrom ? parseDateFrom(input.validFrom, 'Asia/Kolkata') : null
-  if (input.validTo !== undefined) updateData.validTo = input.validTo ? parseDateTo(input.validTo, 'Asia/Kolkata') : null
+  if (input.validFrom !== undefined) updateData.validFrom = input.validFrom ? campaignBound(input.validFrom, 'start', 'Valid from') : null
+  if (input.validTo !== undefined) updateData.validTo = input.validTo ? campaignBound(input.validTo, 'end', 'Valid to') : null
   if (input.limitsJson !== undefined) updateData.limitsJson = input.limitsJson
   if (input.directSubType !== undefined) updateData.directSubType = input.directSubType === null || input.directSubType === '' ? null : input.directSubType
   if (input.depositConditionType !== undefined) updateData.depositConditionType = input.depositConditionType
@@ -179,12 +203,23 @@ export async function updateBonusCampaignDb(id: number, tenant: string, input: B
   if (input.percentage !== undefined) updateData.percentage = input.percentage ? String(input.percentage) : null
   if (input.numberOfPlayers !== undefined) updateData.numberOfPlayers = input.numberOfPlayers
   if (input.usagePerPlayer !== undefined) updateData.usagePerPlayer = input.usagePerPlayer
-  if (input.startDate !== undefined) updateData.startDate = input.startDate ? parseDateFrom(input.startDate, 'Asia/Kolkata') : null
-  if (input.endDate !== undefined) updateData.endDate = input.endDate ? parseDateTo(input.endDate, 'Asia/Kolkata') : null
+  if (input.startDate !== undefined) updateData.startDate = input.startDate ? campaignBound(input.startDate, 'start', 'Start date') : null
+  if (input.endDate !== undefined) updateData.endDate = input.endDate ? campaignBound(input.endDate, 'end', 'End date') : null
   if (input.wagering !== undefined) updateData.wagering = input.wagering ? String(input.wagering) : null
   if (input.expiryBonusDays !== undefined) updateData.expiryBonusDays = input.expiryBonusDays
   if (input.depositRequired !== undefined) updateData.depositRequired = input.depositRequired
   if (input.releaseType !== undefined) updateData.releaseType = input.releaseType as any
+
+  // A window moved at one end is checked against the other end as stored.
+  if (updateData.startDate !== undefined || updateData.endDate !== undefined) {
+    const stored = updateData.startDate === undefined || updateData.endDate === undefined
+      ? await getBonusCampaignDb(id, tenant)
+      : null
+    assertCampaignWindow(
+      updateData.startDate !== undefined ? updateData.startDate : stored?.startDate,
+      updateData.endDate !== undefined ? updateData.endDate : stored?.endDate,
+    )
+  }
 
   if (input.status === 'active') {
     const current = await getBonusCampaignDb(id, tenant)

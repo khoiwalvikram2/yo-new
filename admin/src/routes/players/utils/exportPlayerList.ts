@@ -2,8 +2,12 @@ import type ExcelJS from 'exceljs'
 import { loadExcelWriter } from '@/shared/utils/lazyExcel'
 import { formatInTimeZone, DEFAULT_ADMIN_TZ } from '@/shared/utils/date'
 import type { Player } from '@/shared/types/player'
+import type { ChipAccount } from '@/lib/graphql/chips'
 
-type PlayerWithStats = Player & { stats?: any }
+/** A list row; a credit player carries its chips account (spec 2026-11-02 §7). */
+type PlayerWithStats = Player & { stats?: any; chips?: ChipAccount | null }
+
+const isCreditRow = (p: PlayerWithStats) => p.playerType === 'AGENT_CREDIT' || p.playerType === 'WHITELABEL_CREDIT'
 
 const COLORS = {
   titleBg: '4F46E5',
@@ -21,7 +25,6 @@ const COLORS = {
   inactiveFont: '6B7280',
   positiveFont: '059669',
   negativeFont: 'DC2626',
-  creditFont: 'D97706',
   purpleFont: '7C3AED',
 }
 
@@ -78,10 +81,9 @@ const COLUMNS: ColDef[] = [
   { header: 'Balance', key: 'balance', width: 14, getter: (p) => p.wallet?.balance != null ? Number(p.wallet.balance) : null },
   { header: 'Bonus', key: 'bonus', width: 14, getter: (p) => p.wallet?.bonus != null ? Number(p.wallet.bonus) : null },
   { header: 'Exposure', key: 'exposure', width: 14, getter: (p) => p.wallet?.exposure != null ? Number(p.wallet.exposure) : null },
-  { header: 'Credit Limit', key: 'creditLimit', width: 14, getter: (p) => p.creditLimit != null ? Number(p.creditLimit) : null },
-  { header: 'Credit Used', key: 'creditUsed', width: 14, getter: (p) => p.creditUsed != null ? Number(p.creditUsed) : null },
-  { header: 'Credit Available', key: 'creditAvailable', width: 16, getter: (p) => p.creditAvailable != null ? Number(p.creditAvailable) : null },
-  { header: 'Settlement', key: 'settlement', width: 14, getter: (p) => p.settlementBalance != null ? Number(p.settlementBalance) : null },
+  // Credit players are on chips: their Balance and Exposure above are their chips; these two are theirs only.
+  { header: 'Credit Reference', key: 'creditReference', width: 16, getter: (p) => !isCreditRow(p) ? null : p.chips ? Number(p.chips.creditReference) : p.creditLimit != null ? Number(p.creditLimit) : null },
+  { header: 'Ref P/L', key: 'refPnl', width: 14, getter: (p) => isCreditRow(p) && p.chips ? Number(p.chips.refPnl) : null },
   { header: 'Total Deposits', key: 'deposits', width: 16, getter: (p) => p.stats?.totalDeposits != null ? Number(p.stats.totalDeposits) : null },
   { header: 'Total Withdrawals', key: 'withdrawals', width: 18, getter: (p) => p.stats?.totalWithdrawals != null ? Number(p.stats.totalWithdrawals) : null },
   { header: 'GGR', key: 'ggr', width: 14, getter: (p) => p.stats?.ggr != null ? Number(p.stats.ggr) : null },
@@ -95,8 +97,8 @@ const COLUMNS: ColDef[] = [
 
 // Columns that contain numeric amounts (for right-align)
 const AMOUNT_COL_KEYS = new Set([
-  'balance', 'bonus', 'exposure', 'creditLimit', 'creditUsed', 'creditAvailable',
-  'settlement', 'deposits', 'withdrawals', 'ggr', 'pl', 'betCount', 'turnover', 'commission',
+  'balance', 'bonus', 'exposure', 'creditReference', 'refPnl',
+  'deposits', 'withdrawals', 'ggr', 'pl', 'betCount', 'turnover', 'commission',
 ])
 
 export async function exportPlayerListToExcel(players: PlayerWithStats[], totalCount: number) {
@@ -187,16 +189,11 @@ export async function exportPlayerListToExcel(players: PlayerWithStats[], totalC
         else if (val != null && val < 0) cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.negativeFont } }
       }
 
-      // Credit used — orange
-      if (key === 'creditUsed') {
-        const val = typeof cell.value === 'number' ? cell.value : null
-        if (val != null && val > 0) cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.creditFont } }
-      }
-
-      // Credit available — green
-      if (key === 'creditAvailable') {
+      // Ref P/L — green when the upline owes the player, red when the player owes the upline
+      if (key === 'refPnl') {
         const val = typeof cell.value === 'number' ? cell.value : null
         if (val != null && val > 0) cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.positiveFont } }
+        else if (val != null && val < 0) cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.negativeFont } }
       }
 
       // Commission — purple

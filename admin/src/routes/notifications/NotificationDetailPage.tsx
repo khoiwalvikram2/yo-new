@@ -7,7 +7,6 @@ import { MY_NOTIFICATIONS_QUERY, MY_NOTIFICATION_QUERY, MARK_NOTIFICATION_READ_M
 import { useNotificationStore } from '@/state/notificationStore';
 import { useFormatDate } from '@/shared/core/useFormatDate';
 import { useCurrency } from '@/shared/core/CurrencyContext';
-import { RBACGuard } from '@/shared/core/RBACGuard';
 import { resolveNotificationActionUrl } from '@/shared/core/notificationUtils';
 import { usePageEyebrow } from '@/shell/PageEyebrowContext';
 import { Button } from '@/ui/components/Button';
@@ -50,12 +49,10 @@ const HUE_CLASS: Record<TagHue, string> = {
 
 const BACK_LINK = { to: '/notifications', label: 'Back' };
 
+/* No RBACGuard: one notification of the caller's own inbox, scoped to its recipient on the server, like the list
+   (see NotificationsPage). notifications.list:view was required here too, and no Whitelabel Admin or agent holds it. */
 export function NotificationDetailPage() {
-	return (
-		<RBACGuard required={[{ domain: 'notifications.list', actions: ['view'] }]}>
-			<NotificationDetailPageContent />
-		</RBACGuard>
-	);
+	return <NotificationDetailPageContent />;
 }
 
 function NotificationDetailPageContent() {

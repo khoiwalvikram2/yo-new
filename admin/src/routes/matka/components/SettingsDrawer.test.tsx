@@ -23,6 +23,14 @@ vi.mock('@/shared/core/CurrencyContext', () => ({
   useCurrency: () => ({ getCurrencySymbol: () => '₹' }),
 }))
 
+const feedback = vi.hoisted(() => ({ toasts: [] as Array<Record<string, unknown>> }))
+vi.mock('@/ui/components/toast', () => ({
+  toast: (options: Record<string, unknown>) => {
+    feedback.toasts.push(options)
+    return feedback.toasts.length
+  },
+}))
+
 const MATKA = {
   id: 'm1',
   name: 'Kalyan',
@@ -61,6 +69,8 @@ const RULE = {
 }
 
 let calls: Call[]
+/** When set, CreateMatkaBidRule answers with this GraphQL error, as the server refuses a rule. */
+let refuseCreate: string | null
 const callbacks = {
   close: vi.fn(),
   save: vi.fn<(values: SettingsValues) => Promise<void>>(async () => undefined),
@@ -72,6 +82,7 @@ function resultFor(operation: Operation): FetchResult {
     case 'MatkaBidRules':
       return { data: { matkaBidRules: { __typename: 'MatkaBidRulePage', items: [RULE], total: 1 } } }
     case 'CreateMatkaBidRule':
+      if (refuseCreate) return { errors: [{ message: refuseCreate }] }
       return { data: { createMatkaBidRule: { __typename: 'MatkaBidRule', id: 'rule-2', matkaId: 'm1' } } }
     case 'UpdateMatkaBidRule':
       return {
@@ -137,6 +148,8 @@ function renderDrawer({
 
 beforeEach(() => {
   calls = []
+  refuseCreate = null
+  feedback.toasts.length = 0
   callbacks.close.mockReset()
   callbacks.save.mockClear()
   callbacks.status.mockReset()
@@ -213,7 +226,43 @@ describe('SettingsDrawer', () => {
     })
   })
 
-  test('keeps bid-rule status/remove variables and page controls exact', async () => {
+  test('a refused bid configuration shows the server reason and keeps the draft; a created one says so', async () => {
+    refuseCreate = 'This bid type is unavailable for the market'
+    renderDrawer({ initialTab: 'bid' })
+    const drawer = await screen.findByRole('dialog', { name: 'Edit Matka Settings' })
+    fireEvent.change(within(drawer).getByRole('combobox', { name: /Bid Type/ }), { target: { value: 'JODI' } })
+    const capacity = within(drawer).getByRole('textbox', { name: /Maximum Bid Capacity/ })
+    fireEvent.change(capacity, { target: { value: '50' } })
+    fireEvent.blur(capacity)
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Create Configuration' }))
+    // The refusal used to escape as an unhandled rejection with nothing on screen.
+    const alert = await within(drawer).findByRole('alert')
+    assert.equal(alert.textContent, 'This bid type is unavailable for the market')
+    assert.equal((within(drawer).getByRole('combobox', { name: /Bid Type/ }) as HTMLSelectElement).value, 'JODI')
+    assert.ok(!feedback.toasts.some((entry) => entry.tone === 'ok'), 'no success for a refusal')
+
+    refuseCreate = null
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Create Configuration' }))
+    await waitFor(() => assert.ok(feedback.toasts.some((entry) => entry.message === 'Bid configuration created' && entry.tone === 'ok')))
+    assert.ok(within(drawer).queryByRole('alert') === null, 'the refusal clears')
+    assert.equal(calls.filter((call) => call.operationName === 'CreateMatkaBidRule').length, 2)
+  })
+
+  test('the Bid Type list offers only the bid types the market kind takes', async () => {
+    // A Worli market offered Satta AB, A and B, which the server refuses ("This bid type is unavailable for the market").
+    const offered = (drawer: HTMLElement) => Array.from((within(drawer).getByRole('combobox', { name: /Bid Type/ }) as HTMLSelectElement).options)
+      .map((option) => option.value).filter(Boolean)
+    const worli = renderDrawer({ initialTab: 'bid' })
+    let drawer = await screen.findByRole('dialog', { name: 'Edit Matka Settings' })
+    assert.deepEqual(offered(drawer), ['SINGLE', 'JODI', 'SINGLE_PANNA', 'DOUBLE_PANNA', 'TRIPLE_PANNA', 'HALF_SANGAM', 'FULL_SANGAM'])
+    worli.unmount()
+
+    renderDrawer({ initialTab: 'bid', matka: { ...MATKA, settings: { ...MATKA.settings, matkaType: 'sattaMatka' } } })
+    drawer = await screen.findByRole('dialog', { name: 'Edit Matka Settings' })
+    assert.deepEqual(offered(drawer), ['AB', 'A', 'B'])
+  })
+
+  test('keeps bid-rule status/remove variables and page controls exact, and Remove asks first', async () => {
     renderDrawer({ initialTab: 'bid' })
     const drawer = await screen.findByRole('dialog', { name: 'Edit Matka Settings' })
     await within(drawer).findByText('JODI')
@@ -223,10 +272,24 @@ describe('SettingsDrawer', () => {
     assert.deepEqual(calls.find((call) => call.operationName === 'UpdateMatkaBidRule')?.variables, {
       id: 'rule-1', patch: { status: 'inactive' },
     })
+    // The rule comes back as a record (no { success, message } for the notification link), so the page says it.
+    await waitFor(() => assert.ok(feedback.toasts.some((entry) => entry.message === 'Bid configuration deactivated' && entry.tone === 'ok')))
+
+    // Remove deletes the rule outright, so it asks first; Cancel sends nothing.
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Remove' }))
+    const prompt = await screen.findByRole('alertdialog', { name: 'Remove bid configuration' })
+    assert.ok(within(prompt).getByText('Remove the JODI configuration (25%)? Its bid limit stops applying to players at once.'))
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => assert.ok(screen.queryByRole('alertdialog') === null, 'Cancel closes the prompt'))
+    assert.equal(calls.some((call) => call.operationName === 'DeleteMatkaBidRule'), false)
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Remove' }))
+    const confirm = await screen.findByRole('alertdialog', { name: 'Remove bid configuration' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Remove' }))
     await waitFor(() => assert.ok(calls.some((call) => call.operationName === 'DeleteMatkaBidRule')))
     assert.deepEqual(calls.find((call) => call.operationName === 'DeleteMatkaBidRule')?.variables, { id: 'rule-1' })
+    await waitFor(() => assert.ok(feedback.toasts.some((entry) => entry.message === 'Bid configuration removed' && entry.tone === 'ok')))
+    await waitFor(() => assert.ok(screen.queryByRole('alertdialog') === null, 'the prompt closes once removed'))
     assert.ok(within(drawer).getByText('Page 1'))
     assert.ok(within(drawer).getByRole('button', { name: 'Prev' }).hasAttribute('disabled'))
     assert.ok(within(drawer).getByRole('button', { name: 'Next' }).hasAttribute('disabled'))

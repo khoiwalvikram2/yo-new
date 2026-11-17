@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Activity, ArrowRight, ChevronRight, Clock3, Headphones, Menu, Settings2, ShieldCheck, Star, Ticket, Wallet, X } from 'lucide-react'
+import { Activity, ArrowRight, ChevronRight, Clock3, Headphones, Menu, MessageSquareMore, Settings2, ShieldCheck, Star, Ticket, Wallet, X } from 'lucide-react'
 import type { EventItem } from '@/types'
 import { useAuth } from '../../lib/auth'
 import { useAppIdentity, useFeatureFlags, useParsedSettings } from '../../hooks/useAppSettings'
@@ -9,8 +9,8 @@ import { formatAmount } from '../../lib/currency'
 import ThemeSwitch from '../ThemeSwitch'
 import ChangePasswordModal from '../modals/ChangePasswordModal'
 import AccountLinks from './AccountLinks'
-import SportsList from '../sidebar/SportsList'
-import { sports } from '../sidebar/navData'
+import MobileMenuTiles from './MobileMenuTiles'
+import { useSupportLauncherState } from '../../../../ui-shared/support/launcherState'
 
 type Panel = 'navigation' | 'matches' | 'account' | 'controls' | 'support'
 
@@ -42,6 +42,7 @@ function NovaPanels({ mobileNavigation = false }: { mobileNavigation?: boolean }
   const features = useFeatureFlags()
   const { supportEmail, supportPhone } = useAppIdentity()
   const { t } = useTranslation()
+  const chat = useSupportLauncherState()
   const titles: Record<Panel, string> = {
     navigation: t('nova.exploreHomeGround'), matches: t('nova.matchCentre'), account: t('nova.yourAccount'),
     controls: t('nova.yourPreferences'), support: t('nova.helpSupport'),
@@ -129,30 +130,30 @@ function NovaPanels({ mobileNavigation = false }: { mobileNavigation?: boolean }
         <div className="nova-utility-group">
           {actions.filter(({ key }) => key === 'controls' || key === 'support').map(({ key, label, icon: Icon }) => <button key={key} type="button" aria-label={label}
             aria-haspopup="dialog" aria-pressed={panel === key} title={label} onClick={event => toggle(key, event.currentTarget)}><Icon size={20} /><span>{label}</span></button>)}
+          {/* Live chat sits at the foot of the rail on desktop (owner 2026-11-02); the floating button is for phones. */}
+          {chat.available && <button type="button" className="nova-rail-chat" data-support-chat-launcher aria-label={t('nova.liveChat', { defaultValue: 'Live chat' })}
+            aria-haspopup="dialog" aria-pressed={chat.open} title={t('nova.liveChat', { defaultValue: 'Live chat' })}
+            onClick={event => window.dispatchEvent(new CustomEvent(chat.open ? 'support-chat:close' : 'support-chat:open', { detail: { opener: event.currentTarget } }))}>
+            <i className="nova-rail-chat-bubble" aria-hidden="true"><MessageSquareMore size={20} /></i><span>{t('nova.liveChat', { defaultValue: 'Live chat' })}</span>
+            {chat.unread > 0 && <b className="nova-rail-badge">{chat.unread > 99 ? '99+' : chat.unread}</b>}
+          </button>}
         </div>
       </nav>
     )}
-    <dialog ref={dialog} className={`nova-panel ${mobileNavigation ? 'nova-navigation-panel' : 'nova-rail-panel'}`}
+    <dialog ref={dialog} className={`nova-panel ${mobileNavigation ? 'nova-navigation-panel' : 'nova-rail-panel'}`} data-ui-radius="square"
       aria-label={panel ? titles[panel] : t('nova.workspacePanel')} onCancel={close} onClose={event => { if (!event.currentTarget.open) close() }}
       onClick={event => { if (event.target === event.currentTarget) close() }}>
       <div className="nova-panel-content">
         <header><div><span className="nova-eyebrow">{t('nova.yourWorkspace')}</span><h2>{view ? titles[view] : ''}</h2></div>
           <button type="button" className="nova-icon-button" aria-label={t('nova.closePanel')} onClick={close}><X size={20} /></button></header>
         {view === 'navigation' && <>
-          <nav className="nova-panel-links" aria-label={t('nova.mobileNavigation')}>
-            <Link to="/" onClick={close}>{t('nav.home')} <ArrowRight size={16} /></Link>
-            {features.sportsEnabled && <Link to="/sports" onClick={close}>{t('nova.allSports')} <ArrowRight size={16} /></Link>}
-            <Link to="/my-bets" onClick={close}>{t('nav.myBets')} <Ticket size={16} /></Link>
-            {features.matkaEnabled && <Link to="/matka" onClick={close}>{t('nav.matka', { defaultValue: 'Matka' })} <ArrowRight size={16} /></Link>}
-            {features.casinoEnabled && <><Link to="/casino" onClick={close}>{t('nav.casino')} <ArrowRight size={16} /></Link>
-              <Link to="/slots" onClick={close}>{t('nav.slots')} <ArrowRight size={16} /></Link></>}
-            <Link to="/settings" onClick={close}>{t('nova.accountPreferences')} <Settings2 size={16} /></Link>
-          </nav>
+          {/* Owner 2026-11-02: top sports, product buttons and every sport as tiles (MobileMenuTiles). */}
+          <MobileMenuTiles onNavigate={close} />
           <div className="nova-panel-mobile-theme">
             <span>{t('nova.lightDark')}</span>
             <ThemeSwitch />
           </div>
-          {features.sportsEnabled && <div className="nova-panel-sports"><SportsList items={sports} initialActive="" /></div>}
+          <Link className="nova-mm-settings" to="/settings" onClick={close}>{t('nova.accountPreferences')} <Settings2 size={16} aria-hidden="true" /></Link>
         </>}
         {view === 'matches' && <div className="nova-panel-links">
           <p>{t('nova.matchesHelp')}</p>
@@ -198,10 +199,13 @@ export function NovaMatchDesk({ events = [], loading = false, error = null }: { 
     <section className="nova-desk-card nova-wallet-card">
       <header><Wallet size={18} /><h3>{t('nova.yourWallet')}</h3></header>
       {isAuthenticated ? <>
-        <dl><div><dt>{credit ? t('nova.availableCredit') : t('nova.mainBalance')}</dt><dd>{formatAmount(Number(credit ? user?.creditAvailable ?? 0 : user?.balance ?? 0))}</dd></div>
+        {/* A credit player's chips are the wallet cash, so the card shows them the cash player's figures. */}
+        <dl><div><dt>{t('nova.mainBalance')}</dt><dd>{formatAmount(Number(user?.balance ?? 0))}</dd></div>
           <div><dt>{t('nova.openExposure')}</dt><dd>{formatAmount(Math.abs(Number(user?.exposure ?? 0)))}</dd></div></dl>
         <Link to="/statements" className="nova-text-link">{t('nova.viewStatements')} <ArrowRight size={15} /></Link>
-        {!settings.hideDW && !credit && <Link to="/deposit" className="nova-button nova-button-secondary">{t('nova.manageFunds')} <ArrowRight size={15} /></Link>}
+        {/* Only the upline deposits or withdraws a credit player's chips, so they get a note instead of funding. */}
+        {credit ? <p className="nova-wallet-note">{t('wallet.chipsManagedByAgent')}</p>
+          : !settings.hideDW && <Link to="/deposit" className="nova-button nova-button-secondary">{t('nova.manageFunds')} <ArrowRight size={15} /></Link>}
       </> : <><p>{t('nova.signInBalance')}</p>
         <button className="nova-button nova-button-secondary" type="button" onClick={() => openAuthModal('login')}>{t('nova.signIn')} <ArrowRight size={16} /></button></>}
     </section>

@@ -403,42 +403,16 @@
   overflow-wrap: anywhere;
 }
 
-/* settlement rows: spec pairs — positive --pos-ink on --ok-bg, negative --neg-ink on --neg-bg, zero --ink on --surf-3 */
-.settleRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--hair);
+/* chips (CREDIT agent): Ref P/L's words under its label; its direction is coloured text only (the owner's
+   colour pass: in green, out rose), never a tinted box */
+.statNote {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-3);
 }
 
-.settleRow:first-child { border-top: 0; }
-
-.settleLabel {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-
-.settleValue {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: var(--ui-radius);
-  background: var(--surf-3);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.settleValue.positive { background: var(--ok-bg); color: var(--pos-ink); }
-.settleValue.negative { background: var(--neg-bg); color: var(--neg-ink); }
+.statValue.gain { color: var(--viz-green, var(--pos-ink)); }
+.statValue.loss { color: var(--viz-rose, var(--neg-ink)); }
 
 @media (prefers-reduced-motion: reduce) {
   .trigger,

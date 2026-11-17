@@ -1,6 +1,12 @@
 /**
  * Single-bet sports settlement wallet + ledger effects (shared between admin batch settlement and bet-tool).
- * Caller supplies settleSportsBetRow + optional credit release; cash path uses injected ledger base conversion.
+ * Caller supplies settleSportsBetRow; the ledger base conversion is injected.
+ *
+ * Every player type settles into wallets.cash (cash += profit on a win, cash -= loss on a
+ * loss, nothing on a void). Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) hold their
+ * chips in wallets.cash too, so they take the same path: a settled bet changes only the
+ * player's chips and nothing is pushed to the agent or the whitelabel. What stays different
+ * for them is the exclusions: no bonus formula, no bonus wagering and no referral hooks.
  */
 import { sql, eq, and, or } from 'drizzle-orm'
 import {
@@ -10,6 +16,7 @@ import {
   bonusAwards,
   bonusCampaigns,
 } from '../db/schema.js'
+import { isCreditPlayer as isCreditPlayerType } from './credit/isCreditPlayer.js'
 
 export type SportsResultMarketType = 'exchange' | 'bookmaker' | 'fancy'
 
@@ -98,16 +105,6 @@ export type SettleSportsBetRowFn = (
 export type LedgerBaseAmountFn = (absAmount: number, currency: string) => number
 export type BaseCurrencyCodeFn = () => string
 
-export type ReleaseCreditForSportsBetFn = (args: {
-  tx: unknown
-  userId: number
-  originalExposure: number
-  kind: 'win' | 'loss' | 'void'
-  amount: number
-  tenant: string
-  betId: string
-}) => Promise<void>
-
 export type ApplySportsSingleBetSettlementInput = {
   bet: SportsSingleBetSettlementRow
   outcome: 'won' | 'lost' | 'void'
@@ -131,11 +128,13 @@ export type ApplySportsSingleBetSettlementResult =
       userId: number
       outcome: 'won' | 'lost' | 'void'
       isCreditPlayer: boolean
-      /** Non-credit: delta to add to userMarketPnl for wallet_ledger aggregation */
+      /** Cash delta to add to userMarketPnl for wallet_ledger aggregation (every player type). */
       userMarketPnlDelta: number
       profitToCredit?: number
       lossAmount?: number
+      /** Never set for a credit player: credit players get no referral settlement or loss-share. */
       postReferral?: { tenant: string; userId: number; netRevenue: number; currency: string; betId: string }
+      /** Never set for a credit player: credit players get no bonus wagering. */
       postBonus?: { userId: number; tenant: string; betAmount: number }
       settlementCounts: { winners: number; losers: number; voids: number; totalPayout: number }
     }
@@ -145,8 +144,7 @@ export async function applySportsSingleBetSettlement(
   input: ApplySportsSingleBetSettlementInput,
   settleRow: SettleSportsBetRowFn,
   toLedgerBase: LedgerBaseAmountFn,
-  getBaseCurrency: BaseCurrencyCodeFn,
-  releaseCreditForBet?: ReleaseCreditForSportsBetFn
+  getBaseCurrency: BaseCurrencyCodeFn
 ): Promise<ApplySportsSingleBetSettlementResult> {
   const { bet, outcome, marketType, tenant, marketId, eventId, resultId, fallbackCurrency } = input
 
@@ -187,13 +185,7 @@ export async function applySportsSingleBetSettlement(
       .where(eq(users.id, bet.userId))
       .limit(1)
 
-    isCreditPlayer = Boolean(
-      playerInfo && (playerInfo.playerType === 'AGENT_CREDIT' || playerInfo.playerType === 'WHITELABEL_CREDIT')
-    )
-  }
-
-  if (isCreditPlayer && !releaseCreditForBet) {
-    return { ok: false, error: 'Credit player settlement requires releaseCreditForBet handler' }
+    isCreditPlayer = isCreditPlayerType(playerInfo?.playerType)
   }
 
   const stake = Number(bet.stake || 0)
@@ -245,81 +237,72 @@ export async function applySportsSingleBetSettlement(
           ? stake * Number(bet.price || 0)
           : stake
 
-    const hasActiveInstantOtp = await (tx as any)
-      .select({ id: bonusAwards.id })
-      .from(bonusAwards)
-      .innerJoin(
-        bonusCampaigns,
-        and(eq(bonusCampaigns.id, bonusAwards.campaignId), eq(bonusCampaigns.tenant, tenant))
-      )
-      .where(
-        and(
-          eq(bonusAwards.userId, bet.userId),
-          eq(bonusAwards.status, 'active'),
-          eq(bonusCampaigns.distributionType, 'instant_otp'),
-          or(eq(bonusAwards.domain, 'sports'), eq(bonusAwards.domain, 'global'))
-        )
-      )
-      .limit(1)
-      .then((rows: unknown[]) => rows.length > 0)
+    // Credit players never hold a bonus, so the instant-OTP bonus formula is not looked up
+    // for them.
+    const hasActiveInstantOtp = isCreditPlayer
+      ? false
+      : await (tx as any)
+          .select({ id: bonusAwards.id })
+          .from(bonusAwards)
+          .innerJoin(
+            bonusCampaigns,
+            and(eq(bonusCampaigns.id, bonusAwards.campaignId), eq(bonusCampaigns.tenant, tenant))
+          )
+          .where(
+            and(
+              eq(bonusAwards.userId, bet.userId),
+              eq(bonusAwards.status, 'active'),
+              eq(bonusCampaigns.distributionType, 'instant_otp'),
+              or(eq(bonusAwards.domain, 'sports'), eq(bonusAwards.domain, 'global'))
+            )
+          )
+          .limit(1)
+          .then((rows: unknown[]) => rows.length > 0)
 
     const profitCredited = hasActiveInstantOtp
       ? Math.max(winAmountForFormula - betAmount, 0)
       : profit
 
-    if (!isCreditPlayer) {
-      await (tx as any)
-        .update(wallets)
-        .set({
-          cash: sql`${wallets.cash} + ${profitCredited}`,
-        })
-        .where(eq(wallets.id, wallet.id))
-
-      const baseAmount = toLedgerBase(Math.abs(profit), currency)
-      await (tx as any).insert(ledgerEntries).values({
-        tenant,
-        walletId: wallet.id,
-        type: 'credit',
-        amount: String(baseAmount),
-        meta: {
-          type: 'sports_bet_settlement',
-          betId: bet.id,
-          outcome: 'won',
-          profit,
-          stake,
-          marketType,
-          originalCurrency: currency,
-          baseAmount,
-          baseCurrency: getBaseCurrency(),
-          resultId,
-          marketId,
-          eventId,
-        } as any,
+    await (tx as any)
+      .update(wallets)
+      .set({
+        cash: sql`${wallets.cash} + ${profitCredited}`,
       })
-      userMarketPnlDelta = profitCredited
-      profitToCredit = profitCredited
-    }
+      .where(eq(wallets.id, wallet.id))
 
-    if (isCreditPlayer && releaseCreditForBet) {
-      const originalExposure = bet.side === 'back' ? stake : liability
-      await releaseCreditForBet({
-        tx,
-        userId: bet.userId,
-        originalExposure,
-        kind: 'win',
-        amount: profit,
-        tenant,
+    const baseAmount = toLedgerBase(Math.abs(profit), currency)
+    await (tx as any).insert(ledgerEntries).values({
+      tenant,
+      walletId: wallet.id,
+      type: 'credit',
+      amount: String(baseAmount),
+      meta: {
+        type: 'sports_bet_settlement',
         betId: bet.id,
-      })
-    }
+        outcome: 'won',
+        profit,
+        stake,
+        marketType,
+        originalCurrency: currency,
+        baseAmount,
+        baseCurrency: getBaseCurrency(),
+        resultId,
+        marketId,
+        eventId,
+      } as any,
+    })
+    userMarketPnlDelta = profitCredited
+    profitToCredit = profitCredited
 
     settlementCounts = { winners: 1, losers: 0, voids: 0, totalPayout: profitCredited }
-    postReferral = {
-      tenant,
-      userId: bet.userId,
-      netRevenue: profitCredited,
-      currency,
-      betId: bet.id,
+    if (!isCreditPlayer) {
+      postReferral = {
+        tenant,
+        userId: bet.userId,
+        netRevenue: profitCredited,
+        currency,
+        betId: bet.id,
+      }
     }
   } else if (outcome === 'lost') {
     let loss = stake
@@ -338,59 +321,45 @@ export async function applySportsSingleBetSettlement(
       }
     }
 
-    if (!isCreditPlayer) {
-      await (tx as any)
-        .update(wallets)
-        .set({
-          cash: sql`${wallets.cash} - ${loss}`,
-        })
-        .where(eq(wallets.id, wallet.id))
-
-      const baseAmount = toLedgerBase(Math.abs(loss), currency)
-      await (tx as any).insert(ledgerEntries).values({
-        tenant,
-        walletId: wallet.id,
-        type: 'debit',
-        amount: String(baseAmount),
-        meta: {
-          type: 'sports_bet_settlement',
-          betId: bet.id,
-          outcome: 'lost',
-          stake: loss,
-          marketType,
-          originalCurrency: currency,
-          baseAmount,
-          baseCurrency: getBaseCurrency(),
-          resultId,
-          marketId,
-          eventId,
-        } as any,
+    await (tx as any)
+      .update(wallets)
+      .set({
+        cash: sql`${wallets.cash} - ${loss}`,
       })
-      userMarketPnlDelta = -loss
-      lossAmount = loss
-      settlementCounts = { winners: 0, losers: 1, voids: 0, totalPayout: 0 }
-    }
+      .where(eq(wallets.id, wallet.id))
 
-    if (isCreditPlayer && releaseCreditForBet) {
-      const originalExposure = bet.side === 'back' ? stake : liability
-      await releaseCreditForBet({
-        tx,
-        userId: bet.userId,
-        originalExposure,
-        kind: 'loss',
-        amount: loss,
-        tenant,
-        betId: bet.id,
-      })
-      settlementCounts = { winners: 0, losers: 1, voids: 0, totalPayout: 0 }
-    }
-
-    postReferral = {
+    const baseAmount = toLedgerBase(Math.abs(loss), currency)
+    await (tx as any).insert(ledgerEntries).values({
       tenant,
-      userId: bet.userId,
-      netRevenue: -loss,
-      currency,
-      betId: bet.id,
+      walletId: wallet.id,
+      type: 'debit',
+      amount: String(baseAmount),
+      meta: {
+        type: 'sports_bet_settlement',
+        betId: bet.id,
+        outcome: 'lost',
+        stake: loss,
+        marketType,
+        originalCurrency: currency,
+        baseAmount,
+        baseCurrency: getBaseCurrency(),
+        resultId,
+        marketId,
+        eventId,
+      } as any,
+    })
+    userMarketPnlDelta = -loss
+    lossAmount = loss
+    settlementCounts = { winners: 0, losers: 1, voids: 0, totalPayout: 0 }
+
+    if (!isCreditPlayer) {
+      postReferral = {
+        tenant,
+        userId: bet.userId,
+        netRevenue: -loss,
+        currency,
+        betId: bet.id,
+      }
     }
   } else {
     await (tx as any).insert(ledgerEntries).values({
@@ -414,23 +383,11 @@ export async function applySportsSingleBetSettlement(
       } as any,
     })
     settlementCounts = { winners: 0, losers: 0, voids: 1, totalPayout: 0 }
-
-    if (isCreditPlayer && releaseCreditForBet) {
-      const originalExposure = bet.side === 'back' ? stake : liability
-      await releaseCreditForBet({
-        tx,
-        userId: bet.userId,
-        originalExposure,
-        kind: 'void',
-        amount: 0,
-        tenant,
-        betId: bet.id,
-      })
-    }
   }
 
+  // Credit players get no bonus wagering (and, above, no referral hooks).
   const betAmountBonus = bet.side === 'back' ? Number(bet.stake || 0) : Number(bet.liability || 0)
-  const postBonus = { userId: bet.userId, tenant, betAmount: betAmountBonus }
+  const postBonus = isCreditPlayer ? undefined : { userId: bet.userId, tenant, betAmount: betAmountBonus }
 
   return {
     ok: true,

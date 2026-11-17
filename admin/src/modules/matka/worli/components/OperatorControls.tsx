@@ -5,11 +5,12 @@ import { RBACGuard } from '@/shared/core/RBACGuard'
 import { Button } from '@/ui/components/Button'
 import { Dialog } from '@/ui/components/Dialog'
 import { TextField } from '@/ui/components/TextField'
-import { ADJUST_SUSPEND_WORLI, SET_MESSAGE_WORLI } from '../gql'
+import { ADJUST_SUSPEND_WORLI, SET_MESSAGE_WORLI, UNLOCK_WORLI } from '../gql'
 import {
   actionErrorText,
   operatorActionTitle,
   parseSuspendMinutes,
+  sessionControlEnabled,
   type OperatorAction,
 } from '../runningMarketDetailModel'
 import styles from '../RunningMarketDetailPage.module.css'
@@ -22,12 +23,19 @@ const CLOSE = gql`mutation Close($id: ID!, $reason: String!) { closeNowWorliInst
 /* The session's operator actions, behind matka.worli update as before. Pause, Resume, Lock Now and Close
    Now each ask for a reason first; Set Message sends the note as typed; Adjust Suspend Minutes asks for the
    minutes, then for a reason. The mutations carry no context, so the app's notification link still reports
-   each server answer. A failed send now keeps its dialog open with the error. */
-export function OperatorControls({ id, onDone }: { id: string; onDone?: () => void }) {
+   each server answer. A failed send now keeps its dialog open with the error. With the session's status, a
+   control that can no longer change the session is disabled (Resume unless paused, Lock Now once locked...),
+   so a locked or closed session is not offered the actions that answered "Locked" and changed nothing. Unlock
+   (owner, 2026-11-04) shows only while the server says it may reopen the session (canUnlock: stopped by Lock Now
+   or Close Now, no result ever declared for it, a rolled-back one included, and before the scheduled close) and
+   asks for a reason like the others. */
+export function OperatorControls({ id, status, canUnlock, onDone }: { id: string; status?: string | null; canUnlock?: boolean | null; onDone?: () => void }) {
+  const off = (control: Parameters<typeof sessionControlEnabled>[1]) => !sessionControlEnabled(status, control)
   const [pause] = useMutation(PAUSE)
   const [resume] = useMutation(RESUME)
   const [lock] = useMutation(LOCK)
   const [close] = useMutation(CLOSE)
+  const [unlock] = useMutation(UNLOCK_WORLI)
   const [setMessage] = useMutation(SET_MESSAGE_WORLI)
   const [adjustSuspend] = useMutation(ADJUST_SUSPEND_WORLI)
   const [modal, setModal] = useState<{ action: OperatorAction | null }>({ action: null })
@@ -50,6 +58,7 @@ export function OperatorControls({ id, onDone }: { id: string; onDone?: () => vo
     if (modal.action === 'RESUME') await resume({ variables: { id, reason } })
     if (modal.action === 'LOCK') await lock({ variables: { id, reason } })
     if (modal.action === 'CLOSE') await close({ variables: { id, reason } })
+    if (modal.action === 'UNLOCK') await unlock({ variables: { id, reason } })
     onDone?.()
     setModal({ action: null })
   }
@@ -79,11 +88,13 @@ export function OperatorControls({ id, onDone }: { id: string; onDone?: () => vo
   return (
     <RBACGuard required={[{ domain: 'matka.worli', actions: ['update'] }]}>
       <div className={styles.controls}>
-        <Button onClick={() => setModal({ action: 'PAUSE' })}>Pause</Button>
-        <Button variant="primary" onClick={() => setModal({ action: 'RESUME' })}>Resume</Button>
-        <Button variant="danger" onClick={() => setModal({ action: 'LOCK' })}>Lock Now</Button>
-        <Button variant="danger" onClick={() => setModal({ action: 'CLOSE' })}>Close Now</Button>
+        <Button disabled={off('PAUSE')} onClick={() => setModal({ action: 'PAUSE' })}>Pause</Button>
+        <Button variant="primary" disabled={off('RESUME')} onClick={() => setModal({ action: 'RESUME' })}>Resume</Button>
+        <Button variant="danger" disabled={off('LOCK')} onClick={() => setModal({ action: 'LOCK' })}>Lock Now</Button>
+        <Button variant="danger" disabled={off('CLOSE')} onClick={() => setModal({ action: 'CLOSE' })}>Close Now</Button>
+        {canUnlock ? <Button variant="primary" onClick={() => setModal({ action: 'UNLOCK' })}>Unlock</Button> : null}
         <Button
+          disabled={off('MESSAGE')}
           onClick={() => {
             setMsgFailure(null)
             setMsgOpen(true)
@@ -91,7 +102,7 @@ export function OperatorControls({ id, onDone }: { id: string; onDone?: () => vo
         >
           Set Message
         </Button>
-        <Button ref={suspendTriggerRef} onClick={() => setSuspendOpen(true)}>Adjust Suspend Minutes</Button>
+        <Button ref={suspendTriggerRef} disabled={off('SUSPEND_ADJUST')} onClick={() => setSuspendOpen(true)}>Adjust Suspend Minutes</Button>
       </div>
       <ReasonModal
         open={modal.action !== null}

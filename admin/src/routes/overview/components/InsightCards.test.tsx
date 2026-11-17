@@ -1,8 +1,9 @@
 /**
  * The Overview's insight cards read one stubbed DashboardInsights reply: Top Risk Events lists the open
- * book by event with each row's share, Big Bets & Winners links each player to their profile, and Agents
- * Near Credit Limit shows only where credit agents exist. The Players tab's retention and the Financial
- * tab's casino providers and bonus analysis are checked against their own stubs.
+ * book by event with each row's share, and Big Bets & Winners links each player to their profile. (The
+ * Agents Near Credit Limit card went with the credit limits: the CREDIT scheme is on chips since 2026-11-02.)
+ * The Players tab's retention and the Financial tab's casino providers and bonus analysis are checked against
+ * their own stubs.
  */
 import { afterEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
@@ -10,9 +11,14 @@ import type { ReactNode } from 'react'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ApolloClient, ApolloLink, ApolloProvider, InMemoryCache, Observable } from '@apollo/client'
-import { AgentsNearLimitCard, BigBetsCard, TopRiskEventsCard } from './InsightCards'
+import * as insightCards from './InsightCards'
+import { BigBetsCard, TopRiskEventsCard } from './InsightCards'
+import { DASHBOARD_INSIGHTS_QUERY } from '../graphql'
+import { print } from 'graphql'
 import { RetentionSections } from './RetentionSections'
 import { BonusAnalysisSection, CasinoProvidersCard } from './FinancialInsights'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 
 vi.mock('@/shared/core/CurrencyContext', () => ({
   useCurrency: () => ({
@@ -35,11 +41,6 @@ const INSIGHTS = {
   ],
   topWinners: [
     { __typename: 'DashboardTopWinner', userId: 746, username: 'rakesh001', agent: null, profit: 100900, staked: 1100, bets: 11 },
-  ],
-  creditAgents: 2,
-  nearLimitShare: 0.8,
-  agentsNearLimit: [
-    { __typename: 'DashboardAgentNearLimit', agentId: 'a-1', username: 'cagent', creditLimit: 100000, creditUsed: 96000, creditAvailable: 4000, usedShare: 0.96, settlementBalance: 1200 },
   ],
 }
 
@@ -104,16 +105,32 @@ describe('Overview insight cards', () => {
     assert.ok(within(card).getByText('+INR 100900'))
   })
 
-  test('Agents Near Credit Limit shows the fullest agents, and nothing without credit agents', async () => {
-    mount(<AgentsNearLimitCard />)
-    const card = await screen.findByRole('region', { name: 'Agents Near Credit Limit' })
-    assert.ok(within(card).getByRole('link', { name: 'cagent' }))
-    assert.ok(within(card).getByText('96%'))
-    cleanup()
+  test('a Super Admin in core mode sees the players without profile links the players module cannot open (PLA-05)', async () => {
+    // Core mode's insights span every whitelabel; its profile page reads the platform's own site ("Player not found").
+    const ui = useUIStore.getState(); const roles = useAuthStore.getState().roles
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      const core = mount(<BigBetsCard />)
+      const card = screen.getByRole('region', { name: 'Big Bets & Winners' })
+      assert.equal((await within(card).findAllByText('rakesh001')).length, 2)
+      assert.equal(within(card).queryAllByRole('link').length, 0)
+      assert.ok(within(card).getByText('+INR 100900'))
+      core.unmount()
+      // With a whitelabel selected the profile opens in that site, so the names link again.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      mount(<BigBetsCard />)
+      const links = await within(screen.getByRole('region', { name: 'Big Bets & Winners' })).findAllByRole('link', { name: 'rakesh001' })
+      assert.ok(links.length === 2 && links.every((link) => link.getAttribute('href') === '/players/profile/746'))
+    } finally {
+      useAuthStore.setState({ roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
+  })
 
-    const { container } = mount(<AgentsNearLimitCard />, { ...INSIGHTS, creditAgents: 0, agentsNearLimit: [] })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    assert.equal(container.textContent, '')
+  test('there is no near-credit-limit card, and the insights read no credit-limit figures', () => {
+    // CREDIT agents are on chips (Deposit / Withdraw): no limit to be near, so no card and no such fields.
+    assert.equal('AgentsNearLimitCard' in insightCards, false)
+    const document = print(DASHBOARD_INSIGHTS_QUERY)
+    for (const field of ['agentsNearLimit', 'nearLimitShare', 'creditUsed', 'usedShare']) assert.equal(document.includes(field), false, field)
   })
 
   test('Retention figures divide as labelled', async () => {

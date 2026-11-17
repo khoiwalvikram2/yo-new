@@ -11,12 +11,7 @@ export const baseEnvSchema = z.object({
   SPORTS_API_MARKET_ODDS_PATH: z.string().optional(),
   /** Upstream path for fancy odds snapshot (same base as SPORTS_API_MARKET_ODDS_PATH). */
   SPORTS_API_FANCY_ODDS_PATH: z.string().optional(),
-  // Optional S3 config for deposit proof uploads
-  S3_BUCKET: z.string().optional(),
-  S3_REGION: z.string().optional(),
-  S3_ACCESS_KEY_ID: z.string().optional(),
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
-  S3_UPLOAD_EXPIRY_SEC: z.string().optional().default('3600'),
+  // No S3 settings: deposit proofs and every other file are stored as base64 data URIs (owner decision 2026-11-04).
 })
 
 export const otpEnvSchema = baseEnvSchema.extend({

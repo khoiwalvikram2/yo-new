@@ -104,13 +104,14 @@ export function PlayerOverview({ windowMins = 60 }: PlayerOverviewProps) {
       totalGGR,
       avgPlayerValue,
       avgBetsPerPlayer,
-      retentionRate: totalPlayers > 0 ? (returningPlayers / totalPlayers) * 100 : 0,
+      // Out of the players who bet in the window, not every registered user (that read near 0%).
+      retentionRate: activePlayers > 0 ? (returningPlayers / activePlayers) * 100 : 0,
     }
   }, [betsData, usersData, dateFrom, sevenDaysAgo])
 
   return <Card title="Player Overview"><div className={styles.grid4}>
     <Stat variant="bare" label="Avg Player Value" value={formatAmount(convertFromWhitelabelCurrency(kpis.avgPlayerValue))} note="GGR per active player" hue="blu" />
-    <Stat variant="bare" label="Retention Rate" value={`${kpis.retentionRate.toFixed(1)}%`} note="Returning players" hue="amb" />
+    <Stat variant="bare" label="Retention Rate" value={`${kpis.retentionRate.toFixed(1)}%`} note="Share of players who bet in this window and registered before it" hue="amb" />
     <Stat variant="bare" label="Avg Bets/Player" value={kpis.avgBetsPerPlayer.toFixed(1)} note="Average activity level" hue="blu" />
     <Stat variant="bare" label="Returning Players" value={kpis.returningPlayers} note="Repeat customers" hue="grn" />
   </div></Card>

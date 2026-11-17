@@ -77,9 +77,10 @@ describe('BetListFiltersBar', () => {
   test('offers each domain its statuses and shows the wallet filter only for All and Casino', () => {
     const { rerender } = renderFilters({ domain: 'CASINO' })
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Status' }), { key: 'ArrowDown' })
+    // Open lists the casino rounds still in play (the stuck rounds alert's list).
     assert.deepEqual(
       within(screen.getByRole('listbox', { name: 'Status' })).getAllByRole('option').map((option) => option.textContent),
-      ['won', 'lost', 'cancelled', 'void'],
+      ['Open', 'won', 'lost', 'cancelled', 'void'],
     )
     assert.ok(screen.getByRole('combobox', { name: 'Wallet' }))
 

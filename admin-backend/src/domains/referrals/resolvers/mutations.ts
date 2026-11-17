@@ -213,6 +213,20 @@ export const referralsMutationResolvers = {
         if (!isAdmin) {
           throw new Error('Unauthorized: Only admins can create referral links for users')
         }
+        // The link is written under the caller's tenant whatever id it names, and nothing looked the user up.
+        // Measured: kondareddi's admin created a live kondareddi code owned by grandwinn player 2050, which
+        // user-backend then honours at sign-up as a referral by that player. The user must be in this tenant.
+        const { getUserDb } = await import('@src/repos/users/usersRepo.js')
+        const userIdNum = Number(userId)
+        if (!Number.isSafeInteger(userIdNum) || userIdNum <= 0 || !(await getUserDb(userIdNum, tenant))) {
+          throw new Error('User not found')
+        }
+        // Referral links belong to players. Staff share the users table, so a same-tenant support admin passed the
+        // lookup above and got a live code of its own (SCO-06). Same answer as a missing user: no account kind leaks.
+        const { isPlayerAccount } = await import('@src/repos/rbac/rbacRepo.js')
+        if (!(await isPlayerAccount(userIdNum, tenant))) {
+          throw new Error('User not found')
+        }
       }
 
       // Use transaction for atomicity

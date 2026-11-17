@@ -26,6 +26,8 @@ export interface RawCatalogGame {
   vendorId?: unknown
   vendorName?: unknown
   thumbnailUrl?: unknown
+  /** The platform's Master Control flag. */
+  isActive?: unknown
   tenantEnabled?: unknown
   featured?: unknown
   premiumOnly?: unknown
@@ -75,7 +77,8 @@ export function mapCatalogGame(game: RawCatalogGame): CatalogGame {
     vendorId: optionalString(game.vendorId),
     vendorName: optionalString(game.vendorName),
     thumbnailUrl: optionalString(game.thumbnailUrl),
-    enabled: game.tenantEnabled !== false,
+    // A game switched off by the platform is enabled for no whitelabel; core mode lists such games too.
+    enabled: game.isActive !== false && game.tenantEnabled !== false,
     featured: Boolean(game.featured),
     premiumOnly: Boolean(game.premiumOnly),
     rtp: numericRtp !== undefined && Number.isFinite(numericRtp) ? numericRtp : undefined,

@@ -21,6 +21,7 @@ import assert from 'node:assert/strict'
 import { pool, db } from '@src/db/client.js'
 import { PlayerAuthService } from '@src/domains/players/services/PlayerAuthService.js'
 import { AgentsRepo } from '@/repos/agents/AgentsRepo.js'
+import { ChipRepo } from '@/repos/agents/ChipRepo.js'
 import { deriveAgentPermissions } from '@src/domains/agents/services/AgentPermissionsService.js'
 import { usersMutationResolvers } from '../resolvers/mutations.js'
 import { usersQueryResolvers } from '../resolvers/queries.js'
@@ -246,7 +247,8 @@ describe('createPlayer resolver (admin path)', () => {
     mock.method(AgentsRepo.prototype, 'findById', async (id: string) =>
       ({ id, tenantId: TENANT, schemeType: 'CREDIT', status: 'ACTIVE', allowedDomains: ['sports', 'casino'] }) as any,
     )
-    const lock = mock.method(AgentsRepo.prototype, 'lockAndUpdateCredit', async () => ({}) as any)
+    // Nothing to allocate from: AgentsRepo no longer has the credit-line writer (lockAndUpdateCredit).
+    assert.equal((AgentsRepo.prototype as any).lockAndUpdateCredit, undefined)
     const inserts: Array<{ table: unknown; values: any }> = []
     mock.method(db as any, 'transaction', async (cb: (tx: any) => Promise<unknown>) => cb(fakeTx(inserts)))
 
@@ -254,7 +256,6 @@ describe('createPlayer resolver (admin path)', () => {
       () => call('createPlayer', { input: { ...baseInput, creditLimit: 0, matkaBetAllowed: true, matkaVisible: true } }, adminCtx()),
       /CAPTURED_INSERT/,
     )
-    assert.equal(lock.mock.callCount(), 0)
     assert.equal(inserts.length, 1)
     const row = inserts[0].values
     assert.equal(row.playerType, 'AGENT_CREDIT')
@@ -266,17 +267,20 @@ describe('createPlayer resolver (admin path)', () => {
     assert.equal(row.sportsBetAllowed, true)
   })
 
-  it('deducts the agent credit as a locked delta on the same transaction, before the player insert', async () => {
+  it("opening chips lock the player's agent first, on the creation transaction; the credit reference draws nothing", async () => {
+    // Spec 2026-11-02 §4.4: creditLimit is the credit reference and openingChips a deposit from the agent.
     mock.method(AgentsRepo.prototype, 'findById', async (id: string) =>
       ({ id, tenantId: TENANT, schemeType: 'CREDIT', status: 'ACTIVE', allowedDomains: ['sports'] }) as any,
     )
+    // Every agent above it is ACTIVE.
+    const uplineRead = mock.method(AgentsRepo.prototype, 'findRestrictingAncestor', async () => null)
     const order: string[] = []
     const inserts: Array<{ table: unknown; values: any }> = []
     let txSeen: unknown = null
-    const lock = mock.method(AgentsRepo.prototype, 'lockAndUpdateCredit', async (_id: string, _u: any, tx: unknown) => {
+    const lock = mock.method(ChipRepo.prototype, 'lockAgent', async (tx: unknown, agentId: string) => {
       order.push('lock')
-      assert.equal(tx, txSeen, 'the credit lock must run on the creation transaction')
-      return {} as any
+      assert.equal(tx, txSeen, 'the parent lock must run on the creation transaction')
+      return { id: agentId, tenantId: TENANT, schemeType: 'CREDIT', status: 'ACTIVE', parentAgentId: null, chipBalance: 1000, creditLimit: 0, username: 'agent' } as any
     })
     mock.method(db as any, 'transaction', async (cb: (tx: any) => Promise<unknown>) => {
       const tx = fakeTx(inserts)
@@ -289,12 +293,42 @@ describe('createPlayer resolver (admin path)', () => {
       return cb(tx)
     })
 
-    await assert.rejects(() => call('createPlayer', { input: { ...baseInput, creditLimit: 250 } }, adminCtx()), /CAPTURED_INSERT/)
+    await assert.rejects(() => call('createPlayer', { input: { ...baseInput, creditLimit: 250, openingChips: 100 } }, adminCtx()), /CAPTURED_INSERT/)
     assert.equal(lock.mock.callCount(), 1)
-    const [agentId, update] = lock.mock.calls[0].arguments as [string, any]
-    assert.equal(agentId, AGENT_ID)
-    assert.deepEqual(update, { creditUsedDelta: 250, requireAvailableForDelta: true })
+    assert.equal(lock.mock.calls[0].arguments[1], AGENT_ID)
     assert.deepEqual(order, ['lock', 'insert'])
+    assert.equal(inserts[0].values.creditLimit, '250', 'credit_limit holds the credit reference')
+    assert.equal(inserts[0].values.creditAvailable, '0', 'credit_available is retired with the credit-limit model')
+    assert.deepEqual(uplineRead.mock.calls.map((c) => c.arguments[0]), [AGENT_ID], "the agent's upline is read once")
+  })
+
+  it("refuses an AGENT_CREDIT player's opening chips while its agent's upline is suspended, before anything is written", async () => {
+    // Owner decision 1: the agent below a suspended upline cannot move its chips itself, so the admin does not.
+    mock.method(AgentsRepo.prototype, 'findById', async (id: string) =>
+      ({ id, tenantId: TENANT, schemeType: 'CREDIT', status: 'ACTIVE', allowedDomains: ['sports'], username: 'subagent' }) as any,
+    )
+    mock.method(AgentsRepo.prototype, 'findRestrictingAncestor', async () => ({ id: OTHER_AGENT_ID, username: 'rootagent', status: 'SUSPENDED' }))
+    const transaction = mock.method(db as any, 'transaction', async () => {
+      throw new Error('the creation transaction must not start')
+    })
+    await assert.rejects(
+      () => call('createPlayer', { input: { ...baseInput, creditLimit: 250, openingChips: 100 } }, adminCtx()),
+      (err: any) => {
+        assert.equal(err?.code, 'NOT_ACTIVE')
+        assert.equal(err?.message, "Opening chips: Chips cannot be deposited while agent subagent's upline rootagent is suspended")
+        return true
+      },
+    )
+    assert.equal(transaction.mock.callCount(), 0)
+    assert.equal(dbTouches, 0)
+  })
+
+  it('refuses opening chips for a player that is not a credit player, before anything is written', async () => {
+    await assert.rejects(
+      () => call('createPlayer', { input: { name: 'Regular', phone: '9000000003', password: 'longenough1', openingChips: 10 } }, adminCtx()),
+      /Opening chips can only be given to credit players/,
+    )
+    assert.equal(dbTouches, 0)
   })
 })
 

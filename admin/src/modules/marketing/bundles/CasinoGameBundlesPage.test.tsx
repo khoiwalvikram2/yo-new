@@ -11,7 +11,7 @@ import type { ConfirmOptions } from '@/ui/components/confirm'
 import CasinoGameBundlesPage, { BundleGamesList } from './CasinoGameBundlesPage'
 
 const mocks = vi.hoisted(() => ({
-  allowed: true, query: vi.fn(), mutation: vi.fn(), refetch: vi.fn(), confirm: vi.fn(), toast: vi.fn(), failure: false,
+  allowed: true, query: vi.fn(), mutation: vi.fn(), hook: vi.fn(), refetch: vi.fn(), confirm: vi.fn(), toast: vi.fn(), failure: false,
   games: Array.from({ length: 12 }, (_, index) => ({ id: String(index + 1), name: `Game ${index + 1}`, slug: `game-${index + 1}`, isActive: true, tenantEnabled: true, vendorName: 'Provider' })),
   markets: [{ id: 'market-1', name: 'Morning Market', code: 'MORNING', status: 'ACTIVE' }],
 }))
@@ -22,13 +22,13 @@ vi.mock('@apollo/client', async (importOriginal) => ({
     return { data: options.skip ? undefined : document === GAMES_BY_IDS ? { gamesByIds: mocks.games } : document === MATKAS_BY_IDS ? { matkasByIds: mocks.markets } :
       { casinoGameBundles: [{ id: 'bundle-1', name: 'Starter bundle', domain: options.variables?.domain || 'casino', gameIds: options.variables?.domain === 'matka' ? ['market-1'] : ['1', '2'], gameCount: 2, gameWeights: { '1': 0 } }] }, loading: false, refetch: mocks.refetch }
   },
-  useMutation: (document: DocumentNode, callbacks: { onCompleted: (data: unknown) => void }) => [async (options: unknown) => {
+  useMutation: (document: DocumentNode, callbacks: { onCompleted: (data: unknown) => void }) => (mocks.hook(document, callbacks), [async (options: unknown) => {
     mocks.mutation(document, options)
     const operation = document.definitions.find((definition) => definition.kind === 'OperationDefinition')
     const update = operation?.kind === 'OperationDefinition' && operation.name?.value === 'UpdateCasinoGameBundle'
     const data = { [update ? 'updateCasinoGameBundle' : 'deleteCasinoGameBundle']: { success: !mocks.failure, message: mocks.failure ? 'Operation refused' : 'Done' } }
     callbacks.onCompleted(data); return { data }
-  }, { loading: false }],
+  }, { loading: false }]),
 }))
 vi.mock('@/shared/core/RBACGuard', () => ({ RBACGuard: ({ children }: { children: ReactNode }) => mocks.allowed ? children : <div>Access denied</div> }))
 vi.mock('@/shared/core/useFormatDate', () => ({ useFormatDate: () => ({ formatDate: (value: string) => value }) }))
@@ -81,6 +81,9 @@ describe('bundle list and saved weights', () => {
     assert.equal(options.title, 'Delete bundle?'); assert.equal(options.confirmLabel, 'Yes')
     await act(async () => { await options.onConfirm?.() })
     assert.deepEqual(mocks.mutation.mock.calls[0][1], { variables: { id: 'bundle-1' } })
+    // Both mutations toast their outcome here, so the global mutation toast stays quiet (MAR-06).
+    assert.ok(mocks.hook.mock.calls.length > 0)
+    assert.ok(mocks.hook.mock.calls.every(([, options]) => (options as { context?: { skipNotification?: boolean } }).context?.skipNotification === true))
     cleanup(); mocks.mutation.mockClear(); mocks.refetch.mockClear(); mocks.failure = true
     render(<BundleGamesList gameIds={['market-1']} domain="matka" bundleId="m1" />)
     fireEvent.change(screen.getByLabelText('Weight for Morning Market'), { target: { value: '0.2' } })

@@ -90,7 +90,6 @@ export const GET_PLAYER_PROFILE_QUERY = gql`
         agentName
         commissionRate
         creditLimit
-        creditUsed
       }
       recentBets {
         id

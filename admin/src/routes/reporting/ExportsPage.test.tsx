@@ -64,6 +64,7 @@ const apollo = vi.hoisted(() => ({
 const auth = vi.hoisted(() => ({
   agent: undefined as MockAgent | undefined,
   roles: ['Super Admin'] as string[],
+  permissions: [{ domain: 'all', actions: ['*'] }] as Array<{ domain: string; actions: string[] }>,
 }))
 
 const guard = vi.hoisted(() => ({
@@ -104,8 +105,8 @@ vi.mock('@apollo/client', async (importOriginal) => {
 })
 
 vi.mock('@/shared/core/authStore', () => ({
-  useAuthStore: (selector: (state: { agent?: MockAgent; roles: string[] }) => unknown) =>
-    selector({ agent: auth.agent, roles: auth.roles }),
+  useAuthStore: (selector: (state: { agent?: MockAgent; roles: string[]; permissions: Array<{ domain: string; actions: string[] }> }) => unknown) =>
+    selector({ agent: auth.agent, roles: auth.roles, permissions: auth.permissions }),
 }))
 
 vi.mock('@/shared/core/RBACGuard', () => ({
@@ -283,6 +284,7 @@ beforeEach(() => {
   guard.contextAllowed = true
   auth.agent = undefined
   auth.roles = ['Super Admin']
+  auth.permissions = [{ domain: 'all', actions: ['*'] }]
   server.jobs = JOBS
   server.jobsMode = 'ok'
   server.templates = TEMPLATES
@@ -378,6 +380,22 @@ describe('page frame and data', () => {
 })
 
 describe('Create Export', () => {
+  test('an admin is not offered a type the server would refuse it (F-REP-10)', async () => {
+    // A Whitelabel Admin's grants: reporting and users, but no audit export.
+    auth.roles = ['Whitelabel Admin']
+    auth.permissions = [
+      { domain: 'reporting', actions: ['read', 'export'] },
+      { domain: 'users', actions: ['read'] },
+      { domain: 'audit', actions: ['read'] },
+    ]
+    renderPage()
+    await loaded()
+    const offered = headingNames(3)
+    assert.equal(offered.includes('Audit Logs'), false, 'audit.events:export is not held')
+    for (const name of ['Players Data', 'GGR Reports', 'Sports Bets', 'Matka Bets']) assert.ok(offered.includes(name), name)
+    assert.equal(screen.queryByRole('button', { name: 'Export Audit Logs as CSV' }), null)
+  })
+
   test('the catalogue: a card per category, a tile per type, the export-limit notice', async () => {
     renderPage()
     await loaded()

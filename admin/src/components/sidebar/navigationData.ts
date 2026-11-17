@@ -1,12 +1,24 @@
+import { canOpenChipsPage } from '@/shared/core/chipsPageAccess'
+
+/** A child's own access rule, shared with the page it links to: the roles and permissions that page admits. */
+export type NavAccessRule = (roles: readonly string[], permissions: readonly { domain: string; actions: string[] }[]) => boolean
+
 // Type definitions
 export interface NavChild {
   to: string
   icon: string
   label: string
+  /** The label when this is the only child its group shows. The panel then drops the group's heading
+   *  (shell/panelRows.ts), so a label that leans on it ("Management" under Matka) reads as part of the
+   *  group above: Super Admin's core mode listed Matka Management as a second casino "Management". */
+  standaloneLabel?: string
   permissions?: PermissionRequirement
   keywords?: string[] // For search
   hideForRoles?: string[] // Hide this item for specific roles
   showOnlyForRoles?: string[] // Show only when user has one of these roles (e.g. Super Admin only)
+  /** Shown when the linked page's own role-or-permission rule admits the user. It also shows the child's group to
+   *  a user the group's own permission leaves out, with only the children such a rule admits. */
+  access?: NavAccessRule
   showInCoreMode?: boolean // Show in Director Admin Core Data Management mode
   showInWhitelabelMode?: boolean // Show in Director Admin Whitelabel View mode
 }
@@ -118,9 +130,9 @@ export const navigationData: Record<string, NavigationSection> = {
         description: "Manage sports betting events, markets, and risk",
         children: [
           { to: "/sports/events", icon: "fa-solid fa-calendar-days", label: "Running Events", permissions: { domain: "sports.events", actions: ["view"] }, keywords: ["events", "live", "running"], showInCoreMode: false, showInWhitelabelMode: true },
-          { to: "/sports/manual-results", icon: "fa-solid fa-check-circle", label: "Results", permissions: { domain: "sports.results", actions: ["view", "create"] }, keywords: ["results", "settlement"], hideForRoles: ["Whitelabel Admin", "whitelabel_admin"], showInCoreMode: true, showInWhitelabelMode: false },
+          { to: "/sports/manual-results", icon: "fa-solid fa-check-circle", label: "Results", standaloneLabel: "Sports Results", permissions: { domain: "sports.results", actions: ["view", "create"] }, keywords: ["results", "settlement"], hideForRoles: ["Whitelabel Admin", "whitelabel_admin"], showInCoreMode: true, showInWhitelabelMode: false },
           { to: "/sports-exchange/builder", icon: "fa-solid fa-tools", label: "Sports Builder", permissions: { domain: "sports.builder", actions: ["view"] }, keywords: ["builder", "create", "setup"], hideForRoles: ["Whitelabel Admin", "whitelabel_admin"], showInCoreMode: true, showInWhitelabelMode: false },
-          { to: "/sports-exchange/configuration", icon: "fa-solid fa-gear", label: "Configuration", permissions: { domain: "sports.configuration", actions: ["view"] }, keywords: ["config", "settings"], showInCoreMode: true, showInWhitelabelMode: false }
+          { to: "/sports-exchange/configuration", icon: "fa-solid fa-gear", label: "Configuration", standaloneLabel: "Sports Configuration", permissions: { domain: "sports.configuration", actions: ["view"] }, keywords: ["config", "settings"], showInCoreMode: true, showInWhitelabelMode: false }
         ]
       },
       {
@@ -133,11 +145,11 @@ export const navigationData: Record<string, NavigationSection> = {
         keywords: ["casino", "games", "slots", "providers"],
         description: "Manage casino games and providers",
         children: [
-          { to: "/casino/management", icon: "fa-solid fa-sliders", label: "Management", permissions: { domain: "casino.management", actions: ["view", "update"] }, keywords: ["manage", "configure"], showInCoreMode: true, showInWhitelabelMode: false },
+          { to: "/casino/management", icon: "fa-solid fa-sliders", label: "Management", standaloneLabel: "Casino Management", permissions: { domain: "casino.management", actions: ["view", "update"] }, keywords: ["manage", "configure"], showInCoreMode: true, showInWhitelabelMode: false },
           { to: "/casino/vendors", icon: "fa-solid fa-building", label: "Vendor Management", permissions: { domain: "casino.vendors", actions: ["view"] }, keywords: ["vendors", "providers", "games"], showInCoreMode: true, showInWhitelabelMode: false },
-          { to: "/casino/providers", icon: "fa-solid fa-server", label: "Providers", permissions: { domain: "casino.providers", actions: ["view"] }, keywords: ["providers", "integration"], hideForRoles: ["Whitelabel Admin", "whitelabel_admin"], showInCoreMode: true, showInWhitelabelMode: false },
-          { to: "/casino/live", icon: "fa-solid fa-wave-square", label: "Live Analysis", permissions: { domain: "casino.live-analysis", actions: ["view"] }, keywords: ["live", "realtime", "analysis"], showInCoreMode: false, showInWhitelabelMode: true },
-          { to: "/casino/categories", icon: "fa-solid fa-folder-tree", label: "Categories", permissions: { domain: "casino.categories", actions: ["view"] }, keywords: ["categories", "organize"], showInCoreMode: true, showInWhitelabelMode: false },
+          { to: "/casino/providers", icon: "fa-solid fa-server", label: "Providers", standaloneLabel: "Casino Providers", permissions: { domain: "casino.providers", actions: ["view"] }, keywords: ["providers", "integration"], hideForRoles: ["Whitelabel Admin", "whitelabel_admin"], showInCoreMode: true, showInWhitelabelMode: false },
+          { to: "/casino/live", icon: "fa-solid fa-wave-square", label: "Live Analysis", standaloneLabel: "Casino Live Analysis", permissions: { domain: "casino.live-analysis", actions: ["view"] }, keywords: ["live", "realtime", "analysis"], showInCoreMode: false, showInWhitelabelMode: true },
+          { to: "/casino/categories", icon: "fa-solid fa-folder-tree", label: "Categories", standaloneLabel: "Casino Categories", permissions: { domain: "casino.categories", actions: ["view"] }, keywords: ["categories", "organize"], showInCoreMode: true, showInWhitelabelMode: false },
         ]
       },
       {
@@ -151,9 +163,9 @@ export const navigationData: Record<string, NavigationSection> = {
         // The group is visible when at least one individually permissioned child is accessible.
         children: [
           { to: "/matka/running", icon: "fa-solid fa-clock", label: "Running Markets", permissions: { domain: "matka.results", actions: ["view"] }, keywords: ["running", "open bets", "pending results", "settlement"], showInCoreMode: false, showInWhitelabelMode: true },
-          { to: "/matka/results", icon: "fa-solid fa-check-circle", label: "Results", permissions: { domain: "matka.results", actions: ["view", "create"] }, keywords: ["results", "declare"], showInCoreMode: false, showInWhitelabelMode: true },
-          { to: "/matka/live", icon: "fa-solid fa-wave-square", label: "Live Analysis", permissions: { domain: "matka.live-analysis", actions: ["view"] }, keywords: ["live", "analysis"], showInCoreMode: false, showInWhitelabelMode: true },
-          { to: "/matka/management", icon: "fa-solid fa-sliders", label: "Management", permissions: { domain: "matka.management", actions: ["view"] }, keywords: ["manage", "configure"], showInCoreMode: true, showInWhitelabelMode: true },
+          { to: "/matka/results", icon: "fa-solid fa-check-circle", label: "Results", standaloneLabel: "Matka Results", permissions: { domain: "matka.results", actions: ["view", "create"] }, keywords: ["results", "declare"], showInCoreMode: false, showInWhitelabelMode: true },
+          { to: "/matka/live", icon: "fa-solid fa-wave-square", label: "Live Analysis", standaloneLabel: "Matka Live Analysis", permissions: { domain: "matka.live-analysis", actions: ["view"] }, keywords: ["live", "analysis"], showInCoreMode: false, showInWhitelabelMode: true },
+          { to: "/matka/management", icon: "fa-solid fa-sliders", label: "Management", standaloneLabel: "Matka Management", permissions: { domain: "matka.management", actions: ["view"] }, keywords: ["manage", "configure"], showInCoreMode: true, showInWhitelabelMode: true },
           { to: "/matka/worli", icon: "fa-solid fa-chart-line", label: "Worli Markets", permissions: { domain: "matka.worli", actions: ["view"] }, keywords: ["worli", "running", "markets"], showInCoreMode: false, showInWhitelabelMode: true },
         ]
       },
@@ -217,13 +229,19 @@ export const navigationData: Record<string, NavigationSection> = {
         to: "/agents",
         icon: "fa-solid fa-sitemap",
         label: "Agents",
-        subtitle: "Management & Credit",
+        subtitle: "Management & Chips",
         permissions: { domain: "agents.list", actions: ["view"] },
-        keywords: ["agents", "downline", "credit"],
-        description: "Manage agents and credit",
+        keywords: ["agents", "downline", "credit", "chips"],
+        description: "Manage agents and their chips",
         children: [
           { to: "/agents", icon: "fa-solid fa-list", label: "All Agents", permissions: { domain: "agents.list", actions: ["view"] }, keywords: ["agents", "list", "all", "search"] },
           { to: "/agents/create", icon: "fa-solid fa-user-plus", label: "Create Agent", permissions: { domain: "agents.create", actions: ["view", "create"] }, keywords: ["create", "add", "new"] },
+          // The whitelabel's Chips page (spec 2026-11-02 §8): the pool, and Deposit / Withdraw to its root CREDIT
+          // agents and credit players. Only the wallet popover led there. Shown to everyone the page admits, by the
+          // page's own rule (T068): the whitelabel admin roles, and credit.management:view (Finance Manager, Reports
+          // Viewer, Super Admin in whitelabel mode). A Finance Manager without agent access sees the group with
+          // this row only.
+          { to: "/credit", icon: "fa-solid fa-coins", label: "Chips", access: canOpenChipsPage, keywords: ["chips", "credit", "pool", "deposit", "withdraw", "credit reference"], showInCoreMode: false, showInWhitelabelMode: true },
         ]
       },
     ]
@@ -332,8 +350,9 @@ export const navigationData: Record<string, NavigationSection> = {
         label: "Settlements",
         subtitle: "Agent & Commission",
         permissions: { domain: "settlements.center", actions: ["view"] },
-        keywords: ["settlements", "agent", "commission", "payout", "credit"],
-        description: "Manage agent settlements, commission payouts, and credit adjustments",
+        // CREDIT settles nothing here since 2026-11-02 (spec §6): its Ref P/L is settled by Deposit / Withdraw chips.
+        keywords: ["settlements", "agent", "commission", "payout"],
+        description: "Manage agent settlements and commission payouts",
         children: [
           { to: "/settlement", icon: "fa-solid fa-chart-pie", label: "Settlement Center", permissions: { domain: "settlements.center", actions: ["view"] }, keywords: ["center", "dashboard", "overview"] },
         ],

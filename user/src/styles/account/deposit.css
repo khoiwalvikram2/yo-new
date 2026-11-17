@@ -28,10 +28,10 @@
   transition: background-color .15s, border-color .15s, color .15s;
 }
 .nova-acct .dep-btn svg { width: 18px; height: 18px; }
-.nova-acct .dep-btn-primary { color: #FFFFFF; background: linear-gradient(180deg, #D22322 0%, #C51A1B 100%); }
+.nova-acct .dep-btn-primary { color: var(--mb-on-red); background: linear-gradient(180deg, var(--mb-brand-top-acct) 0%, var(--mb-red) 100%); }
 .nova-acct .dep-btn-primary:hover:not(:disabled) { background: var(--acct-red-hover); }
 .nova-acct .dep-btn-primary:disabled { color: var(--mb-faint); background: var(--mb-disabled-bg); cursor: not-allowed; }
-.nova-acct .dep-spinner { width: 16px; height: 16px; border: 2px solid rgb(255 255 255 / 35%); border-top-color: #FFFFFF; border-radius: 50%; }
+.nova-acct .dep-spinner { width: 16px; height: 16px; border: 2px solid color-mix(in srgb, var(--mb-on-red) 35%, transparent); border-top-color: var(--mb-on-red); border-radius: 50%; }
 .nova-acct .dep-btn-primary:disabled .dep-spinner { border-color: rgb(141 140 146 / 35%); border-top-color: var(--mb-line-3); }
 
 .nova-acct .dep-back {
@@ -49,7 +49,7 @@
   cursor: pointer;
 }
 .nova-acct .dep-back svg { width: 15px; height: 15px; }
-.nova-acct .dep-back:hover { text-decoration: underline; }
+.nova-acct .dep-back:hover { color: var(--mb-link-hover); text-decoration: underline; }
 
 /* -------------------------------------------------------- flow + stepper */
 .nova-acct .dep-flow { overflow: hidden; border-radius: var(--ui-radius); }
@@ -76,7 +76,7 @@
 .nova-acct .dep-step-num svg { width: 15px; height: 15px; stroke-width: 3; }
 .nova-acct .dep-step-label { overflow: hidden; color: #C9CBD1; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .nova-acct .dep-step-line { flex: 1 1 auto; min-width: 14px; height: 1px; margin: 0 10px 0 4px; background: rgb(255 255 255 / 22%); }
-.nova-acct .dep-step.is-active .dep-step-num { border-color: var(--acct-red); color: #FFFFFF; background: var(--acct-red); }
+.nova-acct .dep-step.is-active .dep-step-num { border-color: var(--acct-red); color: var(--mb-on-red); background: var(--acct-red); }
 .nova-acct .dep-step.is-active .dep-step-label { color: #FFFFFF; font-weight: 700; }
 .nova-acct .dep-step.is-done .dep-step-num { border-color: var(--acct-green); color: #FFFFFF; background: var(--acct-green); }
 .nova-acct .dep-step.is-done .dep-step-label { color: #FFFFFF; }
@@ -264,7 +264,7 @@
   cursor: pointer;
 }
 .nova-acct .dep-select-box { display: grid; width: 22px; height: 22px; place-items: center; border: 1px solid var(--mb-line-3); border-radius: var(--ui-radius); background: var(--mb-panel); transition: border-color .15s, background-color .15s; }
-.nova-acct .dep-select-box svg { width: 14px; height: 14px; color: #FFFFFF; stroke-width: 3; }
+.nova-acct .dep-select-box svg { width: 14px; height: 14px; color: var(--mb-on-red); stroke-width: 3; }
 .nova-acct .dep-select:hover .dep-select-box { border-color: var(--acct-dark); }
 .nova-acct .dep-select.is-selected { color: var(--mb-red-text); }
 .nova-acct .dep-select.is-selected .dep-select-box { border-color: var(--acct-red); background: var(--acct-red); }
@@ -282,6 +282,20 @@
 .nova-acct .dep-copy-btn svg { width: 16px; height: 16px; }
 .nova-acct .dep-copy-btn:hover { border-color: var(--acct-line); color: var(--acct-ink); background: var(--mb-panel); }
 .nova-acct .dep-copy-btn.is-copied { color: var(--acct-green); }
+
+/* Crypto (USDT) wallets: coin + network badge, bonus badge, the rate and the network warning. The wallet
+   QR is the one surface painted white in both themes: a phone cannot scan dark modules on the dark panel. */
+.nova-acct .dep-method-title.is-wrap { flex-wrap: wrap; row-gap: 4px; }
+.nova-acct .dep-crypto-badge { flex: none; padding: 1px 6px; border-radius: var(--ui-radius); color: var(--mb-blue-ink); background: var(--mb-blue-bg); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.nova-acct .dep-crypto-bonus { flex: none; padding: 1px 6px; border-radius: var(--ui-radius); color: var(--mb-green-ink); background: var(--mb-green-bg); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.nova-acct .dep-crypto { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.nova-acct :is(.dep-qr.is-scan, .dep-pay-qr img.is-scan) { background: #FFFFFF; }
+.nova-acct .dep-copy-value.is-wrap { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.nova-acct .dep-crypto-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.nova-acct .dep-crypto-rate { color: var(--acct-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-acct .dep-crypto-net { color: var(--mb-amber-ink); font-size: 13px; font-weight: 600; }
+.nova-acct .dep-crypto-summary { padding: 8px 10px; border: 1px solid var(--mb-green-line); border-radius: var(--ui-radius); color: var(--mb-green-ink); background: var(--mb-green-bg); font-size: 13px; line-height: 1.45; }
+.nova-acct .dep-crypto-summary strong { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .nova-acct .dep-method-overlay { position: absolute; inset: 0; display: grid; place-items: center; border-radius: var(--ui-radius); background: rgb(255 255 255 / 86%); }
 .nova-acct .dep-method-overlay span { color: var(--acct-muted); font-size: 13px; font-weight: 700; }
@@ -327,6 +341,9 @@
 .nova-acct .dep-pay-val.is-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .nova-acct .dep-pay-qr { display: flex; justify-content: center; }
 .nova-acct .dep-pay-qr img { width: 160px; height: 160px; padding: 6px; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); background: var(--mb-panel); object-fit: contain; }
+.nova-acct .dep-crypto-pay { display: grid; gap: 10px; min-width: 0; }
+.nova-acct .dep-warn { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid var(--mb-amber-line); border-radius: var(--ui-radius); color: var(--mb-amber-ink); background: var(--mb-amber-bg); font-size: 14px; font-weight: 600; line-height: 1.4; }
+.nova-acct .dep-warn svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
 
 .nova-acct .dep-label { display: block; margin-bottom: 6px; color: var(--acct-text); font-size: 14px; font-weight: 600; }
 .nova-acct .dep-pay input.dep-input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--acct-field); border-radius: var(--ui-radius); color: var(--acct-ink); background: var(--mb-panel); font-family: var(--font-inter); font-size: 16px; }
@@ -437,6 +454,9 @@
 .nova-acct .dep-table :is(th, td).is-num { text-align: right; }
 .nova-acct .dep-table :is(th, td).is-action { width: 1%; text-align: right; }
 .nova-acct .dep-table td.dep-cell-amount { color: var(--acct-ink); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Crypto rows: the USDT and network under the amount, and the bonus paid on approval. */
+.nova-acct .dep-table .dep-cell-sub { display: block; margin-top: 2px; color: var(--acct-muted); font-size: 12px; font-weight: 600; }
+.nova-acct .dep-table .dep-cell-sub.is-bonus { color: var(--mb-green-ink); }
 .nova-acct .dep-table td.dep-cell-id { color: var(--acct-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; white-space: nowrap; }
 .nova-acct .dep-table .dep-cell-date > div > div:first-child { color: var(--acct-ink); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .nova-acct .dep-table .dep-cell-date > div > div:last-child { margin-top: 2px; color: var(--acct-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -475,10 +495,51 @@
 .nova-acct .dep-empty-title { color: var(--acct-ink); font-size: 18px; font-weight: 700; }
 .nova-acct .dep-empty.is-error .dep-empty-title { color: var(--mb-red-ink); }
 
+/* -------------------------------------------------------- online checkout */
+/* The WeLivePay checkout card above the tabs: the amount and reference, the checkout link and QR while
+   unpaid, and the status the page keeps checking. The QR stays white in both themes so a phone can scan it. */
+.nova-acct .dep-checkout { overflow: hidden; border-radius: var(--ui-radius); }
+.nova-acct .dep-checkout-head { justify-content: space-between; min-height: 50px; }
+.nova-acct .dep-checkout-head h2 { min-width: 0; overflow-wrap: anywhere; }
+.nova-acct .dep-checkout-head h2:focus { outline: none; }
+.nova-acct .dep-checkout-amount { flex: none; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nova-acct .dep-checkout-body { display: grid; gap: 12px; padding: 14px; }
+.nova-acct .dep-checkout-text { color: var(--acct-ink); font-size: 15px; font-weight: 600; line-height: 1.45; }
+.nova-acct .dep-checkout-text.is-success { color: var(--mb-green-ink); }
+.nova-acct .dep-checkout-text.is-failed { color: var(--mb-red-ink); }
+.nova-acct .dep-checkout-error { margin-top: 4px; color: var(--mb-amber-ink); font-size: 13px; font-weight: 600; }
+.nova-acct .dep-checkout-ref { color: var(--acct-muted); font-size: 13px; overflow-wrap: anywhere; }
+.nova-acct .dep-checkout-ref .is-mono { color: var(--acct-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; }
+.nova-acct .dep-checkout-pay { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.nova-acct a.dep-checkout-link { text-decoration: none; }
+.nova-acct .dep-checkout-qr { flex: none; width: 168px; height: 168px; padding: 6px; border: 1px solid var(--acct-line); border-radius: var(--ui-radius); background: #FFFFFF; object-fit: contain; }
+.nova-acct .dep-checkout-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.nova-acct .dep-checkout-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--acct-field);
+  border-radius: var(--ui-radius);
+  color: var(--acct-ink);
+  background: var(--mb-panel);
+  font-family: var(--font-inter);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nova-acct .dep-checkout-action svg { width: 15px; height: 15px; }
+.nova-acct .dep-checkout-action:hover:not(:disabled) { border-color: var(--mb-line-3); }
+.nova-acct .dep-checkout-action:disabled { opacity: .55; cursor: progress; }
+
 /* ------------------------------------------------------------ breakpoints */
 @media (min-width: 640px) {
   .nova-acct .dep-presets { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .nova-acct .dep-upi { flex-direction: row; align-items: flex-start; }
+  .nova-acct .dep-crypto { flex-direction: row; align-items: flex-start; }
+  .nova-acct .dep-checkout-pay { flex-direction: row; justify-content: space-between; }
+  .nova-acct a.dep-checkout-link { width: auto; }
   .nova-acct .dep-copy-list.is-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 1024px) {
@@ -514,8 +575,8 @@
 /* ---------------------------------------------------------------- modals */
 /* Receipt, deposit details and the help sheet: white surface under a charcoal head bar, flat buttons. */
 .nova-modal-surface.dep-modal {
-  --dep-red: #C51A1B;
-  --dep-red-hover: #A81516;
+  --dep-red: var(--mb-red);
+  --dep-red-hover: var(--mb-brand-deep);
   --dep-ink: var(--mb-ink);
   --dep-text: var(--mb-text);
   --dep-muted: var(--mb-muted);
@@ -534,11 +595,6 @@
 .nova-modal-layer:has(.dep-modal)::backdrop { background: rgb(12 13 16 / 72%); backdrop-filter: blur(3px); }
 .nova-modal-surface.dep-modal :is(h2, h3, p) { margin: 0; }
 .nova-modal-surface.dep-modal :is(button, a):focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 2px; }
-.nova-modal-surface.dep-modal .nova-modal-header { align-items: center; gap: 12px; min-height: 58px; padding: 9px 10px 9px 18px; border-bottom: 0; color: #FFFFFF; background: var(--mb-bar); }
-.nova-modal-surface.dep-modal .nova-modal-header h2 { color: #FFFFFF; font: 700 21px/1.2 var(--font-inter); letter-spacing: -.01em; }
-.nova-modal-surface.dep-modal .nova-modal-header p { margin-top: 3px; color: #C9CBD1; font-size: 13px; line-height: 1.35; }
-.nova-modal-surface.dep-modal .nova-modal-close { width: 40px; height: 40px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: transparent; }
-.nova-modal-surface.dep-modal .nova-modal-close:hover { color: #FFFFFF; background: rgb(255 255 255 / 12%); }
 .nova-modal-surface.dep-modal .nova-modal-body { padding: 18px; }
 .nova-modal-surface.dep-modal .nova-modal-footer { gap: 8px; padding: 12px 18px 14px; border-top: 1px solid var(--dep-line); background: var(--mb-panel); }
 .nova-modal-surface.dep-modal .nova-button {
@@ -551,8 +607,8 @@
   padding: 0 18px;
   border: 1px solid transparent;
   border-radius: var(--ui-radius);
-  color: #FFFFFF;
-  background: linear-gradient(180deg, #D22322 0%, #C51A1B 100%);
+  color: var(--mb-on-red);
+  background: linear-gradient(180deg, var(--mb-brand-top-acct) 0%, var(--mb-red) 100%);
   font-family: var(--font-inter);
   font-size: 16px;
   font-weight: 700;
@@ -586,6 +642,10 @@
 .nova-modal-surface.dep-modal .dep-copy-icon svg { width: 14px; height: 14px; }
 .nova-modal-surface.dep-modal .dep-copy-icon.is-copied { color: var(--dep-green); }
 .nova-modal-surface.dep-modal .nova-modal-footer .dep-detail-primary { flex: 1 1 auto; }
+/* Crypto transfer: one column, so a transaction hash can wrap across the full width. */
+.nova-modal-surface.dep-modal .dep-detail-list { display: grid; }
+.nova-modal-surface.dep-modal .dep-detail-list > .dep-detail-row:last-child { border-bottom: 0; }
+.nova-modal-surface.dep-modal .dep-detail-value.is-bonus { color: var(--mb-green-ink); }
 
 /* Receipt. */
 .nova-modal-surface.dep-modal .nova-receipt-content { overflow: hidden; border: 1px solid var(--dep-line); border-radius: var(--ui-radius); }
@@ -598,7 +658,7 @@
 .nova-modal-surface.dep-modal .dep-status-tile svg { width: 28px; height: 28px; }
 .nova-modal-surface.dep-modal .dep-status-tile.is-success { background: var(--dep-green); }
 .nova-modal-surface.dep-modal .dep-status-tile.is-pending { background: var(--dep-amber); }
-.nova-modal-surface.dep-modal .dep-status-tile.is-failed { background: var(--dep-red); }
+.nova-modal-surface.dep-modal .dep-status-tile.is-failed { color: var(--mb-on-red); background: var(--dep-red); }
 .nova-modal-surface.dep-modal .dep-receipt-title { color: var(--dep-ink); font-size: 22px; font-weight: 700; line-height: 1.2; }
 .nova-modal-surface.dep-modal .dep-receipt-subtitle { color: var(--dep-muted); font-size: 14px; }
 .nova-modal-surface.dep-modal .dep-receipt-amount { margin: 0 16px; text-align: center; }
@@ -614,6 +674,8 @@
 .nova-modal-surface.dep-modal .dep-receipt-value { overflow: hidden; color: var(--dep-ink); font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .nova-modal-surface.dep-modal .dep-receipt-value.is-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; }
 .nova-modal-surface.dep-modal .dep-receipt-value.is-pending { color: var(--dep-amber); }
+.nova-modal-surface.dep-modal .dep-receipt-value.is-wrap { white-space: normal; overflow-wrap: anywhere; }
+.nova-modal-surface.dep-modal .dep-receipt-value.is-bonus { color: var(--mb-green-ink); }
 .nova-modal-surface.dep-modal .dep-receipt-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 16px 0; padding: 10px 0; border-top: 1px solid var(--dep-line); }
 .nova-modal-surface.dep-modal .dep-receipt-status > span:first-child { color: var(--dep-muted); font-size: 14px; }
 .nova-modal-surface.dep-modal .dep-receipt-status > div { display: flex; align-items: center; gap: 8px; }
@@ -638,8 +700,6 @@
 .nova-modal-surface.dep-modal .dep-info-bullet { flex: none; width: 7px; height: 7px; margin-top: 8px; border-radius: var(--ui-radius); background: var(--dep-red); }
 
 @media (max-width: 639px) {
-  .nova-modal-surface.dep-modal .nova-modal-header { min-height: 54px; padding-left: 14px; }
-  .nova-modal-surface.dep-modal .nova-modal-header h2 { font-size: 19px; }
   .nova-modal-surface.dep-modal .nova-modal-body { padding: 14px; }
   .nova-modal-surface.dep-modal .nova-modal-footer { padding: 10px 14px 12px; }
   .nova-modal-surface.dep-modal .dep-detail-grid { grid-template-columns: minmax(0, 1fr); }

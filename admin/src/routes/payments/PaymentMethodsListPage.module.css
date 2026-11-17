@@ -9,17 +9,58 @@
   min-width: 0;
 }
 
-/* The tab panel is the grid item that holds the table card; without this it grows to the table's
-   minimum width on a phone instead of letting the table scroll inside its card. */
+/* The tab panel is the grid item that holds the table card (and, on the crypto tab, the settings card
+   above it); without min-width it grows to the table's minimum width on a phone instead of letting the
+   table scroll inside its card. */
 .panel {
+  display: grid;
+  gap: 16px;
   min-width: 0;
+}
+
+/* ---------- statistics ---------- */
+
+/* Five cards: one per method type, then the totals. One column on a phone, two from a 520px page column
+   (the totals' last card takes a row of its own) and all five in a row from 1000px. The wrapper answers
+   the container query; the grid it restyles cannot answer its own. */
+.statsFrame {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+@container (min-width: 520px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (min-width: 1000px) {
+  .stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .stats > :last-child {
+    grid-column: auto;
+  }
 }
 
 /* ---------- header actions ---------- */
 
-/* BEYOND-MOCKUP: the bank/UPI switch is the mockup's .seg in .ph-right (M:761, M:777-794) as a tab
+/* BEYOND-MOCKUP: the bank/UPI/crypto switch is the mockup's .seg in .ph-right (M:761, M:777-794) as a tab
    strip. On a phone it fills its row, as the mockup's period seg does (M:1615-1616) and the legacy
-   switch did; the kit Tabs has no stretch option, so the page stretches its own strip. */
+   switch did; the kit Tabs has no stretch option, so the page stretches its own strip. A tab never
+   shrinks below its label: when the three do not fit, the strip scrolls sideways as the kit bar does. */
 @media (max-width: 767px) {
   .tabs {
     display: flex;
@@ -27,8 +68,7 @@
   }
 
   .tabs > [role='tab'] {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 1 0 auto;
     justify-content: center;
     padding: 0 8px;
   }
@@ -69,6 +109,11 @@
 .upiIcon {
   color: var(--h-vio);
   background: var(--h-vio-bg);
+}
+
+.cryptoIcon {
+  color: var(--h-amb);
+  background: var(--h-amb-bg);
 }
 
 .methodBody {
@@ -280,6 +325,73 @@
   gap: 4px;
 }
 
+/* ---------- crypto settings (BEYOND-MOCKUP: the legacy rate and bonus controls) ---------- */
+
+.cryptoSettings {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* The rate and the bonus side by side from a 720px card, stacked below that. */
+.settingsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px 24px;
+  min-width: 0;
+}
+
+@container (min-width: 720px) {
+  .settingsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.setting {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+/* The field and its Save on one row; the button sits on the input's line under the field's label. */
+.settingControls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.settingField {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 320px;
+}
+
+.settingControls > button {
+  flex: none;
+}
+
+/* The worked example in the field's help ink and the error in its error ink (FieldShell's .help and
+   .errorText), outside the field so they do not move the button. */
+.settingExample,
+.settingError {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settingExample {
+  color: var(--ink-3);
+}
+
+.settingError {
+  color: var(--neg-ink);
+  font-weight: 600;
+}
+
 /* ---------- QR code dialog (BEYOND-MOCKUP: the mockup draws no QR view) ---------- */
 
 /* The dialog title carries the account's name in the dim ink, as the legacy modal title did. */
@@ -320,13 +432,6 @@
   line-height: 1.45;
 }
 
-.qrStore {
-  margin: 0;
-  color: var(--ink-3);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
 .qrProblem {
   display: grid;
   justify-items: center;
@@ -335,14 +440,13 @@
   min-width: 0;
 }
 
-.qrProblemIcon {
-  display: flex;
-  margin-bottom: 4px;
-  color: var(--ink-3);
-}
-
-.qrProblemError {
-  color: var(--neg-ink);
+/* The QR's placeholder (StoredImage) in a QR-sized square, so the dialog keeps the height the image or its loading
+   state has. Two classes, so it outranks the placeholder's own rule whatever the stylesheet order. */
+.qrProblem .qrMissing {
+  width: 192px;
+  height: 192px;
+  margin-bottom: 8px;
+  font-size: 12px;
 }
 
 .qrProblemTitle {
@@ -358,15 +462,6 @@
   color: var(--ink-3);
   font-size: 12.5px;
   line-height: 1.45;
-}
-
-.qrProblemCode {
-  max-width: 100%;
-  margin: 6px 0 0;
-  color: var(--ink-3);
-  font-size: 11.5px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
 }
 
 .qrEmpty {

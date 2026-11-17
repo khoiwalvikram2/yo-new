@@ -4,6 +4,7 @@ import { useCurrency } from '@/shared/core/CurrencyContext'
 import { Card } from '@/ui/components/Card'
 import { DataTable, type DataTableColumn } from '@/ui/components/DataTable'
 import { SegmentedControl } from '@/ui/components/SegmentedControl'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { Stat } from '@/ui/components/Stat'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { Meter } from '@/ui/components/Meter'
@@ -113,7 +114,7 @@ export function GamePerformance({ breakdown }: GamePerformanceProps) {
     {!gameStats.length ? <EmptyState title="No game data available" /> : viewMode === 'table' ? <DataTable label="Top casino games" columns={columns} rows={gameStats} rowKey={row => row.id} pagination={false} /> :
       <div ref={scrollContainerRef} className={clsx(styles.carousel, isDragging && styles.dragging)} role="region" aria-label="Top Games cards" tabIndex={0} onMouseDown={handleMouseDown} onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
         <div className={styles.carouselItems}>{gameStats.map((game, index) => { const share = totalWagered > 0 ? game.wagered / totalWagered * 100 : 0; return <article key={game.id} className={styles.carouselItem}>
-          {game.thumbnailUrl ? <img className={styles.thumbnail} src={game.thumbnailUrl} alt={game.name} loading="lazy" /> : <div className={styles.imageFallback}>{game.name}</div>}
+          <StoredImage className={styles.thumbnail} src={game.thumbnailUrl} alt={game.name} loading="lazy" fallback={<div className={styles.imageFallback}>{game.name}</div>} />
           <div className={styles.details}><div className={styles.actions}><StatusPill tone="info">#{index + 1}</StatusPill><h3 className={styles.heading} title={game.name}>{game.name}</h3></div>
             <div className={styles.grid2}><Stat variant="bare" size="compact" label="Volume" value={fmt(game.wagered)} hue="blu" /><Stat variant="bare" size="compact" label="GGR" value={fmt(game.ggr)} hue={game.ggr > 0 ? 'grn' : 'red'} /><Stat variant="bare" size="compact" label="Bets" value={game.bets.toLocaleString()} /><div className={styles.details}><span className={styles.muted}>RTP</span><StatusPill tone={game.rtp < 85 ? 'ok' : game.rtp < 95 ? 'info' : game.rtp < 105 ? 'warn' : 'neg'}>{game.rtp.toFixed(1)}%</StatusPill></div></div>
             <div className={styles.details}><span className={styles.muted}>Share: {share.toFixed(1)}%</span><Meter value={share} /></div>

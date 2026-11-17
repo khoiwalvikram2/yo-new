@@ -3,6 +3,7 @@ import { casinoQueryResolvers } from '@src/domains/casino/resolvers/queries.js'
 import { casinoMutationResolvers } from '@src/domains/casino/resolvers/mutations.js'
 import { casinoSubscriptionResolvers } from '@src/domains/casino/resolvers/subscriptions.js'
 import { hasPermission, ensureAgentCanMutate } from '@src/domains/common/auth.js'
+import { displayableAsset } from '@shared/utils/dataUri.js'
 
 function wrapCasinoQueries(queries: Record<string, (...args: any[]) => any>) {
   return Object.fromEntries(
@@ -45,6 +46,10 @@ export const CASINO_MUTATION_PERMISSIONS: Record<string, RequiredPermission> = {
   reorderCategoryGames: [['casino.categories', 'update']],
 
   // Providers and the revenue share attached to them.
+  // The three catalogue writes also carry `requirePlatformCatalogueAccess`:
+  // casino_api_providers has no tenant column, and every Whitelabel Admin
+  // reaches `casino.providers:*` through the flat `casino:write`. The vendor
+  // share is the tenant's own row, so it stays on the map alone.
   createCasinoProvider: [['casino.providers', 'create']],
   updateCasinoProvider: [['casino.providers', 'update']],
   deleteCasinoProvider: [['casino.providers', 'delete']],
@@ -60,9 +65,13 @@ export const CASINO_MUTATION_PERMISSIONS: Record<string, RequiredPermission> = {
   setWhitelabelCasinoGameSuperAdminOverride: [['casino.game-overrides', 'update']],
 
   // Games.
+  // The two settings writes change the caller's own tenant row, the same row
+  // toggleCasinoGameEnabled writes, so the management permission suffices.
+  // `casino.game-overrides` is the Super Admin's per-whitelabel override and
+  // is kept as an alternative so no role that holds it loses the screen.
   toggleCasinoGameEnabled: [['casino.management', 'update']],
-  updateCasinoGameSettings: [['casino.game-overrides', 'update']],
-  bulkUpdateCasinoGameSettings: [['casino.game-overrides', 'update']],
+  updateCasinoGameSettings: [['casino.management', 'update'], ['casino.game-overrides', 'update']],
+  bulkUpdateCasinoGameSettings: [['casino.management', 'update'], ['casino.game-overrides', 'update']],
   toggleCasinoGameMasterActive: [['casino.management', 'toggle-master']],
 
   // VIP-restricted games.
@@ -74,13 +83,8 @@ export const CASINO_MUTATION_PERMISSIONS: Record<string, RequiredPermission> = {
   deleteCasinoGameBetSettings: [['casino.bet-settings', 'delete']],
   upsertLimit: [['casino.bet-settings', 'update']],
 
-  // Promotions, content and jackpots all live on the casino management screen.
-  createPromotion: [['casino.management', 'update']],
-  publishPromotion: [['casino.management', 'update']],
-  pausePromotion: [['casino.management', 'update']],
-  createContent: [['casino.management', 'update']],
-  updateContent: [['casino.management', 'update']],
-  publishContent: [['casino.management', 'update']],
+  // Jackpots live on the casino management screen. Promotions and content (Promotions > Campaigns
+  // and > Content) were retired on 2026-11-04 (MAR-14).
   pauseJackpot: [['casino.management', 'update']],
   payoutJackpot: [['casino.management', 'update']],
 
@@ -97,33 +101,12 @@ function wrapCasinoMutations(mutations: Record<string, (...args: any[]) => any>)
   })
 }
 
-// Helper to convert S3 keys to presigned URLs
-async function convertS3KeyToUrl(key: string | null | undefined): Promise<string | null> {
-  if (!key) return null
-
-  // Already a usable URL or data URI (for backward compatibility with base64)
-  if (key.startsWith('http://') || key.startsWith('https://') || key.startsWith('data:')) {
-    return key
-  }
-
-  try {
-    const { generatePresignedGetUrl, getS3ObjectUrl } = await import('@src/services/storage/s3.js')
-    try {
-      const presigned = await generatePresignedGetUrl(key, 7 * 24 * 3600) // 7 days
-      if (presigned) return presigned
-    } catch {}
-    return getS3ObjectUrl(key)
-  } catch (err) {
-    return key
-  }
-}
-
 export const casinoResolvers = {
   Query: wrapCasinoQueries(casinoQueryResolvers),
   Mutation: wrapCasinoMutations(casinoMutationResolvers),
   Subscription: casinoSubscriptionResolvers,
-  // Field resolver for CasinoCategory to convert iconData (S3 key) to presigned URL
+  // A category icon as stored (a data URI, or a link); a legacy S3 key is null, since nothing can fetch it.
   CasinoCategory: {
-    iconData: async (parent: any) => convertS3KeyToUrl(parent.iconData),
+    iconData: (parent: any) => displayableAsset(parent.iconData),
   },
 }

@@ -7,6 +7,8 @@ import styles from '../../MatkaLiveUi.module.css'
 import { useEffect, useMemo, useRef } from 'react'
 import { useCurrency } from '@/shared/core/CurrencyContext'
 import { notify } from '@/shared/services/notification'
+import { useAuthStore } from '@/shared/core/authStore'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 
 interface AlertItem {
   id: string
@@ -17,6 +19,8 @@ interface AlertItem {
   entity: string
   value: number
   threshold: number
+  /** The value and threshold are amounts, not percentages. */
+  money?: boolean
   timestamp: string
 }
 
@@ -59,6 +63,11 @@ export const AlertsAndAnomaliesDashboard: React.FC<AlertsAndAnomaliesDashboardPr
   dataHistory = [],
 }) => {
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
+  // The wagered average per player only with settlements.center view, as the Players tab's Avg Wagered/Player (owner,
+  // 2026-11-04); the alert itself and its title stay.
+  const permissions = useAuthStore(s => s.permissions)
+  const hasFinanceView = hasPermissionWithNested(permissions, 'settlements.center', 'view')
+  const money = (amount: number) => (hasFinanceView ? formatAmount(convertFromWhitelabelCurrency(amount)) : '••••')
 
   // The live feed contains open bets; realised RTP is unavailable until settlement.
   // Detect Volume Spikes
@@ -142,17 +151,18 @@ export const AlertsAndAnomaliesDashboard: React.FC<AlertsAndAnomaliesDashboardPr
           type: 'behavior',
           severity: 'info',
           title: 'High Average Wagered Per Player',
-          description: `Average wagered per player is ${formatAmount(convertFromWhitelabelCurrency(avgWageredPerPlayer))}`,
+          description: `Average wagered per player is ${hasFinanceView ? formatAmount(convertFromWhitelabelCurrency(avgWageredPerPlayer)) : '••••'}`,
           entity: 'Overall',
           value: avgWageredPerPlayer,
           threshold: 10000,
+          money: true,
           timestamp: new Date().toISOString(),
         })
       }
     }
 
     return alerts
-  }, [kpis, breakdown, formatAmount, convertFromWhitelabelCurrency])
+  }, [kpis, breakdown, formatAmount, convertFromWhitelabelCurrency, hasFinanceView])
 
   const allAlerts = useMemo(() => {
     return [...volumeAlerts, ...behaviorAlerts].sort((a, b) => {
@@ -185,7 +195,7 @@ export const AlertsAndAnomaliesDashboard: React.FC<AlertsAndAnomaliesDashboardPr
     <Notice title="RTP unavailable for open bets" tone="info">RTP uses final payouts from settled bets. Open entries have no final result yet; use the Matka report for settled performance.</Notice>
     {!allAlerts.length ? <Notice title={kpis ? kpis.wagered > 0 ? 'No open-bet risk alerts' : 'No open Matka bets' : 'Waiting for Matka data'} tone="info">{kpis?.wagered ? 'No volume or concentration alerts detected.' : 'Risk monitoring starts when entries are accepted.'}</Notice> : <div className={styles.stack}>
       <div className={styles.grid3}><Stat variant="bare" label="Critical" value={alertCounts.critical} hue="red" /><Stat variant="bare" label="Warnings" value={alertCounts.warning} hue="amb" /><Stat variant="bare" label="Info" value={alertCounts.info} hue="blu" /></div>
-      <ul className={styles.list}>{allAlerts.map(alert => <li key={alert.id} className={styles.item}><div className={styles.row}><h3 className={styles.heading}>{alert.title}</h3><StatusPill tone={alert.severity === 'critical' ? 'neg' : alert.severity === 'warning' ? 'warn' : 'info'}>{alert.severity.toUpperCase()}</StatusPill></div><p className={styles.text}>{alert.description}</p><DescriptionList items={[{ term: 'Entity', value: alert.entity }, { term: 'Value', value: alert.type === 'rtp' ? `${alert.value.toFixed(2)}%` : `${alert.value.toFixed(0)}%` }, { term: 'Threshold', value: `${alert.threshold}%` }]} /></li>)}</ul>
+      <ul className={styles.list}>{allAlerts.map(alert => <li key={alert.id} className={styles.item}><div className={styles.row}><h3 className={styles.heading}>{alert.title}</h3><StatusPill tone={alert.severity === 'critical' ? 'neg' : alert.severity === 'warning' ? 'warn' : 'info'}>{alert.severity.toUpperCase()}</StatusPill></div><p className={styles.text}>{alert.description}</p><DescriptionList items={[{ term: 'Entity', value: alert.entity }, { term: 'Value', value: alert.money ? money(alert.value) : alert.type === 'rtp' ? `${alert.value.toFixed(2)}%` : `${alert.value.toFixed(0)}%` }, { term: 'Threshold', value: alert.money ? money(alert.threshold) : `${alert.threshold}%` }]} /></li>)}</ul>
     </div>}
   </Card>
 }

@@ -115,9 +115,9 @@ function calls(name: string) {
   return mocks.mutationCalls.get(name) ?? []
 }
 
-function renderPage() {
+function renderPage(path = '/config/whitelabels') {
   return render(
-    <MemoryRouter initialEntries={['/config/whitelabels']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/config/whitelabels" element={<WhitelabelsListPage />} />
         <Route path="/config/whitelabels/create" element={<p>Create whitelabel route</p>} />
@@ -222,6 +222,15 @@ describe('WhitelabelsListPage', () => {
       const latest = mocks.exportOptions.at(-1)?.data as Whitelabel[]
       assert.deepEqual(latest.map((row) => row.id), ['wl-03'])
     })
+  })
+
+  test('a link with ?search= (the global search "See all Whitelabels") opens the list already filtered', () => {
+    renderPage('/config/whitelabels?search=Partner%2003')
+    assert.equal((screen.getByRole('searchbox', { name: 'Search whitelabels' }) as HTMLInputElement).value, 'Partner 03')
+    // Filtered on the first render, with no debounce wait.
+    assert.ok(screen.getByText('Partner 03'))
+    assert.equal(screen.queryByText('Partner 01'), null)
+    assert.deepEqual((mocks.exportOptions.at(-1)?.data as Whitelabel[]).map((row) => row.id), ['wl-03'])
   })
 
   test('opens the real details drawer with assets, sharing, status and all theme values', async () => {

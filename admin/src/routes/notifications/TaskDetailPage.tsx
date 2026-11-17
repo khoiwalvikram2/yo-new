@@ -7,7 +7,6 @@ import { useNotificationStore } from '@/state/notificationStore';
 import { useEffect } from 'react';
 import { useFormatDate } from '@/shared/core/useFormatDate';
 import { useCurrency } from '@/shared/core/CurrencyContext';
-import { RBACGuard } from '@/shared/core/RBACGuard';
 import { resolveNotificationActionUrl } from '@/shared/core/notificationUtils';
 import { usePageEyebrow } from '@/shell/PageEyebrowContext';
 import { Button } from '@/ui/components/Button';
@@ -57,12 +56,10 @@ const STEP_CLASS = {
 
 const BACK_LINK = { to: '/notifications', label: 'Back' };
 
+/* No RBACGuard: one task of the caller's own inbox, scoped to its recipient on the server, like the list
+   (see NotificationsPage). notifications.list:view was required here too, and no Whitelabel Admin or agent holds it. */
 export function TaskDetailPage() {
-	return (
-		<RBACGuard required={[{ domain: 'notifications.list', actions: ['view'] }]}>
-			<TaskDetailPageContent />
-		</RBACGuard>
-	);
+	return <TaskDetailPageContent />;
 }
 
 function TaskDetailPageContent() {

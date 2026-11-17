@@ -138,6 +138,48 @@
   overflow-wrap: anywhere;
 }
 
+/* Crypto Payment: the USDT to look for on the chain is the figure the admin checks first. */
+.usdt {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A TxID with its copy action. The CopyButton's visually hidden announcement is absolutely positioned;
+   this is its containing block, so it cannot escape the drawer's scroller. */
+.hashValue {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* An outbound link to the block explorer, in the link blue every clickable text uses. */
+.explorerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease;
+}
+
+.explorerLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.explorerLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .note {
   display: flex;
   align-items: flex-start;
@@ -166,10 +208,6 @@
   font-size: 12.5px;
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-
-.proof {
-  display: block;
 }
 
 .remarkGrid {
@@ -241,7 +279,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .profileLink {
+  .profileLink,
+  .explorerLink {
     transition: none;
   }
 }

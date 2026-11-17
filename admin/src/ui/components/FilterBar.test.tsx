@@ -70,6 +70,21 @@ describe('FilterBar', () => {
     assert.equal(screen.getByRole('status').previousElementSibling, screen.getByRole('button', { name: 'Clear all' }))
   })
 
+  test('keeps the summary one inline run, so the space after a bold count survives the flex cell (FIN-13)', () => {
+    // The strip's summary cell is a flex box: `<b>7</b> accounts` became two flex items and read "7accounts".
+    render(
+      <FilterBar activeCount={0} onClearAll={() => {}} summary={<><b>7</b> accounts</>}>
+        <button type="button">Status</button>
+      </FilterBar>,
+    )
+    const cell = screen.getByText((_, node) => node?.tagName === 'DIV' && node.textContent === '7 accounts')
+    assert.equal(cell.childNodes.length, 1, 'the cell holds a single child, so it lays out one flex item')
+    const run = cell.firstChild as HTMLElement
+    assert.equal(run.tagName, 'SPAN')
+    assert.equal(run.textContent, '7 accounts')
+    assert.equal(run.querySelector('b')?.textContent, '7')
+  })
+
   test('measures its container, not the viewport, and moves controls into a Filters popover when narrow', async () => {
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       width: 760,

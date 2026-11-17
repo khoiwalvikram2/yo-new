@@ -26,7 +26,8 @@ const fixture = (overrides = {}) => ({ id: 'zero', code: 'zero-market', name: 'Z
   sessions: ['OPEN', 'CLOSE'].map(side => ({ side, enabled: true, accepting: side === 'OPEN', lockAt: '2026-10-25T10:00:00Z', resultAt: '2026-10-25T10:15:00Z' })),
   rates: ['SINGLE', 'JODI', 'SINGLE_PANNA', 'DOUBLE_PANNA', 'TRIPLE_PANNA', 'HALF_SANGAM', 'FULL_SANGAM'].map(bidType => ({ bidType, label: bidType, payoutMultiplier: 9 })),
   ...overrides });
-const markets = () => [fixture(), fixture({ id: 'later', code: 'later-market', name: 'Later Market', kind: 'STARLINE', status: 'Upcoming', result: {} }), fixture({ id: 'closed', code: 'closed-market', name: 'Closed Market', kind: 'JACKPOT', status: 'Closed', result: { jodi: '00' } })];
+// The player page lists Worli markets only (owner 2026-11-01), so the directory fixtures are Worli markets.
+const markets = () => [fixture(), fixture({ id: 'later', code: 'later-market', name: 'Later Market', status: 'Upcoming', result: {} }), fixture({ id: 'closed', code: 'closed-market', name: 'Closed Market', status: 'Closed', result: { jodi: '00' } })];
 async function until(check, timeout = 1500) {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
@@ -110,28 +111,27 @@ test('favorite filtering persists locally and is isolated by tenant for public g
   assert.deepEqual(view.calls.private, []);
 });
 
-test('search is debounced and trimmed, while market type is sent to the server with the current search', async () => {
-  const view = pageHarness();
+test('search is debounced and trimmed, and the market type offers and requests Worli only', async () => {
+  const view = pageHarness({ markets: [...markets(), fixture({ id: 'star', code: 'star-market', name: 'Star Market', kind: 'STARLINE' })] });
   await until(() => assert.equal(cards(view).length, 3));
+  assert.ok(view.calls.list.every(call => call.kind === 'WORLI'), 'every list request asks for Worli markets');
+  assert.equal(cards(view).some(card => /Star Market/.test(card.textContent)), false, 'a Starline market is never listed');
   const initialCalls = view.calls.list.length;
   fireEvent.change(view.getByRole('textbox', { name: 'Search Matka markets' }), { target: { value: '  Market  ' } });
   assert.equal(view.calls.list.length, initialCalls);
   await until(() => assert.equal(view.calls.list.at(-1).search, 'Market'));
-  const types = choose(view, 'Matka market type', 'Starline');
-  await until(() => assert.equal(view.calls.list.at(-1).kind, 'STARLINE'));
-  await until(() => assert.equal(cards(view).length, 1));
-  assert.match(cards(view)[0].textContent, /Later Market/);
-  assert.equal(types.textContent, 'Starline');
+  const types = view.getByRole('combobox', { name: 'Matka market type' });
+  assert.equal(types.textContent, 'Worli');
   fireEvent.click(types);
-  assert.equal(view.getByRole('option', { name: 'Starline' }).getAttribute('aria-selected'), 'true');
+  const options = within(view.getByRole('listbox', { name: 'Matka market type' })).getAllByRole('option');
+  assert.deepEqual(options.map(option => option.textContent), ['Worli']);
+  assert.equal(options[0].getAttribute('aria-selected'), 'true');
   fireEvent.keyDown(types, { key: 'Escape' });
   assert.equal(types.getAttribute('aria-expanded'), 'false');
+  assert.equal(view.calls.list.at(-1).kind, 'WORLI');
   assert.equal(view.calls.list.at(-1).search, 'Market');
   assert.equal(view.calls.list.at(-1).page, 1);
   assert.equal(view.calls.list.at(-1).limit, 100);
-  assert.equal(choose(view, 'Matka market type', 'All types').textContent, 'All types');
-  await until(() => assert.equal(cards(view).length, 3));
-  assert.equal(view.calls.list.at(-1).kind, undefined);
   assert.deepEqual(view.calls.private, []);
 });
 
@@ -184,7 +184,9 @@ test('guest entries route requires sign in without requesting private history or
 test('table and card actions retain market identity, chart capabilities and favorite state', () => {
   const load = loader(common, globals), { asKitMarket } = load('src/features/matka/model.ts');
   const { MarketBoard } = load('src/features/matka/kit/MarketBoard.jsx');
-  const items = markets().map(item => asKitMarket(item)), calls = { favorite: [], market: [], chart: [] };
+  // The board itself still renders every kind (the page only asks for Worli): chart buttons follow each kind.
+  const mixed = [fixture(), fixture({ id: 'later', code: 'later-market', name: 'Later Market', kind: 'STARLINE', status: 'Upcoming', result: {} }), fixture({ id: 'closed', code: 'closed-market', name: 'Closed Market', kind: 'JACKPOT', status: 'Closed', result: { jodi: '00' } })];
+  const items = mixed.map(item => asKitMarket(item)), calls = { favorite: [], market: [], chart: [] };
   const view = render(React.createElement(MarketBoard, { items, favorites: ['zero'], mode: 'table',
     onFavorite: id => calls.favorite.push(id), onMarket: item => calls.market.push(item.id), onChart: (item, type) => calls.chart.push([item.id, type]) }));
   const table = within(view.getByRole('table', { name: directoryTableName }));
@@ -192,7 +194,7 @@ test('table and card actions retain market identity, chart capabilities and favo
   fireEvent.click(table.getByRole('button', { name: 'View Closed Market market' }));
   fireEvent.click(table.getByRole('button', { name: 'Zero Market Jodi Chart' }));
   assert.deepEqual(calls, { favorite: ['zero'], market: ['closed'], chart: [['zero', 'jodi']] });
-  assert.equal(table.queryByRole('button', { name: 'Later Market Jodi Chart' }), null);
-  assert.equal(table.queryByRole('button', { name: 'Closed Market Panel Chart' }), null);
+  assert.ok(table.queryByRole('button', { name: 'Later Market Jodi Chart' }) === null, 'a Starline market has no Jodi chart');
+  assert.ok(table.queryByRole('button', { name: 'Closed Market Panel Chart' }) === null, 'a Jackpot market has no Panel chart');
   assert.match(table.getByRole('row', { name: /Closed Market/ }).textContent, /00/);
 });

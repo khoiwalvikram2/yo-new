@@ -100,10 +100,11 @@ function FavouritesPanel({ sections, activeTo, onNavigate }: { sections: readonl
 /** The latest Export Center jobs: status, and a download once one is ready. Read only while open. */
 function ExportsPanel() {
   const client = useApolloClient()
-  const { data, loading, error, startPolling, stopPolling } = useQuery<{ exportJobs: ExportJob[] }>(EXPORT_JOBS_QUERY, {
+  // The Export Center's own document, which reads a page of jobs (exportJobsPage.items), not a bare list.
+  const { data, loading, error, startPolling, stopPolling } = useQuery<{ exportJobsPage: { items: ExportJob[] } | null }>(EXPORT_JOBS_QUERY, {
     variables: { limit: 8 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all',
   })
-  const jobs = data?.exportJobs ?? []
+  const jobs = data?.exportJobsPage?.items ?? []
   const pending = jobs.some(isPendingJob)
   // while a job is building, poll so it turns into a download in place
   useEffect(() => {
@@ -217,8 +218,10 @@ export function ToolRail({ sections, activeTo }: ToolRailProps) {
     title = tool === 'alerts' ? 'Alerts' : 'Tasks'
     sub = state.unreadCount > 0 ? `${state.unreadCount} unread` : tool === 'alerts' ? 'Notifications' : 'Pending tasks'
     body = <NotificationPanel state={state} category={tool === 'alerts' ? 'general' : 'task'} />
+    // Clear all follows the unread count, not only the rows shown: an unread item the list does not hold still
+    // counts in the badge, and this is the drawer's one way to clear it.
     foot = <>
-      {state.notifications.length > 0 && <Button variant="ghost" icon={<IconCircleCheck size={16} stroke={strokeFor(16)} />} onClick={() => void state.onMarkAllAsRead()}>Clear all</Button>}
+      {(state.unreadCount > 0 || state.notifications.length > 0) && <Button variant="ghost" icon={<IconCircleCheck size={16} stroke={strokeFor(16)} />} onClick={() => void state.onMarkAllAsRead()}>Clear all</Button>}
       <Button onClick={state.onViewAll}>View all</Button>
     </>
   } else if (tool === 'favourites') {

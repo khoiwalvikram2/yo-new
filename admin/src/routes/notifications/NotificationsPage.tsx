@@ -23,7 +23,6 @@ import { useAuthStore } from '@/shared/core/authStore';
 import { useCurrency } from '@/shared/core/CurrencyContext';
 import { useFormatDate } from '@/shared/core/useFormatDate';
 import { isToday, isYesterday } from '@/shared/utils/date';
-import { RBACGuard } from '@/shared/core/RBACGuard';
 import { usePageEyebrow } from '@/shell/PageEyebrowContext';
 import { Button } from '@/ui/components/Button';
 import { Card } from '@/ui/components/Card';
@@ -69,12 +68,11 @@ const TYPE_ICONS: Record<NotificationIconKey, TablerIcon> = {
 
 const TABS_ID = 'notifications';
 
+/* No RBACGuard: this is the caller's own inbox, which the server scopes to its recipient (notificationReadScope),
+   the same rows the Alerts and Tasks bells list. It was gated on notifications.list:view ("Manage system
+   notifications"), which no Whitelabel Admin or agent holds, so the bells' View all led them to Access denied. */
 export function NotificationsPage() {
-	return (
-		<RBACGuard required={[{ domain: 'notifications.list', actions: ['view'] }]}>
-			<NotificationsPageContent />
-		</RBACGuard>
-	);
+	return <NotificationsPageContent />;
 }
 
 function NotificationsPageContent() {

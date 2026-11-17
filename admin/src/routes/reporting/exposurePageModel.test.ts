@@ -5,6 +5,8 @@ import {
   PAGE_SIZE_OPTIONS,
   calculateExposureMetrics,
   calculateTotalExposure,
+  exposureDomainRows,
+  exposureKpiSkips,
   exposureRangeDays,
   filterExposureRows,
   formatExposureChange,
@@ -238,6 +240,20 @@ describe('exposure KPI calculations', () => {
     assert.equal(formatExposureChange(-12.345), '-12.35%')
   })
 
+  test('the cards read the domain tab’s rows, in the server’s order (F-REP-17)', () => {
+    const rows: ExposureDataPoint[] = [
+      { date: '2026-01-01', dimension: 'SPORTS', value: 100 },
+      { date: '2026-01-01', dimension: 'MATKA', value: 83_000 },
+      { date: '2026-01-02', dimension: 'SPORTS', value: 300 },
+    ]
+    assert.deepStrictEqual(exposureDomainRows(rows, 'all'), rows)
+    assert.deepStrictEqual(exposureDomainRows(rows, 'sports').map((row) => row.value), [100, 300])
+    assert.deepStrictEqual(exposureDomainRows(rows, 'matka').map((row) => row.value), [83_000])
+    // the matka peak no longer shows under Sports
+    assert.equal(calculateExposureMetrics(exposureDomainRows(rows, 'sports')).maxExposure, 300)
+    assert.equal(calculateExposureMetrics(exposureDomainRows(rows, 'sports')).avgExposure, 200)
+  })
+
   test('keeps change at zero for one row or a zero first value', () => {
     assert.equal(calculateExposureMetrics([
       { date: '2026-01-01', dimension: 'All', value: 8 },
@@ -274,5 +290,31 @@ describe('exposure domain visibility', () => {
       visibleExposureDomains(true, undefined),
       ['all', 'sports', 'matka'],
     )
+  })
+})
+
+describe('exposure KPI requests (SCO-07)', () => {
+  test('a domain tab asks for its own total only, for an admin and an agent alike', () => {
+    for (const isAgent of [false, true]) {
+      assert.deepStrictEqual(exposureKpiSkips('all', isAgent, ['sports', 'casino', 'matka']), { sportsSkipped: false, matkaSkipped: false })
+      assert.deepStrictEqual(exposureKpiSkips('sports', isAgent, ['sports', 'casino', 'matka']), { sportsSkipped: false, matkaSkipped: true })
+      assert.deepStrictEqual(exposureKpiSkips('matka', isAgent, ['sports', 'casino', 'matka']), { sportsSkipped: true, matkaSkipped: false })
+    }
+  })
+
+  test('an agent never asks for a domain its allowed domains lack, on any tab', () => {
+    // the 113 COMMISSION agents: casino and sports only
+    assert.deepStrictEqual(exposureKpiSkips('all', true, ['casino', 'sports']), { sportsSkipped: false, matkaSkipped: true })
+    assert.deepStrictEqual(exposureKpiSkips('sports', true, ['casino', 'sports']), { sportsSkipped: false, matkaSkipped: true })
+    assert.deepStrictEqual(exposureKpiSkips('all', true, ['matka']), { sportsSkipped: true, matkaSkipped: false })
+    assert.deepStrictEqual(exposureKpiSkips('all', true, ['casino']), { sportsSkipped: true, matkaSkipped: true })
+    assert.deepStrictEqual(exposureKpiSkips('all', true, []), { sportsSkipped: true, matkaSkipped: true })
+    // no list at all reads as every domain, as the tabs do
+    assert.deepStrictEqual(exposureKpiSkips('all', true, undefined), { sportsSkipped: false, matkaSkipped: false })
+  })
+
+  test('an admin is never held to an allowed-domain list', () => {
+    assert.deepStrictEqual(exposureKpiSkips('all', false, []), { sportsSkipped: false, matkaSkipped: false })
+    assert.deepStrictEqual(exposureKpiSkips('all', false, ['casino']), { sportsSkipped: false, matkaSkipped: false })
   })
 })

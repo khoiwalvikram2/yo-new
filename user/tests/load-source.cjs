@@ -39,7 +39,8 @@ function loader(stubs = {}, globals = {}) {
       if (specifier.endsWith('.css')) return {};
       if (specifier.startsWith('.') || specifier.startsWith('@/')) {
         const base = specifier.startsWith('@/') ? path.join(root, 'src', specifier.slice(2)) : path.resolve(path.dirname(filename), specifier);
-        for (const extension of ['', '.ts', '.tsx']) {
+        // Like Vite: an extensionless import may name a .jsx or .js source (the Matka kit's './components').
+        for (const extension of ['', '.ts', '.tsx', '.jsx', '.js']) {
           const candidate = base + extension;
           if (Object.hasOwn(stubs, candidate)) return stubs[candidate];
           if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return ASSET_EXTENSION.test(candidate) ? assetModule(candidate) : load(candidate);
@@ -92,7 +93,10 @@ function settingsTheme(environment) {
   const helpers = source.statements.filter(node => ts.isFunctionDeclaration(node) && ['hexToRgb', 'lightenHex', 'darkenHex', 'hexToRgba'].includes(node.name?.text)).map(node => node.getText(source)).join('\n');
   const output = ts.transpileModule(`${helpers}\nmodule.exports = ${apply};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const module = { exports: {} };
-  vm.runInNewContext(output, { module, ...environment.globals }, { filename });
+  // applyPlayerTheme is a recording spy: the calls are on the returned function as playerThemeCalls.
+  const playerThemeCalls = [];
+  vm.runInNewContext(output, { module, applyPlayerTheme: theme => { playerThemeCalls.push(theme); }, ...environment.globals }, { filename });
+  module.exports.playerThemeCalls = playerThemeCalls;
   return module.exports;
 }
 

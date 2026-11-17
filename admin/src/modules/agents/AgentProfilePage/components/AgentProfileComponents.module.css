@@ -21,6 +21,10 @@
 .positive { color: var(--pos-ink); }
 .negative { color: var(--neg-ink); }
 .warning { color: var(--warn); }
+/* Chips (Ref P/L): the upline owes the account in green, the account owes the upline in rose, as the chips
+   module colours them (the owner's colour pass: colour on text only). */
+.gain, .stripValue.gain { color: var(--viz-green, var(--pos-ink)); }
+.loss, .stripValue.loss { color: var(--viz-rose, var(--neg-ink)); }
 .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; font-size: 12px; }
 .balance { font-size: 24px; font-weight: 650; overflow-wrap: anywhere; }
 .list { margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 13px; line-height: 1.7; }
@@ -111,6 +115,3 @@
 .treeIndent { flex: none; width: 16px; }
 /* As wide as the extra-small expand button (10px sides, a 14px icon, the border), so the names line up. */
 .treeLeaf { display: inline-grid; flex: none; place-items: center; width: 36px; color: var(--ink-3); }
-/* Credit: the usage bar under its heading, the alert threshold beside it. */
-.usage { display: grid; gap: 10px; min-width: 0; }
-.usageHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }

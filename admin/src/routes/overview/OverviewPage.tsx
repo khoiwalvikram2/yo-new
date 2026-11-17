@@ -35,7 +35,7 @@ import { tabId, tabPanelId } from '@/ui/components/tabIds';
 import { KPICards } from './components/KPICards';
 import { PeriodPanel } from './components/PeriodPanel';
 import { OperationsSections } from './components/OperationsSections';
-import { AgentsNearLimitCard, BigBetsCard, TopRiskEventsCard } from './components/InsightCards';
+import { BigBetsCard, TopRiskEventsCard } from './components/InsightCards';
 import { BonusAnalysisSection, CasinoProvidersCard } from './components/FinancialInsights';
 import { PlayersTab } from './components/PlayersTab';
 import { FinancialTab } from './components/FinancialTab';
@@ -338,10 +338,9 @@ function OverviewPageContent() {
                   balances and agents. Its own query; the period totals come from these KPIs. */}
               <OperationsSections kpis={kpis} />
 
-              {/* The period's biggest bets and winners, and credit agents near their limit (the latter only
-                  where credit agents exist). Both read Query.dashboardInsights, asked once. */}
+              {/* The period's biggest bets and winners (Query.dashboardInsights). The credit scheme is on chips
+                  since 2026-11-02, so there is no "near credit limit" card any more. */}
               <BigBetsCard />
-              <AgentsNearLimitCard />
             </div>
 
             <div className={dash.gcol}>

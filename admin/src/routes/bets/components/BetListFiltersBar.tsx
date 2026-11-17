@@ -8,6 +8,7 @@ import { MultiSelect } from '@/ui/components/MultiSelect'
 import { SearchField } from '@/ui/components/SearchField'
 import { Select } from '@/ui/components/Select'
 import {
+  ANY_DATE_LABEL,
   BET_DATE_PRESETS,
   BET_DOMAIN_OPTIONS,
   BET_WALLET_OPTIONS,
@@ -25,7 +26,7 @@ import {
   isBetDomain,
   showsBetWalletFilter,
   type BetAgentRow,
-  type BetDatePreset,
+  type BetDateSelection,
   type BetDomain,
   type BetPlayerRow,
   type BetsPageFilters,
@@ -89,6 +90,8 @@ function listStateOf(input: HTMLInputElement) {
 type BetListFiltersBarProps = {
   domain: BetDomain
   filters: BetsPageFilters
+  /** The date field's state when the page opened (a link can open the list on a range, or on every date). */
+  initialDatePreset?: BetDateSelection
   onDomainChange: (v: BetDomain) => void
   onFiltersChange: (f: BetsPageFilters) => void
   onClear: () => void
@@ -99,6 +102,7 @@ type BetListFiltersBarProps = {
 export function BetListFiltersBar({
   domain,
   filters,
+  initialDatePreset = 'today',
   onDomainChange,
   onFiltersChange,
   onClear,
@@ -113,7 +117,7 @@ export function BetListFiltersBar({
   const [playerText, setPlayerText] = useState(filters.playerSearch ?? '')
   // The label on show after a pick, null while the field holds typed text. Read only in handlers.
   const pickedPlayerLabel = useRef<string | null>(null)
-  const [datePreset, setDatePreset] = useState<BetDatePreset>('today')
+  const [datePreset, setDatePreset] = useState<BetDateSelection>(initialDatePreset)
 
   // Shown for every scheme. COMMISSION agents have sub-agents too (createAgent
   // permits COMMISSION parents and children), and gating on SHARING/CREDIT left
@@ -189,22 +193,23 @@ export function BetListFiltersBar({
   const activeFiltersCount = countActiveBetFilters(filters, datePreset)
 
   // Typing searches players and, as before (antd onSearch), the typed text is itself the playerSearch
-  // filter. An edit of a picked player's label starts a fresh search from what it inserted, as antd's
-  // empty search box did; the field's clear button arrives here as ''.
+  // filter, which drops any picked player. An edit of a picked player's label starts a fresh search from
+  // what it inserted, as antd's empty search box did; the field's clear button arrives here as ''.
   const handlePlayerInput = (text: string) => {
     const picked = pickedPlayerLabel.current
     const search = picked === null ? text : betPlayerTextAfterPick(picked, text)
     pickedPlayerLabel.current = null
     setPlayerText(search)
     setPlayerSearchQuery(search)
-    onFiltersChange({ ...filters, playerSearch: search.trim() || undefined })
+    onFiltersChange({ ...filters, playerSearch: search.trim() || undefined, userId: undefined })
   }
-  // Picking a player filters by its username; re-picking the player already in force changes nothing.
-  // The search text stays, so the list still holds the picked player (antd cleared it silently).
+  // Picking a player filters by that one player's id, in place of the typed text; re-picking the player
+  // already in force changes nothing. The search text stays, so the list still holds the picked player
+  // (antd cleared it silently).
   const handlePlayerSelect = (value: string, option: ListboxOption) => {
     pickedPlayerLabel.current = option.label
     setPlayerText(option.label)
-    if (value !== filters.playerSearch) onFiltersChange({ ...filters, playerSearch: value })
+    if (value !== filters.userId) onFiltersChange({ ...filters, playerSearch: undefined, userId: value })
   }
   // antd emptied its search whenever the list closed without a pick (blur, Escape, Enter with nothing
   // to pick), and onSearch('') then dropped the typed text and the playerSearch filter. The field's text is
@@ -300,6 +305,7 @@ export function BetListFiltersBar({
       <DateRangeField
         label="Date range"
         presets={BET_DATE_PRESETS}
+        valueLabel={datePreset === 'any' ? ANY_DATE_LABEL : undefined}
         appliedPreset={datePreset}
         appliedFrom={filters.dateFrom}
         appliedTo={filters.dateTo}

@@ -30,8 +30,8 @@
   transition: background-color .15s, border-color .15s, color .15s;
 }
 .nova-acct .ref-btn svg { width: 17px; height: 17px; }
-.nova-acct .ref-btn-primary { color: #FFFFFF; background: linear-gradient(180deg, #D22322 0%, #C51A1B 100%); }
-.nova-acct .ref-btn-primary:hover:not(:disabled) { background: var(--acct-red-hover, #A81516); }
+.nova-acct .ref-btn-primary { color: var(--mb-on-red); background: linear-gradient(180deg, var(--mb-brand-top-acct) 0%, var(--mb-red) 100%); }
+.nova-acct .ref-btn-primary:hover:not(:disabled) { background: var(--acct-red-hover, var(--mb-brand-deep)); }
 .nova-acct .ref-btn-primary:disabled { color: var(--mb-faint); background: var(--mb-disabled-bg); cursor: not-allowed; }
 .nova-acct .ref-btn-busy { display: inline-flex; align-items: center; gap: 8px; }
 
@@ -44,7 +44,7 @@
 .nova-acct .ref-empty-title { color: var(--acct-ink, var(--mb-ink)); font-size: 19px; font-weight: 700; line-height: 1.25; }
 .nova-acct .ref-empty-text { max-width: 420px; color: var(--acct-muted, var(--mb-muted)); font-size: 15px; line-height: 1.45; }
 .nova-acct .ref-empty .ref-empty-action { min-width: 160px; margin-top: 12px; }
-.nova-acct .ref-empty.is-error { border-top: 4px solid var(--acct-red, #C51A1B); }
+.nova-acct .ref-empty.is-error { border-top: 4px solid var(--acct-red, var(--mb-red)); }
 .nova-acct .ref-empty.is-error .ref-empty-icon { color: var(--acct-error, var(--mb-error)); background: var(--mb-red-bg); }
 
 /* ------------------------------------------------------------------ hero */
@@ -56,11 +56,11 @@
   gap: 24px;
   padding: 26px 28px;
   overflow: hidden;
-  color: #FFFFFF;
+  color: #FFFFFF; /* theme: fixed — white on the dark hero; the brand is only a glow */
   background:
-    radial-gradient(70% 90% at 0% 0%, rgb(197 26 27 / 34%), transparent 62%),
+    radial-gradient(in srgb 70% 90% at 0% 0%, color-mix(in srgb, var(--mb-red) 34%, transparent), transparent 62%),
     radial-gradient(50% 70% at 100% 100%, rgb(242 193 78 / 16%), transparent 62%),
-    linear-gradient(165deg, #2B2F35 0%, #1B1D21 100%);
+    linear-gradient(165deg, var(--mb-chrome) 0%, var(--mb-chrome-base) 100%);
 }
 .nova-acct .ref-hero::before {
   content: "";
@@ -72,7 +72,7 @@
 .nova-acct .ref-hero > * { position: relative; }
 .nova-acct .ref-hero-main { display: grid; gap: 18px; min-width: 0; }
 .nova-acct .ref-hero-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.nova-acct .ref-hero-icon { display: grid; flex: none; width: 46px; height: 46px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--acct-red, #C51A1B); }
+.nova-acct .ref-hero-icon { display: grid; flex: none; width: 46px; height: 46px; place-items: center; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--acct-red, var(--mb-red)); }
 .nova-acct .ref-hero-icon svg { width: 22px; height: 22px; }
 .nova-acct .ref-hero-title h3 { color: #FFFFFF; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; }
 .nova-acct .ref-hero-title p { margin-top: 4px; color: #C9CBD1; font-size: 15px; line-height: 1.45; }
@@ -123,7 +123,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: conic-gradient(from 30deg, #F2C14E, #C51A1B, #F2C14E, #8E6A12, #F2C14E);
+  background: conic-gradient(from 30deg, #F2C14E, var(--mb-red), #F2C14E, #8E6A12, #F2C14E);
   -webkit-mask: radial-gradient(circle, transparent 51px, #000 52px);
   mask: radial-gradient(circle, transparent 51px, #000 52px);
 }
@@ -132,7 +132,7 @@
   position: absolute;
   inset: 14px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #43444A, #1B1D21);
+  background: radial-gradient(circle at 35% 30%, var(--mb-chrome-2), var(--mb-chrome-base));
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
 }
 .nova-acct .ref-hero-art svg { position: relative; z-index: 1; width: 48px; height: 48px; color: #F2C14E; filter: drop-shadow(0 4px 10px rgb(242 193 78 / 35%)); }
@@ -140,11 +140,11 @@
 /* ----------------------------------------------------------------- stats */
 .nova-acct .ref-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .nova-acct .ref-stats.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.nova-acct .ref-stat { --ref-accent: #43444A; display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px 16px; border: 1px solid var(--acct-line, var(--mb-line)); border-left: 3px solid var(--ref-accent); background: var(--mb-panel); }
-.nova-acct .ref-stat.is-red { --ref-accent: var(--acct-red, #C51A1B); }
+.nova-acct .ref-stat { --ref-accent: var(--mb-chrome-2); display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px 16px; border: 1px solid var(--acct-line, var(--mb-line)); border-left: 3px solid var(--ref-accent); background: var(--mb-panel); }
+.nova-acct .ref-stat.is-red { --ref-accent: var(--acct-red, var(--mb-red)); }
 .nova-acct .ref-stat.is-green { --ref-accent: var(--acct-green, #0B8040); }
 .nova-acct .ref-stat.is-gold { --ref-accent: #F2C14E; }
-.nova-acct .ref-stat.is-dark { --ref-accent: var(--acct-bar, #43444A); }
+.nova-acct .ref-stat.is-dark { --ref-accent: var(--acct-bar, var(--mb-chrome-2)); }
 .nova-acct .ref-stat-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .nova-acct .ref-stat-head svg { flex: none; width: 16px; height: 16px; color: var(--mb-faint); }
 .nova-acct .ref-stat-label { min-width: 0; overflow: hidden; color: var(--acct-muted, var(--mb-muted)); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
@@ -193,7 +193,7 @@
 .nova-acct .ref-transfer input.ref-input:hover:not(:focus) { border-color: var(--mb-line-3); }
 .nova-acct .ref-transfer input.ref-input:focus { border-color: var(--acct-dark, var(--mb-focus-border)); outline: none; box-shadow: 0 0 0 3px var(--mb-focus-ring); }
 .nova-acct .ref-max { grid-area: max; justify-self: end; padding: 2px 0; border: 0; color: var(--acct-link, var(--mb-link)); background: transparent; font-family: var(--font-inter); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
-.nova-acct .ref-max:hover { text-decoration: underline; }
+.nova-acct .ref-max:hover { color: var(--mb-link-hover); text-decoration: underline; }
 .nova-acct .ref-transfer-btn { grid-area: btn; min-width: 150px; min-height: 48px; }
 
 /* Earnings by type. */
@@ -202,7 +202,7 @@
 .nova-acct .ref-earn:nth-child(odd) { border-right: 1px solid var(--mb-line); }
 .nova-acct .ref-earn:nth-last-child(-n + 2):nth-child(odd),
 .nova-acct .ref-earn:last-child { border-bottom: 0; }
-.nova-acct .ref-earn-icon { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border-radius: var(--ui-radius); color: var(--acct-bar, #43444A); background: var(--mb-soft); }
+.nova-acct .ref-earn-icon { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border-radius: var(--ui-radius); color: var(--acct-bar, var(--mb-chrome-2)); background: var(--mb-soft); }
 .nova-acct .ref-earn-icon svg { width: 18px; height: 18px; }
 .nova-acct .ref-earn-main { flex: 1 1 auto; min-width: 0; }
 .nova-acct .ref-earn-name { overflow: hidden; color: var(--acct-ink, var(--mb-ink)); font-size: 16px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }

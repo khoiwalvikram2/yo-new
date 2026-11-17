@@ -137,7 +137,7 @@ button, a, summary { -webkit-tap-highlight-color: transparent; }
 }
 .nova-header-bonus { color: #7456d8; background: #7456d812; border: 1px solid #7456d838; }
 .nova-header-bonus svg, .nova-header-primary svg { width: 16px; height: 16px; }
-.nova-header-primary { color: #fff; background: var(--nova-accent); border: 1px solid var(--nova-accent); box-shadow: 0 4px 10px #214dde18; }
+.nova-header-primary { color: var(--mb-on-red); background: var(--nova-accent); border: 1px solid var(--nova-accent); box-shadow: 0 4px 10px #214dde18; }
 .nova-header-primary:hover, .nova-auth-register:hover { filter: brightness(.96); }
 .nova-wallet-summary { display: flex; align-items: center; gap: 19px; min-height: 44px; padding: 4px 0; white-space: nowrap; text-align: right; }
 .nova-wallet-summary > span { display: grid; gap: 3px; }
@@ -154,7 +154,7 @@ button, a, summary { -webkit-tap-highlight-color: transparent; }
 .nova-profile-trigger svg { width: 17px; height: 17px; }
 .nova-auth-actions { gap: 8px; }
 .nova-auth-login { color: var(--text); background: var(--surface-2); border: 1px solid var(--border); }
-.nova-auth-register { color: #fff; background: var(--nova-accent); border: 1px solid var(--nova-accent); }
+.nova-auth-register { color: var(--mb-on-red); background: var(--nova-accent); border: 1px solid var(--nova-accent); }
 .nova-profile-sheet { color: var(--text); background: var(--surface); border-left: 1px solid var(--border); }
 .nova-profile-user { border-color: var(--border); background: var(--surface-2); }
 .nova-profile-wallet-action {
@@ -211,7 +211,7 @@ button, a, summary { -webkit-tap-highlight-color: transparent; }
 .nova-sidebar-brand .nova-logo-image { max-width: 100%; max-height: 45px; }
 .nova-sidebar-brand .nova-wordmark { font-size: 21px; }
 .nova-wordmark { display: inline-flex; align-items: center; gap: 9px; font-size: 23px; line-height: 1.05; font-weight: 800; letter-spacing: -1px; color: var(--text); }
-.nova-brand-symbol { display: grid; place-items: center; width: 36px; height: 40px; background: var(--nova-accent); color: white; border-radius: var(--ui-radius); font-weight: 900; font-style: italic; }
+.nova-brand-symbol { display: grid; place-items: center; width: 36px; height: 40px; background: var(--nova-accent); color: var(--mb-on-red); border-radius: var(--ui-radius); font-weight: 900; font-style: italic; }
 .nova-wordmark small { display: block; font-size: 8px; letter-spacing: 1.4px; margin-top: 6px; color: var(--subtle); }
 .nova-sidebar-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .nova-main-nav { display: grid; gap: 3px; padding: 0; }
@@ -231,10 +231,10 @@ button, a, summary { -webkit-tap-highlight-color: transparent; }
 .nova-side-link > svg { width: 18px; height: 18px; flex: 0 0 auto; }
 .nova-side-link > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nova-side-link:hover { color: var(--text); background: var(--surface-2); }
-.nova-side-link.active { color: #fff; background: var(--nova-accent); }
-.nova-side-link.active svg { color: #fff; }
+.nova-side-link.active { color: var(--mb-on-red); background: var(--nova-accent); }
+.nova-side-link.active svg { color: var(--mb-on-red); }
 .nova-live-dot { width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: #f06c45; box-shadow: 0 0 0 3px color-mix(in srgb, #f06c45 15%, transparent); }
-.nova-side-link.active .nova-live-dot { background: #fff; box-shadow: 0 0 0 3px #ffffff2b; }
+.nova-side-link.active .nova-live-dot { background: var(--mb-on-red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mb-on-red) 17%, transparent); }
 .nova-nav-label {
   margin: 0 13px 7px;
   color: var(--subtle);
@@ -397,11 +397,11 @@ html.dark .nova-casino-category-bar { background: color-mix(in srgb, #101826 94%
 .nova-hero-casino, .nova-hero-account { background: radial-gradient(circle at 82% 20%, color-mix(in srgb, var(--nova-accent) 20%, transparent), transparent 36%), linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%); color: var(--text); border: 1px solid var(--border); }
 .nova-hero-casino::before, .nova-hero-account::before { background: linear-gradient(105deg, color-mix(in srgb, var(--surface) 95%, transparent), color-mix(in srgb, var(--surface-2) 72%, transparent)); }
 .nova-hero-casino .nova-hero-caption, .nova-hero-account .nova-hero-caption { color: var(--subtle); text-shadow: none; }
-.nova-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 42px; padding: 11px 16px; background: var(--nova-accent); color: #fff; border: 1px solid transparent; border-radius: var(--ui-radius); font-size: 12px; font-weight: 600; cursor: pointer; }
+.nova-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 42px; padding: 11px 16px; background: var(--nova-accent); color: var(--mb-on-red); border: 1px solid transparent; border-radius: var(--ui-radius); font-size: 12px; font-weight: 600; cursor: pointer; }
 .nova-button:hover { filter: brightness(.94); }
 .nova-button-secondary { background: var(--surface-2); color: var(--nova-accent); border-color: var(--border); }
 .nova-text-link { display: inline-flex; align-items: center; gap: 7px; color: var(--nova-accent); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.nova-text-link:hover { text-decoration: underline; }
+.nova-text-link:hover { color: var(--mb-link-hover); text-decoration: underline; }
 .nova-section-heading { margin-bottom: 16px; }
 .nova-section-heading h2 { font-size: clamp(21px, 2vw, 27px); font-weight: 700; letter-spacing: -.9px; margin-top: 5px; }
 .nova-live-markets { border-radius: var(--ui-radius); border-color: var(--border); margin-top: -12px; }
@@ -525,7 +525,7 @@ html.dark .nova-odds-lay { background: #63384c; border-color: #8e4f69; color: #f
 .nova-game-save:hover { color: var(--nova-accent); background: #fff; transform: scale(1.06); }
 .nova-game-save:disabled { cursor: wait; opacity: .7; }
 .nova-game-save > svg { width: 16px; height: 16px; }
-.nova-game-save.is-saved { color: #fff; border-color: var(--nova-accent); background: var(--nova-accent); }
+.nova-game-save.is-saved { color: var(--mb-on-red); border-color: var(--nova-accent); background: var(--nova-accent); }
 .nova-game-save.is-saved > svg { fill: currentColor; }
 .nova-game-loading {
   position: absolute;
@@ -570,7 +570,7 @@ html.dark .nova-game-card:hover { box-shadow: 0 18px 42px #00000052; }
 html.dark .nova-game-art-shade { background: linear-gradient(0deg, rgba(5, 10, 20, .92) 0%, rgba(5, 10, 20, .28) 50%, rgba(5, 10, 20, .06) 76%); }
 html.dark .nova-game-save { color: #dce6f4; border-color: #ffffff24; background: color-mix(in srgb, var(--surface) 86%, transparent); box-shadow: 0 7px 18px #00000040; }
 html.dark .nova-game-save:hover { color: var(--nova-accent); background: var(--surface-2); }
-html.dark .nova-game-save.is-saved { color: #fff; border-color: var(--nova-accent); background: var(--nova-accent); }
+html.dark .nova-game-save.is-saved { color: var(--mb-on-red); border-color: var(--nova-accent); background: var(--nova-accent); }
 .nova-casino-discovery { display: grid; gap: 20px; min-width: 0; max-width: 100%; overflow: hidden; }
 .nova-casino-discovery > *, .nova-top-casino-slider { min-width: 0; max-width: 100%; }
 .nova-arena-home .nova-home-main { min-width: 0; max-width: 100%; overflow: hidden; }
@@ -680,7 +680,7 @@ html.dark .nova-game-save.is-saved { color: #fff; border-color: var(--nova-accen
   height: 42px;
   flex: 0 0 auto;
   border-radius: var(--ui-radius);
-  color: #fff;
+  color: var(--mb-on-red);
   background: var(--nova-accent);
 }
 .nova-footer-support-icon svg { width: 19px; height: 19px; }
@@ -908,7 +908,7 @@ html.dark .nova-hero h2 em { color: var(--nova-accent); }
 .nova-sport-pills { display: flex; gap: 8px; overflow-x: auto; padding: 2px 1px 8px; margin-bottom: 11px; scrollbar-width: thin; scrollbar-color: var(--border-2) transparent; }
 .nova-sport-pills a { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; min-height: 44px; padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); color: var(--subtle); font-size: 13px; font-weight: 600; }
 .nova-sport-pills a:hover { color: var(--nova-accent); border-color: color-mix(in srgb, var(--nova-accent) 42%, var(--border)); }
-.nova-sport-pills a.active { background: var(--nova-accent); border-color: var(--nova-accent); color: #fff; box-shadow: 0 4px 12px color-mix(in srgb, var(--nova-accent) 18%, transparent); }
+.nova-sport-pills a.active { background: var(--nova-accent); border-color: var(--nova-accent); color: var(--mb-on-red); box-shadow: 0 4px 12px color-mix(in srgb, var(--nova-accent) 18%, transparent); }
 .nova-sport-pills small { min-width: 8px; font-size: 10px; opacity: .72; text-align: right; }
 .nova-schedule { display: flex; min-width: 0; min-height: 78px; margin-bottom: 18px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--ui-radius); background: var(--surface); }
 .nova-schedule-label { flex: 0 0 145px; display: grid; grid-template-columns: 17px 1fr; align-content: center; column-gap: 8px; padding: 14px; border-right: 1px solid var(--border); background: var(--surface-2); color: var(--nova-accent); }
@@ -1355,7 +1355,7 @@ html.dark .nova-story-kicker { color: #bbcae0 !important; }
 .nova-top-sport-pill.active {
   border-color: var(--nova-accent);
   background: var(--nova-accent);
-  color: #fff;
+  color: var(--mb-on-red);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--nova-accent) 18%, transparent);
 }
 .nova-top-sport-icon {

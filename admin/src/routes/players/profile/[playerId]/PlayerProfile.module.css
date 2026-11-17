@@ -77,11 +77,15 @@
 .menuLabel { display: inline-flex; align-items: center; gap: 6px; }
 .summaryNotice { padding: 0 var(--card-pad) 16px; }
 .walletStrip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--hair); background: var(--panel-2, var(--surf-3)); }
-.walletStripCredit { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.walletCell { display: grid; gap: 4px; min-width: 0; padding: 14px var(--card-pad); border-inline-end: 1px solid var(--hair); }
+.walletCell { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 14px var(--card-pad); border-inline-end: 1px solid var(--hair); }
 .walletCell:last-child { border-inline-end: 0; }
 .walletLabel { color: var(--ink-3); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .walletValue { margin: 0; color: var(--ink); font-size: 22px; font-weight: 700; line-height: 1.2; }
+.walletNote { margin: 0; color: var(--ink-3); font-size: 12px; }
+/* A credit player's Ref P/L (spec 2026-11-02 §2): the upline owes it in green, it owes the upline in rose, as
+   the chips module colours them (the owner's colour pass: colour on text only). */
+.walletValue.gain { color: var(--viz-green, var(--pos-ink)); }
+.walletValue.loss { color: var(--viz-rose, var(--neg-ink)); }
 
 /* The period every dated figure reads, and the Overview's wallet + period row above its KPIs. */
 .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; min-width: 0; }

@@ -39,6 +39,8 @@ import {
   PNL_PAGE_SIZE_OPTIONS,
   calculatePnlMetrics,
   calculateTotalPnl,
+  commissionPnlRows,
+  commissionTotal,
   filterPnlRows,
   formatPnlChange,
   formatSignedPnl,
@@ -46,9 +48,12 @@ import {
   paginatePnlRows,
   pnlActiveFilterCount,
   pnlCopy,
+  pnlDailyTotals,
+  pnlDomainRows,
   pnlDomainTone,
   pnlExportColumns,
   pnlExportTitle,
+  pnlKpiSkips,
   pnlRangeDays,
   pnlRefusedTotalsText,
   pnlStatusLabel,
@@ -58,7 +63,7 @@ import {
   type PnlDataPoint,
   type PnlDomain,
 } from './pnlPageModel';
-import { CASINO_KPIS_QUERY, MATKA_KPIS_QUERY, PNL_QUERY, SPORTS_KPIS_QUERY } from './pnlPageQueries';
+import { AGENT_COMMISSION_DAYS_QUERY, CASINO_KPIS_QUERY, MATKA_KPIS_QUERY, PNL_QUERY, SPORTS_KPIS_QUERY } from './pnlPageQueries';
 import styles from './PNLPage.module.css';
 
 /* /reporting/pnl on the kit (page migration C, W3 Task 122). The four queries, their variables and
@@ -86,6 +91,8 @@ function PNLPageContent() {
   const isAgent = useAuthStore((s) => s.isAgent());
   const commissionAgent = isCommissionAgent(isAgent, agent?.schemeType);
   const copy = pnlCopy(commissionAgent);
+  // The domain totals: none for a COMMISSION agent, only its allowed domains for any other agent (SCO-07).
+  const kpiSkips = pnlKpiSkips(commissionAgent, isAgent, agent?.allowedDomains);
 
   const { dateFrom, dateTo, preset: datePreset, handleChange: handleDateChange, reset: resetDate } =
     useReportingDateFilter('allTime');
@@ -98,6 +105,8 @@ function PNLPageContent() {
   // The PNL operation's range: the whole days between the two applied days, as a string.
   const rangeDays = useMemo(() => pnlRangeDays(dateFrom, dateTo), [dateFrom, dateTo]);
 
+  // A COMMISSION agent's report is the commission posted to its ledger (F-REP-13), asked per domain
+  // tab; the P&L documents (the downline's GGR) are everyone else's.
   const { data: pnlData, loading: pnlLoading, error: pnlError, refetch: refetchPNL } = useQuery(PNL_QUERY, {
     variables: {
       range: rangeDays,
@@ -105,7 +114,26 @@ function PNLPageContent() {
       dateTo,
     },
     errorPolicy: 'all',
-    skip: false,
+    skip: commissionAgent,
+    fetchPolicy: 'network-only',
+    notifyOnNetworkStatusChange: true,
+  });
+
+  const {
+    data: commissionData,
+    loading: commissionLoading,
+    error: commissionError,
+    refetch: refetchCommission,
+  } = useQuery(AGENT_COMMISSION_DAYS_QUERY, {
+    variables: {
+      filter: {
+        dateFrom,
+        dateTo,
+        ...(selectedDomain === 'all' ? {} : { domain: selectedDomain }),
+      },
+    },
+    errorPolicy: 'all',
+    skip: !commissionAgent,
     fetchPolicy: 'network-only',
     notifyOnNetworkStatusChange: true,
   });
@@ -119,7 +147,7 @@ function PNLPageContent() {
     },
     errorPolicy: 'all',
     fetchPolicy: 'network-only',
-    skip: false,
+    skip: kpiSkips.sports,
     notifyOnNetworkStatusChange: true,
   });
 
@@ -132,6 +160,7 @@ function PNLPageContent() {
     },
     errorPolicy: 'all',
     fetchPolicy: 'network-only',
+    skip: kpiSkips.matka,
   });
 
   const { data: casinoKPIs, loading: casinoLoading, error: casinoError } = useQuery(CASINO_KPIS_QUERY, {
@@ -143,10 +172,15 @@ function PNLPageContent() {
     },
     errorPolicy: 'all',
     fetchPolicy: 'network-only',
+    skip: kpiSkips.casino,
   });
 
-  const pnlRows = useMemo<PnlDataPoint[]>(() => pnlData?.pnl || [], [pnlData]);
-  const isLoading = pnlLoading || sportsLoading || matkaLoading || casinoLoading;
+  const pnlRows = useMemo<PnlDataPoint[]>(
+    () => (commissionAgent ? commissionPnlRows(commissionData?.agentTrends, selectedDomain) : pnlData?.pnl || []),
+    [commissionAgent, commissionData, pnlData, selectedDomain],
+  );
+  const isLoading = commissionAgent ? commissionLoading : pnlLoading || sportsLoading || matkaLoading || casinoLoading;
+  const tableError = commissionAgent ? commissionError : pnlError;
 
   // Domain and search filters, newest first (the legacy rules, pnlPageModel.filterPnlRows).
   const filteredPNLRows = useMemo(
@@ -173,24 +207,29 @@ function PNLPageContent() {
     [paginatedPNLRows, sort],
   );
 
+  // The domain tab's days: the cards describe the tab, as the table and the Total card do (F-REP-17).
+  const tabDays = useMemo(() => pnlDailyTotals(pnlDomainRows(pnlRows, selectedDomain)), [pnlRows, selectedDomain]);
+
   const totalPNL = useMemo(
-    () => calculateTotalPnl(
-      selectedDomain,
-      sportsKPIs?.sportsKPIs?.netRevenue,
-      matkaKPIs?.matkaKPIs?.netRevenue,
-      casinoKPIs?.casinoKPIs?.netRevenue,
-      convertFromWhitelabelCurrency,
-    ),
-    [sportsKPIs, matkaKPIs, casinoKPIs, selectedDomain, convertFromWhitelabelCurrency],
+    () => (commissionAgent
+      ? commissionTotal(tabDays, convertFromWhitelabelCurrency)
+      : calculateTotalPnl(
+        selectedDomain,
+        sportsKPIs?.sportsKPIs?.netRevenue,
+        matkaKPIs?.matkaKPIs?.netRevenue,
+        casinoKPIs?.casinoKPIs?.netRevenue,
+        convertFromWhitelabelCurrency,
+      )),
+    [commissionAgent, tabDays, sportsKPIs, matkaKPIs, casinoKPIs, selectedDomain, convertFromWhitelabelCurrency],
   );
 
-  const metrics = useMemo(() => calculatePnlMetrics(pnlRows), [pnlRows]);
+  const metrics = useMemo(() => calculatePnlMetrics(tabDays), [tabDays]);
   // A total the caller may not view (a refusal) and one that failed get different notices; only the
   // totals that feed the Total card count.
   const totalsIssues = pnlTotalsIssues(selectedDomain, {
-    sports: sportsError,
-    casino: casinoError,
-    matka: matkaError,
+    sports: kpiSkips.sports ? null : sportsError,
+    casino: kpiSkips.casino ? null : casinoError,
+    matka: kpiSkips.matka ? null : matkaError,
   });
 
   // Columns: the P&L column and the statuses read as commission for a COMMISSION agent.
@@ -242,7 +281,7 @@ function PNLPageContent() {
 
   const handleRefresh = () => {
     // A failed refetch shows in the table's error state; the rejected promise needs no handler of its own.
-    void refetchPNL().catch(() => undefined);
+    void (commissionAgent ? refetchCommission() : refetchPNL()).catch(() => undefined);
   };
 
   const exportColumns = useMemo(
@@ -302,7 +341,7 @@ function PNLPageContent() {
           <Stat
             label={copy.avgLabel}
             value={formatAmount(convertFromWhitelabelCurrency(metrics.avgPnl))}
-            note={`${pnlRows.length} days`}
+            note={`${tabDays.length} days`}
             icon={<IconCurrencyRupee size={18} stroke={strokeFor(18)} />}
             hue={metrics.avgPnl >= 0 ? 'grn' : 'red'}
           />
@@ -398,8 +437,8 @@ function PNLPageContent() {
             rowKey={(row) => row.rowKey}
             columns={columns}
             width="default"
-            state={pnlError ? 'error' : isLoading ? 'loading' : 'ready'}
-            error={pnlError?.message ?? 'Unable to load the report.'}
+            state={tableError ? 'error' : isLoading ? 'loading' : 'ready'}
+            error={tableError?.message ?? 'Unable to load the report.'}
             onRetry={handleRefresh}
             empty={(
               <EmptyState

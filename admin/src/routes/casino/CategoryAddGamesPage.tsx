@@ -11,11 +11,19 @@ import {
   REMOVE_GAMES_FROM_CATEGORY,
   SAVE_CASINO_LOUNGE_GAMES,
 } from '@/lib/graphql/casino'
+import { useAuthStore } from '@/shared/core/authStore'
+import { ROUTES } from '@/shared/core/constants'
 import { RBACGuard } from '@/shared/core/RBACGuard'
+import { useUIStore } from '@/shared/core/uiStore'
+import { usePageEyebrow } from '@/shell/PageEyebrowContext'
+import { Button } from '@/ui/components/Button'
+import { EmptyState } from '@/ui/components/EmptyState'
 import { LoadingState } from '@/ui/components/LoadingState'
 import { Page } from '@/ui/components/Page'
+import { PageHeader } from '@/ui/components/PageHeader'
 import { CategoryAssignPanel } from './components/CategoryAssignPanel'
 import { selectionDiff, type CasinoCategoryType } from './categoryAddGamesModel'
+import { isCoreModeView } from './management/casinoManagementModel'
 import styles from './CategoryAddGamesPage.module.css'
 
 interface CategoryRecord {
@@ -63,12 +71,16 @@ function CategoryAddGamesPageContent() {
   const [loungeImages, setLoungeImages] = useState<Record<string, string | null>>({})
   const [imageDrafts, setImageDrafts] = useState<Record<string, string | null>>({})
 
-  const { data: categoryData } = useQuery<CategoryQueryData>(CASINO_CATEGORY, {
+  const { data: categoryData, loading: categoryLoading, error: categoryError, refetch: refetchCategory } = useQuery<CategoryQueryData>(CASINO_CATEGORY, {
     variables: { id: categoryId },
     skip: !categoryId,
     errorPolicy: 'all',
   })
   const category = categoryData?.casinoCategory
+  const pageEyebrow = usePageEyebrow()
+  const roles = useAuthStore((state) => state.roles)
+  const directorMode = useUIStore((state) => state.directorMode)
+  const coreMode = isCoreModeView(roles, directorMode)
   const isLounge = category?.type === 'LOUNGE'
   const { data: imageData, loading: imagesLoading, error: imagesError, refetch: refetchImages } = useQuery<LoungeImagesData>(CASINO_LOUNGE_GAME_IMAGES, {
     variables: { categoryId }, skip: !categoryId || !isLounge,
@@ -155,10 +167,39 @@ function CategoryAddGamesPageContent() {
     await refetchAssigned()
   }
 
-  if (!category) {
+  if (!category && categoryLoading) {
     return (
       <Page maxWidth="wide" className={styles.page}>
         <LoadingState label="Loading category" />
+      </Page>
+    )
+  }
+
+  // The server answers a category this whitelabel cannot read (deleted, mistyped, or another whitelabel's) with
+  // null or "Category not found"; either used to leave the spinner up for ever under an empty heading.
+  if (!category) {
+    const unreachable = Boolean(categoryError?.networkError)
+    return (
+      <Page maxWidth="wide" className={styles.page}>
+        <PageHeader
+          eyebrow={pageEyebrow}
+          title={unreachable ? 'Category unavailable' : 'Category not found'}
+          back={{ to: ROUTES.CASINO_CATEGORIES, label: 'Back to Categories' }}
+        />
+        {unreachable ? (
+          <EmptyState
+            title="The category could not be loaded"
+            description="Check the connection and try again."
+            action={<Button size="sm" onClick={() => void refetchCategory()}>Retry</Button>}
+          />
+        ) : (
+          <EmptyState
+            title="This category does not exist for the selected whitelabel"
+            description={coreMode
+              ? 'Core mode reads the platform default. Select the category\'s whitelabel in the top bar, then open it again from Categories.'
+              : 'It may have been deleted. Choose a category from the list.'}
+          />
+        )}
       </Page>
     )
   }

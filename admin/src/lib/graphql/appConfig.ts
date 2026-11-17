@@ -60,6 +60,7 @@ export const APP_CONFIG = gql`
       }
       preLoginBannerUrl
       postLoginBannerUrl
+      playerTheme
       sportsGlobalConfig {
         oddsFormat
         showFancy

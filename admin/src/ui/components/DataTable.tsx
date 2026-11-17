@@ -443,20 +443,24 @@ export function DataTable<T>({
             {isInitialLoading || isInitialError || isEmpty ? (
               <TR>
                 <TD colSpan={columnCount} className={styles.stateCell}>
-                  {isInitialLoading ? (
-                    <LoadingState label={`Loading ${label}`} minHeight={192} />
-                  ) : isInitialError ? (
-                    <div className={styles.errorState}>
-                      <div className={styles.errorMessage}>{error ?? 'Unable to load data.'}</div>
-                      {onRetry ? (
-                        <Button size="sm" variant="danger" onClick={onRetry}>
-                          Retry
-                        </Button>
-                      ) : null}
-                    </div>
-                  ) : (
-                    empty ?? <EmptyState title="No data" />
-                  )}
+                  {/* Pinned to the visible part of the scroller: the cell spans the whole table, so in one wider
+                      than its scroller the centred state sat past the edge ("No bets match your filte"). */}
+                  <div className={styles.stateContent}>
+                    {isInitialLoading ? (
+                      <LoadingState label={`Loading ${label}`} minHeight={192} />
+                    ) : isInitialError ? (
+                      <div className={styles.errorState}>
+                        <div className={styles.errorMessage}>{error ?? 'Unable to load data.'}</div>
+                        {onRetry ? (
+                          <Button size="sm" variant="danger" onClick={onRetry}>
+                            Retry
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      empty ?? <EmptyState title="No data" />
+                    )}
+                  </div>
                 </TD>
               </TR>
             ) : (

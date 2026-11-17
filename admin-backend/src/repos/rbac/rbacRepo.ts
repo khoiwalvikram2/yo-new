@@ -1,21 +1,23 @@
 import { db } from '@/db/client.js'
-import { roles, permissions, rolePermissions, userRoles, users } from '@/db/schema.js'
+import { roles, permissions, rolePermissions, userRoles, users, wallets } from '@/db/schema.js'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { NESTED_PERMISSIONS } from '@/config/nestedPermissions.js'
 
 export type PermissionPair = { domain: string; action: string }
+/** The connection or an open transaction, for writes that must land together (updateRoleDb). */
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export async function listAllPermissions(tenant = 'default'): Promise<PermissionPair[]> {
   const rows = await db.select({ domain: permissions.domain, action: permissions.action }).from(permissions).where(eq(permissions.tenant, tenant))
   return rows
 }
 
-export async function ensurePermissions(perms: PermissionPair[], tenant = 'default'): Promise<void> {
+export async function ensurePermissions(perms: PermissionPair[], tenant = 'default', exec: Executor = db): Promise<void> {
   if (!perms.length) return
-  const existing = await db.select({ domain: permissions.domain, action: permissions.action }).from(permissions).where(eq(permissions.tenant, tenant))
+  const existing = await exec.select({ domain: permissions.domain, action: permissions.action }).from(permissions).where(eq(permissions.tenant, tenant))
   const existsSet = new Set(existing.map(p => `${p.domain}:${p.action}`))
   const toInsert = perms.filter(p => !existsSet.has(`${p.domain}:${p.action}`)).map(p => ({ ...p, tenant }))
-  if (toInsert.length) await db.insert(permissions).values(toInsert)
+  if (toInsert.length) await exec.insert(permissions).values(toInsert)
 }
 
 export async function upsertRoleByName(name: string, tenant = 'default'): Promise<number> {
@@ -185,23 +187,21 @@ export async function getUserRoleNames(userId: number, tenant = 'default'): Prom
 const adminUserIdsCache = new Map<string, { ids: number[]; ts: number }>()
 const ADMIN_IDS_TTL = 60_000
 
-/** Returns user IDs that have any role whose name matches admin (case-insensitive). Use to exclude from list queries. */
+/**
+ * Returns the ids of the tenant's staff: every user holding any role in it. Use to exclude them from player lists.
+ *
+ * This used to keep only roles whose NAME matched '%admin%', so staff in roles such as "SPORT BUILDER" or
+ * "Finance Manager" were listed and counted as players (SYS-07). It now follows the same rule as usersRepo's lists
+ * and deleteSupportAdmin: a user who holds a role in the tenant is staff, whatever the role is called.
+ */
 export async function getAdminUserIds(tenant = 'default'): Promise<number[]> {
   const cached = adminUserIdsCache.get(tenant)
   if (cached && Date.now() - cached.ts < ADMIN_IDS_TTL) return cached.ids
 
-  const adminRoleIds = await db
-    .select({ id: roles.id })
-    .from(roles)
-    .where(and(eq(roles.tenant, tenant), sql`${roles.name} ILIKE '%admin%'`))
-  if (!adminRoleIds.length) {
-    adminUserIdsCache.set(tenant, { ids: [], ts: Date.now() })
-    return []
-  }
   const userIdRows = await db
     .select({ userId: userRoles.userId })
     .from(userRoles)
-    .where(and(eq(userRoles.tenant, tenant), inArray(userRoles.roleId, adminRoleIds.map((r) => r.id))))
+    .where(eq(userRoles.tenant, tenant))
   const ids = [...new Set(userIdRows.map((r) => r.userId))]
   adminUserIdsCache.set(tenant, { ids, ts: Date.now() })
   return ids
@@ -266,10 +266,26 @@ export async function createRole(name: string, tenant = 'default'): Promise<numb
   return inserted[0].id
 }
 
-export async function renameRole(roleId: number, newName: string, tenant = 'default'): Promise<void> {
-  await db.update(roles)
+export async function renameRole(roleId: number, newName: string, tenant = 'default', exec: Executor = db): Promise<void> {
+  await exec.update(roles)
     .set({ name: newName })
     .where(and(eq(roles.id, roleId), eq(roles.tenant, tenant)))
+}
+
+/**
+ * A role's new name and permissions, written together or not at all. Validation belongs before this (the
+ * resolver's): the rename used to be committed first, so a refused permission change left the role renamed
+ * under a save that reported failure.
+ */
+export async function updateRoleDb(
+  roleId: number,
+  tenant: string,
+  change: { name?: string; permissions?: PermissionPair[] }
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    if (change.name) await renameRole(roleId, change.name, tenant, tx)
+    if (change.permissions) await setRolePermissionsById(roleId, change.permissions, tenant, tx)
+  })
 }
 
 export async function deleteRole(roleId: number, tenant = 'default'): Promise<void> {
@@ -281,16 +297,16 @@ export async function deleteRole(roleId: number, tenant = 'default'): Promise<vo
   await db.delete(roles).where(and(eq(roles.id, roleId), eq(roles.tenant, tenant)))
 }
 
-export async function setRolePermissionsById(roleId: number, perms: PermissionPair[], tenant = 'default'): Promise<void> {
+export async function setRolePermissionsById(roleId: number, perms: PermissionPair[], tenant = 'default', exec: Executor = db): Promise<void> {
   // Ensure permissions exist
-  await ensurePermissions(perms, tenant)
+  await ensurePermissions(perms, tenant, exec)
   // Fetch permission ids
-  const permRows = await db.select({ id: permissions.id, domain: permissions.domain, action: permissions.action })
+  const permRows = await exec.select({ id: permissions.id, domain: permissions.domain, action: permissions.action })
     .from(permissions)
     .where(and(inArray(permissions.domain, Array.from(new Set(perms.map(p => p.domain)))), eq(permissions.tenant, tenant)))
   const permIdByKey = new Map(permRows.map(p => [`${p.domain}:${p.action}`, p.id] as const))
   // Delete existing role permissions and replace
-  const current = await db.select({ id: rolePermissions.id, permissionId: rolePermissions.permissionId })
+  const current = await exec.select({ id: rolePermissions.id, permissionId: rolePermissions.permissionId })
     .from(rolePermissions)
     .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.tenant, tenant)))
   const wantedIds = new Set(perms.map(p => permIdByKey.get(`${p.domain}:${p.action}`)).filter((v): v is number => typeof v === 'number'))
@@ -298,10 +314,10 @@ export async function setRolePermissionsById(roleId: number, perms: PermissionPa
   const toAdd = Array.from(wantedIds).filter(id => !currentIds.has(id))
   const toRemove = Array.from(current).filter(c => !wantedIds.has(c.permissionId)).map(c => c.id)
   if (toRemove.length) {
-    await db.delete(rolePermissions).where(inArray(rolePermissions.id, toRemove))
+    await exec.delete(rolePermissions).where(inArray(rolePermissions.id, toRemove))
   }
   if (toAdd.length) {
-    await db.insert(rolePermissions).values(toAdd.map(pid => ({ roleId, permissionId: pid, tenant })))
+    await exec.insert(rolePermissions).values(toAdd.map(pid => ({ roleId, permissionId: pid, tenant })))
   }
 }
 
@@ -324,9 +340,27 @@ export async function assignRoleToAdmin(userId: number, roleId: number, tenant =
   }
 }
 
-export async function revokeRoleFromAdmin(userId: number, roleId: number, tenant = 'default'): Promise<void> {
-  await db.delete(userRoles)
+/** Removes the role from the user; the number of rows removed (0 when the user did not hold it). */
+export async function revokeRoleFromAdmin(userId: number, roleId: number, tenant = 'default'): Promise<number> {
+  const removed = await db.delete(userRoles)
     .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId), eq(userRoles.tenant, tenant)))
+    .returning({ id: userRoles.id })
+  return removed.length
+}
+
+/**
+ * Whether a user of this tenant is a player account rather than staff: it holds no role here and it has a wallet.
+ *
+ * Players and staff share the users table. Staff are created without a wallet (createAdminUser), and every player
+ * is created with one, so the wallet tells them apart even for an admin whose roles have all been revoked: that
+ * admin has no wallet and can be given a role again.
+ */
+export async function isPlayerAccount(userId: number, tenant: string): Promise<boolean> {
+  const [role] = await db.select({ id: userRoles.id }).from(userRoles)
+    .where(and(eq(userRoles.userId, userId), eq(userRoles.tenant, tenant))).limit(1)
+  if (role) return false
+  const [wallet] = await db.select({ id: wallets.id }).from(wallets).where(eq(wallets.userId, userId)).limit(1)
+  return !!wallet
 }
 
 export type AdminUserWithRoles = {
@@ -729,12 +763,7 @@ export async function seedDefaultRBAC(tenant = 'default'): Promise<void> {
     { domain: 'bonuses.bundles', action: 'view' },
     { domain: 'bonuses.bundles', action: 'create' },
     { domain: 'bonuses.bundles', action: 'update' },
-    { domain: 'promotions.campaigns', action: 'view' },
-    { domain: 'promotions.campaigns', action: 'create' },
-    { domain: 'promotions.campaigns', action: 'update' },
-    { domain: 'promotions.content', action: 'view' },
-    { domain: 'promotions.content', action: 'create' },
-    { domain: 'promotions.content', action: 'update' },
+    // promotions.campaigns / promotions.content were retired with their pages on 2026-11-04 (MAR-14)
     { domain: 'referrals.overview', action: 'view' },
     { domain: 'referrals.program', action: 'view' },
     { domain: 'referrals.rules', action: 'view' },

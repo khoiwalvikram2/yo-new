@@ -199,6 +199,42 @@ describe('WithdrawalRequestsTable', () => {
     assert.ok(within(noAccount).getByText('—'))
   })
 
+  test('marks an account the player deleted with a Deleted pill beside its holder, and only that account', () => {
+    renderTable({
+      requests: [
+        request(1, {
+          status: 'COMPLETED',
+          account: {
+            id: 'acc-1',
+            method: 'BANK',
+            accountNumber: '000111221',
+            ifscCode: 'HDFC0001',
+            accountHolderName: 'Holder 1',
+            deletedAt: '2026-11-04T06:15:00.000Z',
+          },
+        }),
+        request(2),
+        request(3, {
+          account: { id: 'acc-3', method: 'UPI', accountNumber: 'player3@okbank', accountHolderName: 'Holder 3', deletedAt: null },
+        }),
+      ],
+    })
+
+    const rows = within(screen.getByRole('table', { name: 'Withdrawal requests' })).getAllByRole('row').slice(1)
+    const [deleted, live, liveNull] = rows
+
+    const nameRow = within(deleted).getByText('Name').parentElement as HTMLElement
+    assert.ok(within(nameRow).getByText('Holder 1'))
+    const pill = within(nameRow).getByText('Deleted')
+    assert.equal(pill.closest('[title]')?.getAttribute('title'), 'The player deleted this payout account')
+    assert.ok(within(deleted).getByText('000111221'), 'the deleted account is still shown')
+    assert.ok(within(deleted).getByRole('button', { name: 'Copy Account Number' }))
+    assert.ok(within(deleted).getByText('Completed'))
+
+    assert.equal(within(live).queryByText('Deleted'), null, 'an account without deletedAt is not marked')
+    assert.equal(within(liveNull).queryByText('Deleted'), null, 'deletedAt null is a live account')
+  })
+
   test('copies the exact account number and announces it by name', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })

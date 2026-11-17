@@ -24,17 +24,25 @@ let options: AgentFixtureOptions
 // Per-test answers that the shared fixture does not cover (a refused rate, a whitelabel with no sharing).
 let override: ((operation: Operation) => FetchResult | undefined) | undefined
 function Location() { const location = useLocation(); return <output aria-label="Location">{location.pathname}</output> }
+// The chips reads of the Scheme step (spec 2026-11-02 §7): the parent agent's free chips, or the whitelabel pool's.
+let poolAvailable = 5000
+function chipsAnswer(operation: Operation): FetchResult | undefined {
+  const agents = (payload: Record<string, unknown>) => ({ data: { agents: { __typename: 'AgentsQuery', ...payload } } })
+  if (operation.operationName === 'ChipPool') return agents({ chipPool: { __typename: 'ChipPool', currency: 'USD', creditLimit: 10000, used: 10000 - poolAvailable, available: poolAvailable } })
+  if (operation.operationName === 'ChipAccount') return agents({ chipAccount: { __typename: 'ChipAccount', accountType: 'AGENT', id: String(operation.variables.accountId), username: 'parent_credit', name: null, status: 'ACTIVE', parentAgentId: null, playerType: null, currency: 'USD', creditReference: 0, balance: 800, exposure: 0, available: 800, downlineBalance: 0, refPnl: 800, downlineCount: 0 } })
+  return undefined
+}
 function page(edit = false) {
   const link = new ApolloLink((operation) => new Observable((observer) => {
     calls.push({ name: operation.operationName, variables: JSON.parse(JSON.stringify(operation.variables)) as Record<string, unknown> })
-    queueMicrotask(() => { observer.next(override?.(operation) ?? agentResponse(operation, options)); observer.complete() })
+    queueMicrotask(() => { observer.next(override?.(operation) ?? chipsAnswer(operation) ?? agentResponse(operation, options)); observer.complete() })
   }))
   return render(<MockedProvider link={link} cache={new InMemoryCache({ typePolicies: { Query: { fields: { agents: { merge: true } } } } })}>
     <MemoryRouter initialEntries={[edit ? '/agents/edit-1/edit' : '/agents/create']}><PageEyebrowProvider value="Agents">
       <Routes><Route path="/agents/create" element={<CreatePage />} /><Route path="/agents/:id/edit" element={<EditPage />} /><Route path="/agents" element={<div>Agent list</div>} /></Routes><Location />
     </PageEyebrowProvider></MemoryRouter></MockedProvider>)
 }
-beforeEach(() => { calls = []; options = {}; override = undefined; state.allowed = true; state.agent = undefined; state.roles = []; state.guards = []; vi.clearAllMocks() })
+beforeEach(() => { calls = []; options = {}; override = undefined; poolAvailable = 5000; state.allowed = true; state.agent = undefined; state.roles = []; state.guards = []; vi.clearAllMocks() })
 test('an existing agent can turn its final domain off and save with no new rate changes', async () => {
   page(true); await screen.findByLabelText('Username', { exact: false })
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sports' }))
@@ -80,7 +88,8 @@ describe('Agent Create/Edit wizard', () => {
     assert.equal(calls.some((call) => call.name === 'CreateAgent'), false)
     fireEvent.click(screen.getByRole('button', { name: 'Create Agent' }))
     await screen.findByText('Agent list')
-    assert.deepEqual(calls.find((call) => call.name === 'CreateAgent')?.variables.input, { username: 'agent_one', password: 'fake-pass-1', phone: null, schemeType: 'COMMISSION', allowedDomains: ['sports'], status: 'ACTIVE', parentAgentId: null, levelIndex: 1, tallyEnabled: true, tallyDomains: [], currency: 'USD' })
+    // The tally starts off (AGE-09): it used to be sent on with no domain, which tallied nothing.
+    assert.deepEqual(calls.find((call) => call.name === 'CreateAgent')?.variables.input, { username: 'agent_one', password: 'fake-pass-1', phone: null, schemeType: 'COMMISSION', allowedDomains: ['sports'], status: 'ACTIVE', parentAgentId: null, levelIndex: 1, tallyEnabled: false, tallyDomains: [], currency: 'USD' })
     const rate = calls.find((call) => call.name === 'SetCommissionConfig')?.variables.input as Record<string, unknown>
     assert.equal(rate.agentId, 'created-1'); assert.equal(rate.commissionRate, 0.1); assert.equal(rate.domain, 'sports'); assert.equal(typeof rate.effectiveFrom, 'string')
   })
@@ -115,7 +124,20 @@ describe('Agent Create/Edit wizard', () => {
     next(); await screen.findByRole('heading', { name: 'Review Agent Details' })
     fireEvent.click(screen.getByRole('button', { name: 'Update Agent' })); await screen.findByText('Agent list')
     assert.deepEqual(calls.find((call) => call.name === 'UpdateAgent')?.variables.input, { id: 'edit-1', allowedDomains: ['sports'], status: 'ACTIVE', parentAgentId: 'parent-1', levelIndex: 3, tallyEnabled: false, tallyDomains: [] })
-    assert.equal((calls.find((call) => call.name === 'SetCommissionConfig')?.variables.input as Record<string, unknown>).commissionRate, 0.1)
+    // The rate is unchanged (10%), so it is not sent again (AGE-18): each re-send added an identical rate row.
+    assert.equal(calls.some((call) => call.name === 'SetCommissionConfig'), false)
+  })
+  test('a tally switched on with no domain stops the Scheme step until a domain is chosen (AGE-09)', async () => {
+    page(); await fillBasic(); change('Sports commission rate', '10')
+    assert.equal(screen.getByRole('switch', { name: 'Cross-Domain Tally' }).getAttribute('aria-checked'), 'false', 'a new agent starts with the tally off')
+    fireEvent.click(screen.getByRole('switch', { name: 'Cross-Domain Tally' }))
+    next(); await screen.findByText('Select at least one domain to tally, or turn the tally off')
+    assert.equal(screen.queryByRole('heading', { name: 'Review Agent Details' }), null)
+    fireEvent.click(screen.getByRole('button', { name: 'Select All' }))
+    next(); await screen.findByRole('heading', { name: 'Review Agent Details' })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Agent' })); await screen.findByText('Agent list')
+    const input = calls.find((call) => call.name === 'CreateAgent')?.variables.input as Record<string, unknown>
+    assert.equal(input.tallyEnabled, true); assert.deepEqual(input.tallyDomains, ['sports'])
   })
   test('the scheme is read-only on edit, and an edited commission rate can be lowered to 0', async () => {
     page(true); await screen.findByLabelText('Username', { exact: false })
@@ -125,6 +147,22 @@ describe('Agent Create/Edit wizard', () => {
     change('Sports commission rate', '0'); next(); await screen.findByRole('heading', { name: 'Review Agent Details' })
     fireEvent.click(screen.getByRole('button', { name: 'Update Agent' })); await screen.findByText('Agent list')
     assert.equal((calls.find((call) => call.name === 'SetCommissionConfig')?.variables.input as Record<string, unknown>).commissionRate, 0)
+  })
+  test('after a refused rate the retry sends every rate, so one changed back is not skipped as unchanged (AGE-18)', async () => {
+    // One save can keep a rate and refuse another, and the page does not read the agent again: compared with the
+    // record it loaded, a saved rate the admin then changes back would look unchanged and never be sent.
+    let refuse = true
+    override = (operation) => operation.operationName === 'SetCommissionConfig' && refuse ? { errors: [{ message: 'Rate above parent' }] } : undefined
+    page(true); await screen.findByLabelText('Username', { exact: false })
+    next(); await screen.findByRole('heading', { name: 'Scheme Configuration' })
+    change('Sports commission rate', '12'); next(); await screen.findByRole('heading', { name: 'Review Agent Details' })
+    fireEvent.click(screen.getByRole('button', { name: 'Update Agent' }))
+    await waitFor(() => assert.equal(state.error.mock.calls.length, 1, 'the refused rate is reported'))
+    refuse = false
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' })); await screen.findByRole('heading', { name: 'Scheme Configuration' })
+    change('Sports commission rate', '10'); next(); await screen.findByRole('heading', { name: 'Review Agent Details' })
+    fireEvent.click(screen.getByRole('button', { name: 'Update Agent' })); await screen.findByText('Agent list')
+    assert.deepEqual(calls.filter((call) => call.name === 'SetCommissionConfig').map((call) => (call.variables.input as Record<string, unknown>).commissionRate), [0.12, 0.1])
   })
   test('an admin can create a sub-agent under an active parent of the same scheme', async () => {
     page(); change('Username', 'agent_one'); change('Password', 'fake-pass-1')
@@ -140,11 +178,56 @@ describe('Agent Create/Edit wizard', () => {
     const input = calls.find((call) => call.name === 'CreateAgent')?.variables.input as Record<string, unknown>
     assert.equal(input.parentAgentId, 'parent-1'); assert.equal(input.levelIndex, 3); assert.equal(input.tallyEnabled, false)
   })
-  test('a CREDIT agent can be given a credit limit at creation', async () => {
-    page(); await fillBasic('CREDIT'); change('Credit limit', '2500'); change('Sports sharing rate', '5'); next()
-    await screen.findByRole('heading', { name: 'Review Agent Details' })
+  test('a CREDIT agent is created with a credit reference and opening chips from the pool', async () => {
+    page(); await fillBasic('CREDIT')
+    // A root agent an admin creates takes its opening chips from the whitelabel pool.
+    await screen.findByText(/Deposited from the whitelabel pool \(5000\.00 free\)/)
+    change('Credit reference', '2500'); change('Opening chips', '6000'); change('Sports sharing rate', '5'); next()
+    await screen.findByText('Not enough chips: 5000.00 free')
+    assert.equal(screen.queryByRole('heading', { name: 'Review Agent Details' }), null)
+    change('Opening chips', '1500'); next()
+    const review = await screen.findByRole('heading', { name: 'Review Agent Details' })
+    assert.ok(review); assert.ok(screen.getByText('Credit Reference')); assert.ok(screen.getByText('1500.00'))
     fireEvent.click(screen.getByRole('button', { name: 'Create Agent' })); await screen.findByText('Agent list')
-    assert.equal((calls.find((call) => call.name === 'CreateAgent')?.variables.input as Record<string, unknown>).creditLimit, 2500)
+    const input = calls.find((call) => call.name === 'CreateAgent')?.variables.input as Record<string, unknown>
+    assert.equal(input.creditLimit, 2500); assert.equal(input.openingChips, 1500)
+    assert.equal(calls.some((call) => call.name === 'ChipPool'), true)
+  })
+  test('an admin creating a CREDIT agent under a parent gives no opening chips: that parent deposits them', async () => {
+    page(); await fillBasic('CREDIT')
+    // At the root the pool's chips are offered and an amount is typed; then a parent is picked.
+    await screen.findByText(/Deposited from the whitelabel pool \(5000\.00 free\)/)
+    change('Opening chips', '1500')
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' })); await screen.findByRole('heading', { name: 'Basic Agent Information' })
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Parent agent' }), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: /Parent partner/ }))
+    await screen.findByText('Only the selected parent\'s domains are available: sports')
+    next(); await screen.findByRole('heading', { name: 'Scheme Configuration' })
+    assert.ok(screen.getByText('The upline agent deposits chips after the account is created.'))
+    assert.equal(screen.queryByLabelText(/^Opening chips/), null)
+    change('Credit reference', '2500'); change('Sports sharing rate', '10'); next()
+    await screen.findByRole('heading', { name: 'Review Agent Details' })
+    assert.ok(screen.getByText('Credit Reference')); assert.equal(screen.queryByText('Opening Chips'), null)
+    fireEvent.click(screen.getByRole('button', { name: 'Create Agent' })); await screen.findByText('Agent list')
+    const input = calls.find((call) => call.name === 'CreateAgent')?.variables.input as Record<string, unknown>
+    assert.equal(input.parentAgentId, 'parent-1'); assert.equal(input.creditLimit, 2500); assert.equal('openingChips' in input, false)
+    // The parent's chips are not read for a deposit the admin cannot make.
+    assert.equal(calls.some((call) => call.name === 'ChipAccount'), false)
+  })
+  test('a CREDIT agent gives its own new sub-agent opening chips from its own chips', async () => {
+    state.agent = { ...AGENT_PARENT, username: AGENT_PARENT.username, schemeType: 'CREDIT', levelIndex: 2 }; options.scheme = 'CREDIT'
+    page(); await screen.findByText('Only the selected parent\'s domains are available: sports')
+    change('Username', 'agent_one'); change('Password', 'fake-pass-1'); fireEvent.click(screen.getByRole('checkbox', { name: 'Sports' }))
+    next(); await screen.findByRole('heading', { name: 'Scheme Configuration' })
+    await screen.findByText(/Deposited from parent_credit's chips \(800\.00 free\)/)
+    assert.equal(screen.queryByText('The upline agent deposits chips after the account is created.'), null)
+    await waitFor(() => assert.equal(screen.getByLabelText('Sports sharing rate', { exact: false }).getAttribute('aria-disabled'), null))
+    change('Opening chips', '500'); change('Sports sharing rate', '10'); next()
+    await screen.findByRole('heading', { name: 'Review Agent Details' }); assert.ok(screen.getByText('500.00'))
+    fireEvent.click(screen.getByRole('button', { name: 'Create Agent' })); await screen.findByText('Agent list')
+    const input = calls.find((call) => call.name === 'CreateAgent')?.variables.input as Record<string, unknown>
+    assert.equal(input.parentAgentId, 'parent-1'); assert.equal(input.levelIndex, 3); assert.equal(input.openingChips, 500)
+    assert.equal(calls.find((call) => call.name === 'ChipAccount')?.variables.accountId, 'parent-1')
   })
   test('a refused rate keeps the created agent and a retry sends only the rate, never the create again', async () => {
     let refuse = true

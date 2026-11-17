@@ -36,6 +36,10 @@ export const agents = pgTable('agents', {
 	settlementBalanceSports: numeric('settlement_balance_sports', { precision: 15, scale: 2 }).default('0').notNull(),
 	settlementBalanceCasino: numeric('settlement_balance_casino', { precision: 15, scale: 2 }).default('0').notNull(),
 	settlementBalanceMatka: numeric('settlement_balance_matka', { precision: 15, scale: 2 }).default('0').notNull(),
+	// CREDIT scheme on Deposit/Withdraw chips (migration 0019): the chips this agent holds itself, not yet deposited
+	// to its downline. credit_limit is its credit reference; credit_used, credit_available and the settlement
+	// balances are no longer written for CREDIT agents.
+	chipBalance: numeric('chip_balance', { precision: 15, scale: 2 }).notNull().default('0'),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

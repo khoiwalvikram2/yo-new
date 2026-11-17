@@ -28,34 +28,13 @@ import { updateBonusWagering } from '@shared/services/bonusService.js'
 import { getWhitelabelCurrency, getWhitelabelTimezone } from '../../shared/whitelabelConfig.js'
 import { getStartOfDay, getStartOfWeek } from '../../shared/dateUtils.js'
 import { createWalletLedgerEntry } from '@shared/services/walletLedgerService.js'
-import {
-  getCasinoCreditBalance,
-  lockCasinoCreditForBet,
-  releaseCasinoCreditForBet,
-} from '@shared/services/credit/casinoCredit.js'
+import { isCreditPlayer as isCreditPlayerType } from '@shared/services/credit/isCreditPlayer.js'
+import { casinoWalletTypeFor, isCasinoCreditPlayer } from './casinoCreditPlayer.js'
 import type { WalletBalanceBody, DebitBody, CreditBody, RollbackBody } from './callbackSchemas.js'
 import { gapLog } from './gapCasinoLog.js'
 import { getRgBlockState } from '@shared/services/rgEnforcement.js'
 import { checkPlayerAgentBettingGate } from '../userApp/services/agentBettingGate.js'
-
-/**
- * PURE helper: maps a casino bet's (stake, grossCredit) to the credit-module's
- * (betResult, payoutAmount) settlement shape. Net P&L = grossCredit - stake.
- *
- * releaseCasinoCreditForBet adds payoutAmount to settlement on 'win' and subtracts
- * it on 'loss', so passing the net P&L this way makes credit_available change by
- * exactly the net P&L of the bet. A total loss (grossCredit=0) yields
- * { betResult:'loss', payoutAmount: stake } which releases the full exposure with a
- * -stake settlement delta.
- */
-export function mapCasinoSettlementToCredit(
-  stake: number,
-  grossCredit: number
-): { betResult: 'win' | 'loss' | 'void'; payoutAmount: number } {
-  const pl = grossCredit - stake
-  if (pl >= 0) return { betResult: 'win', payoutAmount: pl }
-  return { betResult: 'loss', payoutAmount: Math.abs(pl) }
-}
+import { checkCasinoGameAccess } from './casinoGameAccess.js'
 
 const LOG_PREFIX_BALANCE = '[GapCasino:WalletBalance]'
 const LOG_PREFIX_DEBIT = '[GapCasino:Debit]'
@@ -134,28 +113,22 @@ export async function handleWalletBalance(body: WalletBalanceBody): Promise<Call
     const bonus = Number(wallet.bonus ?? 0)
     const referralBonus = Number(wallet.referralBonus ?? 0)
 
-    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) have no cash wallet; for the
-    // plain cash wallet type their spendable balance is their available credit.
-    // Bonus / referralBonus wallet types are left untouched (credit players won't
-    // hold those wallets — keep the cash branch reachable for cash players).
-    const balancePlayerType = (userRow as { playerType?: string }).playerType
-    const isCreditPlayer = balancePlayerType === 'AGENT_CREDIT' || balancePlayerType === 'WHITELABEL_CREDIT'
+    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) hold their chips in cash and never
+    // play from a bonus wallet, so their balance is always spendable cash (cash - exposure).
+    const walletType = casinoWalletTypeFor(isCreditPlayerType(userRow.playerType), session.walletType)
 
     let balance: number
-    if (session.walletType === 'referralBonus') {
+    if (walletType === 'referralBonus') {
       balance = referralBonus
-    } else if (session.walletType === 'bonus') {
+    } else if (walletType === 'bonus') {
       balance = bonus
-    } else if (isCreditPlayer) {
-      const credit = await getCasinoCreditBalance(txAny, session.userId, session.tenant)
-      balance = credit.creditAvailable
     } else {
       balance = getCasinoSpendableCashBalance(wallet)
     }
 
     gdbg('Balance:Wallet', {
       currency,
-      walletType: session.walletType,
+      walletType,
       cash: Number(wallet.cash ?? 0),
       bonus,
       referralBonus,
@@ -278,6 +251,15 @@ export async function handleDebit(body: DebitBody): Promise<CallbackResult> {
     } else {
     }
 
+    // The whitelabel's per-game rules: betting switched off, the day's win cap, premium and VIP
+    // tiers. The cap is a limit like the stake limits; the others refuse the player on this game.
+    const gameAccess = await checkCasinoGameAccess(txAny, { tenant: session.tenant, userId: session.userId, gameId: game.id, settings })
+    if (gameAccess) {
+      const status: OpStatus = gameAccess.reason === 'max_win_reached' ? 'OP_ERROR_NEGATIVE_DEBIT_AMOUNT' : 'OP_USER_DISABLED'
+      gdbg('Debit:Reject', { reason: gameAccess.reason, betAmount, status })
+      return { status, user: body.userId, request_uuid: reqId }
+    }
+
     // Fetch wallet once (used for exposure cap + balance check)
     const wallet = await ensureWalletWithExecutor(txAny, session.userId, session.tenant)
 
@@ -378,27 +360,24 @@ export async function handleDebit(body: DebitBody): Promise<CallbackResult> {
       }
     }
 
+    // Determine wallet type (referralBonus has no bonusAwardId). Credit players
+    // (AGENT_CREDIT / WHITELABEL_CREDIT) stake their chips from cash, whatever the session names.
+    const walletType: CasinoWalletType = casinoWalletTypeFor(isCreditPlayerType(userRow.playerType), session.walletType)
+
     // Check wallet balance
     const cash = Number(wallet.cash ?? 0)
     const bonus = Number(wallet.bonus ?? 0)
     const referralBonusBal = Number(wallet.referralBonus ?? 0)
     const balance =
-      session.walletType === 'referralBonus'
+      walletType === 'referralBonus'
         ? referralBonusBal
-        : session.walletType === 'bonus'
+        : walletType === 'bonus'
           ? bonus
           : getCasinoSpendableCashBalance(wallet)
 
-    gdbg('Debit:BalanceCheck', { walletType: session.walletType, cash, bonus, referralBonusBal, balance, betAmount })
+    gdbg('Debit:BalanceCheck', { walletType, cash, bonus, referralBonusBal, balance, betAmount })
 
-    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) have no cash wallet: their
-    // bet is gated by available credit instead of the cash balance check below.
-    // The lock is acquired INSIDE this tx so it commits/rolls back atomically with
-    // the bet insert. Cash players are unaffected (isCreditPlayer === false).
-    const debitPlayerType = (userRow as { playerType?: string }).playerType
-    const isCreditPlayer = debitPlayerType === 'AGENT_CREDIT' || debitPlayerType === 'WHITELABEL_CREDIT'
-
-    if (!isCreditPlayer && betAmount > balance) {
+    if (betAmount > balance) {
       gdbg('Debit:Reject', { reason: 'insufficient-funds', balance, betAmount, status: 'OP_INSUFFICIENT_FUNDS' })
       return { status: 'OP_INSUFFICIENT_FUNDS', user: body.userId, balance: Number(balance.toFixed(2)), request_uuid: reqId }
     }
@@ -416,44 +395,23 @@ export async function handleDebit(body: DebitBody): Promise<CallbackResult> {
       }
     }
 
-    // Determine wallet type and bonus (referralBonus has no bonusAwardId)
-    const walletType: CasinoWalletType =
-      session.walletType === 'referralBonus' ? 'referralBonus' : session.walletType === 'bonus' ? 'bonus' : 'cash'
+    // Bonus award (bonus wallet only; referralBonus has no bonusAwardId)
     const bonusAwardId = walletType === 'bonus' ? await getActiveCasinoBonusAwardId(body.userId, session.tenant, txAny) : null
-    
+
     const currency = await getWhitelabelCurrency(session.tenant)
     gdbg('Debit:Debiting', { walletType, betAmount, currency, bonusAwardId, transactionId: body.transactionId, roundId: body.roundId })
 
-    // Credit players: lock exposure against available credit instead of debiting a
-    // cash wallet. Fail-closed — on insufficient credit return the SAME shape the cash
-    // path returns and create NO bet. The lock mutation lives in this tx alongside the
-    // bet insert, so they commit/roll back together.
-    let creditBalanceAfter: number | null = null
-    if (isCreditPlayer) {
-      const lock = await lockCasinoCreditForBet(txAny, {
-        userId: session.userId,
-        tenant: session.tenant,
-        betAmount,
-      })
-      gdbg('Debit:CreditLock', { ok: lock.ok, creditAvailable: lock.creditAvailable, reason: lock.reason })
-      if (!lock.ok) {
-        gdbg('Debit:Reject', { reason: 'insufficient-credit', creditAvailable: lock.creditAvailable, betAmount, status: 'OP_INSUFFICIENT_FUNDS' })
-        return { status: 'OP_INSUFFICIENT_FUNDS', user: body.userId, balance: Number(lock.creditAvailable.toFixed(2)), request_uuid: reqId }
-      }
-      creditBalanceAfter = lock.creditAvailable
-    } else {
-      // Debit wallet (cash players only)
-      await debitWalletForCasino(
-        txAny,
-        session.userId,
-        session.tenant,
-        betAmount,
-        walletType,
-        { type: 'casino_bet', transactionId: body.transactionId, roundId: body.roundId },
-        currency
-      )
-      gdbg('Debit:Debited', { walletType, betAmount })
-    }
+    // Debit wallet. A credit player's chips are cash, so this takes their stake too.
+    await debitWalletForCasino(
+      txAny,
+      session.userId,
+      session.tenant,
+      betAmount,
+      walletType,
+      { type: 'casino_bet', transactionId: body.transactionId, roundId: body.roundId },
+      currency
+    )
+    gdbg('Debit:Debited', { walletType, betAmount })
 
     // Create bet record
     const betData = {
@@ -484,9 +442,7 @@ export async function handleDebit(body: DebitBody): Promise<CallbackResult> {
     const referralBonusAfter = Number(walletAfter.referralBonus ?? 0)
     const exposureAfter = Number(walletAfter.exposure ?? 0)
     const balanceAfter =
-      isCreditPlayer && creditBalanceAfter != null
-        ? creditBalanceAfter
-        : walletType === 'referralBonus' ? referralBonusAfter : walletType === 'bonus' ? bonusAfter : cashAfter - exposureAfter
+      walletType === 'referralBonus' ? referralBonusAfter : walletType === 'bonus' ? bonusAfter : cashAfter - exposureAfter
 
     // Auto-complete instant OTP bonus award when bonus wallet hits 0 (so active bonus card goes away)
     if (walletType === 'bonus' && bonusAwardId != null && bonusAfter === 0) {
@@ -549,11 +505,10 @@ export async function handleCredit(body: CreditBody): Promise<CallbackResult> {
       return { status: 'OP_INVALID_TOKEN', user: body.userId, request_uuid: reqId }
     }
 
-    // Determine credit player (AGENT_CREDIT / WHITELABEL_CREDIT). Credit players settle
-    // exposure per-bet via releaseCasinoCreditForBet and skip the cash wallet credit.
-    // getCasinoCreditBalance.creditPlayer is true iff the user row is a credit type.
-    const creditBalanceInfo = await getCasinoCreditBalance(txAny, session.userId, session.tenant)
-    const isCreditPlayer = creditBalanceInfo.creditPlayer
+    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) settle on the cash path like everyone
+    // else: the gross return is paid into cash, their chips. They get no bonus wagering and no
+    // referral loss-share, and their stake always came from cash.
+    const isCreditPlayer = await isCasinoCreditPlayer(txAny, session.userId, session.tenant)
 
     // Find related bets
     const bets = await findBetsByTransactionAndRound(body.userId, body.transactionId, body.roundId, txAny)
@@ -594,7 +549,7 @@ export async function handleCredit(body: CreditBody): Promise<CallbackResult> {
     
     // Calculate P/L
     const totalStake = bets.reduce((sum, b) => sum + Number(b.stake ?? 0), 0)
-    const walletType = (bets[0].walletType === 'referralBonus' ? 'referralBonus' : bets[0].walletType === 'bonus' ? 'bonus' : 'cash') as CasinoWalletType
+    const walletType = casinoWalletTypeFor(isCreditPlayer, bets[0].walletType)
     const pl = creditAmount - totalStake
     const status: 'won' | 'lost' = creditAmount === 0 ? 'lost' : 'won'
     const n = bets.length
@@ -618,32 +573,12 @@ export async function handleCredit(body: CreditBody): Promise<CallbackResult> {
       gdbg('Credit:BetUpdate', { betId: bet.id, updated, newStatus: status })
       if (updated) {
         anyBetTransitioned = true
-        // Credit players: release the locked exposure for THIS bet and book its net
-        // P&L into settlement. winAmountPerBet is the gross per-bet credit (the same
-        // value the cash path would credit). A loss (winAmountPerBet=0) still releases
-        // exposure — we must NOT skip release on a zero credit for credit players.
-        if (isCreditPlayer) {
-          const betStake = Number(bet.stake ?? 0)
-          const { betResult, payoutAmount } = mapCasinoSettlementToCredit(betStake, winAmountPerBet)
-          await releaseCasinoCreditForBet(txAny, {
-            userId: body.userId,
-            tenant: session.tenant,
-            betAmount: betStake,
-            betResult,
-            payoutAmount,
-            betId: bet.id,
-          })
-          gdbg('Credit:CreditRelease', { betId: bet.id, betStake, winAmountPerBet, betResult, payoutAmount })
-        }
       }
     }
     gdbg('Credit:Transition', { anyBetTransitioned })
 
     // Credit wallet only when at least one bet transitioned (no double-credit on duplicate callbacks).
-    // Credit players are settled per-bet in the transition loop above (releaseCasinoCreditForBet);
-    // their winnings land in settlement_balance, NOT a cash wallet, so skip this entire cash/bonus
-    // credit + wagering + referral-trigger block for them. Cash players are unchanged.
-    if (anyBetTransitioned && !isCreditPlayer) {
+    if (anyBetTransitioned) {
     const bonusAwardId = bets[0].bonusAwardId
     const isReferralBonusWallet = walletType === 'referralBonus'
     const instantOtpBonusRow = await (async () => {
@@ -771,16 +706,18 @@ export async function handleCredit(body: CreditBody): Promise<CallbackResult> {
       )
     }
     
-    // Update bonus wagering (skip for referral bonus — no award; skip for instant OTP bonus — stake consumed, no rollover)
-    if (!isReferralBonusWallet && !isInstantOtpBonus) {
+    // Update bonus wagering (skip for referral bonus — no award; skip for instant OTP bonus — stake consumed, no rollover;
+    // skip for credit players — they get no bonuses, so there is nothing to wager)
+    if (!isReferralBonusWallet && !isInstantOtpBonus && !isCreditPlayer) {
       const gameIdForWagering = bets[0]?.gameId ? String(bets[0].gameId) : undefined
       await updateBonusWagering(body.userId, session.tenant, totalStake, 'casino', gameIdForWagering, walletType, txAny)
     } else {
     }
 
-    // Trigger referral bet settlement (loss share) via admin internal API - only when player lost (net < 0)
+    // Trigger referral bet settlement (loss share) via admin internal API - only when player lost (net < 0).
+    // A credit player's losses pay no referral loss-share.
     const netAmountSnapshot = netAmountPerBet
-    if (Number(netAmountSnapshot) < 0) {
+    if (Number(netAmountSnapshot) < 0 && !isCreditPlayer) {
       const referralCurrency = (bets[0]?.currency ?? await getWhitelabelCurrency(session.tenant)) as string
       const betsSnapshot = [...bets]
       const tenantSnapshot = session.tenant
@@ -813,14 +750,8 @@ export async function handleCredit(body: CreditBody): Promise<CallbackResult> {
     const bonusAfter = Number(walletAfter.bonus ?? 0)
     const referralBonusAfter = Number(walletAfter.referralBonus ?? 0)
     const exposureAfter = Number(walletAfter.exposure ?? 0)
-    // Credit players: report available credit (settlement-backed), not the cash wallet.
-    const creditBalanceAfter = isCreditPlayer
-      ? (await getCasinoCreditBalance(txAny, body.userId, session.tenant)).creditAvailable
-      : null
     const balanceAfter =
-      isCreditPlayer && creditBalanceAfter != null
-        ? creditBalanceAfter
-        : walletType === 'referralBonus' ? referralBonusAfter : walletType === 'bonus' ? bonusAfter : cashAfter - exposureAfter
+      walletType === 'referralBonus' ? referralBonusAfter : walletType === 'bonus' ? bonusAfter : cashAfter - exposureAfter
 
     const result = {
       status: 'OP_SUCCESS' as OpStatus,
@@ -859,12 +790,10 @@ export async function handleRollback(body: RollbackBody): Promise<CallbackResult
       return { status: 'OP_INVALID_TOKEN', user: body.userId, request_uuid: reqId }
     }
 
-    // Determine credit player (AGENT_CREDIT / WHITELABEL_CREDIT). A rollback voids an
-    // active (still-locked) bet, so credit players release the locked exposure with no
-    // settlement change instead of crediting back a cash stake.
-    // getCasinoCreditBalance.creditPlayer is true iff the user row is a credit type.
-    const rollbackCreditInfo = await getCasinoCreditBalance(txAny, session.userId, session.tenant)
-    const isCreditPlayer = rollbackCreditInfo.creditPlayer
+    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) get their stake back into cash like
+    // everyone else. Only the referral reversal is skipped: their losses never paid a
+    // loss-share, so there is nothing to reverse.
+    const isCreditPlayer = await isCasinoCreditPlayer(txAny, session.userId, session.tenant)
 
     // Find bets to rollback. We first look across ALL statuses so we can distinguish
     // "transaction never existed" (→ OP_TRANSACTION_NOT_FOUND) from
@@ -902,7 +831,7 @@ export async function handleRollback(body: RollbackBody): Promise<CallbackResult
     
     // Calculate rollback amount
     const rollbackAmount = bets.reduce((sum, b) => sum + Number(b.stake ?? 0), 0)
-    const walletType = (bets[0].walletType === 'referralBonus' ? 'referralBonus' : bets[0].walletType === 'bonus' ? 'bonus' : 'cash') as CasinoWalletType
+    const walletType = casinoWalletTypeFor(isCreditPlayer, bets[0].walletType)
     // Instant OTP bonus rollback: no wallet credit — nothing related to instant OTP should happen
     let isInstantOtpRollback = false
     if (walletType === 'bonus' && bets[0].bonusAwardId != null) {
@@ -932,25 +861,11 @@ export async function handleRollback(body: RollbackBody): Promise<CallbackResult
       gdbg('Rollback:BetUpdate', { betId: bet.id, updated })
       if (updated) {
         anyRollbackTransitioned = true
-        // Credit players: release the locked exposure for THIS voided bet with no
-        // settlement change (betResult 'void', payoutAmount 0). The lock from the debit
-        // is the exact inverse, so available credit returns to its pre-bet value.
-        if (isCreditPlayer) {
-          await releaseCasinoCreditForBet(txAny, {
-            userId: body.userId,
-            tenant: session.tenant,
-            betAmount: Number(bet.stake ?? 0),
-            betResult: 'void',
-            payoutAmount: 0,
-            betId: bet.id,
-          })
-          gdbg('Rollback:CreditRelease', { betId: bet.id, stake: Number(bet.stake ?? 0) })
-        }
       }
     }
     gdbg('Rollback:Transition', { anyRollbackTransitioned })
 
-    if (anyRollbackTransitioned) {
+    if (anyRollbackTransitioned && !isCreditPlayer) {
     // Trigger referral bet settlement reversal (offset prior loss share earnings) via admin internal API - fire-and-forget per bet
     const betsSnapshot = [...bets]
     const tenantSnapshot = session.tenant
@@ -973,9 +888,7 @@ export async function handleRollback(body: RollbackBody): Promise<CallbackResult
     
     // Credit wallet with rollback amount only when at least one bet transitioned (no double-credit on duplicate callbacks)
     // Instant OTP bonus: no credit — nothing related to instant OTP on rollback
-    // Credit players: exposure was already released per-bet (void) in the transition loop above;
-    // there is no cash stake to credit back, so skip this cash credit for them.
-    if (anyRollbackTransitioned && !isInstantOtpRollback && !isCreditPlayer) {
+    if (anyRollbackTransitioned && !isInstantOtpRollback) {
       gdbg('Rollback:Crediting', { rollbackAmount, walletType })
       await creditWalletForCasino(
         txAny,
@@ -996,14 +909,8 @@ export async function handleRollback(body: RollbackBody): Promise<CallbackResult
     const bonusAfter = Number(walletAfter.bonus ?? 0)
     const referralBonusAfter = Number(walletAfter.referralBonus ?? 0)
     const exposureAfter = Number(walletAfter.exposure ?? 0)
-    // Credit players: report available credit (settlement-backed), not the cash wallet.
-    const creditBalanceAfter = isCreditPlayer
-      ? (await getCasinoCreditBalance(txAny, body.userId, session.tenant)).creditAvailable
-      : null
     const balanceAfter =
-      isCreditPlayer && creditBalanceAfter != null
-        ? creditBalanceAfter
-        : walletType === 'referralBonus' ? referralBonusAfter : walletType === 'bonus' ? bonusAfter : cashAfter - exposureAfter
+      walletType === 'referralBonus' ? referralBonusAfter : walletType === 'bonus' ? bonusAfter : cashAfter - exposureAfter
 
     const result = {
       status: 'OP_SUCCESS' as OpStatus,

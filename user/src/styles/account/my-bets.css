@@ -9,7 +9,7 @@
 .nova-acct .nova-mb-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 420px); border: 1px solid var(--mb-line); background: var(--mb-panel); }
 .nova-acct .nova-mb-tabs button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 16px; border: 0; color: var(--mb-ink); background: transparent; font-weight: 700; cursor: pointer; }
 .nova-acct .nova-mb-tabs button + button { border-left: 1px solid var(--mb-line); }
-.nova-acct .nova-mb-tabs button[aria-pressed="true"] { color: #fff; background: #c51a1b; }
+.nova-acct .nova-mb-tabs button[aria-pressed="true"] { color: var(--mb-on-red); background: var(--mb-red); }
 .nova-acct .nova-mb-tabs button:focus-visible { outline: 2px solid var(--mb-ink); outline-offset: -4px; }
 .nova-acct .nova-mb-refresh { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--mb-line); color: var(--mb-ink); background: var(--mb-panel); cursor: pointer; }
 .nova-acct .nova-mb-refresh:disabled, .nova-acct .nova-mb-retry:disabled { opacity: .55; cursor: wait; }
@@ -54,8 +54,8 @@
   padding: 0 12px;
   border: 0;
   border-radius: var(--ui-radius);
-  color: #FFFFFF;
-  background: #C51A1B;
+  color: var(--mb-on-red);
+  background: var(--mb-red);
   font-family: var(--font-inter);
   font-size: 14px;
   font-weight: 700;
@@ -63,7 +63,7 @@
   cursor: pointer;
   transition: background-color .15s;
 }
-.nova-acct .nova-mb-view:hover { background: #A81516; }
+.nova-acct .nova-mb-view:hover { background: var(--mb-brand-deep); }
 .nova-acct .nova-mb-view:focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
 .nova-acct .nova-mb-view svg { width: 14px; height: 14px; }
 .nova-acct .nova-mb :is(.nova-mb-market, .nova-mb-side, .nova-mb-retry, .nova-mb-empty-icon, .nova-acct-chip) { border-radius: var(--ui-radius); }
@@ -117,8 +117,8 @@
 .nova-acct .nova-mb-loading svg { width: 22px; height: 22px; color: var(--mb-red-text); }
 .nova-acct .nova-mb-error { display: grid; justify-items: center; gap: 10px; padding: 22px 16px; border: 1px solid var(--mb-red-line); background: var(--mb-panel); text-align: center; }
 .nova-acct .nova-mb-error p { margin: 0; color: var(--mb-red-ink); font-size: 15px; font-weight: 600; }
-.nova-acct .nova-mb-retry { min-height: 36px; padding: 0 18px; border: 0; border-radius: var(--ui-radius); color: #FFFFFF; background: #C51A1B; font-family: var(--font-inter); font-size: 15px; font-weight: 700; cursor: pointer; }
-.nova-acct .nova-mb-retry:hover { background: #A81516; }
+.nova-acct .nova-mb-retry { min-height: 36px; padding: 0 18px; border: 0; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--mb-red); font-family: var(--font-inter); font-size: 15px; font-weight: 700; cursor: pointer; }
+.nova-acct .nova-mb-retry:hover { background: var(--mb-brand-deep); }
 .nova-acct .nova-mb-empty { display: grid; justify-items: center; gap: 6px; padding: 52px 16px 48px; border: 1px solid var(--mb-line); background: var(--mb-panel); text-align: center; }
 .nova-acct .nova-mb-empty-icon { display: grid; width: 56px; height: 56px; place-items: center; margin-bottom: 6px; border-radius: var(--ui-radius); color: var(--mb-faint); background: var(--mb-soft); }
 .nova-acct .nova-mb-empty-icon svg { width: 26px; height: 26px; }

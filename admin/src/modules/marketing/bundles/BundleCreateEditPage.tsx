@@ -157,12 +157,15 @@ function BundleCreateEditPageContent() {
     errorPolicy: 'all',
     skip: !isEditMode,
   })
+  // The form toasts each save's outcome itself (bundleSaveToast), so the global mutation toast is
+  // skipped: it said every save a second time (MAR-06).
   const [createBundle, { loading: creating }] = useMutation<CreateBundleData, CreateBundleVariables>(
     CREATE_BUNDLE_MUTATION,
+    { context: { skipNotification: true } },
   )
   const [updateBundle, { loading: updating }] = useMutation<UpdateBundleData, UpdateBundleVariables>(
     UPDATE_BUNDLE_MUTATION,
-    { refetchQueries: [{ query: GET_BUNDLE_QUERY, variables: { id } }] },
+    { refetchQueries: [{ query: GET_BUNDLE_QUERY, variables: { id } }], context: { skipNotification: true } },
   )
 
   let body: ReactNode

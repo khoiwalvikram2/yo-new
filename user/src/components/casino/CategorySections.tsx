@@ -16,8 +16,8 @@ type TopItem = { title: string; provider: string; imageUrl?: string; gameId?: st
 type Props = {
   slotsOnly?: boolean
   providers?: string[]
-  /** The rows actually rendered (ids, names, totals) in order, for the tab strip above them. */
-  onCategoriesChange?: (rows: LobbyCategory[]) => void
+  /** The rows actually rendered (ids, names, totals) in order, for the tab strip above them; null while they load. */
+  onCategoriesChange?: (rows: LobbyCategory[] | null) => void
   /** Offered when the provider filter leaves no games. */
   onClearProviders?: () => void
 }
@@ -40,6 +40,8 @@ export default function CategorySections({ slotsOnly = false, providers, onCateg
   const [hasMoreByCat, setHasMoreByCat] = useState<Record<string, boolean>>({})
   const [cursorByCat, setCursorByCat] = useState<Record<string, string | null>>({})
   const [, setTotalByCat] = useState<Record<string, number>>({})
+  // Whether the whole load has finished (every row, not just the first), for the tab strip report below.
+  const [settled, setSettled] = useState(false)
   const handledCatRef = useRef<string | null>(null)
   // sentinel handled via DOM query per expanded section
 
@@ -100,6 +102,7 @@ export default function CategorySections({ slotsOnly = false, providers, onCateg
       setLoading(true)
       setLoadError(null)
       setCategories([])
+      setSettled(false)
       try {
         if (slotsOnly) {
           // Slots-only: fetch categories from API (admin-managed), hydrate each with first page
@@ -361,7 +364,7 @@ export default function CategorySections({ slotsOnly = false, providers, onCateg
           setLoadError('Casino categories could not be loaded. Please try again.')
         }
       } finally {
-        if (current()) { setDisplayScope(scope); setLoading(false) }
+        if (current()) { setDisplayScope(scope); setLoading(false); setSettled(true) }
       }
     }
     load()
@@ -370,16 +373,17 @@ export default function CategorySections({ slotsOnly = false, providers, onCateg
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotsOnly, mapGames, scope])
 
-  // Tell the tab strip which rows exist, in row order, once they are known.
+  // Tell the tab strip which rows exist, in row order with their counts, once the whole load has finished;
+  // null while it runs, when the strip shows placeholders. Rows arrive one by one, and reporting each would
+  // rebuild and shift the strip on every row (owner 2026-11-01).
   useEffect(() => {
-    if (loading) return
-    onCategoriesChange?.(categories.map((c) => ({
+    onCategoriesChange?.(settled ? categories.map((c) => ({
       id: c.id,
       name: c.name,
       count: typeof c.totalCount === 'number' ? c.totalCount : null,
       iconData: c.iconData ?? null,
-    })))
-  }, [loading, categories, onCategoriesChange])
+    })) : null)
+  }, [settled, categories, onCategoriesChange])
 
   // Scroll to category based on URL query param (?cat=slug)
   useEffect(() => {

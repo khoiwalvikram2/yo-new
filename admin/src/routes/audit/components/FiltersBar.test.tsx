@@ -33,3 +33,15 @@ test('custom native dates apply IST day bounds only after both dates are supplie
   fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-10-02' } }); fireEvent.change(screen.getByLabelText('End date'), { target: { value: '2026-10-09' } })
   assert.equal(useAuditStore.getState().filters.from, '2026-10-01T18:30:00.000Z'); assert.equal(useAuditStore.getState().filters.to, '2026-10-09T18:29:59.999Z')
 })
+
+test("the lists are the trail's own values, and a chosen value outside them stays listed", async () => {
+  const served = { domains: ['deposits', 'users.security'], actions: ['approve_deposit'], resourceTypes: ['deposit_request'] }
+  function Preview() { const [filters, setFilters] = useState<AuditFilters>({ ...defaults, domain: ['retired.domain'] }); return <FiltersBar filters={filters} options={served} onFiltersChange={(next) => setFilters((prior) => ({ ...prior, ...next }))} onReset={() => setFilters(defaults)} /> }
+  render(<Preview />)
+  fireEvent.keyDown(screen.getByRole('combobox', { name: 'Domain' }), { key: 'ArrowDown' })
+  const domains = await screen.findByRole('listbox')
+  assert.deepEqual(within(domains).getAllByRole('option').map((option) => option.textContent), ['deposits', 'users.security', 'retired.domain'])
+  fireEvent.keyDown(screen.getByRole('combobox', { name: 'Domain' }), { key: 'Escape' })
+  fireEvent.keyDown(screen.getByRole('combobox', { name: 'Action' }), { key: 'ArrowDown' })
+  assert.deepEqual(within(await screen.findByRole('listbox')).getAllByRole('option').map((option) => option.textContent), ['approve_deposit'])
+})

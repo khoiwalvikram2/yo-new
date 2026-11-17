@@ -124,6 +124,19 @@
   white-space: normal;
 }
 
+/* The loading, error and empty states keep to the visible part of the scroller. Their cell spans the whole
+   table, so in a table wider than its scroller (width="wide", or any table on a phone) the centred state sat
+   past the scroller's edge: "No bets match your filte" on /matka/live, nothing at all at 390px. The scroller
+   publishes its visible width (useOverflowCue); sticky keeps the box at the scrolled-to start. Where the
+   table fits, the width is the cell's own, so nothing moves. */
+.stateContent {
+  position: sticky;
+  inset-inline-start: 0;
+  box-sizing: border-box;
+  width: var(--scroller-view-width, auto);
+  max-width: 100%;
+}
+
 .errorState {
   display: flex;
   min-height: 192px;

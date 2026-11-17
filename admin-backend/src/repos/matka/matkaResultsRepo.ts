@@ -1,10 +1,11 @@
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { db } from '@src/db/client.js'
 import { and, eq, gte, lte, desc, asc, sql, or, ilike, isNull, isNotNull } from 'drizzle-orm'
-import { matkaResults, matkas } from '@shared/db/schema.js'
+import { matkaBets, matkaResults, matkas } from '@shared/db/schema.js'
 import { getEnv } from '@src/config/env.js'
 import { declareAndSettleMatka, reverseMatkaResult } from '@shared/matka/settlement.js'
 import { getClientIp, getClientUserAgent } from '@src/utils/getClientIp.js'
+import { referralEligibleMatkaBets } from '@src/repos/matka/matkaBetsRepo.js'
 
 export type MatkaResultType = 'open' | 'close'
 
@@ -115,7 +116,10 @@ export async function createMatkaResult(input: MatkaResultCreateInput, ctx: Matk
   const result = await declareAndSettleMatka(db, input, ctx)
   if (!result.replayed && result.settledBets.length) {
     const { referralIntegrationService } = await import('@src/services/referrals/referralIntegrationService.js')
-    for (const bet of result.settledBets) await referralIntegrationService.handleBetSettlement(ctx.tenant, bet.userId,
+    // Credit players' bets earn no referral loss-share. Like the hook itself this step is best
+    // effort: the result is already declared and settled, so a failed read must not report it failed.
+    const eligible = await referralEligibleMatkaBets<typeof matkaBets.$inferSelect>(ctx.tenant, result.settledBets).catch(() => [])
+    for (const bet of eligible) await referralIntegrationService.handleBetSettlement(ctx.tenant, bet.userId,
       Number(bet.actualWin || 0) - Number(bet.betAmount), bet.currency as any, 'matka', `${bet.id}:${result.declaredAt.toISOString()}`)
   }
   return result

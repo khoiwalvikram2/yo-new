@@ -34,46 +34,6 @@ export const MY_WHITELABEL_CREDIT_HISTORY_QUERY = gql`
   }
 `;
 
-export const MY_WHITELABEL_SETTLEMENTS_QUERY = gql`
-  query MyWhitelabelSettlements($limit: Int, $offset: Int, $agentOffset: Int, $whitelabelOffset: Int) {
-    myWhitelabelSettlements(limit: $limit, offset: $offset, agentOffset: $agentOffset, whitelabelOffset: $whitelabelOffset) {
-      agentSettlements {
-        id
-        tenant
-        agentId
-        agent {
-          id
-          username
-          schemeType
-        }
-        settlementType
-        amount
-        direction
-        previousBalance
-        newBalance
-        notes
-        settledBy
-        createdAt
-      }
-      whitelabelSettlements {
-        id
-        transactionType
-        amount
-        balanceBefore
-        balanceAfter
-        reason
-        createdBy
-        createdByType
-        createdAt
-      }
-      agentCount
-      whitelabelCount
-      totalAgentSettled
-      totalWhitelabelSettled
-    }
-  }
-`;
-
 export const MY_WHITELABEL_SHARING_QUERY = gql`
   query MyWhitelabelSharing {
     myWhitelabelSharing {

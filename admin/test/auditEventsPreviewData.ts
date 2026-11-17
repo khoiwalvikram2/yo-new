@@ -32,12 +32,12 @@ export function auditFixtureResponse(operation: Operation, options: AuditFixture
     case 'AuditStats': result = { auditStats: { total: 230, today: 20, uniqueActors: 12, byDomain: [{ domain: 'players', count: 130 }, { domain: 'sports', count: 100 }], byAction: [{ action: 'update', count: 230 }], recentEvents: [event] } }; break
     case 'AuditExportCSV': result = { auditExportCSV: 'id,domain\nevent-1,players' }; break
     case 'AuditExportJobsPage':
-    case 'AuditExportJobs': result = { auditExportJobs: [{ id: 'job-ready', status: 'completed', exportFormat: 'CSV', createdAt: event.timestamp, completedAt: event.timestamp, fileUrl: 'https://download.example.test/audit.csv' }, ...(options.jobCreated ? [{ id: 'job-new', status: 'pending', exportFormat: 'JSON', createdAt: event.timestamp }] : [])] }; break
+    case 'AuditExportJobs': result = { auditExportJobs: [{ id: 'job-ready', status: 'completed', exportFormat: 'CSV', createdAt: event.timestamp, completedAt: event.timestamp, fileUrl: 'audit-job-ready-1791540000000.csv' }, ...(options.jobCreated ? [{ id: 'job-new', status: 'pending', exportFormat: 'JSON', createdAt: event.timestamp }] : [])] }; break
     case 'CreateAuditExportJob': if (options.refuseJob) throw new Error('Export queue unavailable'); options.jobCreated = true; result = { createAuditExportJob: { id: 'job-new', status: 'pending', exportFormat: operation.variables.input.exportFormat, filtersJson: operation.variables.input.filtersJson, createdAt: event.timestamp } }; break
     case 'AuditAnnotations': result = { auditAnnotations: [] }; break
     case 'CreateAuditAnnotation': result = { createAuditAnnotation: { id: 'note-1', auditEventId: operation.variables.input.auditEventId, note: operation.variables.input.note, createdAt: event.timestamp, updatedAt: event.timestamp } }; break
     default: throw new Error(`Unexpected audit fixture operation: ${operation.operationName}`)
   }
-  if (operation.operationName === 'AuditExportJobsPage') { const rows = result.auditExportJobs ?? []; result.auditExportJobsPage = { total: rows.length, items: rows.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)) }; }
+  if (operation.operationName === 'AuditExportJobsPage') { const rows = (result.auditExportJobs ?? []) as unknown[]; result.auditExportJobsPage = { total: rows.length, items: rows.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)) }; }
   return { data: complete(definition.selectionSet, result) as Record<string, unknown> }
 }

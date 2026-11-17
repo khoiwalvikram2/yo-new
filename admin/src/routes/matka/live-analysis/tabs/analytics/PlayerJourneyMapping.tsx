@@ -13,6 +13,8 @@ import { useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
 import dayjs from 'dayjs'
 import { nowIST } from '@/shared/utils/date'
+import { useAuthStore } from '@/shared/core/authStore'
+import { hasPermissionWithNested } from '@/shared/core/nestedPermissionMapping'
 
 const MATKA_BETS_QUERY = gql`
   query MatkaBets($query: MatkaBetsQuery) {
@@ -37,6 +39,10 @@ const MATKA_BETS_QUERY = gql`
 export const PlayerJourneyMapping: React.FC = () => {
   const { formatAmount, convertFromWhitelabelCurrency } = useCurrency()
   const { formatTime } = useFormatDate()
+  // Each player's and each bet's amounts only with settlements.center view, masked in the page as on the Players tab and in
+  // Player Analytics (matkaBets sends amounts to every caller); counts, statuses and times stay (owner, 2026-11-04).
+  const permissions = useAuthStore(s => s.permissions)
+  const hasFinanceView = hasPermissionWithNested(permissions, 'settlements.center', 'view')
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
 
@@ -109,7 +115,9 @@ export const PlayerJourneyMapping: React.FC = () => {
       }
       journey.totalBets += 1
       journey.totalWagered += Number(bet.betAmount) || 0
-      journey.totalPayouts += Number(bet.actualWin || bet.potentialWin) || 0
+      // What the bet has paid: nothing while open, 0 when lost, the stake back when void. GGR is stake less paid, as
+      // PlayerPerformanceWidget, the dashboard and Top Matkas count it; a potential win is exposure, not a payout.
+      journey.totalPayouts += Number(bet.actualWin || 0)
       
       if (dayjs(bet.createdAt).isBefore(dayjs(journey.firstBet))) {
         journey.firstBet = bet.createdAt
@@ -175,15 +183,22 @@ export const PlayerJourneyMapping: React.FC = () => {
       .slice(0, 50)
   }, [playerJourneys, searchQuery])
 
-  const money = (value: number) => formatAmount(convertFromWhitelabelCurrency(value))
+  // A masked figure keeps the plain amount colour and no sign, so whether it is up or down is not given away either.
+  const money = (value: number) => (hasFinanceView ? formatAmount(convertFromWhitelabelCurrency(value)) : '••••')
   return <Card title="Player Journey Mapping" sub="Track player paths & bet transitions">
     {!playerJourneys.length ? <EmptyState title="No player journey data available" /> : <div className={styles.journeyColumns}>
       <section className={styles.stack}><h3 className={styles.heading}>Players List · {filteredPlayers.length} players</h3><TextField label="Search player journeys" value={searchQuery} onChange={setSearchQuery} clearable placeholder="Search by player ID or matka..." />
-        <ul className={styles.list}>{filteredPlayers.map(journey => <li key={journey.userId} className={styles.item}><Button variant={selectedPlayer === journey.userId ? 'primary' : 'secondary'} aria-pressed={selectedPlayer === journey.userId} onClick={() => setSelectedPlayer(journey.userId)}>{journey.userName || `User #${journey.userId}`}</Button><p className={styles.muted}>{journey.totalBets} bets · {journey.matkaCount} matkas · {journey.sessionDuration}m</p><DescriptionList items={[{ term: 'Wagered', value: money(journey.totalWagered) }, { term: 'GGR', value: <span className={journey.ggr >= 0 ? styles.positive : styles.negative}>{money(journey.ggr)}</span> }]} /></li>)}</ul>
+        <ul className={styles.list}>{filteredPlayers.map(journey => <li key={journey.userId} className={styles.item}><Button variant={selectedPlayer === journey.userId ? 'primary' : 'secondary'} aria-pressed={selectedPlayer === journey.userId} onClick={() => setSelectedPlayer(journey.userId)}>{journey.userName || `User #${journey.userId}`}</Button><p className={styles.muted}>{journey.totalBets} bets · {journey.matkaCount} matkas · {journey.sessionDuration}m</p><DescriptionList items={[{ term: 'Wagered', value: money(journey.totalWagered) }, { term: 'GGR', value: <span className={!hasFinanceView ? styles.amount : journey.ggr >= 0 ? styles.positive : styles.negative}>{money(journey.ggr)}</span> }]} /></li>)}</ul>
       </section>
       {selectedJourney ? <section className={styles.stack}><div className={styles.row}><h3 className={styles.heading}>{selectedJourney.userName || `User #${selectedJourney.userId}`}</h3><Button size="sm" onClick={() => setSelectedPlayer(null)}>Clear</Button></div><DescriptionList items={[{ term: 'Bets', value: selectedJourney.totalBets }, { term: 'Matkas', value: selectedJourney.matkaCount }, { term: 'Wagered', value: money(selectedJourney.totalWagered) }, { term: 'GGR', value: money(selectedJourney.ggr) }]} /><h4 className={styles.heading}>Bet Journey</h4><ol className={styles.timeline}>{selectedJourney.betSequence.map((bet, index) => {
-        const netAmount = bet.actualWin ? Number(bet.actualWin) - Number(bet.betAmount) : bet.potentialWin ? Number(bet.potentialWin) - Number(bet.betAmount) : 0
-        return <li key={index} className={styles.item}><div className={styles.row}><span className={styles.inline}><span className={styles.rank}>{index + 1}</span><h5 className={styles.heading}>{bet.matkaName}</h5><StatusPill status={bet.status}>{bet.status.toUpperCase()}</StatusPill></span>{Boolean(bet.actualWin || bet.potentialWin) && <span className={netAmount > 0 ? styles.positive : netAmount < 0 ? styles.negative : styles.amount}>{netAmount > 0 ? '+' : ''}{money(netAmount)}</span>}</div><p className={styles.muted}>{bet.matkaType} · {bet.marketName} · {bet.bidType}</p><DescriptionList items={[{ term: 'Bet', value: money(bet.betAmount) }, ...(bet.actualWin || bet.potentialWin ? [{ term: 'Win', value: money(bet.actualWin || bet.potentialWin || 0) }] : []), { term: 'Time', value: bet.timestamp ? formatTime(bet.timestamp, 'HH:mm:ss') : '—' }]} /></li>
+        // An open bet ('pending' or 'active') has no result yet: no net figure, and its potential win shown only as potential.
+        // A settled bet shows what it paid: 0 when lost, the stake back (a refund, not a win) when void.
+        const status = bet.status.toLowerCase()
+        const open = status === 'pending' || status === 'active'
+        const paid = Number(bet.actualWin || 0)
+        const netAmount = paid - Number(bet.betAmount)
+        const outcome = open ? (bet.potentialWin ? [{ term: 'Potential win', value: money(bet.potentialWin) }] : []) : [{ term: status === 'void' ? 'Refund' : 'Win', value: money(paid) }]
+        return <li key={index} className={styles.item}><div className={styles.row}><span className={styles.inline}><span className={styles.rank}>{index + 1}</span><h5 className={styles.heading}>{bet.matkaName}</h5><StatusPill status={bet.status}>{bet.status.toUpperCase()}</StatusPill></span>{!open && <span className={hasFinanceView && netAmount > 0 ? styles.positive : hasFinanceView && netAmount < 0 ? styles.negative : styles.amount}>{hasFinanceView && netAmount > 0 ? '+' : ''}{money(netAmount)}</span>}</div><p className={styles.muted}>{bet.matkaType} · {bet.marketName} · {bet.bidType}</p><DescriptionList items={[{ term: 'Bet', value: money(bet.betAmount) }, ...outcome, { term: 'Time', value: bet.timestamp ? formatTime(bet.timestamp, 'HH:mm:ss') : '—' }]} /></li>
       })}</ol></section> : <EmptyState title="Select a player to view journey" description="Click on any player from the list" />}
     </div>}
   </Card>

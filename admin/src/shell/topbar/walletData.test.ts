@@ -3,11 +3,11 @@
  * the wallet views render. Most of these pure functions are ported from four near-duplicate
  * topbar components (WhitelabelCreditIndicator, AgentCreditIndicator, AgentSharingIndicator,
  * AgentCommissionIndicator) — a regression here silently breaks every wallet popover's numbers.
- * Two things are NOT a like-for-like port, so do not assume test parity with old behavior implies
- * zero visible change: (1) toDomainRows hides an explicit `{ domain, rate: 0 }` entry with zero
+ * One thing is NOT a like-for-like port, so do not assume test parity with old behavior implies
+ * zero visible change: toDomainRows hides an explicit `{ domain, rate: 0 }` entry with zero
  * totals, where the old components' `!rateEntry` check kept it visible (see toDomainRows's own
- * comment, R2 §4 — intentional); (2) toSettlementSummary has no working legacy renderer to compare
- * against at all (see toSettlementSummary's own comment) and is derived from the GraphQL schema.
+ * comment, R2 §4 — intentional). The CREDIT agent's settlement summary went with the credit-limit
+ * model (spec 2026-11-02): its wallet shows chips now.
  */
 import { describe, test } from 'vitest'
 import assert from 'node:assert/strict'
@@ -18,8 +18,6 @@ import {
   toSharingSummary,
   toCreditFigures,
   CREDIT_STATUS_LABEL,
-  toSettlementSummary,
-  amountSign,
   creditAlertText,
 } from './walletData'
 
@@ -178,41 +176,6 @@ describe('toCreditFigures', () => {
 describe('CREDIT_STATUS_LABEL', () => {
   test('maps each status to its display label', () => {
     assert.deepEqual(CREDIT_STATUS_LABEL, { healthy: 'Healthy', warning: 'Warning', critical: 'Critical' })
-  })
-})
-
-describe('toSettlementSummary', () => {
-  test('always returns all three domains in Sports, Casino, Matka order', () => {
-    const summary = toSettlementSummary({
-      settlementBalance: 50,
-      settlementBalanceSports: 20,
-      settlementBalanceCasino: -5,
-      settlementBalanceMatka: 0,
-    })
-    assert.equal(summary.balance, 50)
-    assert.deepEqual(summary.rows, [
-      { domain: 'Sports', amount: 20 },
-      { domain: 'Casino', amount: -5 },
-      { domain: 'Matka', amount: 0 },
-    ])
-  })
-
-  test('defaults every missing field to 0', () => {
-    const summary = toSettlementSummary({})
-    assert.equal(summary.balance, 0)
-    assert.deepEqual(summary.rows, [
-      { domain: 'Sports', amount: 0 },
-      { domain: 'Casino', amount: 0 },
-      { domain: 'Matka', amount: 0 },
-    ])
-  })
-})
-
-describe('amountSign', () => {
-  test('classifies positive, negative and zero amounts', () => {
-    assert.equal(amountSign(10), 'positive')
-    assert.equal(amountSign(-3), 'negative')
-    assert.equal(amountSign(0), 'zero')
   })
 })
 

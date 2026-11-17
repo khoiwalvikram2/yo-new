@@ -75,6 +75,18 @@ export interface GlobalSearchOptions {
 }
 
 /**
+ * The part of a parent chain the caller may see. A chain runs from the root down to the direct parent; an agent
+ * sees itself and what sits below it, never its own ancestors, whose profiles refuse it and whose usernames are
+ * not its to read (a sub-agent was offered a link to its parent that opened "Error loading"). Admins see it all.
+ */
+export function chainVisibleTo(chain: ParentChainItem[] | undefined, agentId: string | undefined): ParentChainItem[] | null {
+  if (!chain) return null
+  if (!agentId) return chain
+  const own = chain.findIndex((item) => item.id === agentId)
+  return own === -1 ? [] : chain.slice(own)
+}
+
+/**
  * Run global search across all domains. Uses Promise.allSettled so one failure
  * does not break others. Returns unified SearchResultItem[] per category.
  */
@@ -267,13 +279,15 @@ export async function globalSearch(
       ? getReferralLinkByCodeDb(trimmedQuery.toUpperCase()).then((link) => {
           if (!link || link.tenant !== options.tenant) return []
           const userId = link.userId != null ? String(link.userId) : ''
+          // A link belongs to a player or to an agent; an agent's code opened the bare players list.
+          const agentId = link.agentId ? String(link.agentId) : ''
           return [
             {
               id: link.id,
               type: 'referralCode',
               label: link.code,
-              subtitle: userId ? `Referrer User ID: ${userId}` : 'Referral code',
-              route: userId ? `/players/profile/${userId}` : '/players',
+              subtitle: userId ? `Referrer User ID: ${userId}` : agentId ? 'Agent referral code' : 'Referral code',
+              route: userId ? `/players/profile/${userId}` : agentId ? `/agents/${agentId}` : '/referrals',
               status: link.isActive ? 'ACTIVE' : 'INACTIVE',
               metadata: { referralCode: link.code, referrerId: userId },
               parentChain: null,
@@ -329,10 +343,10 @@ export async function globalSearch(
     players: players.map((p: SearchResultItem) => ({
       ...p,
       parentChain: (p.metadata as Record<string, unknown>)?.agentId
-        ? (chainMap.get((p.metadata as Record<string, unknown>).agentId as string) ?? null)
+        ? chainVisibleTo(chainMap.get((p.metadata as Record<string, unknown>).agentId as string), options.agentId)
         : null,
     })),
-    agents: agentsList.map((a) => ({ ...a, parentChain: chainMap.get(a.id) ?? null })),
+    agents: agentsList.map((a) => ({ ...a, parentChain: chainVisibleTo(chainMap.get(a.id), options.agentId) })),
     whitelabels: whitelabelsSettled.status === 'fulfilled' ? whitelabelsSettled.value : [],
     casinoGames: casinoGamesSettled.status === 'fulfilled' ? casinoGamesSettled.value : [],
     sports: sportsSettled.status === 'fulfilled' ? sportsSettled.value : [],

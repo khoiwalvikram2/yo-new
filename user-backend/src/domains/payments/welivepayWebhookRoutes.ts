@@ -1,90 +1,57 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { findTenantByWebhookToken } from '../../repos/welivepayWebhookRepo.js'
-import {
-  findOrderByOrderId,
-  creditOrderOnSuccess,
-  markOrderStatus,
-  shouldCreditOnWebhook,
-  type WelivepayOrderRow,
-} from '../../repos/welivepayOrdersRepo.js'
+import { findOrderByOrderId } from '../../repos/welivepayOrdersRepo.js'
+import { reconcileWelivepayPayin } from '../../services/welivepayPayinStatusService.js'
+import { WelivepayPayoutService } from '@shared/services/welivepay/welivepayPayoutService.js'
+import { db } from '../../db/client.js'
+import { getWelivepayBaseUrl } from '../../config/env.js'
 
-const LOG_PREFIX = '[WelivepayWebhook]'
-
-interface WebhookBody {
-  orderid?: string
-  status?: string
-  amount?: number | string
-  txn_ref?: string
-}
-
-/** Injectable dependencies — defaults wire the real repo functions; tests pass stubs. */
+/** Injectable dependencies — defaults wire the real services; tests pass stubs. */
 export interface WelivepayWebhookDeps {
   findTenantByWebhookToken: (token: string) => Promise<string | null>
-  findOrderByOrderId: (orderid: string) => Promise<WelivepayOrderRow | null>
-  creditOrderOnSuccess: (params: { orderid: string; txnRef: string | null }) => Promise<{ credited: boolean }>
-  markOrderStatus: (orderid: string, status: 'expired' | 'invalid', txnRef?: string | null) => Promise<void>
+  findPayin: (orderid: string) => Promise<{ tenant: string } | null>
+  reconcilePayin: (orderid: string, tenant: string) => Promise<unknown>
+  findPayout: (orderid: string, tenant: string) => Promise<unknown>
+  reconcilePayout: (orderid: string, tenant: string) => Promise<unknown>
+}
+const payouts = () => new WelivepayPayoutService(db, getWelivepayBaseUrl())
+const defaults: WelivepayWebhookDeps = {
+  findTenantByWebhookToken, findPayin: findOrderByOrderId, reconcilePayin: reconcileWelivepayPayin,
+  findPayout: (orderid, tenant) => payouts().findByOrderId(orderid, tenant),
+  reconcilePayout: (orderid, tenant) => payouts().reconcile(orderid, tenant),
 }
 
-const defaultDeps: WelivepayWebhookDeps = {
-  findTenantByWebhookToken,
-  findOrderByOrderId,
-  creditOrderOnSuccess,
-  markOrderStatus,
-}
+type CallbackRequest = FastifyRequest<{ Params: { token: string }; Body: Record<string, unknown> }>
 
-export async function registerWelivepayWebhookRoutes(
-  app: FastifyInstance,
-  deps: WelivepayWebhookDeps = defaultDeps
-): Promise<void> {
-  app.post('/wlp/:token', async (request: FastifyRequest<{ Params: { token: string }; Body: WebhookBody }>, reply: FastifyReply) => {
+/**
+ * WeLivePay callbacks are unsigned, so they are triggers only: the body names an order, and the
+ * authenticated merchant status API decides whether anything is credited, completed or refunded.
+ * The secret token in the URL resolves the whitelabel; an order of another whitelabel is ignored.
+ */
+export async function registerWelivepayWebhookRoutes(app: FastifyInstance, deps: WelivepayWebhookDeps = defaults): Promise<void> {
+  const handle = (kind: 'payin' | 'payout') => async (request: CallbackRequest, reply: FastifyReply) => {
+    // Fastify only parses application/json into an object. Anything else is a 400 (retryable)
+    // rather than a silent 200 for what may be a real payment.
+    const body = request.body
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return reply.code(400).send({ received: false, error: 'expected JSON body' })
+    const tenant = await deps.findTenantByWebhookToken(request.params.token)
+    if (!tenant) return reply.code(401).send({ received: false })
+    const orderid = kind === 'payin' ? body.orderid : body.order_id
+    if (typeof orderid !== 'string' || !orderid || orderid.length > 128) return reply.send({ received: true })
     try {
-      // Fastify only parses application/json into an object. A non-JSON content-type yields a
-      // string/undefined here — return 400 (retryable) instead of silently 200-ing a real payment.
-      const body = request.body
-      if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-        request.log.error({ url: request.url }, `${LOG_PREFIX} non-JSON body`)
-        return reply.status(400).send({ ok: false, error: 'expected JSON body' })
-      }
-
-      const tenant = await deps.findTenantByWebhookToken(request.params.token)
-      if (!tenant) {
-        return reply.status(401).send({ ok: false, error: 'invalid token' })
-      }
-
-      const orderid = String((body as WebhookBody).orderid ?? '')
-      const status = String((body as WebhookBody).status ?? '')
-      const amount = Number((body as WebhookBody).amount ?? NaN)
-      const rawTxnRef = (body as WebhookBody).txn_ref
-      const txnRef = rawTxnRef ? String(rawTxnRef) : null
-
-      if (!orderid) return reply.status(200).send({ ok: true })
-
-      const order = await deps.findOrderByOrderId(orderid)
-      if (!order || order.tenant !== tenant) {
-        request.log.warn({ orderid, tenant }, `${LOG_PREFIX} order not found or tenant mismatch`)
-        return reply.status(200).send({ ok: true })
-      }
-
-      if (status === 'success') {
-        const decision = shouldCreditOnWebhook(order, status, amount)
-        if (!decision.credit) {
-          request.log.warn({ orderid, reason: decision.reason }, `${LOG_PREFIX} not crediting`)
-          return reply.status(200).send({ ok: true })
-        }
-        await deps.creditOrderOnSuccess({ orderid, txnRef })
-        return reply.status(200).send({ ok: true })
-      }
-
-      if (status === 'expired' || status === 'invalid') {
-        await deps.markOrderStatus(orderid, status, txnRef)
-      }
-      return reply.status(200).send({ ok: true })
-    } catch (err) {
-      // Any failure (DB error, or whitelabel credit temporarily exhausted) leaves the order
-      // 'pending'. Return a sanitized 500 (no raw error leaked) so WeLivePay retries later;
-      // the order-row FOR UPDATE lock guarantees the eventual single credit is idempotent.
-      request.log.error({ err, url: request.url }, `${LOG_PREFIX} webhook failed`)
-      return reply.status(500).send({ ok: false, error: 'temporary error, will retry' })
+      if (kind === 'payin') {
+        const order = await deps.findPayin(orderid)
+        if (order?.tenant === tenant) await deps.reconcilePayin(orderid, tenant)
+      } else if (await deps.findPayout(orderid, tenant)) await deps.reconcilePayout(orderid, tenant)
+      return reply.send({ received: true })
+    } catch {
+      // Do not log the URL (secret token), raw status URL (merchant key), or beneficiary payload.
+      request.log.warn({ kind, orderid }, 'WeLivePay verification deferred to reconciliation')
+      return reply.code(503).send({ received: false, error: 'verification temporarily unavailable' })
     }
-  })
+  }
+  const options = { logLevel: 'warn' as const, bodyLimit: 64 * 1024 }
+  app.post('/wlp/:token', options, handle('payin'))
+  app.post('/wlp/:token/payin', options, handle('payin'))
+  app.post('/wlp/:token/payout', options, handle('payout'))
 }

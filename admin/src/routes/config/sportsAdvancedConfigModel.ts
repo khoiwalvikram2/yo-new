@@ -5,6 +5,7 @@
  * task-198 snapshot.
  */
 import { z } from 'zod'
+import { limitErrors, type ConfigValues } from '@/routes/sports/configuration-components/settingsModel'
 
 export type SettingsTab = 'sport' | 'league'
 
@@ -290,6 +291,18 @@ export const settingsSchema = z.object({
   alertChannel: choiceValue,
   alertRateLimit: numberValue,
 })
+  /* The stake and odds limits admin-backend now enforces (domains/sports/settingsLimits.ts), with the rule and
+     messages of the sports configuration editors: a Min Stake not above its Max Stake, odds from 1.01 and a Min
+     Odds not above the Max Odds. The server refused such a save with a toast; the field to change now says why
+     before the save. An empty field is not checked, and, as on the server, a negative stake is its own field's
+     error (minimum 0) rather than also a Min/Max contradiction. */
+  .superRefine((values, ctx) => {
+    const comparable: ConfigValues = { ...values }
+    for (const [field, value] of Object.entries(values)) {
+      if (field.endsWith('Stake') && typeof value === 'number' && value < 0) delete comparable[field]
+    }
+    for (const [field, message] of Object.entries(limitErrors(comparable))) ctx.addIssue({ code: 'custom', path: [field], message })
+  })
 
 export type SettingsFormValues = z.infer<typeof settingsSchema>
 

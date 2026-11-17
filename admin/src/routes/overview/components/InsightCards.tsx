@@ -8,19 +8,20 @@ import { ROUTES } from '@/shared/core/constants'
 import { useFormatDate } from '@/shared/core/useFormatDate'
 import type { Accent } from '@/ui/components/accent'
 import { Card } from '@/ui/components/Card'
-import { Meter } from '@/ui/components/Meter'
 import { Skeleton } from '@/ui/components/Skeleton'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { formatShare, periodLabel, plural, useWholeMoney } from './insightFormat'
 import { DrillButton } from './DrilldownDialog'
+import { DashboardPlayerName } from './DashboardPlayerName'
 import styles from './InsightCards.module.css'
 
-/* The Overview's insight cards (the owner's ask, 2026-10-29), all from Query.dashboardInsights, which
-   Apollo asks once for the three of them:
+/* The Overview's insight cards (the owner's ask, 2026-10-29), both from Query.dashboardInsights, which
+   Apollo asks once for the two of them:
    - Top Risk Events: the open book by event and draw, largest first (beside Exposure by market, and like
      it only with reporting.exposure:view);
-   - Big Bets & Winners: the period's largest single bets and the players who won most;
-   - Agents Near Credit Limit: credit agents at 80% or more of their limit, only where credit agents exist.
+   - Big Bets & Winners: the period's largest single bets and the players who won most.
+   The third card, Agents Near Credit Limit, went with the credit limits: the CREDIT scheme is on chips since
+   2026-11-02 (Deposit / Withdraw), so there is no limit to be near.
    While the first answer is on its way each card holds its rows' height with placeholders. */
 
 type Product = 'sports' | 'casino' | 'matka'
@@ -56,23 +57,11 @@ interface TopWinner {
   bets: number
 }
 
-interface AgentNearLimit {
-  agentId: string
-  username: string | null
-  creditLimit: number
-  creditUsed: number
-  usedShare: number
-  settlementBalance: number
-}
-
 interface Insights {
   openExposure: number
   riskEvents: RiskEvent[]
   bigBets: BigBet[]
   topWinners: TopWinner[]
-  creditAgents: number
-  nearLimitShare: number
-  agentsNearLimit: AgentNearLimit[]
 }
 
 const PRODUCT: Record<Product, { label: string; accent: Accent; icon: ReactNode }> = {
@@ -82,8 +71,6 @@ const PRODUCT: Record<Product, { label: string; accent: Accent; icon: ReactNode 
 }
 
 const OUTCOME: Record<string, string> = { open: 'Open', won: 'Won', lost: 'Lost', settled: 'Settled', void: 'Void' }
-
-const profile = (userId: number) => ROUTES.PLAYERS_PROFILE.replace(':playerId', String(userId))
 
 function useInsights() {
   const { getDateRangeForQuery, filters } = useDashboardStore()
@@ -187,7 +174,7 @@ export function BigBetsCard() {
                       <span className={styles.tile} data-accent={product.accent} aria-hidden="true">{product.icon}</span>
                       <span className={styles.body}>
                         <span className={styles.name}>
-                          <Link className={styles.player} to={profile(bet.userId)}>{bet.username}</Link>
+                          <DashboardPlayerName userId={bet.userId} username={bet.username} linkClassName={styles.player} />
                           {bet.agent ? <span className={styles.agent}> · {bet.agent}</span> : null}
                         </span>
                         <span className={styles.sub} title={bet.label ?? undefined}>
@@ -213,7 +200,7 @@ export function BigBetsCard() {
                     <span className={styles.rank} aria-hidden="true">{index + 1}</span>
                     <span className={styles.body}>
                       <span className={styles.name}>
-                        <Link className={styles.player} to={profile(winner.userId)}>{winner.username}</Link>
+                        <DashboardPlayerName userId={winner.userId} username={winner.username} linkClassName={styles.player} />
                         {winner.agent ? <span className={styles.agent}> · {winner.agent}</span> : null}
                       </span>
                       <span className={styles.sub}>{`${plural(winner.bets, 'bet')} · ${money(winner.staked)} staked`}</span>
@@ -229,41 +216,6 @@ export function BigBetsCard() {
           </div>
         </div>
         </div>
-      )}
-    </Card>
-  )
-}
-
-/** Credit agents at or past the near-limit share, fullest first. Nothing at all where there are no credit agents. */
-export function AgentsNearLimitCard() {
-  const { insights, pending, error } = useInsights()
-  const money = useWholeMoney()
-  if (pending || error || !insights || insights.creditAgents === 0) return null
-  const threshold = Math.round((insights.nearLimitShare || 0.8) * 100)
-  const agents = insights.agentsNearLimit
-  return (
-    <Card title="Agents Near Credit Limit" sub={`Credit agents at ${threshold}% or more of their limit`} body="flush">
-      {agents.length === 0 ? <Empty>No credit agent is above {threshold}% of its limit.</Empty> : (
-        <ul className={styles.list}>
-          {agents.map((agent) => {
-            const percent = Math.round(agent.usedShare * 100)
-            const name = agent.username ?? agent.agentId.slice(0, 8)
-            return (
-              <li key={agent.agentId} className={styles.row}>
-                <span className={styles.body}>
-                  <span className={styles.name}><Link className={styles.player} to={`/agents/${agent.agentId}`}>{name}</Link></span>
-                  <span className={styles.sub}>{`${money(agent.creditUsed)} of ${money(agent.creditLimit)} · settlement ${money(agent.settlementBalance)}`}</span>
-                </span>
-                <span className={styles.meter}>
-                  <Meter value={percent} tone={percent >= 95 ? 'neg' : 'warn'} valueText={`${percent}% of the credit limit`} />
-                </span>
-                <span className={styles.end}>
-                  <span className={styles.amount}>{percent}%</span>
-                </span>
-              </li>
-            )
-          })}
-        </ul>
       )}
     </Card>
   )

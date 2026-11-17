@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <!-- Slots page watermark (a mask): the lucky seven that stays upright in the centre of the turning jackpot ring
+       (slots-ring.svg). Original art. -->
+  <path fill="#000" d="M140 126H262V154C229 184 206 226 199 282H157C162 233 183 192 215 161H140Z"/>
+  <path fill="#000" d="M128 112L134 124L146 126L137 134L139 146L128 140L117 146L119 134L110 126L122 124Z"/>
+  <path fill="#000" d="M276 250L281 260L292 262L284 269L286 280L276 275L266 280L268 269L260 262L271 260Z"/>
+</svg>

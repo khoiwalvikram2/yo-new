@@ -1,7 +1,7 @@
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
-import { getDepositRequestById } from '@/repos/deposits/depositRequestsRepo.js'
-import { generatePresignedGetUrl } from '@/services/storage/s3.js'
+import { depositRequestHasProof } from '@/repos/deposits/depositRequestsRepo.js'
 import { getUserDb } from '@/repos/users/usersRepo.js'
+import { depositProofUrl } from './proofUrl.js'
 
 export const depositsSubscriptionResolvers = {
   depositRequestUpdated: {
@@ -15,7 +15,7 @@ export const depositsSubscriptionResolvers = {
       // context function for WebSockets, there was no token to disagree with
       // it. Naming another whitelabel handed you its live deposit feed,
       // enriched by the resolver below with the player's name, email, phone and
-      // a presigned URL for their payment proof.
+      // their payment proof.
       //
       // A Super Admin still reaches other whitelabels, through director mode,
       // which is resolved from their own roles above.
@@ -32,16 +32,12 @@ export const depositsSubscriptionResolvers = {
         // Fetch user info
         const user = request.userId ? await getUserDb(Number(request.userId), request.tenant).catch(() => null) : null
         
-        // Generate presigned URL for proof
-        let proofUrl = null
-        if (request.proofKey) {
-          try {
-            proofUrl = await generatePresignedGetUrl(request.proofKey, 3600)
-          } catch {
-            // Ignore errors
-          }
-        }
-        
+        // Whether the request has a proof to show, read from its row without the screenshot, as the list says it
+        // (the event names only proof_key, and 'inline' means the image is in proof_data). The feed never carries
+        // the image itself: the page asks depositRequestProof for it when a reviewer opens the request.
+        const hasProof = await depositRequestHasProof(Number(request.id), request.tenant)
+          .catch(() => depositProofUrl(request) !== null)
+
         return {
           id: String(request.id),
           tenant: request.tenant,
@@ -52,7 +48,8 @@ export const depositsSubscriptionResolvers = {
           utr: request.utr,
           referenceId: request.referenceId,
           proofKey: request.proofKey,
-          proofUrl,
+          proofUrl: null,
+          hasProof,
           status: request.status,
           reviewerId: request.reviewerId ? String(request.reviewerId) : null,
           reviewedAt: request.reviewedAt?.toISOString?.() || null,

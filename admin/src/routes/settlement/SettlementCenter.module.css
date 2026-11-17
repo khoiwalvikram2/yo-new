@@ -3,6 +3,9 @@
 .stack { display: grid; gap: 16px; min-width: 0; container-type: inline-size; container-name: settlement-center; }
 .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; min-width: 0; }
 .agentMetrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* The admin dashboard's figures (2026-11-02): live pending on one full row, the period's activity on the next. */
+.metricRows { display: grid; gap: 12px; min-width: 0; }
+.pendingMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
 .triple { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; min-width: 0; }
 .row, .tools, .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; }
@@ -37,7 +40,6 @@
 .chartViolet { --series-color: var(--h-vio); }
 .chartPositive { --series-color: var(--h-grn); }
 .chartWarning { --series-color: var(--h-amb); }
-.chartIndigo { --series-color: var(--h-ind); }
 .chart :global(.recharts-cartesian-grid line) { stroke: var(--grid); }
 .chart :global(.recharts-cartesian-axis-line), .chart :global(.recharts-cartesian-axis-tick-line) { stroke: var(--axis); }
 .chart :global(.recharts-cartesian-axis-tick-value), .chart :global(.recharts-pie-label-text) { fill: var(--tick); }

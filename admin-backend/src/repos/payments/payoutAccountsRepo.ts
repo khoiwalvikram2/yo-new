@@ -1,5 +1,5 @@
 import { db } from '@/db/client.js'
-import { and, desc, eq, gte, lte, ilike, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, ilike, isNull, or, sql } from 'drizzle-orm'
 import { userPayoutAccounts, users } from '@shared/db/schema.js'
 import { parseDateFrom, parseDateTo } from '@src/shared/dateUtils.js'
 import { getWhitelabelTimezone } from '@src/shared/whitelabelConfig.js'
@@ -36,7 +36,8 @@ export async function listPayoutAccounts(
   tenant: string,
   pagination: { offset: number; limit: number }
 ): Promise<{ items: AdminPayoutAccountRow[]; total: number }> {
-  const conditions = [eq(userPayoutAccounts.tenant, tenant)]
+  // An account the player deleted (deleted_at set, kept only so it counts toward auto-approval) is not reviewed.
+  const conditions = [eq(userPayoutAccounts.tenant, tenant), isNull(userPayoutAccounts.deletedAt)]
   if (filter.status) conditions.push(eq(userPayoutAccounts.approvalStatus, filter.status))
   if (filter.userId) conditions.push(eq(userPayoutAccounts.userId, filter.userId))
   if (filter.method) conditions.push(eq(userPayoutAccounts.method, filter.method as 'BANK' | 'UPI'))
@@ -178,7 +179,8 @@ export async function approvePayoutAccount(
       rejectionReason: null,
       updatedAt: new Date(),
     })
-    .where(and(eq(userPayoutAccounts.id, id), eq(userPayoutAccounts.tenant, tenant)))
+    // A deleted account is not reviewed: it reads as not found.
+    .where(and(eq(userPayoutAccounts.id, id), eq(userPayoutAccounts.tenant, tenant), isNull(userPayoutAccounts.deletedAt)))
     .returning()
 
   if (!updated[0]) return null
@@ -200,7 +202,7 @@ export async function rejectPayoutAccount(
       rejectionReason: reason ?? null,
       updatedAt: new Date(),
     })
-    .where(and(eq(userPayoutAccounts.id, id), eq(userPayoutAccounts.tenant, tenant)))
+    .where(and(eq(userPayoutAccounts.id, id), eq(userPayoutAccounts.tenant, tenant), isNull(userPayoutAccounts.deletedAt)))
     .returning()
 
   if (!updated[0]) return null

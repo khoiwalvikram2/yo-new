@@ -1,12 +1,10 @@
 /**
- * AgentCreditWalletView renders each tab from state alone. The old AgentCreditIndicator wrote
- * `const settlementTabContent = (` as JSX text and always rendered `activeTab === 'credit' ?
- * creditTabContent : sharingTabContent`, so choosing Settlement showed the Sharing content
- * (R7-gap-2 §4, decision 4). This test locks in the fix: Credit, Sharing and Settlement each
- * show only their own content, and the status pill / "View Credit Details" footer stay on the
- * Credit tab only.
+ * AgentCreditWalletView renders from state alone. A CREDIT agent's wallet is on Deposit/Withdraw chips
+ * (spec 2026-11-02 §8): the trigger shows its balance, the panel its balance, downline balance, credit
+ * reference and Ref P/L with the "Open Chips" footer. The credit-limit figures, the status pill, the
+ * Settlement tab and the Sharing tab are gone (CREDIT has no partnership split).
  */
-import { describe, test } from 'vitest'
+import { describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { AgentCreditWalletView } from './AgentCreditWalletView'
@@ -17,48 +15,19 @@ const formatAmount = (n: number, c?: string) => `${c ?? 'X'}${n.toFixed(2)}`
 const readyState: AgentCreditState = {
   visible: true,
   loading: false,
-  credit: {
-    creditAvailable: 4000,
-    creditLimit: 10000,
-    creditUsed: 6000,
-    usagePercentage: 60,
-    isNearLimit: false,
-    isCritical: false,
-    status: 'healthy',
-  },
-  settlement: {
-    balance: 250,
-    rows: [
-      { domain: 'Sports', amount: 100 },
-      { domain: 'Casino', amount: -50 },
-      { domain: 'Matka', amount: 200 },
-    ],
-  },
-  sharing: {
-    currency: 'INR',
-    currentPeriodTotal: 300,
-    rows: [{ domain: 'sports', rate: 5, allTime: 1000, currentPeriod: 300 }],
-  },
-  sharingLoading: false,
+  chips: { currency: 'INR', balance: 95000, downlineBalance: 9700, creditReference: 100000, refPnl: 4700 },
 }
 
-async function openPopover() {
-  render(
-    <AgentCreditWalletView state={readyState} compact={false} formatAmount={formatAmount} onViewDetails={() => {}} />
-  )
-  fireEvent.click(screen.getByRole('button', { name: /credit wallet/i }))
-  await waitFor(() => assert.ok(screen.getByRole('tab', { name: 'Credit' })))
+async function openPopover(state: AgentCreditState = readyState, onViewDetails = () => {}) {
+  render(<AgentCreditWalletView state={state} compact={false} formatAmount={formatAmount} onViewDetails={onViewDetails} />)
+  fireEvent.click(screen.getByRole('button', { name: /chips wallet/i }))
+  await waitFor(() => assert.ok(screen.getByRole('dialog', { name: 'Chips Wallet' })))
 }
 
 describe('AgentCreditWalletView', () => {
   test('renders nothing when state.visible is false', () => {
     const { container } = render(
-      <AgentCreditWalletView
-        state={{ ...readyState, visible: false }}
-        compact={false}
-        formatAmount={formatAmount}
-        onViewDetails={() => {}}
-      />
+      <AgentCreditWalletView state={{ ...readyState, visible: false }} compact={false} formatAmount={formatAmount} onViewDetails={() => {}} />,
     )
     assert.equal(container.innerHTML, '')
   })
@@ -66,41 +35,41 @@ describe('AgentCreditWalletView', () => {
   test('renders a loading placeholder while state.loading is true', () => {
     const { container } = render(
       <AgentCreditWalletView
-        state={{ ...readyState, loading: true, credit: null, settlement: null, sharing: null, sharingLoading: true }}
+        state={{ ...readyState, loading: true, chips: null }}
         compact={false}
         formatAmount={formatAmount}
         onViewDetails={() => {}}
-      />
+      />,
     )
     assert.notEqual(container.innerHTML, '')
+    assert.equal(screen.queryByRole('button', { name: /chips wallet/i }), null)
   })
 
-  test('Credit tab shows the status pill, credit figures and footer, never the Settlement rows', async () => {
-    await openPopover()
-    assert.ok(screen.getByText('Healthy'))
-    assert.ok(screen.getByText('View Credit Details'))
-    assert.equal(screen.queryByText('Settlement Balance'), null)
-    assert.equal(screen.queryByText('Casino'), null)
+  test('the trigger shows the balance in the account currency and carries no credit-limit dot', () => {
+    render(<AgentCreditWalletView state={readyState} compact={false} formatAmount={formatAmount} onViewDetails={() => {}} />)
+    const trigger = screen.getByRole('button', { name: 'Chips wallet, balance INR95000.00' })
+    assert.ok(trigger.textContent?.includes('INR95000.00'))
+    assert.equal(trigger.querySelector('span[aria-hidden="true"]')?.children.length, 1, 'wallet icon only, no alert dot')
   })
 
-  test('Sharing tab hides the status pill, the footer and the Settlement rows', async () => {
-    await openPopover()
-    fireEvent.click(screen.getByRole('tab', { name: 'Sharing' }))
-    await waitFor(() => assert.ok(screen.getByText('Current Period Total')))
-    assert.equal(screen.queryByText('Healthy'), null)
-    assert.equal(screen.queryByText('View Credit Details'), null)
-    assert.equal(screen.queryByText('Settlement Balance'), null)
+  test('balance, downline balance, credit reference and Ref P/L; no limit, used or usage', async () => {
+    const onViewDetails = vi.fn()
+    await openPopover(readyState, onViewDetails)
+    for (const text of ['Balance', 'Downline balance', 'INR9700.00', 'Credit reference', 'INR100000.00', '+INR4700.00', 'Upline owes you']) {
+      assert.ok(screen.getByText(text), text)
+    }
+    for (const text of ['Limit', 'Used', 'Usage', 'Available Credit', 'Healthy', 'Settlement Balance']) {
+      assert.equal(screen.queryByText(text), null, text)
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Open Chips' }))
+    assert.equal(onViewDetails.mock.calls.length, 1)
   })
 
-  test('Settlement tab shows the balance and Sports/Casino/Matka only there', async () => {
+  test('CREDIT has no partnership split: no tabs, no Sharing tab and no share figures', async () => {
     await openPopover()
-    fireEvent.click(screen.getByRole('tab', { name: 'Settlement' }))
-    await waitFor(() => assert.ok(screen.getByText('Settlement Balance')))
-    assert.ok(screen.getByText('Sports'))
-    assert.ok(screen.getByText('Casino'))
-    assert.ok(screen.getByText('Matka'))
-    assert.equal(screen.queryByText('Healthy'), null)
-    assert.equal(screen.queryByText('View Credit Details'), null)
-    assert.equal(screen.queryByText('Available Credit'), null)
+    assert.equal(screen.queryByRole('tablist'), null)
+    assert.equal(screen.queryByRole('tab', { name: 'Sharing' }), null)
+    assert.equal(screen.queryByText('Current Period Total'), null)
+    assert.ok(screen.getByText('Deposit & Withdraw'))
   })
 })

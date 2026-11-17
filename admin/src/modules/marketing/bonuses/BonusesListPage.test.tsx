@@ -11,7 +11,8 @@ import { beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
+import { ApolloLink } from '@apollo/client'
+import { MockedProvider, MockLink, type MockedResponse } from '@apollo/client/testing'
 import { GraphQLError, parse, type DocumentNode } from 'graphql'
 import type { ReactNode } from 'react'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
@@ -202,7 +203,8 @@ const WELCOME = row('7', {
   numberOfPlayers: 1500,
   usagePerPlayer: 2,
   startDate: '2026-09-22T09:00:00.000Z',
-  endDate: '2026-12-31T18:29:00.000Z',
+  // Far ahead, so the campaign stays live whenever the test runs (a past end date reads Expired).
+  endDate: '2099-12-31T18:29:00.000Z',
   wagering: 5,
 })
 const LAUNCH = row('8', {
@@ -236,6 +238,8 @@ interface Server {
   mutations: Array<{ name: string; variables: Record<string, unknown> }>
   preview: Preview | Error
   replies: Partial<Record<'delete' | 'status' | 'distribute', Reply[]>>
+  /** Each operation as the link chain saw it: where the app's global mutation toast reads skipNotification. */
+  operations: Array<{ name: string; skipNotification: unknown }>
 }
 
 let server: Server
@@ -310,10 +314,14 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>
 }
 
-function renderPage() {
+function renderPage(path = '/bonuses') {
+  const capture = new ApolloLink((operation, forward) => {
+    server.operations.push({ name: operation.operationName, skipNotification: operation.getContext().skipNotification })
+    return forward(operation)
+  })
   return render(
-    <MockedProvider mocks={mocks()}>
-      <MemoryRouter initialEntries={['/bonuses']}>
+    <MockedProvider link={ApolloLink.from([capture, new MockLink(mocks())])}>
+      <MemoryRouter initialEntries={[path]}>
         <PageEyebrowProvider value="Marketing">
           <Routes>
             <Route path="/bonuses" element={<BonusesListPage />} />
@@ -368,6 +376,7 @@ beforeEach(() => {
       distributedAt: null,
     },
     replies: {},
+    operations: [],
   }
   feedback.toast.mockReset()
   feedback.confirm.mockReset()
@@ -430,7 +439,7 @@ describe('BonusesListPage', () => {
       'INR 1000.00Fixed',
       `${(1500).toLocaleString()}(2/player)`,
       '2026-09-22 [dd MMM yyyy HH:mm]',
-      '2026-12-31 [dd MMM yyyy HH:mm]',
+      '2099-12-31 [dd MMM yyyy HH:mm]',
     ])
     const launch = within(rowOf('Launch drop')).getAllByRole('cell').map((cell) => cell.textContent)
     assert.deepEqual(launch.slice(0, 8), [
@@ -446,7 +455,7 @@ describe('BonusesListPage', () => {
     await renderLoaded()
     assert.deepEqual(
       within(rowOf('Welcome 100%')).getAllByRole('button').map((button) => button.getAttribute('aria-label')),
-      ['View details of Welcome 100%', 'Edit Welcome 100%', 'Deactivate Welcome 100%', 'Delete Welcome 100%'],
+      ['View details of Welcome 100%', 'Edit Welcome 100%', 'Deactivate Welcome 100%', 'End Welcome 100%'],
     )
     assert.deepEqual(
       within(rowOf('Launch drop')).getAllByRole('button').map((button) => button.getAttribute('aria-label')),
@@ -455,11 +464,15 @@ describe('BonusesListPage', () => {
         'View details of Launch drop',
         'Edit Launch drop',
         'Activate Launch drop',
-        'Delete Launch drop',
+        'End Launch drop',
       ],
     )
-    // Already distributed: no Distribute action.
+    // Already distributed: no Distribute action. Already ended: nothing to end, and Activate says Reactivate (MAR-07).
     assert.ok(within(rowOf('Diwali drop')).queryByRole('button', { name: /^Distribute/ }) === null)
+    assert.deepEqual(
+      within(rowOf('Diwali drop')).getAllByRole('button').map((button) => button.getAttribute('aria-label')),
+      ['View details of Diwali drop', 'Edit Diwali drop', 'Reactivate Diwali drop'],
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Welcome 100%' }))
     assert.equal(screen.getByTestId('location').textContent, '/bonuses/7/edit')
@@ -469,6 +482,15 @@ describe('BonusesListPage', () => {
     await renderLoaded()
     fireEvent.click(screen.getByRole('button', { name: 'View details of Launch drop' }))
     assert.equal(screen.getByTestId('location').textContent, '/bonuses/8')
+  })
+
+  test('a link with ?search= (the global search "See all Bonuses") opens the list already searched', async () => {
+    renderPage('/bonuses?search=drop')
+    await screen.findByRole('table', { name: 'Bonus campaigns' })
+    assert.equal((screen.getByRole('searchbox', { name: 'Search campaigns' }) as HTMLInputElement).value, 'drop')
+    // The first list request already carries it: no unfiltered list first.
+    await waitFor(() => assert.ok(server.listCalls.length > 0))
+    assert.deepEqual(server.listCalls[0], { search: 'drop' })
   })
 
   test('sends every filter to the query, counts them and clears them', async () => {
@@ -489,10 +511,13 @@ describe('BonusesListPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     await waitFor(() => assert.equal((screen.getByRole('searchbox', { name: 'Search campaigns' }) as HTMLInputElement).value, ''))
     assert.equal((screen.getByRole('combobox', { name: 'Status' }) as HTMLSelectElement).value, '')
+    // Every type the create form offers (MAR-03).
     assert.deepEqual(
       within(screen.getByRole('combobox', { name: 'Type' })).getAllByRole('option').map((option) => option.textContent),
-      ['All types', 'Deposit', 'Signup', 'Direct Bonus', 'Referral Deposit'],
+      ['All types', 'Deposit', 'First Day First Time Deposit', 'Signup', 'Direct Bonus', 'Losing Bonus', 'Special Bonus'],
     )
+    fireEvent.change(screen.getByRole('combobox', { name: 'Type' }), { target: { value: 'losing_bonus' } })
+    await waitFor(() => assert.deepEqual(server.listCalls.at(-1), { type: 'losing_bonus' }))
   })
 
   test('pages through the list on the client and keeps a shrunken list on its last page', async () => {
@@ -500,9 +525,11 @@ describe('BonusesListPage', () => {
     await renderLoaded()
     assert.equal(bodyRowNames().length, 10)
     assert.equal(bodyRowNames()[0], 'Campaign 1CASINO')
-    assert.ok(within(tableCard()).getByText('10 campaigns'))
-    assert.equal(exporter.options?.title, 'Bonus Campaigns — 10 campaign(s)')
-    assert.equal(exporter.options?.data.length, 10)
+    // The card counts every campaign the filters match, like the pager total, not the page's 10.
+    assert.ok(within(tableCard()).getByText('23 campaigns'))
+    // Export Excel takes every campaign the filters match, not the page's 10 (B007).
+    assert.equal(exporter.options?.title, 'Bonus Campaigns — 23 campaign(s)')
+    assert.deepEqual(exporter.options?.data.map((campaign) => campaign.id), server.campaigns.map((campaign) => campaign.id))
 
     fireEvent.click(screen.getByRole('button', { name: 'Page 3' }))
     await waitFor(() => assert.deepEqual(bodyRowNames(), ['Campaign 21CASINO', 'Campaign 22CASINO', 'Campaign 23CASINO']))
@@ -514,6 +541,10 @@ describe('BonusesListPage', () => {
     await waitFor(() => assert.ok(server.listCalls.length > callsBefore))
     await waitFor(() => assert.deepEqual(bodyRowNames(), ['Campaign 11CASINO', 'Campaign 12CASINO']))
     assert.equal(screen.getByRole('button', { name: 'Page 2' }).getAttribute('aria-current'), 'page')
+    // The export and the card follow the filter: the 12 it leaves, though the page shows 2.
+    assert.equal(exporter.options?.title, 'Bonus Campaigns — 12 campaign(s)')
+    assert.equal(exporter.options?.data.length, 12)
+    assert.ok(within(tableCard()).getByText('12 campaigns'))
 
     fireEvent.change(screen.getByRole('combobox', { name: /Rows per page/ }), { target: { value: '25' } })
     await waitFor(() => assert.equal(bodyRowNames().length, 12))
@@ -531,7 +562,7 @@ describe('BonusesListPage', () => {
     assert.ok(within(tableCard()).getByText('0 campaigns'))
   })
 
-  test('exports the rows on screen with the legacy file names', async () => {
+  test('exports with the legacy file names', async () => {
     await renderLoaded()
     assert.equal(exporter.options?.filename, 'Bonus-Campaigns')
     assert.equal(exporter.options?.sheetName, 'Campaigns')
@@ -590,23 +621,23 @@ describe('BonusesListPage', () => {
     }))
   })
 
-  test('deletes through the legacy confirmation and reports each outcome', async () => {
+  test('ends a campaign through a confirmation that says what End does, and reports each outcome (MAR-07)', async () => {
     await renderLoaded()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Diwali drop' }))
+    fireEvent.click(screen.getByRole('button', { name: 'End Launch drop' }))
     const confirmation = lastConfirm()
-    assert.equal(confirmation.title, 'Delete campaign?')
-    assert.equal(confirmation.description, 'This action cannot be undone.')
+    assert.equal(confirmation.title, 'End campaign?')
+    assert.equal(confirmation.description, 'It stops new awards. The campaign stays in the list and can be activated again.')
     assert.equal(confirmation.confirmLabel, 'Yes')
     assert.equal(confirmation.cancelLabel, 'No')
 
     const listCallsBefore = server.listCalls.length
-    server.replies.delete = [{ success: true, message: 'Bonus campaign deleted successfully' }]
+    server.replies.delete = [{ success: true, message: 'Bonus campaign ended successfully' }]
     await act(async () => { await confirmation.onConfirm?.() })
-    assert.deepEqual(server.mutations[0], { name: 'delete', variables: { id: '9' } })
-    await waitFor(() => assert.equal(feedback.toast.mock.calls[0][0].message, 'Bonus campaign deleted successfully'))
+    assert.deepEqual(server.mutations[0], { name: 'delete', variables: { id: '8' } })
+    await waitFor(() => assert.equal(feedback.toast.mock.calls[0][0].message, 'Bonus campaign ended successfully'))
     await waitFor(() => assert.ok(server.listCalls.length > listCallsBefore, 'the list refetched'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Welcome 100%' }))
+    fireEvent.click(screen.getByRole('button', { name: 'End Welcome 100%' }))
     server.replies.delete = [{ success: false, message: 'Campaign has active awards' }]
     await act(async () => { await lastConfirm().onConfirm?.() })
     await waitFor(() => assert.deepEqual(feedback.toast.mock.calls[1][0], {
@@ -615,6 +646,35 @@ describe('BonusesListPage', () => {
       tone: 'error',
       duration: TOAST_MS,
     }))
+  })
+
+  test('reports each mutation once: every page mutation tells the global toast to stay quiet (MAR-06)', async () => {
+    await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Welcome 100%' }))
+    await act(async () => { await lastConfirm().onConfirm?.() })
+    fireEvent.click(screen.getByRole('button', { name: 'End Launch drop' }))
+    await act(async () => { await lastConfirm().onConfirm?.() })
+    await waitFor(() => assert.equal(feedback.toast.mock.calls.length, 2))
+
+    const sent = server.operations.filter((operation) => operation.name !== 'BonusCampaigns')
+    assert.deepEqual(sent, [
+      { name: 'UpdateBonusCampaignStatus', skipNotification: true },
+      { name: 'DeleteBonusCampaign', skipNotification: true },
+    ])
+    assert.ok(server.operations.some((operation) => operation.name === 'BonusCampaigns' && operation.skipNotification === undefined))
+  })
+
+  test('shows an active campaign past its end date as Expired and keeps it out of Active (MAR-18)', async () => {
+    server.campaigns = [WELCOME, row('10', { name: 'FTD', status: 'active', endDate: '2026-03-14T18:30:00.000Z' }), LAUNCH]
+    await renderLoaded()
+    const statText = screen.getByRole('group', { name: 'Bonus campaign statistics' }).textContent ?? ''
+    assert.match(statText, /Active1/)
+    assert.match(statText, /1 past end date, 3 total/)
+    assert.equal(within(rowOf('FTD')).getAllByRole('cell')[2].textContent, 'Expired')
+    assert.equal(within(rowOf('Welcome 100%')).getAllByRole('cell')[2].textContent, 'Active')
+    // It is still active by status, so it still offers Deactivate and End.
+    assert.ok(within(rowOf('FTD')).getByRole('button', { name: 'Deactivate FTD' }))
+    assert.ok(within(rowOf('FTD')).getByRole('button', { name: 'End FTD' }))
   })
 
   test('previews and distributes a direct bonus, then refetches and closes', async () => {
@@ -633,6 +693,7 @@ describe('BonusesListPage', () => {
     server.replies.distribute = [{ success: true, message: 'ok', distributedCount: 12 }]
     fireEvent.click(distribute)
     await waitFor(() => assert.deepEqual(server.mutations[0], { name: 'distribute', variables: { campaignId: '8' } }))
+    assert.ok(server.operations.some((operation) => operation.name === 'DistributeBonusCampaign' && operation.skipNotification === true))
     await waitFor(() => assert.deepEqual(feedback.toast.mock.calls[0][0], {
       title: 'Success',
       message: 'Distributed to 12 users',

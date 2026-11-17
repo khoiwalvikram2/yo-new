@@ -1,4 +1,5 @@
 import { useId, type PointerEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { ArrowUpRight, LoaderCircle, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useCasinoLoungeGames, type LoungeGame } from '../../casino/useCasinoLoungeGames'
@@ -20,7 +21,8 @@ function LoungeCard({ game, index }: { game: LoungeGame; index: number }) {
   const { t } = useTranslation()
   const { launch, loading, error } = useLaunchGame(game.gameId)
   const errorId = useId()
-  return <div className={`lg-cell is-${formats[index % formats.length]}`}>
+  const format = formats[index % formats.length]
+  return <div className={`lg-cell is-${format}`}>
     <button type="button" className="lg-portal" disabled={loading}
       aria-label={t('nova.openGame', { title: game.title })} aria-describedby={error ? errorId : undefined}
       onClick={() => void launch()} onPointerMove={followLight}
@@ -35,8 +37,12 @@ function LoungeCard({ game, index }: { game: LoungeGame; index: number }) {
         image.src = '/dice-bg.svg'
       }} />
       <span className="lg-game-shade" aria-hidden="true" />
+      <span className="lg-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
       <span className="lg-copy"><span className="lg-kicker">{game.provider}</span><strong>{game.title}</strong></span>
-      <span className="lg-enter" aria-hidden="true">{loading ? <LoaderCircle className="lg-spinner" /> : <ArrowUpRight />}</span>
+      <span className="lg-enter" aria-hidden="true">
+        {format === 'feature' && <span className="lg-enter-label">{t('common.play')}</span>}
+        {loading ? <LoaderCircle className="lg-spinner" /> : <ArrowUpRight />}
+      </span>
       {loading && <span className="sr-only" role="status">{t('casinoLounge.opening')}</span>}
     </button>
     {error && <p id={errorId} className="lg-launch-error" role="alert">{error}</p>}
@@ -51,7 +57,9 @@ export default function CasinoLounge() {
   if (!loading && !error && items.length === 0) return null
 
   return <section className="lg" aria-labelledby={id} data-real-adapter="casino-lounge">
-    <SectionHeader icon={<Sparkles className="nova-ex-strip-icon" aria-hidden="true" />} title={t('casinoLounge.title')} titleId={id} />
+    <SectionHeader icon={<Sparkles className="nova-ex-strip-icon" aria-hidden="true" />} title={t('casinoLounge.title')} titleId={id}>
+      <Link to="/casino" className="nova-ex-section-all">{t('exchangeHome.seeAll', { defaultValue: 'See All' })}</Link>
+    </SectionHeader>
     {items.length > 0 && <div className={`lg-grid${items.length < 3 ? ` has-${items.length}` : ''}`}>
       {items.map((game, index) => <LoungeCard key={game.id} game={game} index={index} />)}
     </div>}

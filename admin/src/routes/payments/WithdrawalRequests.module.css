@@ -259,6 +259,11 @@
   max-width: 100%;
 }
 
+/* The drawer's Deleted pill sits beside the method pill with the copy actions' 6px gap. */
+.deletedPill {
+  margin-inline-start: 6px;
+}
+
 .note {
   display: flex;
   align-items: flex-start;
@@ -440,6 +445,23 @@
 .historyTable {
   min-width: 0;
   margin: 0 calc(-1 * var(--card-pad));
+}
+
+/* WeLivePay payout: the gateway's view of the payout, a note while it manages the request, then its actions. */
+.payoutPanel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.payoutActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.payoutActions:empty {
+  display: none;
 }
 
 /* A free-text note wraps inside its cell rather than widening the history table. */

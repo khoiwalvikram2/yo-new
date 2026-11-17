@@ -27,7 +27,9 @@ describe('SearchTrigger', () => {
     render(<SearchTrigger onOpen={() => {}} />)
     const button = screen.getByRole('button', { name: 'Open search' })
 
-    const long = screen.getByText('Search players, transactions, or reports...')
+    // Only what search can find: it has no transactions category (a real deposit UTR found nothing).
+    const long = screen.getByText('Search players, agents, or reports...')
+    assert.equal(screen.queryByText(/transactions/i), null)
     const short = screen.getByText('Search...')
     assert.ok(button.contains(long))
     assert.ok(button.contains(short))

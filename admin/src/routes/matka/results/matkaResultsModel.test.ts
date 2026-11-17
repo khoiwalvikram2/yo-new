@@ -254,12 +254,14 @@ describe('matkaResultsModel', () => {
     assert.equal(canConfirmRollback(' ROLLBACK'), false)
     assert.deepEqual(Object.keys(buildRollbackInput('r1', 'why', 'fraud')), ['id', 'reason', 'tag'])
     assert.deepEqual(buildRollbackInput('r1', 'why'), { id: 'r1', reason: 'why', tag: undefined })
-    assert.deepEqual(rollbackFacts(result({ type: 'close', result: '456' })).map((fact) => [fact.term, fact.value]), [
-      ['Market', 'm1'],
+    // The market is named as the table names it; the raw id only when no name is known.
+    assert.deepEqual(rollbackFacts(result({ type: 'close', result: '456' }), 'Kalyan').map((fact) => [fact.term, fact.value]), [
+      ['Market', 'Kalyan'],
       ['Date', '2026-10-05'],
       ['Type', 'CLOSE'],
       ['Result', '456'],
     ])
+    assert.equal(rollbackFacts(result({ type: 'close', result: '456' }))[0].value, 'm1')
   })
 
   test('declare: defaults, digits only, the later-day refusal and every field rule', () => {

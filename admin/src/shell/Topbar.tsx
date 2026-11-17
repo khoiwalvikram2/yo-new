@@ -13,7 +13,6 @@ import { WhitelabelWallet } from './topbar/WhitelabelWallet'
 import { AgentCreditWallet } from './topbar/AgentCreditWallet'
 import { AgentSharingWallet } from './topbar/AgentSharingWallet'
 import { AgentCommissionWallet } from './topbar/AgentCommissionWallet'
-import { DateTime } from './topbar/DateTime'
 import { NotificationBell } from './topbar/NotificationBell'
 import { ThemeToggle } from './topbar/ThemeToggle'
 import { ProfileMenu } from './topbar/ProfileMenu'
@@ -75,7 +74,6 @@ export function Topbar(props: TopbarProps) {
         {roles.wallet === 'agentCredit' && <AgentCreditWallet compact={isSmallScreen} />}
         {roles.wallet === 'agentSharing' && <AgentSharingWallet compact={isSmallScreen} />}
         {roles.wallet === 'agentCommission' && <AgentCommissionWallet compact={isSmallScreen} />}
-        <DateTime />
         <div className={styles.tools}>
           {roles.showGeneralBell && !bellsInToolRail && <NotificationBell category="general" />}
           {roles.showTaskBell && !bellsInToolRail && <NotificationBell category="task" />}

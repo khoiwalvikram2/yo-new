@@ -14,11 +14,13 @@ import { Checkbox } from '@/ui/components/Checkbox'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { LoadingState } from '@/ui/components/LoadingState'
 import { Notice } from '@/ui/components/Notice'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { Switch } from '@/ui/components/Switch'
 import { Table, TBody, TH, THead, TR } from '@/ui/components/Table'
 import { strokeFor } from '@/ui/components/icons'
 import type { GameRow, ViewMode, VipTier } from '../casinoManagementModel'
+import { MasterControlToggle } from './MasterControlToggle'
 import { SortableRow } from './SortableRow'
 import styles from '../ManagementPage.module.css'
 
@@ -44,6 +46,8 @@ interface GamesContentProps {
   refetchGames: () => Promise<unknown> | unknown
   toggleMasterActive?: (gameId: string, isActive: boolean) => Promise<void>
   isWhitelabelAdmin?: boolean
+  /** Super Admin core mode: every whitelabel at once, so only the platform's Master Control applies. */
+  coreMode?: boolean
 }
 
 export function GamesContent({
@@ -68,6 +72,7 @@ export function GamesContent({
   refetchGames,
   toggleMasterActive,
   isWhitelabelAdmin = false,
+  coreMode = false,
 }: GamesContentProps) {
   const [toggleEnabled] = useMutation(TOGGLE_CASINO_GAME_ENABLED)
 
@@ -102,23 +107,25 @@ export function GamesContent({
         <Table caption="Casino games" width="wide">
           <THead>
             <TR>
-              <TH className={styles.checkCell}>
-                <Checkbox
-                  checked={allSelected}
-                  indeterminate={selectedKeys.size > 0 && !allSelected}
-                  onChange={onToggleAll}
-                  label="Select all games"
-                  hideLabel
-                />
-              </TH>
-              <TH>Priority</TH>
+              {!coreMode ? (
+                <TH className={styles.checkCell}>
+                  <Checkbox
+                    checked={allSelected}
+                    indeterminate={selectedKeys.size > 0 && !allSelected}
+                    onChange={onToggleAll}
+                    label="Select all games"
+                    hideLabel
+                  />
+                </TH>
+              ) : null}
+              {!coreMode ? <TH>Priority</TH> : null}
               <TH>Game Details</TH>
               {!isWhitelabelAdmin ? <TH>Master Control</TH> : null}
               <TH>Status</TH>
               <TH>Vendor</TH>
-              <TH>VIP Tiers</TH>
-              <TH>Bet Settings</TH>
-              <TH align="right" sticky="end">Actions</TH>
+              {!coreMode ? <TH>VIP Tiers</TH> : null}
+              {!coreMode ? <TH>Bet Settings</TH> : null}
+              {!coreMode ? <TH align="right" sticky="end">Actions</TH> : null}
             </TR>
           </THead>
           <TBody>
@@ -136,6 +143,7 @@ export function GamesContent({
                     vipTiers={vipTiers}
                     toggleMasterActive={toggleMasterActive}
                     isWhitelabelAdmin={isWhitelabelAdmin}
+                    coreMode={coreMode}
                   />
                 )
               })}
@@ -150,62 +158,84 @@ export function GamesContent({
     <div className={styles.gamesGrid} onMouseLeave={onMouseUp}>
       {rows.map((game) => {
         const selected = selectedKeys.has(String(game.id))
+        // Core mode has no whitelabel to switch the game on for: the card shows the platform flag
+        // and Master Control, and opens no settings drawer.
+        const on = coreMode ? game.isActive : Boolean(game.tenantEnabled)
+        const poster = (
+          <>
+            {/* No poster, or one that will not load: the gamepad tile, never a broken image (SYS-18). */}
+            <StoredImage src={game.thumbnailUrl} alt="" fallback={(
+              <span className={styles.posterPlaceholder} aria-hidden="true">
+                <IconDeviceGamepad2 size={26} stroke={strokeFor(26)} />
+              </span>
+            )} />
+            <span className={styles.posterVendor}>{game.vendorName}</span>
+            <span className={styles.posterStatus}>
+              <StatusPill status={on ? 'enabled' : 'disabled'}>{on ? 'ON' : 'OFF'}</StatusPill>
+            </span>
+          </>
+        )
         return (
           <article
             key={game.id}
             className={styles.gameCard}
             data-selected={selected ? 'true' : undefined}
             data-drag-select={isDragging ? 'true' : undefined}
-            onMouseDown={() => onMouseDown(String(game.id))}
-            onMouseEnter={() => onMouseEnter(String(game.id))}
+            onMouseDown={coreMode ? undefined : () => onMouseDown(String(game.id))}
+            onMouseEnter={coreMode ? undefined : () => onMouseEnter(String(game.id))}
           >
-            <span
-              className={styles.cardCheckbox}
-              onMouseDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Checkbox checked={selected} onChange={() => onToggleOne(String(game.id))} label={`Select ${game.name}`} hideLabel />
-            </span>
-            <button type="button" className={styles.gamePoster} onClick={() => onOpenDrawer(game)}>
-              {game.thumbnailUrl ? <img src={game.thumbnailUrl} alt="" /> : (
-                <span className={styles.posterPlaceholder} aria-hidden="true">
-                  <IconDeviceGamepad2 size={26} stroke={strokeFor(26)} />
-                </span>
-              )}
-              <span className={styles.posterVendor}>{game.vendorName}</span>
-              <span className={styles.posterStatus}>
-                <StatusPill status={game.tenantEnabled ? 'enabled' : 'disabled'}>
-                  {game.tenantEnabled ? 'ON' : 'OFF'}
-                </StatusPill>
+            {!coreMode ? (
+              <span
+                className={styles.cardCheckbox}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <Checkbox checked={selected} onChange={() => onToggleOne(String(game.id))} label={`Select ${game.name}`} hideLabel />
               </span>
-            </button>
+            ) : null}
+            {coreMode ? (
+              <div className={styles.gamePoster}>{poster}</div>
+            ) : (
+              <button type="button" className={styles.gamePoster} onClick={() => onOpenDrawer(game)}>{poster}</button>
+            )}
             <div className={styles.gameCardBody}>
               <div className={styles.gameCardHeading}>
                 <div>
-                  <button type="button" className={styles.gameName} onClick={() => onOpenDrawer(game)}>{game.name}</button>
+                  {coreMode
+                    ? <span className={`${styles.gameName} ${styles.gameNameStatic}`}>{game.name}</span>
+                    : <button type="button" className={styles.gameName} onClick={() => onOpenDrawer(game)}>{game.name}</button>}
                   <span className={styles.secondaryText}>{game.slug}</span>
                 </div>
-                {game.order !== null && game.order !== undefined ? <span className={styles.orderBadge}>#{game.order}</span> : null}
+                {!coreMode && game.order !== null && game.order !== undefined ? <span className={styles.orderBadge}>#{game.order}</span> : null}
               </div>
               <div className={styles.inlineBadges}>
                 {!game.isActive ? <StatusPill status="blocked" icon={<IconShieldLock size={11} stroke={strokeFor(11)} />}>Blocked</StatusPill> : null}
                 {game.premiumOnly ? <StatusPill tone="warn" icon={<IconStar size={11} stroke={strokeFor(11)} />}>Premium</StatusPill> : null}
               </div>
               <div className={styles.cardToggle} onMouseDown={(event) => event.stopPropagation()}>
-                <span>Enable Game</span>
-                <Switch
-                  checked={Boolean(game.tenantEnabled)}
-                  label={`Enable ${game.name}`}
-                  hideLabel
-                  size="sm"
-                  onChange={async (checked) => {
-                    await toggleEnabled({
-                      variables: { gameId: game.id, enabled: checked },
-                      context: { uiToast: 'notification' },
-                    })
-                    await refetchGames()
-                  }}
-                />
+                {coreMode && toggleMasterActive ? (
+                  <>
+                    <span>Master Control</span>
+                    <MasterControlToggle gameId={game.id} isActive={game.isActive} onToggle={toggleMasterActive} />
+                  </>
+                ) : (
+                  <>
+                    <span>Enable Game</span>
+                    <Switch
+                      checked={Boolean(game.tenantEnabled)}
+                      label={`Enable ${game.name}`}
+                      hideLabel
+                      size="sm"
+                      onChange={async (checked) => {
+                        await toggleEnabled({
+                          variables: { gameId: game.id, enabled: checked },
+                          context: { uiToast: 'notification' },
+                        })
+                        await refetchGames()
+                      }}
+                    />
+                  </>
+                )}
               </div>
             </div>
           </article>

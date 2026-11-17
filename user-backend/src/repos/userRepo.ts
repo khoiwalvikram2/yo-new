@@ -1,7 +1,8 @@
-import { and, eq, or, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, or, inArray, sql } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { db } from '../db/client.js'
 import { users, wallets } from '../db/schema.js'
+import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
 
 type DbOrTx = typeof db
 import { normalizePhoneForLookup } from '../utils/phoneUtils.js'
@@ -23,9 +24,37 @@ export async function findUserByPhone(phone: string, tenant = 'default'): Promis
   return rows[0] ?? null
 }
 
-export async function findUserByUsername(username: string, tenant = 'default'): Promise<UserRow | null> {
-  const rows = await db.select().from(users).where(and(eq(users.username, username), eq(users.tenant, tenant)))
-  return rows[0] ?? null
+/**
+ * Every player of the tenant with exactly this username, oldest first. New usernames are unique per tenant
+ * (isUsernameTaken), but older duplicates exist, so a username login has to see all of them: taking whichever
+ * row came back first let one duplicate's password log in and the other's fail by physical row order.
+ */
+export async function findUsersByUsername(username: string, tenant = 'default'): Promise<UserRow[]> {
+  return db.select().from(users).where(and(eq(users.username, username), eq(users.tenant, tenant))).orderBy(asc(users.id))
+}
+
+/** Is this username taken in the tenant, ignoring case and surrounding spaces? */
+export async function isUsernameTaken(username: string, tenant: string, executor: DbOrTx = db): Promise<boolean> {
+  const normalized = username.trim().toLowerCase()
+  if (!normalized) return false
+  const rows = await executor
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.tenant, tenant), sql`lower(btrim(${users.username})) = ${normalized}`))
+    .limit(1)
+  return rows.length > 0
+}
+
+/**
+ * There is no unique index on (tenant, username) yet (existing duplicates must be renamed first), so a creation
+ * checks under this transaction-scoped advisory lock: two creations of the same name serialise and the second
+ * sees the first. The key is the one admin-backend's createPlayerDb takes (validateUsernameUniqueness), so a
+ * signup and an admin creation of the same name serialise too. Keep the two formulas identical.
+ */
+export async function lockUsernameForCreation(tx: DbOrTx, username: string, tenant: string): Promise<void> {
+  const normalized = username.trim().toLowerCase()
+  if (!normalized) return
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`users.username:${tenant}:${normalized}`}))`)
 }
 
 export async function findUserById(id: number, tenant = 'default'): Promise<UserRow | null> {
@@ -96,7 +125,12 @@ export async function createUser(params: {
         throw new Error('This phone number is already registered')
       }
     }
-    
+    // authService checked the username before sending the OTP; checked again here, under the lock, for atomicity.
+    await lockUsernameForCreation(tx as unknown as DbOrTx, params.username, tenant)
+    if (await isUsernameTaken(params.username, tenant, tx as unknown as DbOrTx)) {
+      throw new Error('This username is already taken')
+    }
+
     let inserted: UserRow[]
     try {
       inserted = await tx.insert(users).values({
@@ -165,7 +199,15 @@ export async function ensureWallet(userId: number, tenant = 'default', currency 
 export function mapUserProfile(row: UserRow, wallet: WalletRow | null, _legacyUnsettledReferralBalance?: number) {
   // Extract playerType from row (handle both direct property and nested access)
   const playerType = (row as any).playerType || (row as any)?.playerType || 'REGULAR'
-  
+  // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) hold their Deposit/Withdraw chips in
+  // wallets.cash, so their credit figures come from the wallet too: creditLimit is only the
+  // credit reference their upline set, creditAvailable is their free chips (cash - exposure)
+  // and creditUsed is the sports liability held as exposure. users.credit_used and
+  // credit_available are retired for them (left at 0) and are not read.
+  const creditPlayer = isCreditPlayer(playerType)
+  const walletCash = wallet ? Number(wallet.cash ?? 0) : 0
+  const walletExposure = wallet ? Number(wallet.exposure ?? 0) : 0
+
   return {
     id: String(row.id),
     username: row.username || row.name || 'User',
@@ -180,9 +222,11 @@ export function mapUserProfile(row: UserRow, wallet: WalletRow | null, _legacyUn
     referralBalance: wallet ? Number(wallet.referralBalance ?? 0) : _legacyUnsettledReferralBalance ?? 0,
     referralBonusBalance: wallet ? Number(wallet.referralBonus ?? 0) : 0,
     playerType: playerType, // Include playerType for credit player detection
-    creditAvailable: Number((row as any).creditAvailable ?? 0),
+    creditAvailable: creditPlayer
+      ? Math.round(Math.max(0, walletCash - walletExposure) * 100) / 100
+      : Number((row as any).creditAvailable ?? 0),
     creditLimit: Number((row as any).creditLimit ?? 0),
-    creditUsed: Number((row as any).creditUsed ?? 0),
+    creditUsed: creditPlayer ? walletExposure : Number((row as any).creditUsed ?? 0),
     requirePasswordReset: !!(row as any).requirePasswordReset,
   }
 }

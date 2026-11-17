@@ -4,9 +4,9 @@ import { useCurrency } from '@/shared/core/CurrencyContext'
 import { strokeFor } from '@/ui/components/icons'
 import { Grid } from '@/ui/components/LayoutPrimitives'
 import { Stat } from '@/ui/components/Stat'
-import { bonusCampaignStats, pausedShareNote } from '../bonusesListModel'
+import { activeShareNote, bonusCampaignStats, pausedShareNote } from '../bonusesListModel'
 
-type CampaignItem = { status?: string; budgetNumeric?: string | number | null }
+type CampaignItem = { status?: string; budgetNumeric?: string | number | null; endDate?: string | null }
 
 interface StatsCardsProps {
   campaigns: CampaignItem[]
@@ -34,7 +34,7 @@ export function StatsCards({ campaigns, loading }: StatsCardsProps) {
       <Stat
         label="Active"
         value={stats.active}
-        note={`${stats.active} campaigns, ${stats.total} total`}
+        note={activeShareNote(stats)}
         icon={<IconCircleCheck size={18} stroke={strokeFor(18)} />}
         hue="grn"
         loading={pending}

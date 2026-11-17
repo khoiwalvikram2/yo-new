@@ -1,512 +1,201 @@
 /**
- * /credit mounts three queries behind one tab strip, so a wrong variable, a query that runs on the wrong tab
- * or a guard that lets the wrong caller through would only show in the browser. This mounts the page against
- * MockedProvider (real documents, exact variables: an unmatched request fails the query) and checks what a
- * user reads on each tab and in each state. Currency and dates are stubbed to plain formatters; the role test
- * and the RBAC guard are stubbed so the guard's branch and its requirement are pinned.
+ * /credit is the admin's Chips page (spec 2026-11-02 §8): the whitelabel pool's figures, the root accounts it
+ * feeds (with D / W / CR for the admin) and the pool's own statement. This mounts the page against a mock
+ * GraphQL server that answers by operation name and records every call, and reads what an admin sees.
  */
-import { beforeEach, describe, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import {
-  MY_WHITELABEL_CREDIT_HISTORY_QUERY,
-  MY_WHITELABEL_CREDIT_QUERY,
-  MY_WHITELABEL_SETTLEMENTS_QUERY,
-} from '@/lib/graphql/whitelabel'
+import { ApolloClient, ApolloLink, ApolloProvider, InMemoryCache, Observable, type FetchResult, type NormalizedCacheObject } from '@apollo/client'
+import { useAuthStore } from '@/shared/core/authStore'
+import { chipAccountFixture, chipPoolFixture, chipTotalsFixture } from '@/modules/chips/chipTestKit'
 import CreditManagementPage from './CreditManagementPage'
 
-interface GuardCall {
-  required: Array<{ domain: string; actions: string[] }>
-}
+const guard = vi.hoisted(() => ({ allowed: true, calls: [] as unknown[] }))
 
-const auth = vi.hoisted(() => ({ roles: ['Whitelabel Admin'] as string[] }))
-const guard = vi.hoisted(() => ({ allowed: true, calls: [] as GuardCall[] }))
-
+vi.mock('@/ui/components/toast', () => ({ toast: vi.fn() }))
 vi.mock('@/shared/core/CurrencyContext', () => ({
   useCurrency: () => ({
-    formatAmount: (amount: number) => `INR ${amount.toFixed(2)}`,
+    formatAmount: (amount: number, currency = 'INR') => `${currency} ${Number(amount).toFixed(2)}`,
+    getCurrencySymbol: () => '₹',
   }),
 }))
-
 vi.mock('@/shared/core/useFormatDate', () => ({
-  useFormatDate: () => ({
-    formatDateTime: (value: string) => `shown:${value}`,
-  }),
+  useFormatDate: () => ({ formatDateTime: (value: string) => `shown:${value}`, formatDate: (value: string) => value }),
 }))
-
-vi.mock('@/shared/core/authStore', () => ({
-  useAuthStore: (selector: (state: { roles: string[] }) => unknown) => selector({ roles: auth.roles }),
-}))
-
 vi.mock('@/shared/core/RBACGuard', () => ({
-  RBACGuard: ({ required, children }: GuardCall & { children: ReactNode }) => {
-    guard.calls.push({ required })
+  RBACGuard: ({ required, children }: { required: unknown; children: ReactNode }) => {
+    guard.calls.push(required)
     return guard.allowed ? <>{children}</> : <div role="alert">Access denied</div>
   },
 }))
 
-const AT = '2026-10-01T10:00:00.000Z'
+type Handler = (variables: Record<string, unknown>) => unknown
+let calls: Array<{ name: string; variables: Record<string, unknown> }>
+let handlers: Record<string, Handler>
+const clients: ApolloClient<NormalizedCacheObject>[] = []
 
-const CREDIT = {
-  __typename: 'WhitelabelCreditInfo',
-  creditLimit: 2500000,
-  creditUsed: 942500,
-  creditAvailable: 1557500,
-  creditAlertThreshold: 80,
-  usagePercentage: 37.7,
-  isNearLimit: false,
-}
+const ROOT_AGENT = chipAccountFixture({ id: 'root-agent', username: 'root1', parentAgentId: null, creditReference: 100000, balance: 95000, available: 95000, refPnl: -5000, downlineCount: 3 })
+const WL_PLAYER = chipAccountFixture({ accountType: 'PLAYER', id: '41', username: 'wlplayer', parentAgentId: null, playerType: 'WHITELABEL_CREDIT', creditReference: 2000, balance: 2500, exposure: 300, available: 2200, refPnl: 500 })
+const POOL = chipPoolFixture({ creditLimit: 1000000, used: 97500, available: 902500 })
 
-function creditMock(overrides: Partial<typeof CREDIT> = {}) {
-  const result = vi.fn(() => ({ data: { myWhitelabelCredit: { ...CREDIT, ...overrides } } }))
-  const mock: MockedResponse = { request: { query: MY_WHITELABEL_CREDIT_QUERY }, result }
-  return { mock, result }
-}
-
-function tx(id: string, overrides: Record<string, unknown> = {}) {
+function poolRow(id: string, transactionType: string, amount: number, balanceBefore: number, balanceAfter: number, extra: Record<string, unknown> = {}) {
   return {
-    __typename: 'WhitelabelCreditTransaction',
-    id,
-    transactionType: 'ALLOCATION',
-    amount: 1000,
-    balanceBefore: 0,
-    balanceAfter: 1000,
-    reason: null,
-    createdBy: null,
-    createdByType: null,
-    createdAt: AT,
-    playerId: null,
-    playerName: null,
-    playerEmail: null,
-    playerUsername: null,
-    playerPhone: null,
-    ...overrides,
+    __typename: 'WhitelabelCreditTransaction', id, transactionType, amount, balanceBefore, balanceAfter,
+    reason: null, createdBy: 'admin1', createdByType: 'admin', createdAt: '2026-11-02T10:00:00.000Z',
+    playerId: null, playerName: null, playerEmail: null, playerUsername: null, playerPhone: null, ...extra,
   }
 }
 
-function historyMock(variables: { limit: number; offset: number }, rows: ReturnType<typeof tx>[]) {
-  const result = vi.fn(() => ({ data: { myWhitelabelCreditHistory: rows } }))
-  const mock: MockedResponse = { request: { query: MY_WHITELABEL_CREDIT_HISTORY_QUERY, variables: { ...variables, limit: variables.limit + 1 } }, result }
-  return { mock, result }
-}
+const agents = (payload: Record<string, unknown>) => ({ agents: { __typename: 'AgentsQuery', ...payload } })
 
-function agentSettlement(id: string, overrides: Record<string, unknown> = {}) {
+function defaultHandlers(): Record<string, Handler> {
   return {
-    __typename: 'AgentSettlementTransaction',
-    id,
-    tenant: 'gb77',
-    agentId: 'a1b2c3d4e5f6a7b8',
-    agent: { __typename: 'AgentBasic', id: 'a1b2c3d4e5f6a7b8', username: 'north_desk', schemeType: 'CREDIT' },
-    settlementType: 'P_L',
-    amount: 1000,
-    direction: 'TO_AGENT',
-    previousBalance: 0,
-    newBalance: 1000,
-    notes: null,
-    settledBy: null,
-    createdAt: AT,
-    ...overrides,
+    ChipPool: () => agents({ chipPool: POOL }),
+    ChipDownline: () => agents({
+      chipDownline: {
+        __typename: 'ChipDownline', parent: null, pool: POOL, items: [ROOT_AGENT, WL_PLAYER], total: 2,
+        totals: chipTotalsFixture({ creditReference: 102000, balance: 97500, exposure: 300, available: 97200, refPnl: -4500 }),
+      },
+    }),
+    MyWhitelabelCreditHistory: (variables) => {
+      const rows = [
+        poolRow('t1', 'USAGE', 5000, 907500, 902500, { reason: 'Chips to agent root1' }),
+        poolRow('t2', 'RELEASE', 1000, 901500, 902500, { reason: 'Chips from player wlplayer', playerId: 41, playerUsername: 'wlplayer' }),
+        poolRow('t3', 'ALLOCATION', 1000000, 0, 1000000, { reason: 'Credit allocation by Super Admin', createdBy: null }),
+      ]
+      // A full first page and its lookahead row, so Next is offered.
+      const filler = Array.from({ length: 18 }, (_, index) => poolRow(`f${index}`, 'USAGE', 10, 1000, 990))
+      return { myWhitelabelCreditHistory: variables.offset === 0 ? [...rows, ...filler] : [poolRow('p2', 'USAGE', 20, 990, 970)] }
+    },
   }
 }
 
-function settlementsMock(
-  variables: { limit: number; offset: number },
-  summary: {
-    agentSettlements: ReturnType<typeof agentSettlement>[]
-    whitelabelSettlements: ReturnType<typeof tx>[]
-    totalAgentSettled: number
-    totalWhitelabelSettled: number
-  },
-) {
-  const result = vi.fn(() => ({
-    data: { myWhitelabelSettlements: { __typename: 'WhitelabelSettlementSummary', agentCount: summary.agentSettlements.length, whitelabelCount: summary.whitelabelSettlements.length, ...summary } },
+function mount() {
+  const link = new ApolloLink((operation) => new Observable<FetchResult>((observer) => {
+    const variables = JSON.parse(JSON.stringify(operation.variables ?? {})) as Record<string, unknown>
+    calls.push({ name: operation.operationName, variables })
+    const timer = setTimeout(() => {
+      const handler = handlers[operation.operationName]
+      if (!handler) { observer.error(new Error(`No mock for ${operation.operationName}`)); return }
+      const result = handler(variables)
+      observer.next(result instanceof Error ? { data: null, errors: [{ message: result.message }] } as FetchResult : { data: result as Record<string, unknown> })
+      observer.complete()
+    }, 0)
+    return () => clearTimeout(timer)
   }))
-  const mock: MockedResponse = { request: { query: MY_WHITELABEL_SETTLEMENTS_QUERY, variables: { limit: variables.limit, agentOffset: variables.offset, whitelabelOffset: variables.offset } }, result }
-  return { mock, result }
+  const client = new ApolloClient({ link, cache: new InMemoryCache() })
+  clients.push(client)
+  return render(<ApolloProvider client={client}><MemoryRouter><CreditManagementPage /></MemoryRouter></ApolloProvider>)
 }
 
-function renderPage(mocks: MockedResponse[]) {
-  return render(
-    <MemoryRouter>
-      <MockedProvider mocks={mocks}>
-        <CreditManagementPage />
-      </MockedProvider>
-    </MemoryRouter>,
-  )
-}
-
-function bodyRows(table: HTMLElement) {
-  return within(table).getAllByRole('row').slice(1)
-}
-
-function cellTexts(row: HTMLElement) {
-  return within(row).getAllByRole('cell').map((cell) => cell.textContent)
-}
+const callsOf = (name: string) => calls.filter((call) => call.name === name)
 
 beforeEach(() => {
-  auth.roles = ['Whitelabel Admin']
-  guard.allowed = true
-  guard.calls = []
+  calls = []; handlers = defaultHandlers(); guard.allowed = true; guard.calls = []
+  useAuthStore.setState({ agent: undefined, user: undefined, roles: ['Whitelabel Admin'], isReadOnly: false, agentPermissions: [], permissions: [{ domain: 'agents.credit', actions: ['update'] }] })
+})
+afterEach(() => {
+  cleanup()
+  clients.splice(0).forEach((client) => client.stop())
 })
 
-describe('CreditManagementPage — access', () => {
-  test('a whitelabel admin (by role name) skips the RBAC guard and the credit query runs', async () => {
-    const credit = creditMock()
-    renderPage([credit.mock])
+describe('the Chips page (/credit)', () => {
+  test('a whitelabel admin sees the pool and its root accounts with D / W / CR, past no guard', async () => {
+    mount()
+    assert.ok(screen.getByRole('heading', { name: 'Chips', level: 1 }))
+    const pool = within(screen.getByRole('group', { name: 'Whitelabel pool' }))
+    await pool.findByText('INR 1000000.00')
+    // Pool used and Given out happen to be equal here (97,500): only root deposits moved this pool.
+    assert.equal(pool.getAllByText('INR 97500.00').length, 2); assert.ok(pool.getByText('INR 902500.00'))
+    assert.ok(pool.getByText('Pool used')); assert.ok(pool.getByText('Given out'))
 
-    assert.ok(await screen.findByText('INR 2500000.00'))
+    const table = await screen.findByRole('table', { name: 'Root accounts' })
+    await within(table).findByText('root1')
+    assert.ok(within(table).getByText('wlplayer'))
+    // The admin's own downline: no parent named.
+    assert.deepEqual(callsOf('ChipDownline')[0].variables, { parentAgentId: null, query: null, accountType: null, offset: 0, limit: 20 })
+    // Root accounts are the admin's to move chips for.
+    assert.ok(screen.getByRole('button', { name: 'Deposit chips to root1' }))
+    assert.ok(screen.getByRole('button', { name: 'Withdraw chips from wlplayer' }))
+    assert.ok(screen.getByRole('button', { name: 'Set credit reference for root1' }))
     assert.equal(guard.calls.length, 0)
-    assert.equal(credit.result.mock.calls.length, 1)
+    // The statement is asked for only once its tab opens.
+    assert.equal(callsOf('MyWhitelabelCreditHistory').length, 0)
   })
 
-  test('anyone else passes the credit.management view guard', async () => {
-    auth.roles = ['Finance Manager']
-    const credit = creditMock()
-    renderPage([credit.mock])
-
-    assert.ok(await screen.findByText('INR 2500000.00'))
-    assert.ok(guard.calls.length > 0)
-    assert.deepEqual(guard.calls[0].required, [{ domain: 'credit.management', actions: ['view'] }])
+  test('an admin without agents.credit:update reads the figures but gets no D / W / CR', async () => {
+    useAuthStore.setState({ permissions: [] })
+    mount()
+    const table = await screen.findByRole('table', { name: 'Root accounts' })
+    await within(table).findByText('root1')
+    assert.equal(screen.queryByRole('button', { name: 'Deposit chips to root1' }), null)
+    assert.equal(screen.queryByRole('button', { name: 'Set credit reference for wlplayer' }), null)
   })
 
-  test('a denied caller sees the guard and starts no query', async () => {
-    auth.roles = ['Support']
-    guard.allowed = false
-    const credit = creditMock()
-    renderPage([credit.mock])
-
-    assert.equal(screen.getByRole('alert').textContent, 'Access denied')
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    assert.equal(credit.result.mock.calls.length, 0)
-    assert.equal(screen.queryByRole('heading', { level: 1 }), null)
-  })
-})
-
-describe('CreditManagementPage — overview', () => {
-  test('renders the header, the tab strip and a loading state before the credit arrives', async () => {
-    renderPage([creditMock().mock])
-
-    const headings = screen.getAllByRole('heading', { level: 1 })
-    assert.equal(headings.length, 1)
-    assert.equal(headings[0].textContent, 'Credit Management')
-    assert.ok(screen.queryByText('Manage your whitelabel credit and view history') === null)
-    assert.ok(screen.getByRole('button', { name: 'Refresh' }))
-
-    const tablist = screen.getByRole('tablist', { name: 'Credit Management tabs selector' })
-    const tabs = within(tablist).getAllByRole('tab')
-    assert.deepEqual(tabs.map((tab) => tab.textContent), ['Overview', 'Adjustments', 'Settlements'])
-    assert.equal(tabs[0].getAttribute('aria-selected'), 'true')
-    const panel = screen.getByRole('tabpanel')
-    assert.equal(panel.getAttribute('aria-labelledby'), tabs[0].id)
-
-    const figures = screen.getByLabelText('Credit figures')
-    assert.equal(figures.getAttribute('aria-busy'), 'true')
-    assert.equal(within(figures).getAllByText('Loading').length, 4)
-    await screen.findByText('INR 2500000.00')
-    assert.equal(screen.getByLabelText('Credit figures').hasAttribute('aria-busy'), false)
+  test('without the whitelabel role the page asks for credit.management:view, and a refusal reads nothing', async () => {
+    useAuthStore.setState({ roles: ['Support'] }); guard.allowed = false
+    mount()
+    assert.ok(screen.getByRole('alert'))
+    assert.deepEqual(guard.calls[0], [{ domain: 'credit.management', actions: ['view'] }])
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    assert.equal(calls.length, 0)
   })
 
-  test('shows the four figures, a healthy status and the utilisation bar without a banner', async () => {
-    renderPage([creditMock().mock])
-    await screen.findByText('INR 2500000.00')
-
-    const figures = screen.getByLabelText('Credit figures')
-    assert.match(figures.textContent ?? '', /Credit Limit/)
-    assert.ok(within(figures).getByText('Total allocated credit'))
-    assert.ok(within(figures).getByText('INR 942500.00'))
-    assert.ok(within(figures).getByText('37.7% of limit'))
-    assert.ok(within(figures).getByText('INR 1557500.00'))
-    assert.ok(within(figures).getByText('62.3% remaining'))
-    assert.ok(within(figures).getByText('37.7%'))
-    assert.ok(within(figures).getByText('Healthy'))
-    assert.match(figures.textContent ?? '', /Threshold: 80%/)
-
-    const card = screen.getByRole('region', { name: 'Credit Utilization' })
-    assert.equal(within(card).getByRole('heading', { level: 2 }).textContent, 'Credit Utilization')
-    assert.ok(within(card).getByText('62.3% available'))
-    assert.ok(within(card).getByText('37.7% used'))
-    assert.ok(within(card).getByText('Alert Threshold: 80%'))
-    assert.equal(screen.queryByRole('meter'), null)
-    const fill = card.querySelector<HTMLElement>('[aria-hidden="true"] span')
-    assert.equal(fill?.style.width, '37.7%')
-
-    assert.ok(screen.queryByText('Credit Limit Warning') === null)
+  test('a Finance Manager with credit.management:view is let in by the rule the sidebar link reads (T068)', async () => {
+    useAuthStore.setState({ roles: ['Finance Manager'], permissions: [{ domain: 'credit.management', actions: ['view'] }] }); guard.allowed = false
+    mount()
+    await within(screen.getByRole('group', { name: 'Whitelabel pool' })).findByText('INR 1000000.00')
+    assert.equal(screen.queryByRole('alert'), null)
+    assert.equal(guard.calls.length, 0, 'the shared rule admitted it; the guard only words a refusal')
   })
 
-  test('raises the near-limit banner with the critical status', async () => {
-    renderPage([creditMock({ usagePercentage: 92.5, isNearLimit: true }).mock])
+  test('the pool statement signs each movement from the pool side and pages with a lookahead row', async () => {
+    mount()
+    fireEvent.click(screen.getByRole('tab', { name: 'Pool statement' }))
+    const table = await screen.findByRole('table', { name: 'Pool statement' })
+    await within(table).findByText('Chips to agent root1')
+    assert.deepEqual(callsOf('MyWhitelabelCreditHistory')[0].variables, { limit: 21, offset: 0 })
 
-    assert.ok(await screen.findByText('Credit Limit Warning'))
-    assert.ok(screen.getByText('You are using 92.5% of your credit limit.'))
-    assert.ok(screen.getByText('Critical'))
-    assert.ok(screen.getByText('7.5% remaining'))
+    const out = within(within(table).getByText('Chips to agent root1').closest('tr') as HTMLElement)
+    assert.ok(out.getByText('Chips out')); assert.ok(out.getByText('−INR 5000.00')); assert.ok(out.getByText('INR 902500.00'))
+    const back = within(within(table).getByText('Chips from player wlplayer').closest('tr') as HTMLElement)
+    assert.ok(back.getByText('Chips in')); assert.ok(back.getByText('+INR 1000.00'))
+    assert.equal(back.getByRole('link', { name: 'wlplayer' }).getAttribute('href'), '/players/profile/41')
+    const topUp = within(within(table).getByText('Credit allocation by Super Admin').closest('tr') as HTMLElement)
+    assert.ok(topUp.getByText('Pool top-up')); assert.ok(topUp.getByText('System'))
+    // 20 rows on screen; the 21st only says another page exists.
+    assert.equal(within(table).getAllByRole('row').length, 21)
+    assert.ok(screen.getByText('(more available)', { exact: false }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => assert.deepEqual(callsOf('MyWhitelabelCreditHistory').at(-1)?.variables, { limit: 21, offset: 20 }))
+    await screen.findByText('Page 2')
+    await waitFor(() => assert.equal(within(screen.getByRole('table', { name: 'Pool statement' })).getAllByRole('row').length, 2))
   })
 
-  test('says so when the credit cannot be loaded', async () => {
-    renderPage([{ request: { query: MY_WHITELABEL_CREDIT_QUERY }, error: new Error('Tenant not found') }])
-    assert.ok(await screen.findByText('Unable to load credit information'))
-  })
-
-  test('Refresh fetches the credit again', async () => {
-    const first = creditMock()
-    const second = creditMock({ creditUsed: 1000000, creditAvailable: 1500000, usagePercentage: 40 })
-    renderPage([first.mock, second.mock])
-    await screen.findByText('INR 942500.00')
-
+  test('Refresh asks the pool, the root accounts and the statement again', async () => {
+    mount()
+    fireEvent.click(screen.getByRole('tab', { name: 'Pool statement' }))
+    await screen.findByText('Chips to agent root1')
+    fireEvent.click(screen.getByRole('tab', { name: 'Root accounts' }))
+    await screen.findByText('root1')
+    const before = { pool: callsOf('ChipPool').length, downline: callsOf('ChipDownline').length }
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    assert.ok(await screen.findByText('INR 1000000.00'))
-    assert.equal(first.result.mock.calls.length, 1)
-    assert.equal(second.result.mock.calls.length, 1)
-  })
-})
-
-describe('CreditManagementPage — adjustments', () => {
-  const fullPage = Array.from({ length: 20 }, (_, index) => tx(`h${index + 1}`))
-
-  test('queries only once the tab opens, with the first page variables, and draws each row rule', async () => {
-    const history = historyMock({ limit: 20, offset: 0 }, [
-      tx('h1', { transactionType: 'RELEASE', amount: -500, playerId: 22, playerPhone: ' 9876543210 ', createdBy: 'ops_lead', reason: 'Withdrawal Request #5' }),
-      tx('h2', { transactionType: 'DEPOSIT', amount: 250, balanceBefore: 1000, balanceAfter: 750, playerId: 23 }),
-      tx('h3', { transactionType: 'ADJUSTMENT', amount: 75, balanceBefore: 100, balanceAfter: 175 }),
-    ])
-    renderPage([creditMock().mock, history.mock])
-    await screen.findByText('INR 2500000.00')
-    assert.equal(history.result.mock.calls.length, 0)
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Adjustments' }))
-    assert.equal(screen.getByRole('tab', { name: 'Adjustments' }).getAttribute('aria-selected'), 'true')
-    assert.ok(screen.getByText('Loading Credit adjustment history'))
-
-    const card = await screen.findByRole('region', { name: 'Credit Adjustment History' })
-    await within(card).findByText('3 transactions')
-    assert.equal(history.result.mock.calls.length, 1)
-
-    const table = within(card).getByRole('table', { name: 'Credit adjustment history' })
-    assert.deepEqual(
-      within(table).getAllByRole('columnheader').map((th) => th.textContent),
-      ['Date', 'Type', 'Amount', 'Before', 'After', 'Phone', 'By', 'Reason'],
-    )
-    const rows = bodyRows(table)
-    assert.deepEqual(cellTexts(rows[0]), [
-      `shown:${AT}`, 'WITHDRAW', '+INR 500.00', 'INR 0.00', 'INR 1000.00', '9876543210', 'ops_lead', 'Withdrawal Request #5',
-    ])
-    assert.deepEqual(cellTexts(rows[1]), [
-      `shown:${AT}`, 'DEPOSIT', '-INR 250.00', 'INR 1000.00', 'INR 750.00', 'View profile', 'System', '—',
-    ])
-    assert.deepEqual(cellTexts(rows[2]), [
-      `shown:${AT}`, 'ADJUSTMENT', '+INR 75.00', 'INR 100.00', 'INR 175.00', '—', 'System', '—',
-    ])
-    assert.equal(within(rows[0]).getByRole('link', { name: '9876543210' }).getAttribute('href'), '/players/profile/22')
-    assert.equal(within(rows[1]).getByRole('link', { name: 'View profile' }).getAttribute('href'), '/players/profile/23')
-    assert.equal(within(rows[2]).queryByRole('link'), null)
-
-    const pager = within(card).getByRole('navigation', { name: 'Pagination' })
-    assert.equal(pager.querySelector('p')?.textContent, 'Showing 1–3')
-    assert.ok(within(pager).getByText('Page 1'))
-    assert.equal(within(pager).getByRole('button', { name: 'Previous' }).hasAttribute('disabled'), true)
-    assert.equal(within(pager).getByRole('button', { name: 'Next' }).hasAttribute('disabled'), true)
+    await waitFor(() => assert.ok(callsOf('ChipPool').length > before.pool))
+    await waitFor(() => assert.ok(callsOf('ChipDownline').length > before.downline))
+    fireEvent.click(screen.getByRole('tab', { name: 'Pool statement' }))
+    await screen.findByText('Chips to agent root1')
   })
 
-  test('a full page offers Next, which asks the server for the next offset', async () => {
-    const first = historyMock({ limit: 20, offset: 0 }, [...fullPage, tx('lookahead')])
-    const second = historyMock({ limit: 20, offset: 20 }, [tx('h21'), tx('h22'), tx('h23')])
-    renderPage([creditMock().mock, first.mock, second.mock])
-    await screen.findByText('INR 2500000.00')
-    fireEvent.click(screen.getByRole('tab', { name: 'Adjustments' }))
-
-    const card = await screen.findByRole('region', { name: 'Credit Adjustment History' })
-    await within(card).findByText('Page 1 • 20 rows')
-    const pager = within(card).getByRole('navigation', { name: 'Pagination' })
-    assert.equal(pager.querySelector('p')?.textContent, 'Showing 1–20 (more available)')
-
-    fireEvent.click(within(pager).getByRole('button', { name: 'Next' }))
-    await within(card).findByText('Page 2 • 3 rows')
-    assert.equal(second.result.mock.calls.length, 1)
-    const nextPager = within(card).getByRole('navigation', { name: 'Pagination' })
-    assert.equal(nextPager.querySelector('p')?.textContent, 'Showing 21–23')
-    assert.ok(within(nextPager).getByText('Page 2'))
-    assert.equal(within(nextPager).getByRole('button', { name: 'Previous' }).hasAttribute('disabled'), false)
-    assert.equal(within(nextPager).getByRole('button', { name: 'Next' }).hasAttribute('disabled'), true)
-  })
-
-  test('changing rows per page returns to page 1 with the new limit', async () => {
-    const first = historyMock({ limit: 20, offset: 0 }, [...fullPage, tx('lookahead')])
-    const second = historyMock({ limit: 20, offset: 20 }, Array.from({ length: 21 }, (_, index) => tx(`p2-${index}`)))
-    const resized = historyMock({ limit: 10, offset: 0 }, [tx('r1'), tx('r2')])
-    renderPage([creditMock().mock, first.mock, second.mock, resized.mock])
-    await screen.findByText('INR 2500000.00')
-    fireEvent.click(screen.getByRole('tab', { name: 'Adjustments' }))
-
-    const card = await screen.findByRole('region', { name: 'Credit Adjustment History' })
-    await within(card).findByText('Page 1 • 20 rows')
-    fireEvent.click(within(card).getByRole('button', { name: 'Next' }))
-    await within(card).findByText('Page 2 • 20 rows')
-
-    const select = within(card).getByLabelText('Rows per page:') as HTMLSelectElement
-    assert.deepEqual([...select.options].map((option) => option.value), ['10', '20', '50', '100'])
-    fireEvent.change(select, { target: { value: '10' } })
-    await within(card).findByText('2 transactions')
-    assert.equal(resized.result.mock.calls.length, 1)
-  })
-
-  test('an emptied page after concurrent deletion returns to the first page', async () => {
-    const first = historyMock({ limit: 20, offset: 0 }, [...fullPage, tx('lookahead')])
-    const empty = historyMock({ limit: 20, offset: 20 }, [])
-    const again = historyMock({ limit: 20, offset: 0 }, [...fullPage, tx('lookahead')])
-    renderPage([creditMock().mock, first.mock, empty.mock, again.mock])
-    await screen.findByText('INR 2500000.00')
-    fireEvent.click(screen.getByRole('tab', { name: 'Adjustments' }))
-
-    const card = await screen.findByRole('region', { name: 'Credit Adjustment History' })
-    await within(card).findByText('Page 1 • 20 rows')
-    fireEvent.click(within(card).getByRole('button', { name: 'Next' }))
-    await within(card).findByText('Page 1 • 20 rows')
-    await waitFor(() => assert.equal(again.result.mock.calls.length, 1))
-    assert.equal(again.result.mock.calls.length, 1)
-  })
-
-  test('an empty ledger says so and offers no pager', async () => {
-    renderPage([creditMock().mock, historyMock({ limit: 20, offset: 0 }, []).mock])
-    await screen.findByText('INR 2500000.00')
-    fireEvent.click(screen.getByRole('tab', { name: 'Adjustments' }))
-
-    const card = await screen.findByRole('region', { name: 'Credit Adjustment History' })
-    assert.ok(await within(card).findByText('No transaction history'))
-    assert.ok(within(card).getByText('0 transactions'))
-    assert.equal(within(card).queryByRole('navigation', { name: 'Pagination' }), null)
-  })
-
-  test('a failed ledger request says so instead of claiming an empty history', async () => {
-    renderPage([
-      creditMock().mock,
-      { request: { query: MY_WHITELABEL_CREDIT_HISTORY_QUERY, variables: { limit: 21, offset: 0 } }, error: new Error('boom') },
-    ])
-    await screen.findByText('INR 2500000.00')
-    fireEvent.click(screen.getByRole('tab', { name: 'Adjustments' }))
-
-    const card = await screen.findByRole('region', { name: 'Credit Adjustment History' })
-    assert.ok(await within(card).findByText('Unable to load credit history'))
-    assert.equal(within(card).queryByText('No transaction history'), null)
-  })
-})
-
-describe('CreditManagementPage — settlements', () => {
-  const summary = {
-    agentSettlements: [
-      agentSettlement('s1', { notes: 'Weekly P/L', settledBy: 'b7c1' }),
-      agentSettlement('s2', {
-        agentId: 'f0e1d2c3b4a59687',
-        agent: null,
-        settlementType: 'CREDIT',
-        direction: 'FROM_AGENT',
-        amount: 400,
-      }),
-    ],
-    whitelabelSettlements: [
-      tx('w1', { transactionType: 'SETTLEMENT', amount: 300, balanceBefore: 1000, balanceAfter: 1300, createdBy: 'director' }),
-      tx('w2', { transactionType: 'SETTLEMENT', amount: -50, balanceBefore: 1300, balanceAfter: 1250 }),
-    ],
-    totalAgentSettled: 1400,
-    totalWhitelabelSettled: 250,
-  }
-
-  test('queries only once the tab opens and draws the totals and both lists', async () => {
-    const settlements = settlementsMock({ limit: 20, offset: 0 }, summary)
-    renderPage([creditMock().mock, settlements.mock])
-    await screen.findByText('INR 2500000.00')
-    assert.equal(settlements.result.mock.calls.length, 0)
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Settlements' }))
-    const totals = screen.getByLabelText('Settlement totals')
-    assert.equal(totals.getAttribute('aria-busy'), 'true')
-    assert.ok(screen.getByText('Loading Agent settlements'))
-    assert.ok(screen.getByText('Loading Whitelabel settlements'))
-
-    assert.ok(await within(totals).findByText('INR 1400.00'))
-    assert.ok(within(totals).getByText('INR 250.00'))
-    assert.equal(within(totals).getAllByText('2 transactions').length, 2)
-    assert.equal(settlements.result.mock.calls.length, 1)
-
-    const agentCard = screen.getByRole('region', { name: 'Agent Settlements' })
-    assert.ok(within(agentCard).getByText('2 records'))
-    const agentTable = within(agentCard).getByRole('table', { name: 'Agent settlements' })
-    assert.deepEqual(
-      within(agentTable).getAllByRole('columnheader').map((th) => th.textContent),
-      ['Date', 'Agent', 'Scheme', 'Type', 'Direction', 'Amount', 'Settled By', 'Notes'],
-    )
-    const agentRows = bodyRows(agentTable)
-    assert.deepEqual(cellTexts(agentRows[0]), [
-      `shown:${AT}`, 'north_desk', 'CREDIT', 'P_L', 'To Agent', '+INR 1000.00', 'b7c1', 'Weekly P/L',
-    ])
-    assert.deepEqual(cellTexts(agentRows[1]), [
-      `shown:${AT}`, 'f0e1d2c3...', '', 'CREDIT', 'From Agent', '-INR 400.00', 'System', '—',
-    ])
-
-    const whitelabelCard = screen.getByRole('region', { name: 'Whitelabel Settlements' })
-    assert.ok(within(whitelabelCard).getByText('2 records'))
-    const whitelabelRows = bodyRows(within(whitelabelCard).getByRole('table', { name: 'Whitelabel settlements' }))
-    assert.deepEqual(cellTexts(whitelabelRows[0]), [
-      `shown:${AT}`, 'SETTLEMENT', '+INR 300.00', 'INR 1000.00', 'INR 1300.00', 'director', '—',
-    ])
-    assert.deepEqual(cellTexts(whitelabelRows[1]), [
-      `shown:${AT}`, 'SETTLEMENT', 'INR -50.00', 'INR 1300.00', 'INR 1250.00', 'System', '—',
-    ])
-
-    const pagers = screen.getAllByRole('navigation', { name: 'Pagination' })
-    assert.equal(pagers.length, 2)
-    assert.equal(pagers[0].querySelector('p')?.textContent, 'Showing 1–2 of 2 records')
-    assert.equal(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent).join('|'),
-      'Agent Settlements|Whitelabel Settlements')
-  })
-
-  test('rows per page refetches with the new limit, back on page 1', async () => {
-    const first = settlementsMock({ limit: 20, offset: 0 }, summary)
-    const resized = settlementsMock({ limit: 50, offset: 0 }, {
-      ...summary,
-      agentSettlements: [summary.agentSettlements[0]],
-      totalAgentSettled: 1000,
-    })
-    renderPage([creditMock().mock, first.mock, resized.mock])
-    await screen.findByText('INR 2500000.00')
-    fireEvent.click(screen.getByRole('tab', { name: 'Settlements' }))
-    await screen.findByText('INR 1400.00')
-
-    const [agentSize] = screen.getAllByLabelText('Rows per page:') as HTMLSelectElement[]
-    fireEvent.change(agentSize, { target: { value: '50' } })
-    await waitFor(() => assert.equal(resized.result.mock.calls.length, 1))
-    const agentCard = await screen.findByRole('region', { name: 'Agent Settlements' })
-    assert.ok(await within(agentCard).findByText('1 record'))
-  })
-
-  test('empty lists say so and offer no pager', async () => {
-    renderPage([
-      creditMock().mock,
-      settlementsMock({ limit: 20, offset: 0 }, {
-        agentSettlements: [],
-        whitelabelSettlements: [],
-        totalAgentSettled: 0,
-        totalWhitelabelSettled: 0,
-      }).mock,
-    ])
-    await screen.findByText('INR 2500000.00')
-    fireEvent.click(screen.getByRole('tab', { name: 'Settlements' }))
-
-    assert.ok(await screen.findByText('No agent settlements'))
-    assert.ok(screen.getByText('No whitelabel settlements'))
-    assert.equal(screen.getAllByText('0 records').length, 2)
-    assert.equal(screen.queryByRole('navigation', { name: 'Pagination' }), null)
-  })
-
-  test('says so when the settlements cannot be loaded', async () => {
-    renderPage([
-      creditMock().mock,
-      { request: { query: MY_WHITELABEL_SETTLEMENTS_QUERY, variables: { limit: 20, agentOffset: 0, whitelabelOffset: 0 } }, error: new Error('boom') },
-    ])
-    await screen.findByText('INR 2500000.00')
-    fireEvent.click(screen.getByRole('tab', { name: 'Settlements' }))
-    assert.ok(await screen.findByText('Unable to load settlement information'))
+  test('a pool that cannot be read says so in the server words, with a retry', async () => {
+    handlers.ChipPool = () => new Error('Only an administrator can read the pool')
+    mount()
+    await screen.findByText('Only an administrator can read the pool')
+    handlers.ChipPool = defaultHandlers().ChipPool
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await within(await screen.findByRole('group', { name: 'Whitelabel pool' })).findByText('INR 1000000.00')
   })
 })

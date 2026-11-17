@@ -24,6 +24,7 @@ import {
   agentOverviewExportRange,
   agentOverviewFilter,
   agentOverviewFilterChanged,
+  agentOverviewPeriodNote,
   agentOverviewPresetPeriod,
   clampPage,
   formatCount,
@@ -125,7 +126,6 @@ describe('agentOverviewReportModel', () => {
       ['ggr', 'GGR by Domain'],
       ['activity', 'Player Activity'],
       ['top-players', 'Top Players'],
-      ['top-events', 'Top Events/Games'],
     ])
     assert.deepEqual(AGENT_OVERVIEW_DOMAIN_LABELS, {
       all: 'All Domains',
@@ -138,8 +138,16 @@ describe('agentOverviewReportModel', () => {
     assert.equal(TOP_PLAYERS_LIMIT, 50)
     assert.equal(isAgentOverviewPreset('lastMonth'), true)
     assert.equal(isAgentOverviewPreset('allTime'), false)
-    assert.equal(isAgentOverviewTab('top-events'), true)
+    assert.equal(isAgentOverviewTab('top-events'), false, 'the placeholder tab is gone (F-REP-08)')
+    assert.equal(isAgentOverviewTab('top-players'), true)
     assert.equal(isAgentOverviewTab('events'), false)
+  })
+
+  test('the Total Turnover note names the applied period (F-REP-09)', () => {
+    assert.equal(agentOverviewPeriodNote(agentOverviewPresetPeriod('last30days', '2026-10-07')), 'Last 30 Days')
+    assert.equal(agentOverviewPeriodNote(agentOverviewPresetPeriod('today', '2026-10-07')), 'Today')
+    assert.equal(agentOverviewPeriodNote(agentOverviewCustomPeriod('2026-02-01', '2026-10-31')), '2026-02-01 – 2026-10-31')
+    assert.equal(agentOverviewPeriodNote(agentOverviewCustomPeriod('2026-10-07', '2026-10-07')), '2026-10-07')
   })
 
   test('opens on the IST days of now-30d and now, and exports those two moments', () => {

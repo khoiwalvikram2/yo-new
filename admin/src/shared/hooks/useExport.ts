@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { gql, useMutation, useApolloClient } from '@apollo/client'
 import { messageService, notify } from '@/shared/services/notification'
+import { saveDataUri } from '@/shared/utils/dataUriFile'
 
 /**
  * Server-side export goes through the export-job API.
@@ -41,6 +42,13 @@ const EXPORT_JOB_STATUS = gql`
   }
 `
 
+/** A finished job's file, asked for on download: the server answers it as a base64 data URI (2026-11-04). */
+const EXPORT_JOB_DOWNLOAD_URL = gql`
+  query ExportJobDownloadUrlFromHook($jobId: ID!) {
+    exportJobDownloadUrl(jobId: $jobId)
+  }
+`
+
 /** How long to wait for a quick export before pointing at the Export Centre. */
 const POLL_ATTEMPTS = 10
 const POLL_INTERVAL_MS = 1500
@@ -76,12 +84,19 @@ export function useExport() {
     const hideLoading = notify.loading('Preparing export...', 0)
 
     try {
+      // The format as the processor names it ('CSV' / 'XLSX': 'csv' failed every job), and the period
+      // as dateFrom / dateTo too, the keys the export fetchers read (with dateRange alone the file
+      // ignored the period and held every bet).
       const { data } = await createExportJob({
         variables: {
           input: {
             reportType: options.type,
-            exportFormat: options.format,
-            filtersJson: { ...(options.filters ?? {}), dateRange: options.dateRange ?? null },
+            exportFormat: options.format.toUpperCase(),
+            filtersJson: {
+              ...(options.filters ?? {}),
+              dateRange: options.dateRange ?? null,
+              ...(options.dateRange ? { dateFrom: options.dateRange.from, dateTo: options.dateRange.to } : {}),
+            },
           },
         },
       })
@@ -121,13 +136,25 @@ export function useExport() {
         return
       }
 
+      // The stored fileUrl is only the file's name; the file itself is asked for here, and the server answers
+      // it as a base64 data URI (no external file store since 2026-11-04), decoded and saved as a Blob. The
+      // app's client answers a refusal with its errors rather than a throw (errorPolicy 'all'), so the reason
+      // is shown here, once, instead of a generic line beside the error link's own toast. The file is not
+      // kept in the Apollo cache.
+      const { data: file, errors: fileErrors } = await client.query<{ exportJobDownloadUrl: string | null }>({
+        query: EXPORT_JOB_DOWNLOAD_URL,
+        variables: { jobId: job.id },
+        fetchPolicy: 'no-cache',
+        context: { skipNotification: true },
+      })
+      const fileData = file?.exportJobDownloadUrl
+      if (!fileData) {
+        messageService.error(fileErrors?.[0]?.message || 'Could not get the file')
+        return
+      }
+
+      saveDataUri(fileData, `export-${Date.now()}.${options.format}`)
       messageService.success('Export ready! Downloading...')
-      const link = document.createElement('a')
-      link.href = ready.fileUrl
-      link.download = `export-${Date.now()}.${options.format}`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
     } catch (error: unknown) {
       hideLoading()
       messageService.error(errorText(error) || 'Failed to export data')

@@ -71,9 +71,11 @@ export const PlayerProfitability: React.FC = () => {
       playerMap.set(userId, stats)
     })
 
+    // Exposure is the net liability if every open bet wins: what they pay minus what was staked, never below 0
+    // (MAT-13; the /matka/live Exposure tile's rule). Stake minus payout was always 0, as potentialWin >= betAmount.
     const players = Array.from(playerMap.values()).map(stats => ({
       ...stats,
-      exposure: Math.max(0, stats.wagered - stats.potentialPayouts),
+      exposure: Math.max(0, stats.potentialPayouts - stats.wagered),
     }))
 
     const totalExposure = players.reduce((sum, p) => sum + p.exposure, 0)

@@ -31,25 +31,19 @@ import { Stat, type StatHue } from '@/ui/components/Stat'
 import {
   ANALYTICS_CUSTOM,
   ANALYTICS_PRESETS,
-  PROVIDER_GGR_TREND,
-  PROVIDER_SHARE_TREND,
+  absoluteGgrTotal,
   analyticsDrawerTitle,
   avgBet,
   contributionPercent,
-  deltaDirection,
   ggrTrend,
   playersFigure,
   presetRange,
   providerAnalyticsSummary,
   rangeLabel,
   rangeVariables,
-  trendText,
   trendWord,
-  vendorGgrTrend,
-  vendorShareTrend,
   type AnalyticsMode,
   type AnalyticsRange,
-  type FixedTrend,
   type Trend,
   type VendorBreakdownEntry,
 } from '../providersPageModel'
@@ -67,33 +61,22 @@ const CHIP_CLASS: Record<Trend, string | undefined> = {
   neutral: undefined,
 }
 
-/* A headline figure with the legacy trend badge. The badge figures are fixed in the legacy page (not computed);
-   they are kept verbatim and listed for the owner. The kit states the direction in words. */
+/* A headline figure. It carries no trend badge: the legacy badges were fixed numbers shown whatever the data, and
+   no previous period is queried to compare against. */
 function MetricStat({
   label,
   value,
   subtitle,
-  trend,
   icon,
   hue,
 }: {
   label: string
   value: string
   subtitle: string
-  trend: FixedTrend
   icon: React.ReactNode
   hue: StatHue
 }) {
-  return (
-    <Stat
-      label={label}
-      value={value}
-      icon={icon}
-      hue={hue}
-      size="compact"
-      delta={{ value: trendText(trend), dir: deltaDirection(trend.direction), note: subtitle }}
-    />
-  )
+  return <Stat label={label} value={value} icon={icon} hue={hue} size="compact" note={subtitle} />
 }
 
 function TrendChip({ trend }: { trend: Trend }) {
@@ -117,11 +100,11 @@ const VendorBreakdownItem: React.FC<{
   vendor: VendorBreakdownEntry
   formatAmount: (val: number) => string
   convertFromWhitelabelCurrency: (val: number) => number
-  totalGGR: number
-}> = ({ vendor, formatAmount, convertFromWhitelabelCurrency, totalGGR }) => {
+  absoluteTotal: number
+}> = ({ vendor, formatAmount, convertFromWhitelabelCurrency, absoluteTotal }) => {
   const ggr = Number(vendor.ggr)
   const shareAmount = Number(vendor.shareAmount)
-  const percentage = contributionPercent(ggr, totalGGR)
+  const percentage = contributionPercent(ggr, absoluteTotal)
 
   return (
     <li className={styles.listItem}>
@@ -139,9 +122,10 @@ const VendorBreakdownItem: React.FC<{
       <div className={styles.section}>
         <div className={styles.contribution}>
           <span>Contribution</span>
-          <span className={styles.figure}>{percentage.toFixed(1)}%</span>
+          <span className={styles.figure}>{percentage == null ? '—' : `${percentage.toFixed(1)}%`}</span>
         </div>
-        <Meter value={percentage} className={styles.meter} />
+        {/* The bar is the size of the share; the sign is in the figure (a loss-making vendor's share is negative). */}
+        <Meter value={Math.abs(percentage ?? 0)} className={styles.meter} />
       </div>
 
       <dl className={clsx(styles.pairs, styles.pairsTwo)}>
@@ -208,6 +192,7 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
     const totalGGR: number = k?.totalGGR ?? 0
     const breakdown: VendorBreakdownEntry[] = k?.vendorBreakdown ?? []
     const summary = providerAnalyticsSummary(totalGGR, breakdown)
+    const absoluteTotal = absoluteGgrTotal(breakdown)
 
     body = providerQ.loading ? (
       <LoadingState label="Loading analytics..." minHeight={192} />
@@ -218,7 +203,6 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
             label="Total GGR"
             value={amount(totalGGR)}
             subtitle="Gross Gaming Revenue"
-            trend={PROVIDER_GGR_TREND}
             icon={<IconCoins size={16} stroke={strokeFor(16)} />}
             hue="grn"
           />
@@ -226,7 +210,6 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
             label="Total Share Amount"
             value={amount(summary.totalShare)}
             subtitle="Your commission"
-            trend={PROVIDER_SHARE_TREND}
             icon={<IconCashBanknote size={16} stroke={strokeFor(16)} />}
             hue="blu"
           />
@@ -237,14 +220,14 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
             variant="stat"
             icon={<IconBuildingStore size={16} stroke={strokeFor(16)} />}
             label="Active Vendors"
-            sub={`of ${breakdown.length} total`}
+            sub="with bets in range"
             value={summary.activeVendors}
           />
           <ListRow
             variant="stat"
             icon={<IconReceipt size={16} stroke={strokeFor(16)} />}
             label="Transactions"
-            sub="today"
+            sub="in range"
             value={summary.totalTransactions.toLocaleString()}
           />
           <ListRow
@@ -266,7 +249,7 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
                   vendor={v}
                   formatAmount={formatAmount}
                   convertFromWhitelabelCurrency={convertFromWhitelabelCurrency}
-                  totalGGR={totalGGR}
+                  absoluteTotal={absoluteTotal}
                 />
               ))}
             </ul>
@@ -285,6 +268,7 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
     const ggr: number = k?.ggr ?? 0
     const shareAmount: number = k?.shareAmount ?? 0
     const txCount: number = k?.transactionCount ?? 0
+    const average = avgBet(k?.totalStake, txCount)
 
     body = vendorQ.loading ? (
       <LoadingState label="Loading analytics..." minHeight={192} />
@@ -295,7 +279,6 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
             label="GGR"
             value={amount(ggr)}
             subtitle="Gross Gaming Revenue"
-            trend={vendorGgrTrend(ggr)}
             icon={<IconCoins size={16} stroke={strokeFor(16)} />}
             hue="grn"
           />
@@ -303,7 +286,6 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
             label="Your Share"
             value={amount(shareAmount)}
             subtitle="Commission amount"
-            trend={vendorShareTrend(shareAmount)}
             icon={<IconCashBanknote size={16} stroke={strokeFor(16)} />}
             hue="blu"
           />
@@ -314,15 +296,15 @@ export const AnalyticsDrawer: React.FC<Props> = ({ open, onClose, mode }) => {
             variant="stat"
             icon={<IconReceipt size={16} stroke={strokeFor(16)} />}
             label="Transactions"
-            sub="today"
+            sub="in range"
             value={txCount.toLocaleString()}
           />
           <ListRow
             variant="stat"
             icon={<IconChartLine size={16} stroke={strokeFor(16)} />}
             label="Avg Bet"
-            sub="per transaction"
-            value={amount(avgBet(ggr, txCount))}
+            sub="stake per bet"
+            value={average == null ? '—' : amount(average)}
           />
           <ListRow
             variant="stat"

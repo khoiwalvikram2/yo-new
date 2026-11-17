@@ -49,7 +49,8 @@ export default function AgentCreatePlayerPage() {
       if (!agent?.id) throw new Error('Agent ID is missing. Please log in again.')
       const result = await createPlayer({ variables: { input: agentPlayerInput(values, agent, baseCurrency) } })
       if (!result.data?.createPlayerForAgent?.success) throw new Error(result.data?.createPlayerForAgent?.message || 'Failed to create player')
-      notify.success(result.data.createPlayerForAgent.message || 'Player created successfully')
+      // No toast here: the API client's notification link already shows the mutation's own success message, so a
+      // second one here showed it twice.
       navigate('/players')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create player'

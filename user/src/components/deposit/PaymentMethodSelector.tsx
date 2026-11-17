@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { CreditCard, QrCode, Building, ArrowRight, AlertCircle } from 'lucide-react'
+import { CreditCard, QrCode, Building, Coins, ArrowRight, AlertCircle } from 'lucide-react'
 import { PaymentMethodCard, type PaymentMethod } from './PaymentMethodCard'
 import { PaymentMethodSkeleton } from './SkeletonLoader'
 
@@ -12,6 +12,10 @@ interface PaymentMethodSelectorProps {
   onProceed: () => void
   amount: number
   disabled?: boolean
+  /** Proceed is starting a payment gateway checkout */
+  busy?: boolean
+  /** Why Proceed is not allowed for the chosen method right now (shown above it), or null */
+  proceedBlockedReason?: string | null
   prominentAccountLimits?: boolean
 }
 
@@ -24,9 +28,11 @@ export function PaymentMethodSelector({
   onProceed,
   amount,
   disabled = false,
+  busy = false,
+  proceedBlockedReason = null,
   prominentAccountLimits = false,
 }: PaymentMethodSelectorProps) {
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'upi' | 'bank' | 'gateway'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'upi' | 'bank' | 'gateway' | 'crypto'>('all')
 
   // Group methods by type
   const groupedMethods = useMemo(() => {
@@ -34,6 +40,7 @@ export function PaymentMethodSelector({
       gateway: [],
       upi: [],
       bank: [],
+      crypto: [],
     }
 
     methods.forEach((method) => {
@@ -51,7 +58,7 @@ export function PaymentMethodSelector({
 
   const filteredMethods = useMemo(() => {
     if (categoryFilter === 'all') {
-      return [...groupedMethods.gateway, ...groupedMethods.upi, ...groupedMethods.bank]
+      return [...groupedMethods.gateway, ...groupedMethods.upi, ...groupedMethods.bank, ...groupedMethods.crypto]
     }
     return groupedMethods[categoryFilter] || []
   }, [groupedMethods, categoryFilter])
@@ -67,6 +74,8 @@ export function PaymentMethodSelector({
     { key: 'gateway' as const, label: 'Payment Gateway', icon: CreditCard },
     { key: 'upi' as const, label: 'UPI', icon: QrCode },
     { key: 'bank' as const, label: 'Bank Transfer', icon: Building },
+    // Only offered on sites that have a crypto wallet at all
+    ...(methods.some((m) => m.type === 'crypto') ? [{ key: 'crypto' as const, label: 'Crypto', icon: Coins }] : []),
   ]
 
   if (loading) {
@@ -134,18 +143,24 @@ export function PaymentMethodSelector({
               disabled={disabled}
               showDetails
               prominentAccountLimits={prominentAccountLimits}
+              amount={amount}
             />
           ))}
         </div>
       )}
 
+      {proceedBlockedReason && <p className="dep-hint">{proceedBlockedReason}</p>}
       <button
         type="button"
         onClick={onProceed}
-        disabled={!canProceed || disabled}
+        disabled={!canProceed || disabled || !!proceedBlockedReason}
         className="dep-btn dep-btn-primary"
       >
-        Proceed <ArrowRight />
+        {busy ? (
+          <><div className="dep-spinner animate-spin" /> Starting checkout…</>
+        ) : (
+          <>Proceed <ArrowRight /></>
+        )}
       </button>
     </div>
   )

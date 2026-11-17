@@ -15,6 +15,8 @@ import { strokeFor } from '@/ui/components/icons'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { toast } from '@/ui/components/toast'
 import {
+  DELETED_ACCOUNT_HINT,
+  DELETED_ACCOUNT_LABEL,
   withdrawalStatusLabel,
   type WithdrawalRequest,
   type WithdrawalRequestsFilter,
@@ -55,7 +57,8 @@ function CopyableAccountValue({ value, label }: { value?: string; label: string 
   )
 }
 
-/** The legacy three-line account summary: holder, number, then IFSC for a bank or the method otherwise. */
+/** The legacy three-line account summary: holder, number, then IFSC for a bank or the method otherwise.
+ *  An account the player has since deleted is still shown, with a Deleted pill beside its holder. */
 function AccountCell({ account }: { account: WithdrawalRequest['account'] }) {
   if (!account) return <>—</>
 
@@ -67,6 +70,9 @@ function AccountCell({ account }: { account: WithdrawalRequest['account'] }) {
           <span className={styles.accountName} title={account.accountHolderName || '—'}>
             {account.accountHolderName || '—'}
           </span>
+          {account.deletedAt ? (
+            <StatusPill tone="neg" title={DELETED_ACCOUNT_HINT}>{DELETED_ACCOUNT_LABEL}</StatusPill>
+          ) : null}
         </dd>
       </div>
       <div className={styles.accountRow}>

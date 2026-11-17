@@ -22,6 +22,8 @@ export const MARKETING_MUTATION_PERMISSIONS: Record<string, RequiredPermission> 
   createCasinoGameBundle: [['bonuses.bundles', 'create']],
   updateCasinoGameBundle: [['bonuses.bundles', 'update']],
   deleteCasinoGameBundle: [['bonuses.bundles', 'delete']],
+
+  // Promotions > Campaigns and > Content and their seven mutations were retired on 2026-11-04 (MAR-14).
 }
 function wrapMarketingMutations(mutations: Record<string, (...args: any[]) => any>) {
   return guardMutationMap(mutations, MARKETING_MUTATION_PERMISSIONS, {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMatka } from '@/modules/matka'
+import { MatkaWhitelabelGate } from '@/modules/matka/MatkaWhitelabelGate'
 import { RBACGuard } from '@/shared/core/RBACGuard'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { Button } from '@/ui/components/Button'
@@ -14,9 +15,12 @@ import styles from './SettingsPage.module.css'
 
 const ACCESS_REQUIREMENT = [{ domain: 'matka.management', actions: ['view', 'update'] }]
 const LIST_PATH = '/matka/management'
+const PAGE_TITLE = 'Edit Matka Settings'
 
+// A Super Admin in core mode is asked for a whitelabel: the page read the platform's own tenant ('default'), which
+// called a real market not found, and a save there would land where no whitelabel sees it.
 export default function MatkaSettingsPage() {
-  return <RBACGuard required={ACCESS_REQUIREMENT}><MatkaSettingsPageContent /></RBACGuard>
+  return <RBACGuard required={ACCESS_REQUIREMENT}><MatkaWhitelabelGate title={PAGE_TITLE}><MatkaSettingsPageContent /></MatkaWhitelabelGate></RBACGuard>
 }
 
 function MatkaSettingsPageContent() {
@@ -49,7 +53,7 @@ function MatkaSettingsPageContent() {
   }
 
   return <Page maxWidth="wide" className={styles.page}>
-    <PageHeader eyebrow={eyebrow} title="Edit Matka Settings"
+    <PageHeader eyebrow={eyebrow} title={PAGE_TITLE}
       meta={matka ? `${matka.name} (${matka.code})` : undefined}
       back={{ label: 'Back to Matka Management', onClick: () => navigate(LIST_PATH), disabled: saving }} />
     <div className={styles.content}>

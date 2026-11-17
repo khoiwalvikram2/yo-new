@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ApolloClient, ApolloLink, ApolloProvider, InMemoryCache, Observable } from '@apollo/client'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { DrillButton, DrilldownProvider } from './DrilldownDialog'
 
 vi.mock('@/shared/core/CurrencyContext', () => ({
@@ -80,6 +82,28 @@ describe('DrilldownDialog', () => {
     fireEvent.keyDown(search, { key: 'Enter' })
     await waitFor(() => assert.equal(asks[asks.length - 1].search, 'rakesh'))
     assert.equal(asks[asks.length - 1].offset, 0)
+  })
+
+  test('a Super Admin in core mode sees the players without profile links core mode cannot open (PLA-05)', async () => {
+    // Core mode's drill-downs span every whitelabel; its profile page reads the platform's own site ("Player not found").
+    const ui = useUIStore.getState(); const roles = useAuthStore.getState().roles
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      const core = mount()
+      fireEvent.click(screen.getByRole('button', { name: '42' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Players Who Bet' })
+      assert.ok(await within(dialog).findByText('player0'))
+      assert.ok(!within(dialog).queryByRole('link', { name: 'player0' }), 'no profile link in core mode')
+      core.unmount()
+      // With a whitelabel selected the profile opens in that site, so the name links again.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      mount()
+      fireEvent.click(screen.getByRole('button', { name: '42' }))
+      const linked = await screen.findByRole('dialog', { name: 'Players Who Bet' })
+      assert.equal((await within(linked).findByRole('link', { name: 'player0' })).getAttribute('href'), '/players/profile/10')
+    } finally {
+      useAuthStore.setState({ roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
   })
 
   test('outside a provider the figure stays plain text', () => {

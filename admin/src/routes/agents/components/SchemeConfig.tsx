@@ -2,6 +2,9 @@ import { useEffect, useMemo } from 'react'
 import { gql, useQuery } from '@apollo/client'
 import { useAuthStore } from '@/shared/core/authStore'
 import { useCurrentWhitelabel } from '@/shared/core/useWhitelabels'
+// The chips reads and words only, not the module's barrel: the wizard needs no chips component.
+import { useChipAccount, useChipPool } from '@/modules/chips/chipHooks'
+import { OPENING_CHIPS_UPLINE_HINT } from '@/modules/chips/chipModel'
 import { Card } from '@/ui/components/Card'
 import { NumberField } from '@/ui/components/NumberField'
 import { Switch } from '@/ui/components/Switch'
@@ -10,7 +13,7 @@ import { Button } from '@/ui/components/Button'
 import { Notice } from '@/ui/components/Notice'
 import { Meter } from '@/ui/components/Meter'
 import type { FormApi } from '@/ui/form/useForm'
-import type { AgentEditorValues, AgentParentOption, AgentRate, RateCaps } from '../agentEditorModel'
+import { givesOpeningChips, tallyIsOn, type AgentEditorValues, type AgentParentOption, type AgentRate, type RateCaps } from '../agentEditorModel'
 import { PARENT_AGENT_QUERY } from './agentEditorQueries'
 import styles from '../AgentEditor.module.css'
 
@@ -150,7 +153,20 @@ export default function SchemeConfig({ form, isEdit = false }: { form: FormApi<A
     // Tally is not touched here: a new agent defaults it in its initial values, and an edit keeps the stored setting.
     if (!isEdit && agent && agent.schemeType === schemeType && schemeType !== 'COMMISSION' && !getValue('parentAgentId')) setValue('parentAgentId', agent.id)
   }, [isEdit, schemeType, agent, setValue, getValue])
-  const parentCredit = parentForRates?.creditAvailable
+  // A new CREDIT agent's opening chips come from its parent (spec 2026-11-02 §4.4), and only its direct parent
+  // gives them (decision 3): an agent from its own free chips, an admin from the whitelabel pool for a root
+  // agent. Under a parent an admin picked, that agent deposits after the account exists, so the field is not
+  // offered. The free chips are read only while they can be given.
+  const offersChips = schemeType === 'CREDIT' && !isEdit
+  const opensWithChips = offersChips && givesOpeningChips(form.values, agent)
+  const chipsParentId = parentIdForRates
+  const parentChips = useChipAccount('AGENT', chipsParentId, { skip: !opensWithChips || !chipsParentId })
+  const poolChips = useChipPool({ skip: !opensWithChips || Boolean(chipsParentId) || isAgent })
+  const chipsFree = !opensWithChips ? null : chipsParentId ? parentChips.account?.available ?? null : poolChips.pool?.available ?? null
+  const chipsSource = chipsParentId ? `${parentChips.account?.username || parentForRates?.username || 'the parent agent'}'s chips` : 'the whitelabel pool'
+  useEffect(() => {
+    if (getValue('_chipsFree') !== chipsFree) setValue('_chipsFree', chipsFree)
+  }, [chipsFree, setValue, getValue])
   // An agent cannot change a sub-agent's tally (the API refuses it); it is shown read-only.
   const tallyReadOnly = isEdit && isAgent
   const rateKey = schemeType === 'COMMISSION' ? 'commissionRates' : 'sharingRates'
@@ -173,12 +189,17 @@ export default function SchemeConfig({ form, isEdit = false }: { form: FormApi<A
         </div>
       </Card>
     })}</div>
-    {schemeType === 'CREDIT' && !isEdit && <Card title="Credit Limit" headingLevel={3} sub="Credit given to the agent when it is created">
-      <NumberField label="Credit limit" {...form.field('creditLimit')} value={form.values.creditLimit} min={0} precision={2}
-        help={`Optional. Leave blank to set it later from the agent's profile.${parentForRates ? parentCredit != null ? ` Taken from the parent's available credit (${Number(parentCredit).toFixed(2)}).` : ' Taken from the parent\'s available credit.' : ' Taken from the whitelabel credit pool.'}`} />
+    {offersChips && <Card title="Chips" headingLevel={3} sub={opensWithChips ? "The agent's credit reference and the chips it starts with" : "The agent's credit reference"}>
+      <div className={styles.stack}>
+        <NumberField label="Credit reference" {...form.field('creditLimit')} value={form.values.creditLimit} min={0} precision={2}
+          help="Optional. A reference only: it moves no chips. The agent's Ref P/L is its chips and its downline's, less this." />
+        {opensWithChips ? <NumberField label="Opening chips" {...form.field('openingChips')} value={form.values.openingChips} min={0} precision={2}
+          help={`Optional. Deposited from ${chipsSource}${chipsFree != null ? ` (${Math.max(0, chipsFree).toFixed(2)} free)` : ''}. Leave blank to deposit later.`} />
+          : <Notice tone="info">{OPENING_CHIPS_UPLINE_HINT}</Notice>}
+      </div>
     </Card>}
     {schemeType === 'COMMISSION' && tallyReadOnly && <Card title="Cross-Domain Tally" headingLevel={3} sub="Combine commissions across selected domains">
-      <p className={styles.secondary}>{tallyEnabled ? `On${form.values.tallyDomains.length ? `: ${form.values.tallyDomains.join(', ')}` : ''}` : 'Off'}. Only an administrator can change the tally.</p>
+      <p className={styles.secondary}>{tallyIsOn(tallyEnabled, form.values.tallyDomains) ? `On: ${form.values.tallyDomains.join(', ')}` : 'Off'}. Only an administrator can change the tally.</p>
     </Card>}
     {schemeType === 'COMMISSION' && !tallyReadOnly && <Card title="Cross-Domain Tally" headingLevel={3} sub="Combine commissions across selected domains">
       <div className={styles.stack}>

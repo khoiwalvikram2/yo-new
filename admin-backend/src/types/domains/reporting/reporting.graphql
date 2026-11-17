@@ -188,6 +188,10 @@ input CasinoReportingFilter {
   tenant: String
   whitelabelId: String
   agentId: ID
+  # The Casino report's drill-down: the KPIs and trends follow the provider, vendor or game shown
+  providerId: ID
+  vendorId: ID
+  gameId: ID
   dateFrom: String
   dateTo: String
   currency: String
@@ -197,6 +201,11 @@ input MatkaReportingFilter {
   tenant: String
   whitelabelId: String
   agentId: ID
+  # The Matka report's drill-down: the KPIs and trends follow the type, market, session or player shown
+  matkaType: String
+  matkaId: ID
+  marketSession: String
+  playerId: ID
   dateFrom: String
   dateTo: String
   currency: String
@@ -266,6 +275,7 @@ type ExportJob {
   reportType: String!
   exportFormat: String!
   status: String!
+  # The file's bare name once completed; the file itself comes from exportJobDownloadUrl.
   fileUrl: String
   errorMessage: String
   scheduledAt: String

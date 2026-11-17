@@ -30,7 +30,8 @@ import {
   listWithdrawalRequests,
   getUserDetail,
 } from '../../../repos/userAppRepo.js'
-import { generatePresignedUploadUrl } from '../../../services/storage/s3.js'
+import { depositProofFields } from '../services/depositProof.js'
+import { displayableAsset } from '@shared/utils/dataUri.js'
 import { createWelivepayDeposit as createWelivepayDepositService } from '../../../services/welivepayDepositService.js'
 import { ensureWallet } from '../../../repos/userRepo.js'
 import { executeClaimReferralBonus, recordReferralClickByCode } from '../../../repos/referralRepo.js'
@@ -38,7 +39,6 @@ import { placeSportsBetForUser, PlaceSportsBetInput } from '../services/sportsBe
 import { recalculateAndUpdateExposure, getExposureBreakdown } from '../services/exposureCalculationService.js'
 import {
   CREDIT_PLAYER_REFERRAL_MESSAGE,
-  getPlayerCreditState,
   isCreditPlayerUser,
 } from '../services/playerCreditState.js'
 
@@ -120,26 +120,10 @@ export const userAppMutationResolvers = {
       })),
     }
   },
-  getAdminAccounts: async (_: unknown, __: unknown, ctx: ResolverContext) => {
-    const data = await getWhitelabelAccounts(ctx.auth.tenant, ctx.auth.userId)
-    return { meta: metaOk(), data }
-  },
-  getDepositProofUploadUrl: async (_: unknown, args: { fileName: string; contentType: string }, ctx: ResolverContext) => {
-    if (!ctx.auth.userId) return { meta: { code: 401, message: 'Unauthorized' }, data: null }
-    const allowedTypes = [
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'application/pdf',
-    ]
-    const type = args.contentType?.toLowerCase?.() || ''
-    if (!allowedTypes.includes(type)) {
-      return { meta: { code: 400, message: `Invalid content type. Allowed: ${allowedTypes.join(', ')}` }, data: null }
-    }
-    const { url, key } = await generatePresignedUploadUrl(args.fileName, type, 'deposits')
-    return { meta: metaOk('Upload URL created'), data: { url, key } }
+  getAdminAccounts: async (_: unknown, args: { includeCrypto?: boolean | null }, ctx: ResolverContext) => {
+    const data = await getWhitelabelAccounts(ctx.auth.tenant, ctx.auth.userId, { includeCrypto: args?.includeCrypto === true })
+    // S3 is gone: a QR link that is a legacy S3 URL can no longer be fetched and is sent as null (see adminAccounts).
+    return { meta: metaOk(), data: data.map((account: any) => ({ ...account, qrUrl: displayableAsset(account.qrUrl) })) }
   },
   createAdminDeposit: async (
     _: unknown,
@@ -147,17 +131,23 @@ export const userAppMutationResolvers = {
     ctx: ResolverContext
   ) => {
     if (!ctx.auth.userId) return { meta: { code: 401, message: 'Unauthorized' }, data: [] }
-    const method: 'BANK_TRANSFER' | 'UPI' = (args.type || '').toLowerCase() === 'upi' ? 'UPI' : 'BANK_TRANSFER'
-    const proofKey = args.proofKey || (args.txnRef ? 'manual' : 'proof-missing')
+    const type = (args.type || '').toLowerCase()
+    const method: 'BANK_TRANSFER' | 'UPI' | 'CRYPTO' = type === 'crypto' ? 'CRYPTO' : type === 'upi' ? 'UPI' : 'BANK_TRANSFER'
+    const txnRef = args.txnRef?.trim() || undefined
+    // `proofKey` carries the screenshot as a base64 image data URI (no more S3 keys). A value that is not one is
+    // refused with a message for the player (thrown, like every other refusal here), never stored as a key.
+    const { proofKey, proofData } = depositProofFields(args.proofKey, txnRef)
+    // CRYPTO: the repo requires the hash, checks the test gate and quotes the USDT itself.
     const row = await createDepositRequest({
       userId: ctx.auth.userId,
       tenant: ctx.auth.tenant,
       amount: args.amount,
       accountId: args.accountId,
       method,
-      utr: args.txnRef,
-      referenceId: args.txnRef,
+      utr: txnRef,
+      referenceId: txnRef,
       proofKey,
+      proofData,
     })
     return {
       meta: metaOk('Deposit request created'),
@@ -169,6 +159,10 @@ export const userAppMutationResolvers = {
           createdAt: row.createdAt?.toISOString?.() ?? new Date().toISOString(),
           utr: row.utr,
           method: row.method,
+          cryptoAmount: row.cryptoAmount != null ? Number(row.cryptoAmount) : null,
+          cryptoRate: row.cryptoRate != null ? Number(row.cryptoRate) : null,
+          cryptoNetwork: row.cryptoNetwork ?? null,
+          cryptoBonusAmount: row.cryptoBonusAmount != null ? Number(row.cryptoBonusAmount) : null,
         },
       ],
     }
@@ -195,6 +189,10 @@ export const userAppMutationResolvers = {
         method: row.method,
         provider: row.provider,
         expiresAt: row.expiresAt,
+        cryptoAmount: row.cryptoAmount,
+        cryptoRate: row.cryptoRate,
+        cryptoNetwork: row.cryptoNetwork,
+        cryptoBonusAmount: row.cryptoBonusAmount,
       })),
     }
   },
@@ -622,17 +620,9 @@ export const userAppMutationResolvers = {
       return { success: false, message: 'Unauthorized', exposure: 0 }
     }
     try {
-      // Credit players: credit_used (sports book + open casino stake) is maintained by bet
-      // placement and settlement under row locks. A player-triggered rewrite is not needed
-      // and must never be able to lower it, so this is a read-only answer for them.
-      const creditState = await getPlayerCreditState(ctx.auth.userId, ctx.auth.tenant)
-      if (creditState?.isCredit) {
-        return {
-          success: true,
-          message: 'Exposure is kept up to date automatically for credit accounts',
-          exposure: creditState.creditUsed,
-        }
-      }
+      // Every player type, credit players included: the recalculation only rewrites
+      // wallets.exposure from the open sports bets (credit players hold their chips in
+      // wallets.cash, so their exposure is held the same way as a cash player's).
       const newExposure = await recalculateAndUpdateExposure(ctx.auth.userId, ctx.auth.tenant)
       return {
         success: true, 

@@ -171,10 +171,17 @@ type PublicUserRowLocal = {
   casinoBetAllowed: boolean
   matkaVisible: boolean
   matkaBetAllowed: boolean
+  /** Read so the writers' User replies state the real lock (they said false), and User.access.canWithdraw honours it. */
+  withdrawalLock: boolean
   vipTierId: string | null
 }
 
-async function getUserPublicByIdDbLocal(id: number): Promise<PublicUserRowLocal | null> {
+/**
+ * The row the player-control writers below hand back. Tenant-scoped like the writes: read by id alone it
+ * returned another tenant's player (name, username, phone, email) to a caller whose scoped UPDATE had
+ * changed nothing, and the resolver reported success with it.
+ */
+async function getUserPublicByIdDbLocal(id: number, tenant: string): Promise<PublicUserRowLocal | null> {
   const rows = await db.select({
     id: users.id,
     name: users.name,
@@ -190,9 +197,10 @@ async function getUserPublicByIdDbLocal(id: number): Promise<PublicUserRowLocal 
     casinoBetAllowed: users.casinoBetAllowed,
     matkaVisible: users.matkaVisible,
     matkaBetAllowed: users.matkaBetAllowed,
+    withdrawalLock: users.withdrawalLock,
     vipTierId: users.vipTierId,
   vipTierMode: users.vipTierMode,
-  }).from(users).where(eq(users.id, id))
+  }).from(users).where(and(eq(users.id, id), eq(users.tenant, tenant)))
   return rows[0] ?? null
 }
 
@@ -213,22 +221,26 @@ export async function updateUserDomainBetsDb(id: number, update: Partial<{ sport
   if (Object.keys(update).length === 0) return null
   const changed = await db.update(users).set(update as any).where(and(eq(users.id, id), eq(users.tenant, tenant))).returning({ id: users.id })
   if (!changed.length) return null
-  return getUserPublicByIdDbLocal(id)
+  return getUserPublicByIdDbLocal(id, tenant)
 }
 
+/** Null when the id names no player in this tenant, so the resolver answers "User not found". */
 export async function setUserBonusAllowedDb(id: number, allow: boolean, tenant: string): Promise<PublicUserRowLocal | null> {
-  await db.update(users).set({ bonusAllowed: allow }).where(and(eq(users.id, id), eq(users.tenant, tenant)))
-  return getUserPublicByIdDbLocal(id)
+  const changed = await db.update(users).set({ bonusAllowed: allow }).where(and(eq(users.id, id), eq(users.tenant, tenant))).returning({ id: users.id })
+  if (!changed.length) return null
+  return getUserPublicByIdDbLocal(id, tenant)
 }
 
 export async function setUserVipTierDb(id: number, vipTierId: string | null, tenant: string, actor = 'admin', reason?: string): Promise<PublicUserRowLocal | null> {
   await changePlayerVipTier(db, tenant, id, vipTierId, actor, reason)
-  return getUserPublicByIdDbLocal(id)
+  return getUserPublicByIdDbLocal(id, tenant)
 }
 
+/** Null when the id names no player in this tenant, so the resolver answers "User not found". */
 export async function setUserStatusDb(id: number, status: 'ACTIVE'|'INACTIVE'|'SUSPENDED', tenant: string): Promise<PublicUserRowLocal | null> {
-  await db.update(users).set({ status: status.toLowerCase() as any }).where(and(eq(users.id, id), eq(users.tenant, tenant)))
-  return getUserPublicByIdDbLocal(id)
+  const changed = await db.update(users).set({ status: status.toLowerCase() as any }).where(and(eq(users.id, id), eq(users.tenant, tenant))).returning({ id: users.id })
+  if (!changed.length) return null
+  return getUserPublicByIdDbLocal(id, tenant)
 }
 
 export async function setRequirePasswordResetDb(id: number, require: boolean, tenant: string): Promise<{ id: number; requirePasswordReset: boolean } | null> {
@@ -390,6 +402,10 @@ export async function upsertPlayerLimitsDb(tenant: string, userId: number, limit
   maxBetCasino: number | null | undefined
   maxBetMatka: number | null | undefined
 }) {
+  // A limits row is only written for a player of this tenant: an id from another tenant used to get a
+  // row of its own here, under the caller's tenant, and the caller was told "Limits updated".
+  const [player] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, userId), eq(users.tenant, tenant))).limit(1)
+  if (!player) throw new Error('Player not found')
   const existing = await db.select({ userId: playerLimitsTable.userId }).from(playerLimitsTable).where(and(eq(playerLimitsTable.userId, userId), eq(playerLimitsTable.tenant, tenant)))
   if (existing.length) {
     await db.update(playerLimitsTable).set({
@@ -445,7 +461,8 @@ export async function createPlayerDb(args: {
   vipTierId?: string
   /** Who picked the tier, for the VIP history and audit rows. */
   vipActor?: string
-  initialBalance?: number
+  // No initialBalance: the wallet always starts at 0. An opening balance is a deposit (whitelabel pool and
+  // ledger rows), which the caller makes on the same transaction; writing it straight into cash minted money.
   currency?: string
   password?: string // Required for player creation (no default for security)
   // Credit player fields
@@ -464,7 +481,7 @@ export async function createPlayerDb(args: {
     maxBetMatka?: number | null
   }
 }, tx?: any) {
-  const username = args.username ?? null
+  const username = typeof args.username === 'string' && args.username.trim() !== '' ? args.username.trim() : null
   const rawPassword = typeof args.password === 'string' ? args.password.trim() : ''
   if (!rawPassword || rawPassword.length < 8) {
     throw new Error('Password is required and must be at least 8 characters')
@@ -499,7 +516,10 @@ export async function createPlayerDb(args: {
     if (normalizedPhone && normalizedPhone.trim() !== '') {
       await validatePhoneUniqueness(normalizedPhone, tenantValue, undefined, dbInstance)
     }
-    
+    if (username) {
+      await validateUsernameUniqueness(username, tenantValue, dbInstance)
+    }
+
     let inserted: Array<{ id: number }>
     try {
       inserted = await dbInstance.insert(users).values({
@@ -546,14 +566,13 @@ export async function createPlayerDb(args: {
       await changePlayerVipTier(dbInstance, tenantValue, userIdNum, args.vipTierId, args.vipActor || 'admin', 'Tier selected during player creation')
     }
 
-    // Always create a wallet (even for credit players with 0 balance)
-    const initialBalance = args.initialBalance ?? 0
+    // Always create a wallet, at 0 for every player type (see the note on the args: an opening balance is a deposit)
     try {
       await dbInstance.insert(walletsTable).values({
         tenant: tenantValue,
         userId: userIdNum,
         currency: args.currency || 'INR',
-        cash: String(initialBalance),
+        cash: '0',
         bonus: '0',
         exposure: '0'
       }).onConflictDoNothing()
@@ -660,9 +679,31 @@ type ListUsersDbFilter = {
   agentId?: string;
   agentIds?: string[];
   parentType?: string; // ALL, DIRECT, SHARING, CREDIT, COMMISSION
-  playerType?: string; // 'WHITELABEL_CREDIT' = only whitelabel credit, 'REGULAR' = not whitelabel credit
+  playerType?: string; // 'WHITELABEL_CREDIT' = only whitelabel credit players, 'REGULAR' = only regular players
   balanceMin?: number;
   balanceMax?: number;
+}
+
+/**
+ * Staff accounts are not players. A user holding any role in its tenant is an admin or a support admin (rbac's
+ * deleteSupportAdmin: an id that holds no role in the tenant is a player, not an admin). The resolvers' admin
+ * exclusion list only covered roles whose name contains "admin", so a support admin on a role such as "Finance
+ * Manager" was listed and counted as a player.
+ */
+const notStaffAccount = sql`NOT EXISTS (SELECT 1 FROM ${userRoles} WHERE ${userRoles.userId} = ${users.id} AND ${userRoles.tenant} = ${users.tenant})`
+
+/** The player-type filter of the players list. REGULAR used to mean "not whitelabel credit", which on the All tab kept agent players. */
+function playerTypeClause(playerType: string | undefined) {
+  if (playerType === 'WHITELABEL_CREDIT') return eq(users.playerType, 'WHITELABEL_CREDIT')
+  if (playerType === 'REGULAR') return eq(users.playerType, 'REGULAR')
+  return undefined
+}
+
+/** A registration date filter. An unparseable value used to become an Invalid Date that matched no player. */
+function registeredDate(value: string, parse: (dateStr: string, timezone: string) => Date, tz: string, label: string): Date {
+  const date = parse(value, tz)
+  if (Number.isNaN(date.getTime())) throw new Error(`Invalid ${label} date: ${value}`)
+  return date
 }
 
 type ListUsersDbOptions = {
@@ -691,7 +732,7 @@ export async function listUsersDb(
   tenant: string,
   options?: ListUsersDbOptions
 ): Promise<{ rows: any[]; total: number } | any[]> {
-  const whereClauses: any[] = [eq(users.tenant, tenant)]
+  const whereClauses: any[] = [eq(users.tenant, tenant), notStaffAccount]
   if (options?.excludeUserIds?.length) {
     whereClauses.push(notInArray(users.id, options.excludeUserIds))
   }
@@ -702,9 +743,15 @@ export async function listUsersDb(
     const statusLc = filter.status.toLowerCase() as 'active'|'inactive'|'suspended'
     whereClauses.push(eq(users.status, statusLc))
   }
-  if (filter.query && filter.query.trim().length >= 3) {
-    const q = `%${filter.query.trim()}%`
-    whereClauses.push(or(ilike(users.name, q), ilike(users.email, q), ilike(users.phone, q), ilike(users.username, q)))
+  // From 2 characters, the length the players page sends a query at: a 3-character floor here returned the
+  // whole list under a 2-character query.
+  const searchText = filter.query?.trim() ?? ''
+  if (searchText.length >= 2) {
+    const q = `%${searchText}%`
+    const matches = [ilike(users.name, q), ilike(users.email, q), ilike(users.phone, q), ilike(users.username, q)]
+    // "Search name, email, phone or ID": an all-digit query also finds the player with that id (users.id is int4).
+    if (/^\d{1,10}$/.test(searchText) && Number(searchText) <= 2147483647) matches.push(eq(users.id, Number(searchText)))
+    whereClauses.push(or(...matches))
   }
   if (filter.agentIds && filter.agentIds.length > 0) {
     whereClauses.push(inArray(users.agentId, filter.agentIds))
@@ -717,17 +764,14 @@ export async function listUsersDb(
   if (filter.registeredFrom || filter.registeredTo) {
     const tz = await getWhitelabelTimezone(tenant)
     if (filter.registeredFrom) {
-      whereClauses.push(gte(users.createdAt, parseDateFrom(filter.registeredFrom, tz)))
+      whereClauses.push(gte(users.createdAt, registeredDate(filter.registeredFrom, parseDateFrom, tz, 'registeredFrom')))
     }
     if (filter.registeredTo) {
-      whereClauses.push(lte(users.createdAt, parseDateTo(filter.registeredTo, tz)))
+      whereClauses.push(lte(users.createdAt, registeredDate(filter.registeredTo, parseDateTo, tz, 'registeredTo')))
     }
   }
-  if (filter.playerType === 'WHITELABEL_CREDIT') {
-    whereClauses.push(eq(users.playerType, 'WHITELABEL_CREDIT'))
-  } else if (filter.playerType === 'REGULAR') {
-    whereClauses.push(ne(users.playerType, 'WHITELABEL_CREDIT'))
-  }
+  const typeClause = playerTypeClause(filter.playerType)
+  if (typeClause) whereClauses.push(typeClause)
 
   const useSchemeJoin = filter.parentType === 'SHARING' || filter.parentType === 'CREDIT' || filter.parentType === 'COMMISSION'
   const schemeTypeFilter = useSchemeJoin ? (filter.parentType as 'SHARING' | 'CREDIT' | 'COMMISSION') : undefined
@@ -822,7 +866,7 @@ export async function getPlayersListStatsDb(
   tenant: string,
   options?: { excludeUserIds?: number[]; onlyUserIds?: number[] }
 ): Promise<PlayersListStatsRow> {
-  const whereClauses: any[] = [eq(users.tenant, tenant)]
+  const whereClauses: any[] = [eq(users.tenant, tenant), notStaffAccount]
   if (options?.excludeUserIds?.length) {
     whereClauses.push(notInArray(users.id, options.excludeUserIds))
   }
@@ -835,11 +879,8 @@ export async function getPlayersListStatsDb(
   if (filter.parentType === 'DIRECT') {
     whereClauses.push(sql`${users.agentId} IS NULL`)
   }
-  if (filter.playerType === 'WHITELABEL_CREDIT') {
-    whereClauses.push(eq(users.playerType, 'WHITELABEL_CREDIT'))
-  } else if (filter.playerType === 'REGULAR') {
-    whereClauses.push(ne(users.playerType, 'WHITELABEL_CREDIT'))
-  }
+  const typeClause = playerTypeClause(filter.playerType)
+  if (typeClause) whereClauses.push(typeClause)
   const useJoin = filter.parentType === 'SHARING' || filter.parentType === 'CREDIT' || filter.parentType === 'COMMISSION'
   const schemeTypeFilter = useJoin ? (filter.parentType as 'SHARING' | 'CREDIT' | 'COMMISSION') : undefined
   const userWhere = and(...whereClauses)
@@ -1038,7 +1079,11 @@ export async function createAdminUser(args: {
         if (pgError?.constraint === 'users_tenant_phone_unique' || pgMessage.includes('phone')) {
           throw new Error(`Phone number ${args.phone} is already registered for this tenant`)
         }
-        throw new Error(detail || pgMessage || 'A unique constraint violation occurred')
+        // The raw Postgres detail ("Key (tenant, email)=(...) already exists.") reached the admin's toast.
+        if (pgError?.constraint === 'users_tenant_email_unique' || /\(tenant, email\)|email/i.test(`${detail} ${pgMessage}`)) {
+          throw new Error('An account with this e-mail already exists')
+        }
+        throw new Error('Could not create the admin account: it duplicates an existing account')
       }
 
       throw new Error(`Database error [${code || 'UNKNOWN'}]: ${pgMessage}${detail ? ` — ${detail}` : ''}`)
@@ -1095,7 +1140,11 @@ export async function createCreditPlayerDb(args: {
     if (normalizedPhone && normalizedPhone.trim() !== '') {
       await validatePhoneUniqueness(normalizedPhone, tenant, undefined, dbInstance)
     }
-    
+    // The username rule of every player creation (createPlayerDb, the player signup).
+    if (username && username.trim() !== '') {
+      await validateUsernameUniqueness(username, tenant, dbInstance)
+    }
+
     let inserted: Array<{ id: number }>
     try {
       inserted = await dbInstance.insert(users).values({
@@ -1247,50 +1296,6 @@ export async function getPlayersByAgentDb(
   }))
 }
 
-export async function getWhitelabelCreditPlayersDb(
-  tenant: string
-): Promise<Array<{
-  id: number
-  name: string
-  email: string | null
-  phone: string | null
-  playerType: string
-  creditLimit: number
-  creditUsed: number
-  creditAvailable: number
-}>> {
-  const rows = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      phone: users.phone,
-      playerType: users.playerType,
-      creditLimit: users.creditLimit,
-      creditUsed: users.creditUsed,
-      creditAvailable: users.creditAvailable,
-    })
-    .from(users)
-    .where(
-      and(
-        eq(users.playerType, 'WHITELABEL_CREDIT'),
-        eq(users.tenant, tenant),
-        sql`${users.agentId} IS NULL`
-      )
-    )
-
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    email: r.email,
-    phone: r.phone,
-    playerType: r.playerType || 'WHITELABEL_CREDIT',
-    creditLimit: Number(r.creditLimit || 0),
-    creditUsed: Number(r.creditUsed || 0),
-    creditAvailable: Number(r.creditAvailable || 0),
-  }))
-}
-
 export async function updatePlayerBalanceDb(
   userId: number,
   tenant: string,
@@ -1371,96 +1376,6 @@ export async function getUserCreditFields(
     agentId: row.agentId || null,
     playerType: row.playerType || 'REGULAR',
   };
-}
-
-/**
- * Lock user row and update credit fields (for use in transactions)
- */
-export async function lockAndUpdatePlayerCredit(
-  userId: number,
-  tenant: string,
-  deltas: {
-    creditLimit?: number;
-    creditUsed?: number;
-    creditAvailable?: number;
-    settlementBalance?: number;
-    settlementBalanceSports?: number;
-    settlementBalanceCasino?: number;
-    settlementBalanceMatka?: number;
-  },
-  tx: any = db
-): Promise<void> {
-  // Get current values with row lock (FOR UPDATE)
-  // Drizzle ORM doesn't have a direct .for() method, so we use execute with sql template
-  const result = await (tx as any).execute(sql`
-    SELECT 
-      credit_limit,
-      credit_used,
-      credit_available,
-      settlement_balance,
-      settlement_balance_sports,
-      settlement_balance_casino,
-      settlement_balance_matka
-    FROM users
-    WHERE id = ${userId} AND tenant = ${tenant}
-    FOR UPDATE
-    LIMIT 1
-  `);
-  const row = (result as any).rows?.[0] || (result as any)[0] || null;
-  if (!row) {
-    throw new Error('User not found');
-  }
-  const currentUser = {
-    creditLimit: row.credit_limit,
-    creditUsed: row.credit_used,
-    creditAvailable: row.credit_available,
-    settlementBalance: row.settlement_balance,
-    settlementBalanceSports: row.settlement_balance_sports,
-    settlementBalanceCasino: row.settlement_balance_casino,
-    settlementBalanceMatka: row.settlement_balance_matka,
-  };
-
-  // Calculate new values
-  const currentLimit = Number(currentUser.creditLimit || 0);
-  const currentUsed = Number(currentUser.creditUsed || 0);
-  const currentAvailable = Number(currentUser.creditAvailable || 0);
-  const currentSettlementBalance = Number(currentUser.settlementBalance || 0);
-  const currentSettlementBalanceSports = Number(currentUser.settlementBalanceSports || 0);
-  const currentSettlementBalanceCasino = Number(currentUser.settlementBalanceCasino || 0);
-  const currentSettlementBalanceMatka = Number(currentUser.settlementBalanceMatka || 0);
-
-  const newLimit = deltas.creditLimit !== undefined ? deltas.creditLimit : currentLimit;
-  const newUsed = deltas.creditUsed !== undefined ? deltas.creditUsed : currentUsed;
-  const newSettlementBalanceSports = deltas.settlementBalanceSports !== undefined ? deltas.settlementBalanceSports : currentSettlementBalanceSports;
-  const newSettlementBalanceCasino = deltas.settlementBalanceCasino !== undefined ? deltas.settlementBalanceCasino : currentSettlementBalanceCasino;
-  const newSettlementBalanceMatka = deltas.settlementBalanceMatka !== undefined ? deltas.settlementBalanceMatka : currentSettlementBalanceMatka;
-  
-  // Calculate total settlementBalance (sum of all domains) if not explicitly provided
-  const newSettlementBalance = deltas.settlementBalance !== undefined 
-    ? deltas.settlementBalance 
-    : (newSettlementBalanceSports + newSettlementBalanceCasino + newSettlementBalanceMatka);
-  
-  // Calculate creditAvailable using new formula: creditLimit - creditUsed + settlementBalance
-  const newAvailable = deltas.creditAvailable !== undefined
-    ? deltas.creditAvailable
-    : Math.max(0, newLimit - newUsed + newSettlementBalance);
-
-  // Update using Drizzle ORM
-  const setValues: any = {};
-  if (deltas.creditLimit !== undefined) setValues.creditLimit = newLimit.toString();
-  if (deltas.creditUsed !== undefined) setValues.creditUsed = newUsed.toString();
-  if (deltas.settlementBalance !== undefined) setValues.settlementBalance = newSettlementBalance.toString();
-  if (deltas.settlementBalanceSports !== undefined) setValues.settlementBalanceSports = newSettlementBalanceSports.toString();
-  if (deltas.settlementBalanceCasino !== undefined) setValues.settlementBalanceCasino = newSettlementBalanceCasino.toString();
-  if (deltas.settlementBalanceMatka !== undefined) setValues.settlementBalanceMatka = newSettlementBalanceMatka.toString();
-  if (deltas.creditAvailable !== undefined) setValues.creditAvailable = newAvailable.toString();
-
-  if (Object.keys(setValues).length > 0) {
-    await tx
-      .update(users)
-      .set(setValues)
-      .where(and(eq(users.id, userId), eq(users.tenant, tenant)));
-  }
 }
 
 // Phone validation methods
@@ -1547,6 +1462,30 @@ export async function validatePhoneUniqueness(
   const existing = await findUserByPhone(phone, tenant, excludeUserId, tx)
   if (existing) {
     throw new Error(`Phone number ${phone} is already registered for this tenant`)
+  }
+}
+
+/**
+ * Usernames are unique per tenant, ignoring case and surrounding spaces. The player app logs in by username and
+ * takes one row for it, so a second player created with a taken username could not log in with it (the player
+ * signup already refused a taken username). There is no unique index yet: existing duplicates have to be
+ * renamed first. Until then the check runs under a transaction-scoped advisory lock on the normalised name, so
+ * two creations of the same name serialise here and the second one sees the first. user-backend's createUser
+ * takes the same lock (same key), so a signup and an admin creation serialise too.
+ *
+ * Must run inside a transaction: the lock is released when it ends.
+ */
+export async function validateUsernameUniqueness(username: string, tenant: string, tx: any): Promise<void> {
+  const normalized = username.trim().toLowerCase()
+  if (!normalized) return
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`users.username:${tenant}:${normalized}`}))`)
+  const [taken] = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.tenant, tenant), sql`lower(btrim(${users.username})) = ${normalized}`))
+    .limit(1)
+  if (taken) {
+    throw new Error(`Username ${username.trim()} is already taken`)
   }
 }
 

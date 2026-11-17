@@ -346,50 +346,7 @@ type CasinoGameBundlePayload {
   bundle: CasinoGameBundle
 }
 
-enum PromotionStatus {
-  draft
-  active
-  paused
-  ended
-}
-
-type Promotion {
-  id: ID!
-  tenant: String
-  name: String!
-  status: PromotionStatus!
-  targetingJson: JSON
-  scheduleStart: String
-  scheduleEnd: String
-  contentJson: JSON
-  createdAt: String!
-  updatedAt: String!
-}
-
-input PromotionCreateInput {
-  name: String!
-  status: PromotionStatus
-  targetingJson: JSON
-  scheduleStart: String
-  scheduleEnd: String
-  contentJson: JSON
-}
-
-input PromotionUpdateInput {
-  id: ID!
-  name: String
-  status: PromotionStatus
-  targetingJson: JSON
-  scheduleStart: String
-  scheduleEnd: String
-  contentJson: JSON
-}
-
-type PromotionPayload {
-  success: Boolean!
-  message: String!
-  promotion: Promotion
-}
+# Promotion, PromotionStatus and their inputs and payload served Promotions > Campaigns, retired 2026-11-04 (MAR-14).
 
 # Game Bundles (Casino, Sports, Matka)
 type CasinoGameBundle {

@@ -16,6 +16,7 @@ import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import PNLPage from './PNLPage'
 import { pnlRangeDays, type PnlDataPoint } from './pnlPageModel'
 import {
+  AGENT_COMMISSION_DAYS_QUERY,
   CASINO_KPIS_QUERY,
   MATKA_KPIS_QUERY,
   PNL_QUERY,
@@ -238,6 +239,15 @@ function mocksFor({ range = ALL_TIME, rows = FOUR_ROWS, pnlError, sportsError, r
   ]
 }
 
+/** A COMMISSION agent's ledger days (agentTrends' date and commission) for one filter. */
+function commissionDaysMock(filter: Record<string, string>, days: Array<{ date: string; commission: number }>): MockedResponse {
+  return {
+    request: { query: AGENT_COMMISSION_DAYS_QUERY, variables: { filter } },
+    result: { data: { agentTrends: days.map((day) => ({ __typename: 'AgentTrendPoint', ...day })) } },
+    maxUsageCount: 10,
+  }
+}
+
 function renderPage(mocks: MockedResponse[]) {
   return render(
     <MockedProvider mocks={mocks}>
@@ -369,8 +379,11 @@ describe('PNLPage contract', () => {
         variables: { filter: { ...ALL_TIME } },
         errorPolicy: 'all',
         fetchPolicy: 'network-only',
+        skip: false,
       })
     }
+    // A COMMISSION agent's ledger days are not asked for anyone else.
+    assert.equal(latest('AgentCommissionDays').options.skip, true)
   })
 
   test('a denied caller starts no query', () => {
@@ -388,8 +401,8 @@ describe('PNLPage contract', () => {
 
     const stats = screen.getByRole('group', { name: 'P&L statistics' })
     const figure = (label: string) => within(stats).getByText(label).parentElement?.textContent
-    // all domains: (100 + 50 + 25) converted ×2
-    assert.equal(figure('Total P&L'), 'Total P&L₹350.00Change: +200.00%')
+    // all domains: (100 + 50 + 25) converted ×2; the change runs from the oldest day (300) to the newest (100)
+    assert.equal(figure('Total P&L'), 'Total P&L₹350.00Change: -66.67%')
     assert.equal(figure('Average P&L'), 'Average P&L₹180.004 days')
     assert.equal(figure('Win Rate'), 'Win Rate50.0%2 profitable, 1 loss')
     assert.equal(figure('Profitable Days'), 'Profitable Days2Best: ₹600.00')
@@ -409,10 +422,18 @@ describe('PNLPage contract', () => {
     assert.equal(within(table()).getByRole('columnheader', { name: /P&L/ }).getAttribute('aria-sort'), 'none')
   })
 
-  test('a COMMISSION agent reads commission copy and statuses, and exports under the commission names', async () => {
+  test('a COMMISSION agent reads its posted commission (not its downline GGR), with commission copy, statuses and export names (F-REP-13)', async () => {
     auth.isAgent = true
     auth.agent = { schemeType: 'COMMISSION', allowedDomains: ['sports', 'casino', 'matka'] }
-    renderPage(mocksFor())
+    renderPage([
+      ...mocksFor(),
+      commissionDaysMock({ ...ALL_TIME }, [
+        { date: '2026-01-04', commission: 100 },
+        { date: '2026-01-03', commission: 0 },
+        { date: '2026-01-02', commission: 40 },
+      ]),
+      commissionDaysMock({ ...ALL_TIME, domain: 'casino' }, [{ date: '2026-01-04', commission: 75 }]),
+    ])
     await screen.findByText('+₹200.00')
 
     assert.equal(screen.getByRole('heading', { level: 1 }).textContent, 'Commission Earned Report')
@@ -422,19 +443,31 @@ describe('PNLPage contract', () => {
     for (const label of ['Total Commission', 'Avg Commission', 'Earning Rate', 'Best Earning']) {
       within(stats).getByText(label)
     }
+    // (100 + 40) converted ×2, from the ledger days; the GGR documents are not sent for this agent.
+    assert.equal(within(stats).getByText('Total Commission').parentElement?.querySelector('div + div')?.textContent, '₹280.00')
+    for (const name of ['PNL', 'SportsKPIs', 'MatkaKPIs', 'CasinoKPIs']) assert.equal(latest(name).options.skip, true, name)
+    assert.deepStrictEqual(latest('AgentCommissionDays').options.variables, { filter: { ...ALL_TIME } })
+    assert.equal(counts.pnl + counts.sports + counts.matka + counts.casino, 0)
+
     const commissionTable = table('Commission Earned Data')
     within(commissionTable).getByRole('columnheader', { name: /Commission/ })
     assert.deepStrictEqual(
-      bodyRows('Commission Earned Data').map((tr) => tr.querySelectorAll('td')[3]?.textContent),
-      ['Earned', 'Zero', 'Earned', 'Earned'],
+      bodyRows('Commission Earned Data').map((tr) => Array.from(tr.querySelectorAll('td')).slice(1).map((cell) => cell.textContent)),
+      [['All', '+₹200.00', 'Earned'], ['All', '+₹80.00', 'Earned']],
     )
     screen.getByRole('searchbox', { name: 'Search commission' })
 
     const options = lastExport()
     assert.equal(options.filename, 'Commission-Earned-Report')
     assert.equal(options.sheetName, 'Commission')
-    assert.equal(options.title, 'Commission Earned — 4 record(s)')
+    assert.equal(options.title, 'Commission Earned — 2 record(s)')
     assert.deepStrictEqual(options.columns.map((column) => column.header), ['Date', 'Domain', 'Commission', 'Status'])
+
+    // A domain tab asks for that domain's posted commission.
+    fireEvent.click(within(screen.getByRole('group', { name: 'Domain filter' })).getByRole('button', { name: 'Casino' }))
+    await screen.findByText('+₹150.00')
+    assert.deepStrictEqual(latest('AgentCommissionDays').options.variables, { filter: { ...ALL_TIME, domain: 'casino' } })
+    assert.equal(within(stats).getByText('Total Commission').parentElement?.querySelector('div + div')?.textContent, '₹150.00')
   })
 
   test('shows every domain tab to an admin and only the allowed ones to an agent', async () => {
@@ -458,7 +491,7 @@ describe('PNLPage contract', () => {
 })
 
 describe('PNLPage filters', () => {
-  test('a domain tab keeps its rows and the All rows, switches the total and returns to page 1', async () => {
+  test('a domain tab keeps its own rows only, its cards follow it, the total switches and it returns to page 1', async () => {
     renderPage(mocksFor({ rows: manyRows(25) }))
     await screen.findByText('Total 25 records')
 
@@ -467,11 +500,14 @@ describe('PNLPage filters', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Domain filter' })).getByRole('button', { name: 'Sports' }))
 
     await waitFor(() => assert.equal(currentPage(), '1'))
-    // 25 rows cycle Sports, Casino, Matka, All: 7 Sports + 6 All
-    screen.getByText('Total 13 records')
-    assert.ok(bodyRows().every((tr) => /Sports|All/.test(tr.querySelectorAll('td')[1]?.textContent ?? '')))
+    // 25 rows cycle Sports, Casino, Matka, All: the 7 Sports rows (F-REP-07: the All rows showed under every tab)
+    screen.getByText('Total 7 records')
+    assert.ok(bodyRows().every((tr) => /Sports/.test(tr.querySelectorAll('td')[1]?.textContent ?? '')))
     const stats = screen.getByRole('group', { name: 'P&L statistics' })
     assert.equal(within(stats).getByText('Total P&L').parentElement?.querySelector('div + div')?.textContent, '₹200.00')
+    // F-REP-17: the averages count the tab's 7 days, not the 25 rows of every domain
+    within(stats).getByText('7 days')
+    assert.equal(within(stats).getByText('Win Rate').parentElement?.textContent, 'Win Rate100.0%7 profitable, 0 loss')
     screen.getByText('1 filter applied')
   })
 
@@ -679,6 +715,38 @@ describe('PNLPage states', () => {
 
     fireEvent.click(within(screen.getByRole('group', { name: 'Domain filter' })).getByRole('button', { name: 'Casino' }))
     await screen.findByText('You do not have access to the Casino report, so Total P&L does not include it.')
+  })
+
+  test('a SHARING or CREDIT agent does not ask for a domain it lacks, so no notice names that domain (SCO-07)', async () => {
+    const stats = () => screen.getByRole('group', { name: 'P&L statistics' })
+    const total = () => within(stats()).getByText('Total P&L').parentElement?.querySelector('div + div')?.textContent
+    for (const schemeType of ['SHARING', 'CREDIT']) {
+      counts.pnl = 0
+      counts.sports = 0
+      counts.matka = 0
+      counts.casino = 0
+      auth.isAgent = true
+      auth.agent = { schemeType, allowedDomains: ['sports', 'matka'] }
+      // the API refuses casino to this agent, as it does to an agent without the domain
+      renderPage(mocksFor({ refused: ['casino'] }))
+      await loaded()
+      // sports and matka load: (100 + 50) converted ×2
+      await waitFor(() => assert.equal(total(), '₹300.00', schemeType))
+      assert.equal(latest('CasinoKPIs').options.skip, true, schemeType)
+      assert.equal(latest('SportsKPIs').options.skip, false, schemeType)
+      assert.equal(latest('MatkaKPIs').options.skip, false, schemeType)
+      assert.deepStrictEqual(counts, { pnl: 1, sports: 1, matka: 1, casino: 0 }, schemeType)
+      assert.ok(screen.queryByText('Some totals are not included') === null, schemeType)
+      assert.ok(screen.queryByText('Some totals could not be loaded') === null, schemeType)
+      cleanup()
+    }
+
+    // a refusal of a total the agent does ask for still says so
+    auth.agent = { schemeType: 'SHARING', allowedDomains: ['sports', 'casino', 'matka'] }
+    renderPage(mocksFor({ refused: ['casino'] }))
+    await loaded()
+    await screen.findByText('You do not have access to the Casino report, so Total P&L does not include it.')
+    assert.equal(latest('CasinoKPIs').options.skip, false)
   })
 
   test('only the totals feeding the Total card raise a notice, each with its own reason', async () => {

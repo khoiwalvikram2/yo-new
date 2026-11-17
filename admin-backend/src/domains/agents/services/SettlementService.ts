@@ -1,13 +1,9 @@
 import { AgentsRepo } from '../../../repos/agents/AgentsRepo';
 import { AgentLedgerRepo } from '../../../repos/agents/AgentLedgerRepo';
 import { AgentSettlementsRepo } from '../../../repos/agents/AgentSettlementsRepo';
-import { AgentPlayerCreditsRepo } from '../../../repos/agents/AgentPlayerCreditsRepo';
 import { CommissionService } from './CommissionService';
 import { SharingService } from './SharingService';
-import { db } from '../../../db/client';
-import { users, wallets } from '@shared/db/schema.js';
-import { eq, and } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { CREDIT_MOVES_AS_CHIPS } from '@src/domains/settlements/schemeIsolation.js';
 
 /**
  * Pure helper: sum only SHARE ledger lines.
@@ -34,13 +30,8 @@ export class SettlementService {
 		private readonly ledgerRepo: AgentLedgerRepo,
 		private readonly settlementsRepo: AgentSettlementsRepo,
 		private readonly commissionService: CommissionService,
-		private readonly sharingService: SharingService,
-		private readonly playerCreditsRepo?: AgentPlayerCreditsRepo
-	) {
-		if (!this.playerCreditsRepo) {
-			this.playerCreditsRepo = new AgentPlayerCreditsRepo();
-		}
-	}
+		private readonly sharingService: SharingService
+	) {}
 
 	// Compute earnings for the period and create a settlement + credit wallet
 	async settle(params: {
@@ -59,14 +50,21 @@ export class SettlementService {
 		// window from the client, paid the whole window's share without the
 		// remaining-amount cap, never funded a sub-agent's share from its parent and
 		// left the next window to start wherever the client said. No UI calls it
-		// (AgentsMutation.settleAgent is deprecated; settleSharingAgent is CREDIT-only).
+		// (AgentsMutation.settleAgent is deprecated).
 		if (agent.schemeType === 'SHARING') {
 			throw new Error('SHARING agents are settled with the settleAgent mutation (Settlement Centre), not this legacy endpoint.');
+		}
+		// Nor is a CREDIT agent: since 2026-11-02 its chips move only by Deposit / Withdraw from its direct parent,
+		// and settling it is a D/W of its Ref P/L (spec docs/superpowers/specs/2026-11-02-credit-dw-chips-design.md
+		// §6). The old CREDIT settle here posted its share and recomputed credit_used; both belong to the retired
+		// credit-limit model.
+		if (agent.schemeType === 'CREDIT') {
+			throw new Error(CREDIT_MOVES_AS_CHIPS);
 		}
 
 		// CR-16 defense-in-depth: idempotency guard. Refuse to settle a period that an
 		// existing POSTED settlement already overlaps. This protects any caller that still
-		// reaches this legacy path (e.g. settleAgent/settleSharingAgent) from double-settle.
+		// reaches this legacy path (the deprecated AgentsMutation.settleAgent) from double-settle.
 		const existingSettlements = await this.settlementsRepo.list(
 			params.agentId,
 			params.from,
@@ -91,16 +89,7 @@ export class SettlementService {
 
 		// COMMISSION lines are accrued only by the daily scheduler.
 		// Settlement must only read existing ledger lines and post payout.
-		// (SHARING was refused above.)
-		if (agent.schemeType === 'CREDIT') {
-			await this.sharingService.computeAndPost({
-				agentId: params.agentId,
-				from: params.from,
-				to: params.to,
-				currency: params.currency,
-				pubsub: params.pubsub,
-			});
-		}
+		// (SHARING and CREDIT were refused above.)
 
 		// CR-16: Sum SHARE lines ONLY. Including SETTLEMENT/ADJUSTMENT lines double-counts
 		// prior settlements on re-settle and corrupts the payout total.
@@ -139,105 +128,7 @@ export class SettlementService {
 			throw new Error(error?.message || 'Failed to complete settlement. All operations rolled back.');
 		}
 
-		// Release credit on settlement (for CREDIT agents only)
-		if (agent.schemeType === 'CREDIT') {
-			await this.releaseCreditOnSettlement(params.agentId, params.from, params.to);
-		}
-
 		return settlement;
-	}
-
-	/**
-	 * Release credit on settlement - clear settled bet exposure from credit used
-	 */
-	async releaseCreditOnSettlement(
-		agentId: string,
-		_periodFrom: Date,
-		_periodTo: Date
-	): Promise<void> {
-		const agent = await this.agentsRepo.findById(agentId);
-		if (!agent || agent.schemeType !== 'CREDIT') {
-			return; // Only for CREDIT agents
-		}
-		// A settlement does not close open bets, so a player's credit_used (= open sports book
-		// exposure + open casino stake) is recomputed from the bets still open, under the player's
-		// row lock — never set to 0, which let a player bet past its limit. The agent's credit_used
-		// is the credit it has handed down (child agents' limits + direct players' limits), not
-		// player exposure; both come from CreditCalculationRepo (credit model, plan W7).
-		const { CreditCalculationRepo } = await import('../../../repos/agents/CreditCalculationRepo');
-		const creditCalculation = new CreditCalculationRepo(this.agentsRepo);
-		const playerCredits = await this.playerCreditsRepo!.listAgentPlayers(agentId);
-		const tenant = String(agent.tenantId || 'default');
-		for (const playerCredit of playerCredits) {
-			await creditCalculation.applyRecalculationForPlayer(Number(playerCredit.playerId), tenant);
-		}
-		await creditCalculation.applyRecalculationForAgent(agentId);
-	}
-
-	/**
-	 * Generate detailed settlement report
-	 */
-	async generateSettlementReport(params: {
-		agentId: string;
-		periodFrom: Date;
-		periodTo: Date;
-	}): Promise<{
-		playerWise: Array<{
-			playerId: number;
-			playerName: string;
-			balance: number;
-			exposure: number;
-			creditUsed: number;
-		}>;
-		domainWise: Array<{
-			domain: string;
-			totalAmount: number;
-		}>;
-		totalSettlement: number;
-	}> {
-		const agent = await this.agentsRepo.findById(params.agentId);
-		if (!agent) {
-			throw new Error('Agent not found');
-		}
-
-		// Get ledger lines for the period
-		const ledgerLines = await this.ledgerRepo.list(
-			params.agentId,
-			params.periodFrom,
-			params.periodTo
-		);
-
-		// Get player credits
-		const playerCredits = await this.playerCreditsRepo!.listAgentPlayers(params.agentId);
-
-		// Player-wise breakdown
-		const playerWise = playerCredits.map((pc) => ({
-			playerId: pc.playerId,
-			playerName: pc.playerName,
-			balance: pc.currentBalance,
-			exposure: pc.openExposure,
-			creditUsed: pc.creditUsed,
-		}));
-
-		// Domain-wise breakdown
-		const domainMap = new Map<string, number>();
-		for (const line of ledgerLines) {
-			const current = domainMap.get(line.domain) || 0;
-			domainMap.set(line.domain, current + Number(line.amount));
-		}
-
-		const domainWise = Array.from(domainMap.entries()).map(([domain, totalAmount]) => ({
-			domain,
-			totalAmount,
-		}));
-
-		const totalSettlement = ledgerLines.reduce((sum, line) => sum + Number(line.amount), 0);
-
-		return {
-			playerWise,
-			domainWise,
-			totalSettlement,
-		};
 	}
 }
 

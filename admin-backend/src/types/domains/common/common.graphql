@@ -404,11 +404,11 @@ type DashboardOperations {
   creditLimit: Float!
   creditUsed: Float!
   creditAvailable: Float!
-  """The whitelabel's settlement balance now."""
+  """Σ Ref P/L of root CREDIT agents and WHITELABEL_CREDIT players; positive = the whitelabel owes them."""
   settlementDue: Float!
   """Agent settlements posted in the period."""
   settledAmount: Float!
-  """Credit players' available chips now."""
+  """Σ (cash − exposure) of credit players' wallets."""
   chipsWithPlayers: Float!
   directPlayers: Int!
   agentPlayers: Int!
@@ -466,7 +466,7 @@ type DashboardTopWinner {
   bets: Int!
 }
 
-"""A credit agent at or past nearLimitShare of its credit limit."""
+"""A CREDIT agent low on chips: own chips at or below (1 − nearLimitShare) of its credit reference."""
 type DashboardAgentNearLimit {
   agentId: String!
   username: String
@@ -656,7 +656,9 @@ type DashboardAgentsTab {
   network: DashboardAgentNetwork!
   commissionTotal: Float!
   commissionByDomain: [DashboardDomainAmount!]!
+  """Ref P/L of the top CREDIT agents: the sum of the positive ones, what the whitelabel owes them."""
   settlementOwed: Float!
+  """Ref P/L of the top CREDIT agents: the sum of the negative ones, kept negative, what they owe the whitelabel."""
   settlementOwing: Float!
   agentsWithBalance: Int!
   settlementsPosted: Int!
@@ -860,19 +862,6 @@ type WhitelabelSettlementSummary {
   whitelabelSettlements: [WhitelabelCreditTransaction!]!
   totalAgentSettled: Float!
   totalWhitelabelSettled: Float!
-}
-
-type AgentCreditInfo {
-  creditLimit: Float!
-  creditUsed: Float!
-  creditAvailable: Float!
-  creditAlertThreshold: Float!
-  settlementBalance: Float!
-  settlementBalanceSports: Float!
-  settlementBalanceCasino: Float!
-  settlementBalanceMatka: Float!
-  usagePercentage: Float!
-  isNearLimit: Boolean!
 }
 
 type AgentSettlementSummary {

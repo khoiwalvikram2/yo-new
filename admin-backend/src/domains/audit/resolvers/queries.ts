@@ -1,10 +1,26 @@
-import { listAuditDb } from '@src/repos/audit/auditRepo.js'
+import { listAuditDb, getAuditFilterOptions } from '@src/repos/audit/auditRepo.js'
 import { hasPermission } from '@/domains/common/auth.js'
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
 import { getAuditStats } from '../services/auditStatsService.js'
 import { getAuditAnnotations } from '@src/repos/audit/auditAnnotationRepo.js'
-import { getAuditExportJobs } from '@src/repos/audit/auditExportJobRepo.js'
+import { getAuditExportJobs, type AuditExportJobRow } from '@src/repos/audit/auditExportJobRepo.js'
 import { requireReadPermission } from '@src/domains/common/auth.js'
+import { and, eq } from 'drizzle-orm'
+import { db } from '@src/db/client.js'
+import { auditExportJobs } from '@src/db/schema.js'
+import { exportFileDownload } from '@src/services/storage/exportFile.js'
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * An export job as the API states it, with ISO dates. The rows carry Date objects, which the String scalar
+ * serialised as epoch milliseconds ("1793645111717"), and the Export Jobs list showed "Invalid Date".
+ * createAuditExportJob already answered ISO strings.
+ */
+export function exportJobForApi(job: AuditExportJobRow) {
+  const iso = (value: Date | string | null) => (value ? new Date(value).toISOString() : null)
+  return { ...job, scheduledAt: iso(job.scheduledAt), completedAt: iso(job.completedAt), createdAt: iso(job.createdAt) }
+}
 
 function getEffectiveTenant(ctx: any): string {
   const directorTenant = getEffectiveTenantForDirector(ctx)
@@ -129,16 +145,29 @@ export const auditQueryResolvers = {
     
     const filters = args.filters || {}
     
+    // The same filters as the event list beside the cards (they ignored actor, resource type and search).
     const normalizedFilters: any = {
       tenant,
       domain: filters.domain,
       action: filters.action,
+      actorId: ctx?.user?.type === 'agent' && ctx?.user?.agentId ? undefined : filters.actorId,
+      resourceType: filters.resourceType,
+      resourceId: filters.resourceId,
+      search: filters.search,
       from: filters.from,
       to: filters.to,
       agentId: ctx?.user?.type === 'agent' ? ctx?.user?.agentId : undefined,
     }
     
     return getAuditStats(normalizedFilters)
+  },
+
+  // The Domain, Action and Resource Type values this tenant's trail holds, for the filter lists.
+  auditFilterOptions: async (_: any, _args: any, ctx: any) => {
+    requireReadPermission(ctx, 'audit.events', 'view')
+    const tenant = getEffectiveTenant(ctx)
+    checkAuditPermission(ctx)
+    return getAuditFilterOptions(tenant, ctx?.user?.type === 'agent' ? ctx?.user?.agentId : undefined)
   },
   
   // CSV export query (requires audit.events export permission)
@@ -206,13 +235,14 @@ export const auditQueryResolvers = {
     const whitelabelId = ctx?.whitelabel?.id ?? tenant
     const createdBy = ctx?.user?.sub ? parseInt(ctx.user.sub, 10) : undefined
     
-    return getAuditExportJobs({
+    const jobs = await getAuditExportJobs({
       tenant,
       whitelabelId,
       createdBy,
       status: args.status,
       limit: args.limit ?? 50,
     })
+    return jobs.map(exportJobForApi)
   },
     auditExportJobsPage: async (_: any, args: { status?: string; limit?: number; offset?: number }, ctx: any) => {
     requireReadPermission(ctx, 'audit.events', 'view')
@@ -222,7 +252,7 @@ export const auditQueryResolvers = {
     const whitelabelId = ctx?.whitelabel?.id ?? tenant
     const createdBy = ctx?.user?.sub ? parseInt(ctx.user.sub, 10) : undefined
     
-    return (await import('@/repos/audit/auditExportJobRepo.js')).getAuditExportJobsPage({
+    const page = await (await import('@/repos/audit/auditExportJobRepo.js')).getAuditExportJobsPage({
       tenant,
       whitelabelId,
       createdBy,
@@ -230,8 +260,39 @@ export const auditQueryResolvers = {
       limit: args.limit ?? 50,
       offset: args.offset,
     })
+    return { ...page, items: page.items.map(exportJobForApi) }
   },
-  
+
+  // A completed export's file, as the data URI its job row stores (S3 is gone, owner decision 2026-11-04). The
+  // list's gate, tenant and whitelabel, and only the caller's own job: createAuditExportJob records the admin
+  // user id, so a session whose sub is not one (an agent's uuid, which parseInt would cut to its leading
+  // digits) owns no audit export job here.
+  auditExportJobDownload: async (_: any, args: { id: string }, ctx: any) => {
+    requireReadPermission(ctx, 'audit.events', 'view')
+    const tenant = getEffectiveTenant(ctx)
+    checkAuditPermission(ctx)
+
+    const whitelabelId = ctx?.whitelabel?.id ?? tenant
+    const sub = String(ctx?.user?.sub ?? '')
+    const createdBy = /^\d+$/.test(sub) ? Number(sub) : null
+    const id = String(args?.id ?? '')
+    // audit_export_jobs.id is a uuid: anything else names no job and must not reach the driver.
+    if (createdBy === null || !UUID.test(id)) throw new Error('Export job not found')
+
+    const [job] = await db
+      .select({ fileUrl: auditExportJobs.fileUrl, fileData: auditExportJobs.fileData })
+      .from(auditExportJobs)
+      .where(and(
+        eq(auditExportJobs.id, id),
+        eq(auditExportJobs.tenant, tenant),
+        eq(auditExportJobs.whitelabelId, whitelabelId),
+        eq(auditExportJobs.createdBy, createdBy),
+      ))
+      .limit(1)
+    if (!job) throw new Error('Export job not found')
+    return exportFileDownload(job)
+  },
+
   // Annotations query
   auditAnnotations: async (_: any, args: { auditEventId: string }, ctx: any) => {
     requireReadPermission(ctx, 'audit.annotations', 'view')

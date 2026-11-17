@@ -40,6 +40,8 @@ let wheres: unknown[] = []
 let sets: Record<string, unknown>[] = []
 let selectRows: unknown[] = []
 let updateRows: unknown[] = []
+/** The page each ordered read asked for: listByAgent pages with .limit(n).offset(m) (the Page query's offset). */
+let pages: Array<{ limit: number; offset?: number }> = []
 const originals: Record<string, unknown> = {}
 
 before(() => {
@@ -51,7 +53,16 @@ before(() => {
         wheres.push(condition)
         const rows = selectRows
         const result: any = Promise.resolve(rows)
-        result.orderBy = () => ({ limit: async () => rows })
+        // .orderBy(...).limit(n) is awaitable on its own, and takes .offset(m) as drizzle's builder does.
+        result.orderBy = () => ({
+          limit: (n: number) => {
+            const page = { limit: n } as { limit: number; offset?: number }
+            pages.push(page)
+            const paged: any = Promise.resolve(rows)
+            paged.offset = async (m: number) => { page.offset = m; return rows }
+            return paged
+          },
+        })
         result.limit = async () => rows
         return result
       },
@@ -80,6 +91,7 @@ beforeEach(() => {
   sets = []
   selectRows = []
   updateRows = []
+  pages = []
 })
 
 /** The one captured WHERE, as PostgreSQL would receive it. */
@@ -144,6 +156,14 @@ describe('listByAgent is tenant-filtered', () => {
     assert.ok(params.includes(T) && params.includes(A))
     assert.equal(rows[0].status, 'CANCELLED')
     assert.equal(rows[0].amount, -25.5)
+    assert.deepEqual(pages, [{ limit: 50, offset: 0 }], 'the first page')
+  })
+
+  it('pages with limit and offset, clamped as commissionAdjustmentsPage sends them', async () => {
+    await repo.listByAgent(T, A, 20, 40)
+    await repo.listByAgent(T, A, 9999, -5)
+    await repo.listByAgent(T, A, 0)
+    assert.deepEqual(pages, [{ limit: 20, offset: 40 }, { limit: 500, offset: 0 }, { limit: 1, offset: 0 }])
   })
 })
 

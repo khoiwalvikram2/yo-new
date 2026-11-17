@@ -1,10 +1,12 @@
 import React, { Suspense } from 'react'
-import { IconAlertTriangle } from '@tabler/icons-react'
+import { IconAlertTriangle, IconMapSearch } from '@tabler/icons-react'
 import { Button } from '../../ui/components/Button'
 import { buttonClassName } from '../../ui/components/buttonClassName'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { Page } from '../../ui/components/Page'
 import { strokeFor } from '../../ui/components/icons'
 import routeErrorStyles from './routeError.module.css'
-import { createBrowserRouter, RouterProvider, Navigate, useRouteError } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate, Link, isRouteErrorResponse, useRouteError, type RouteObject } from 'react-router-dom'
 import { LoadingState } from '../../ui/components/LoadingState'
 import { RequireAgentAuth } from '../../shared/core/RequireAgentAuth'
 import { RequireAuthOrAgent } from '../../shared/core/RequireAuthOrAgent'
@@ -74,9 +76,9 @@ const CommissionHistoryPage = lazyWithRetry(() => import('../../routes/commissio
 // Unified Settlement Page (for both agents and admins)
 const UnifiedSettlementPage = lazyWithRetry(() => import('../../routes/settlement/UnifiedSettlementPage'))
 
-// Credit Management (for whitelabel admins)
+// Chips (for whitelabel admins): the pool and the root CREDIT accounts' Deposit / Withdraw
 const CreditManagementPage = lazyWithRetry(() => import('../../routes/credit/CreditManagementPage'))
-// Agent Credit Management (for CREDIT scheme agents)
+// Chips (for CREDIT scheme agents): their own chips, their downline and their statement
 const AgentCreditManagementPage = lazyWithRetry(() => import('../../routes/agent/credit/CreditManagementPage'))
 
 // Notifications Module
@@ -89,9 +91,6 @@ const AgentOverviewReport = lazyWithRetry(() => import('../../routes/reporting/A
 const ExportsPage = lazyWithRetry(() => import('../../routes/reporting/ExportsPage'))
 const SnapshotHealthPage = lazyWithRetry(() => import('../../routes/reporting/SnapshotHealthPage'))
 
-// Promotions Module
-const PromotionsCampaignsPage = lazyWithRetry(() => import('../../routes/promotions/CampaignsPage'))
-const PromotionsContentPage = lazyWithRetry(() => import('../../routes/promotions/ContentPage'))
 
 // Bonuses Module
 const BonusesListPage = lazyWithRetry(() => import('../../modules/marketing/bonuses/BonusesListPage'))
@@ -223,15 +222,38 @@ function isChunkLoadError(err: unknown): boolean {
   return false
 }
 
+/** An address no route serves: the '*' child of the signed-in layout, so the shell stays and a signed-out
+    visitor still meets the sign-in redirect first. Without it the router threw a 404 into the error element,
+    which reads like a crash ("Something went wrong"). */
+const NotFoundPage: React.FC = () => {
+  const isAgent = useAuthStore((s) => s.isAgent())
+  return (
+    <Page>
+      <EmptyState
+        role="status"
+        title="Page not found"
+        description="There is no page at this address. The link may be mistyped, or the page may have moved."
+        icon={<IconMapSearch size={22} stroke={strokeFor(22)} />}
+        action={<Link className={buttonClassName({ variant: 'primary', size: 'sm' })} to={isAgent ? '/agent' : '/overview'}>{isAgent ? 'Go to dashboard' : 'Go to Overview'}</Link>}
+      />
+    </Page>
+  )
+}
+
 const DefaultRouteError: React.FC = () => {
   const error = useRouteError()
   const isChunkError = isChunkLoadError(error)
+  // A 404 that still reaches this element (the signed-in layout's '*' catches the rest) is an address, not a
+  // failure: it is said so, and not logged as a crash.
+  const notFound = isRouteErrorResponse(error) && error.status === 404
 
-  if (error != null) {
+  if (error != null && !notFound) {
     console.error('[Admin route error]', error)
   }
 
-  const subTitle = isChunkError
+  const subTitle = notFound
+    ? 'There is no page at this address. The link may be mistyped, or the page may have moved.'
+    : isChunkError
     ? 'The page script failed to load (e.g. after an update or network issue). Refresh to load the latest version.'
     : 'The page failed to load. Try refreshing or returning to the overview.'
 
@@ -241,7 +263,7 @@ const DefaultRouteError: React.FC = () => {
         <span className={routeErrorStyles.tile} aria-hidden="true">
           <IconAlertTriangle size={24} stroke={strokeFor(24)} />
         </span>
-        <h1 className={routeErrorStyles.title}>Something went wrong</h1>
+        <h1 className={routeErrorStyles.title}>{notFound ? 'Page not found' : 'Something went wrong'}</h1>
         <p className={routeErrorStyles.text}>{subTitle}</p>
         <div className={routeErrorStyles.actions}>
           <Button variant="primary" onClick={() => window.location.reload()}>
@@ -256,9 +278,10 @@ const DefaultRouteError: React.FC = () => {
   )
 }
 
-// Create router configuration (export required by main.tsx; see react-refresh/only-export-components)
+// The route table, exported apart from the browser router so tests can match and render it
+// (react-refresh/only-export-components: see the router below)
 /* eslint-disable-next-line react-refresh/only-export-components */
-export const router = createBrowserRouter([
+export const routes: RouteObject[] = [
   {
     path: ROUTES.LOGIN,
     element: <PublicRegion>{withSuspense(LoginPage)}</PublicRegion>,
@@ -419,34 +442,34 @@ export const router = createBrowserRouter([
         handle: { migrated: true },
       },
 
-      // Sports — shared
+      // Sports — shared, for agents whose allowed domains include it (like the domain reports below)
       {
         path: '/sports/events',
-        element: withSuspense(SportsEventsPage),
+        element: <AgentDomainGuard domain="sports">{withSuspense(SportsEventsPage)}</AgentDomainGuard>,
         handle: { migrated: true },
       },
       {
         path: '/sports/event/:eventId',
-        element: withSuspense(SportsEventDetailPage),
+        element: <AgentDomainGuard domain="sports">{withSuspense(SportsEventDetailPage)}</AgentDomainGuard>,
         handle: { migrated: true },
       },
       {
         path: '/sports/live-analysis',
-        element: withSuspense(SportsLiveAnalysisPage),
+        element: <AgentDomainGuard domain="sports">{withSuspense(SportsLiveAnalysisPage)}</AgentDomainGuard>,
         handle: { migrated: true },
       },
 
       // Casino — shared (live analysis)
       {
         path: ROUTES.CASINO_LIVE,
-        element: withSuspense(CasinoLiveAnalysisPage),
+        element: <AgentDomainGuard domain="casino">{withSuspense(CasinoLiveAnalysisPage)}</AgentDomainGuard>,
         handle: { migrated: true },
       },
 
       // Matka — shared (live analysis)
       {
         path: ROUTES.MATKA_LIVE,
-        element: withSuspense(MatkaLiveAnalysisPage),
+        element: <AgentDomainGuard domain="matka">{withSuspense(MatkaLiveAnalysisPage)}</AgentDomainGuard>,
         handle: { migrated: true },
       },
 
@@ -723,17 +746,8 @@ export const router = createBrowserRouter([
         handle: { migrated: true },
       },
 
-      // Promotions
-      {
-        path: ROUTES.PROMOTIONS_CAMPAIGNS,
-        element: adminRoute(PromotionsCampaignsPage),
-        handle: { migrated: true },
-      },
-      {
-        path: ROUTES.PROMOTIONS_CONTENT,
-        element: adminRoute(PromotionsContentPage),
-        handle: { migrated: true },
-      },
+      // Promotions > Campaigns and Content were retired on 2026-11-04 (MAR-14): an in-memory stub shared by every
+      // tenant that no player ever saw. Bonuses and the CMS pages are the real features.
 
       // Bonuses
       {
@@ -820,20 +834,22 @@ export const router = createBrowserRouter([
         handle: { migrated: true },
       },
 
-      // Notifications
+      // Notifications: the signed-in caller's own inbox, an agent's as well as an admin's. The server scopes
+      // myNotifications / myNotification to the recipient (an agent sees its own rows, General tab only), so
+      // these take no AdminOnly: it sent an agent's Alerts > View all, and every notification link, to /agent.
       {
         path: '/notifications',
-        element: adminRoute(NotificationsPage),
+        element: withSuspense(NotificationsPage),
         handle: { migrated: true },
       },
       {
         path: '/notifications/:id',
-        element: adminRoute(NotificationDetailPage),
+        element: withSuspense(NotificationDetailPage),
         handle: { migrated: true },
       },
       {
         path: '/notifications/tasks/:id',
-        element: adminRoute(TaskDetailPage),
+        element: withSuspense(TaskDetailPage),
         handle: { migrated: true },
       },
 
@@ -845,15 +861,16 @@ export const router = createBrowserRouter([
         handle: { migrated: true },
       },
       {
-        // Super Admin owns assistant access; the resolver refuses anyone else.
+        // Super Admin owns assistant access; the resolver refuses anyone else, and so does the route (a
+        // Whitelabel Admin typing the address got the page and its refusals instead of the redirect).
         path: '/config/ai-assistant',
-        element: adminRoute(AiAssistantSettingsPage),
+        element: superAdminRoute(AiAssistantSettingsPage),
         handle: { migrated: true },
       },
       {
-        // Super Admin owns CRM access; the resolver refuses anyone else.
+        // Super Admin owns CRM access; the resolver refuses anyone else, and so does the route.
         path: '/config/crm-access',
-        element: adminRoute(CrmAccessPage),
+        element: superAdminRoute(CrmAccessPage),
         handle: { migrated: true },
       },
       {
@@ -869,13 +886,15 @@ export const router = createBrowserRouter([
         handle: { migrated: true },
       },
       {
+        // Whitelabels are the platform's: creating one needs all:* on the server, and the list offered a
+        // Whitelabel Admin "Add Whitelabel".
         path: '/config/whitelabels',
-        element: adminRoute(WhitelabelsListPage),
+        element: superAdminRoute(WhitelabelsListPage),
         handle: { migrated: true },
       },
       {
         path: '/config/whitelabels/create',
-        element: adminRoute(WhitelabelWizardPage),
+        element: superAdminRoute(WhitelabelWizardPage),
         handle: { migrated: true },
       },
       {
@@ -926,7 +945,7 @@ export const router = createBrowserRouter([
         handle: { migrated: true },
       },
 
-      // Credit Management (whitelabel admins)
+      // Chips (whitelabel admins)
       {
         path: '/credit',
         element: adminRoute(CreditManagementPage),
@@ -988,9 +1007,19 @@ export const router = createBrowserRouter([
         handle: { migrated: true },
       },
 
+      // Any other address: a not-found page inside the shell (it ranks below every real route).
+      {
+        path: '*',
+        element: <NotFoundPage />,
+        handle: { migrated: true },
+      },
     ],
   },
-])
+]
+
+// Create router configuration (export required by main.tsx; see react-refresh/only-export-components)
+/* eslint-disable-next-line react-refresh/only-export-components */
+export const router = createBrowserRouter(routes)
 
 // Router provider component
 export const AppRouter: React.FC = () => {

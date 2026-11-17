@@ -575,6 +575,28 @@ export function exportTypeName(reportType: string): string {
   return exportTypeById(reportType)?.name || reportType
 }
 
+/**
+ * What the server asks of an admin for each type: admin-backend exportReportPermissions.ts
+ * (EXPORT_REPORT_PERMISSIONS), keyed by catalogue id. Keep the two in step. An agent is decided by
+ * its scheme and domains instead, as the server decides it.
+ */
+export const EXPORT_TYPE_PERMISSIONS: Readonly<Record<string, readonly (readonly [string, string])[]>> = {
+  'audit-logs': [['audit.events', 'export']],
+  players: [['players.list', 'export']],
+  transactions: [['players.ledger', 'export']],
+  deposits: [['payments.deposits', 'view']],
+  withdrawals: [['payments.withdrawals', 'view']],
+  agents: [['agents.list', 'export']],
+  subagents: [['agents.list', 'export']],
+  commission: [['reporting.agents-commission', 'export']],
+  settlement: [['settlements.center', 'view']],
+  'sports-bets': [['reporting.sports', 'export']],
+  'casino-bets': [['reporting.casino', 'export']],
+  'matka-bets': [['reporting.matka', 'export']],
+  'bonus-campaigns': [['reporting.bonus-overview', 'export']],
+  ggr: [['reporting.pnl', 'export']],
+}
+
 export interface ExportTypeAccess {
   roles: readonly string[]
   isAgent: boolean
@@ -582,13 +604,16 @@ export interface ExportTypeAccess {
   allowedDomains: readonly string[]
   category?: string
   search: string
+  /** The admin's permission check (hasPermissionWithNested over its permissions); absent, no type is held back. */
+  can?: (domain: string, action: string) => boolean
 }
 
 /**
  * Which export types the Create tab offers.
  *
- * Admins: the legacy rules, rule for rule. Backend support, roles (case-insensitive), the category,
- * then the search over name and description.
+ * Admins: the legacy rules, rule for rule. Backend support, roles (case-insensitive), the permission
+ * the server asks for the type (EXPORT_TYPE_PERMISSIONS, when `can` is given), the category, then the
+ * search over name and description.
  *
  * Agents (agent features spec §4, 2026-10-22): exactly the types their scheme may export (the
  * backend's agentExportPolicy, mirrored by `availableForAgentTypes`), narrowed by their domains:
@@ -606,6 +631,7 @@ export function availableExportTypes({
   allowedDomains,
   category,
   search,
+  can,
 }: ExportTypeAccess): ExportType[] {
   const scheme = agentSchemeType?.toLowerCase() as ExportAgentScheme | undefined
   let filtered = EXPORT_TYPES.filter((type) => {
@@ -618,12 +644,18 @@ export function availableExportTypes({
       // ...and a domain's bets need that domain.
       const requiredDomain = EXPORT_TYPE_AGENT_DOMAINS[type.id]
       if (requiredDomain && !allowedDomains.includes(requiredDomain)) return false
-    } else if (type.availableForRoles && type.availableForRoles.length > 0) {
-      // Role-based filtering (admins)
-      const hasRole = type.availableForRoles.some((role) =>
-        roles.some((r) => r === role || r.toLowerCase() === role.toLowerCase()),
-      )
-      if (!hasRole) return false
+    } else {
+      if (type.availableForRoles && type.availableForRoles.length > 0) {
+        // Role-based filtering (admins)
+        const hasRole = type.availableForRoles.some((role) =>
+          roles.some((r) => r === role || r.toLowerCase() === role.toLowerCase()),
+        )
+        if (!hasRole) return false
+      }
+      // A type the server would refuse this admin is not offered (F-REP-10: a Whitelabel Admin was
+      // shown Audit Logs, then refused with the raw "insufficient permissions" error).
+      const required = EXPORT_TYPE_PERMISSIONS[type.id]
+      if (can && required && !required.some(([domain, action]) => can(domain, action))) return false
     }
 
     // Category filtering

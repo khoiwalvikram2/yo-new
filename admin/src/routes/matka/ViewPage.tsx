@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { IconListSearch } from '@tabler/icons-react'
 import { useMatka, useSetMatkaStatus, useCloneMatka } from '../../modules/matka'
+import { MatkaWhitelabelGate } from '../../modules/matka/MatkaWhitelabelGate'
 import { RBACGuard } from '@/shared/core/RBACGuard'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { Button } from '@/ui/components/Button'
@@ -28,9 +29,13 @@ import {
 import styles from './ViewPage.module.css'
 
 export default function MatkaViewPage() {
+  // A Super Admin in core mode is asked for a whitelabel: the page read the platform's own tenant ('default'), which
+  // called a real matka not found, and Clone or a status change would act in that tenant.
   return (
     <RBACGuard required={[{ domain: 'matka.management', actions: ['view'] }]}>
-      <MatkaViewPageContent />
+      <MatkaWhitelabelGate title={MATKA_DETAILS_TITLE}>
+        <MatkaViewPageContent />
+      </MatkaWhitelabelGate>
     </RBACGuard>
   )
 }

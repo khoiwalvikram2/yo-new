@@ -45,6 +45,13 @@ describe('category add-games model', () => {
     }))
   })
 
+  test('a game the platform switched off is not enabled, whatever its whitelabel row says', () => {
+    // Core mode lists Master Control-disabled games (so they can be switched back on); the picker must not call them enabled.
+    expect(mapCatalogGame({ id: 1, isActive: false, tenantEnabled: true }).enabled).toBe(false)
+    expect(mapCatalogGame({ id: 2, isActive: false, tenantEnabled: null }).enabled).toBe(false)
+    expect(mapCatalogGame({ id: 3, isActive: true, tenantEnabled: null }).enabled).toBe(true)
+  })
+
   test('uses safe fallbacks for malformed optional game fields', () => {
     expect(mapCatalogGame({ id: 'x', rtp: 'bad' })).toEqual({
       id: 'x',

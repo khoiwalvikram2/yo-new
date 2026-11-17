@@ -11,11 +11,11 @@ function complete(selection: SelectionSetNode, value: unknown): unknown {
     return [key, field.selectionSet ? complete(field.selectionSet, raw) : raw]
   }))
 }
-export interface AgentProfileFixtureState { scheme: string; refused?: boolean; missing?: boolean; profileError?: boolean; threshold?: number; referralMissing?: boolean; status?: string; creditLimit?: number }
+export interface AgentProfileFixtureState { scheme: string; refused?: boolean; missing?: boolean; profileError?: boolean; referralMissing?: boolean; status?: string }
 export function profileAgentFixture(scheme: string): ProfileAgent {
   return { id: 'root1', tenantId: 'preview', username: 'Root Partner', phone: '9876543210', schemeType: scheme, status: 'ACTIVE', parentAgentId: 'parent1', levelIndex: 1,
     tallyEnabled: true, tallyDomains: ['sports'], allowedDomains: ['sports', 'casino', 'matka'], sharingRates: [{ domain: 'sports', rate: 40 }, { domain: 'casino', rate: 30 }, { domain: 'matka', rate: 20 }],
-    commissionRates: [{ domain: 'sports', rate: 2 }, { domain: 'casino', rate: 3 }, { domain: 'matka', rate: 1.5 }], creditLimit: 10000, creditUsed: 3000, creditAvailable: 7000, creditAlertThreshold: 80, createdAt: '2026-09-22' }
+    commissionRates: [{ domain: 'sports', rate: 2 }, { domain: 'casino', rate: 3 }, { domain: 'matka', rate: 1.5 }], createdAt: '2026-09-22' }
 }
 export const profileStatsFixture: ProfileStats = { totalPlayers: 17, activePlayers24h: 12, newPlayersToday: 3, pendingDeposits: 2, pendingDepositsAmount: 2000, pendingWithdrawals: 1, pendingWithdrawalsAmount: 500,
   totalDeposits: 25000, totalWithdrawals: 10000, directDeposits: 20000, directWithdrawals: 7000, manualDeposits: 5000, manualWithdrawals: 3000, ggr: 5000, profitLoss: 1200,
@@ -24,24 +24,16 @@ export const profileStatsFixture: ProfileStats = { totalPlayers: 17, activePlaye
   sportsGgr: 3000, sportsPl: 700, casinoGgr: 1800, casinoPl: 450, matkaGgr: 200, matkaPl: 50 }
 export function agentProfileResponse(operation: Operation, state: AgentProfileFixtureState): FetchResult {
   let result: Record<string, unknown>
-  const allocation = { agentId: 'root1', creditLimit: state.creditLimit || 10000, creditUsed: 3000, creditAvailable: 7000, creditAlertThreshold: state.threshold ?? 80, usagePercentage: 30, isOverLimit: false, isNearThreshold: false }
+  // A CREDIT agent's chips are answered by the tests themselves (chipsResponse); the credit-limit operations are retired.
   switch (operation.operationName) {
-    case 'AgentProfile': result = { agents: { agentProfile: state.missing ? null : { ...profileAgentFixture(state.scheme), status: state.status || 'ACTIVE', creditLimit: state.creditLimit || 10000 } } }; break
+    case 'AgentProfile': result = { agents: { agentProfile: state.missing ? null : { ...profileAgentFixture(state.scheme), status: state.status || 'ACTIVE' } } }; break
     case 'AgentDashboardStats': result = { agents: { agentDashboardStats: profileStatsFixture } }; break
     case 'ParentAgent': result = { agents: { agentProfile: { id: 'parent1', username: 'Parent Partner', phone: '9870000000' } } }; break
     case 'SubAgentsCount': result = { agents: { agentTree: [{ id: 'child1' }] } }; break
     case 'AgentTree': result = { agents: { agentTree: operation.variables.rootId === 'root1' ? [{ ...profileAgentFixture(state.scheme), id: 'child1', username: 'Child Partner', parentAgentId: 'root1', levelIndex: 2 }] : [{ ...profileAgentFixture(state.scheme), id: 'grandchild1', username: 'Nested Partner', parentAgentId: 'child1', levelIndex: 3 }] } }; break
     case 'AgentSecurityAudit': result = { agents: { agentSecurityAudit: [{ id: 'audit1', type: 'login', success: true, description: 'Successful sign in', timestamp: '2026-10-08T09:00:00Z', ipAddress: '127.0.0.1', userAgent: 'Preview browser' }, { id: 'audit2', type: 'login', success: false, description: 'Failed sign in', timestamp: '2026-10-08T08:00:00Z', ipAddress: null }, { id: 'audit3', type: 'password_change', success: true, description: 'Password reset', timestamp: '2026-10-01T09:00:00Z' }] } }; break
-    case 'CreditAllocation': result = { agents: { creditAllocation: allocation } }; break
-    case 'AgentCreditAlerts': result = { agents: { agentCreditAlerts: [{ id: 'alert1', alertType: 'THRESHOLD', threshold: 80, currentValue: 8500 }] } }; break
-    case 'AgentPlayerCredits': result = { agents: { agentPlayerCredits: [{ playerId: 'player1', playerName: 'Credit Player', creditLimit: 4000, currentBalance: 2000, openExposure: 500, creditUsed: 2500, creditAvailable: 1500 }] } }; break
-    case 'AgentCreditTransactions': result = { agents: { agentCreditTransactions: [{ id: 'credit-tx1', createdAt: '2026-10-01T09:00:00Z', transactionType: 'DEPOSIT', amount: 500, balanceBefore: 3000, balanceAfter: 3500, reason: 'Funding credit', toEntityType: 'player', toEntityId: 'player1' }] } }; break
-    case 'SetAgentCreditAlertThreshold': if (!state.refused) state.threshold = operation.variables.threshold; result = { agents: { setAgentCreditAlertThreshold: state.refused ? null : allocation } }; break
-    case 'ResolveAgentCreditAlert': result = { agents: { resolveAgentCreditAlert: !state.refused } }; break
     case 'UpdateAgentStatus': if (!state.refused) state.status = operation.variables.status; result = { agents: { updateAgentStatus: !state.refused } }; break
     case 'AdminResetAgentPassword': result = { agents: { adminResetAgentPassword: { success: !state.refused, message: state.refused ? 'Password reset refused' : 'Password reset complete' } } }; break
-    case 'AdjustSubAgentCredit': if (!state.refused) state.creditLimit = operation.variables.creditLimit; result = { agents: { adjustSubAgentCredit: { success: !state.refused, message: state.refused ? 'Credit change refused' : 'Credit limit changed', agent: { id: 'root1', ...allocation } } } }; break
-    case 'AdjustAgentCredit': result = { agents: { adjustAgentCredit: { success: !state.refused, message: state.refused ? 'Credit change refused' : 'Credit adjusted', adjustment: { id: 'adjustment1', ...operation.variables.input } } } }; break
     // SHARING pending: positive = TO_AGENT (the agent is paid its share); periodTo = the end of the window it covers.
     case 'PendingSettlements': result = { pendingSettlements: [{ agentId: 'root1', schemeType: state.scheme, pendingAmount: 4000, settlementDirection: 'TO_AGENT', periodFrom: '2026-10-01T00:00:00.000Z', periodTo: '2026-10-09T10:00:00.000Z', settlementType: state.scheme === 'CREDIT' ? 'CREDIT' : 'P_L' }] }; break
     case 'AgentSettlementTransactionsPage':
@@ -72,10 +64,9 @@ export function agentProfileResponse(operation: Operation, state: AgentProfileFi
     case 'Currencies': result = { currencies: [{ code: 'INR', name: 'Indian Rupee', symbol: '₹', decimals: 2, isActive: true, exchangeRate: 1 }] }; break
     default: throw new Error(`Unexpected agent profile operation: ${operation.operationName}`)
   }
-  if (operation.operationName === 'AgentSettlementTransactionsPage') { const all = result.agentSettlementTransactions ?? []; result.agentSettlementTransactionsPage = { items: all.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)), total: all.length }; }
-  if (operation.operationName === 'CommissionPayoutsPage') { const all = result.commissionPayouts ?? []; result.commissionPayoutsPage = { items: all.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)), total: all.length }; }
-  if (operation.operationName === 'CommissionAdjustmentsPage') { const all = result.commissionAdjustments ?? []; result.commissionAdjustmentsPage = { items: all.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)), total: all.length }; }
-  if (result.agents?.agentCreditTransactions) result.agents.agentCreditTransactionsCount = result.agents.agentCreditTransactions.length
+  if (operation.operationName === 'AgentSettlementTransactionsPage') { const all = (result.agentSettlementTransactions ?? []) as unknown[]; result.agentSettlementTransactionsPage = { items: all.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)), total: all.length }; }
+  if (operation.operationName === 'CommissionPayoutsPage') { const all = (result.commissionPayouts ?? []) as unknown[]; result.commissionPayoutsPage = { items: all.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)), total: all.length }; }
+  if (operation.operationName === 'CommissionAdjustmentsPage') { const all = (result.commissionAdjustments ?? []) as unknown[]; result.commissionAdjustmentsPage = { items: all.slice(operation.variables.offset ?? 0, (operation.variables.offset ?? 0) + (operation.variables.limit ?? 20)), total: all.length }; }
   if (result.agentSettlementTransactionsPage) Object.assign(result.agentSettlementTransactionsPage, { totalAmount: 1500, toAgent: 1000, fromAgent: 500, toCount: 1, fromCount: 1 })
   const definition = operation.query.definitions.find(node => node.kind === 'OperationDefinition')
   if (!definition || definition.kind !== 'OperationDefinition') throw new Error('Missing operation')

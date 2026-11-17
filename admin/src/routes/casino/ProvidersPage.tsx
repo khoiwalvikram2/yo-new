@@ -32,6 +32,7 @@ import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { Button } from '@/ui/components/Button'
 import { Card } from '@/ui/components/Card'
 import { Combobox } from '@/ui/components/Combobox'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { EmptyState } from '@/ui/components/EmptyState'
 import { FilterBar } from '@/ui/components/FilterBar'
 import { strokeFor } from '@/ui/components/icons'
@@ -127,7 +128,8 @@ function VisibilityName({
   return (
     <div className={styles.entity}>
       <span className={clsx(styles.tile, TILE_CLASS[kind])} aria-hidden="true">
-        {kind === 'game' && thumbnailUrl ? <img src={thumbnailUrl} alt="" className={styles.thumb} /> : icon}
+        {/* A game thumbnail that will not load shows the kind's icon, as no thumbnail does (SYS-18). */}
+        {kind === 'game' ? <StoredImage src={thumbnailUrl} alt="" className={styles.thumb} fallback={icon} /> : icon}
       </span>
       <div className={styles.entityBody}>
         <span className={styles.entityName} title={kind === 'game' ? name : undefined}>{name}</span>
@@ -256,7 +258,17 @@ function ProvidersPageContent() {
     fetchPolicy: 'cache-and-network',
   })
 
+  // A new list (search, filter or whitelabel) starts again at page 1. This runs before the copy below: when the
+  // cache answers the new list, its page arrives in the same commit, and declared the other way round the reset
+  // wiped the page just copied in. Clearing a search then left the list empty, and the identical network answer
+  // never ran the copy again.
+  React.useEffect(() => {
+    setGamePage(1)
+    setGameOverrideItems([])
+  }, [providerSettingsTenantId, gameSearch, gameOverrideProviderId, gameOverrideVendorId])
+
   const gameOverridePageData = gameOverrideData?.whitelabelCasinoGameOverrideSettings
+  // The list's own inputs are dependencies too, so whenever the reset above runs, the copy runs after it.
   React.useEffect(() => {
     if (!gameOverridePageData?.items) return
     if (gamePage === 1) {
@@ -266,12 +278,7 @@ function ProvidersPageContent() {
     }
     setGameHasMore(gameOverridePageData.hasMore ?? false)
     setGameTotal(gameOverridePageData.total ?? 0)
-  }, [gameOverridePageData, gamePage])
-
-  React.useEffect(() => {
-    setGamePage(1)
-    setGameOverrideItems([])
-  }, [gameSearch, gameOverrideProviderId, gameOverrideVendorId])
+  }, [gameOverridePageData, gamePage, providerSettingsTenantId, gameSearch, gameOverrideProviderId, gameOverrideVendorId])
 
   React.useEffect(() => {
     setGameOverrideVendorId(undefined)

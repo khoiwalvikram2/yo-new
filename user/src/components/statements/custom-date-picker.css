@@ -62,9 +62,9 @@
 }
 .nova-dp-day:hover:not(:disabled) { background: var(--mb-soft); }
 .nova-dp-day.is-outside { color: var(--mb-faint); }
-.nova-dp-day.is-today { border-color: #C51A1B; color: var(--mb-red-text); font-weight: 700; }
-.nova-dp-day.is-selected { border-color: #C51A1B; color: #FFFFFF; background: #C51A1B; font-weight: 700; }
-.nova-dp-day.is-selected:hover:not(:disabled) { background: #A81516; }
+.nova-dp-day.is-today { border-color: var(--mb-red); color: var(--mb-red-text); font-weight: 700; }
+.nova-dp-day.is-selected { border-color: var(--mb-red); color: var(--mb-on-red); background: var(--mb-red); font-weight: 700; }
+.nova-dp-day.is-selected:hover:not(:disabled) { background: var(--mb-brand-deep); }
 .nova-dp-day:disabled { color: var(--mb-line-2); cursor: not-allowed; }
 .nova-dp-day.is-today:disabled { border-color: var(--mb-red-line); }
 .nova-dp-foot { padding: 8px; border-top: 1px solid var(--mb-line); }
@@ -81,4 +81,4 @@
   cursor: pointer;
   transition: border-color .15s, color .15s;
 }
-.nova-dp-today:hover { border-color: #C51A1B; color: var(--mb-red-text); }
+.nova-dp-today:hover { border-color: var(--mb-red); color: var(--mb-red-text); }

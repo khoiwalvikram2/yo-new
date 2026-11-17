@@ -10,13 +10,15 @@ import {
   adjustWalletReferralBonusDb,
 } from '@src/repos/players/walletsRepo.js'
 import { CurrencyCode } from '@src/types/currency.js'
+import { isCreditBeneficiary } from './creditBeneficiaries.js'
 
 /**
  * Settlement Service - Handles payout of referral earnings
  */
 export class SettlementService {
   /**
-   * Settle earnings for a referrer (real-time or scheduled)
+   * Settle earnings for a referrer (real-time or scheduled). An earning cancelled because its referrer is a credit
+   * player is neither settled nor failed.
    */
   async settleEarnings(
     tenant: string,
@@ -29,8 +31,7 @@ export class SettlementService {
 
     for (const earning of unsettled) {
       try {
-        await this.settleSingleEarning(tenant, earning)
-        settled++
+        if (await this.settleSingleEarning(tenant, earning)) settled++
       } catch (error) {
         failed++
       }
@@ -40,9 +41,9 @@ export class SettlementService {
   }
 
   /**
-   * Settle a single earning
+   * Settle a single earning. False when its settlement was cancelled instead (a credit player's earning).
    */
-  private async settleSingleEarning(tenant: string, earning: any): Promise<void> {
+  private async settleSingleEarning(tenant: string, earning: any): Promise<boolean> {
     const rule = await getReferralRuleByIdDb(earning.ruleId, tenant)
     if (!rule) {
       throw new Error(`Rule ${earning.ruleId} not found`)
@@ -91,23 +92,32 @@ export class SettlementService {
       escrowStatus,
     })
 
-    if (!settlement) return // another caller already settled this earning
+    if (!settlement) return true // another caller already settled this earning
 
     // If no escrow, settle immediately
     if (escrowStatus === 'none') {
-      await this.executeSettlement(tenant, settlement, earning.currency as CurrencyCode)
+      return this.executeSettlement(tenant, settlement, earning.currency as CurrencyCode)
     }
+    return true
   }
 
   /**
-   * Execute settlement (credit wallet/bonus).
+   * Execute settlement (credit wallet/bonus). Returns whether it paid.
    * Referral bonus is casino-only: full amount is credited to referralBonus so it can only be used in casino, not in sports/matka.
+   *
+   * Every payout comes through here, so this is where a credit player (AGENT_CREDIT, WHITELABEL_CREDIT) is never
+   * paid referral cash (credit D/W chips, decision 7). Its settlement is cancelled instead, so no later run picks it
+   * up again. The check runs before the try below: a failed read leaves the settlement pending, to be tried again.
    */
   private async executeSettlement(
     tenant: string,
     settlement: any,
     currency: CurrencyCode
-  ): Promise<void> {
+  ): Promise<boolean> {
+    if (await isCreditBeneficiary(tenant, Number(settlement.referrerId))) {
+      await updateReferralSettlementStatusDb(settlement.id, tenant, { status: 'cancelled' })
+      return false
+    }
     try {
       let walletTransactionId: number | undefined
       let bonusAwardId: number | undefined
@@ -135,6 +145,7 @@ export class SettlementService {
         bonusAwardId,
         settledAt: new Date(),
       })
+      return true
     } catch (error) {
       // Mark as failed
       await updateReferralSettlementStatusDb(settlement.id, tenant, {
@@ -166,8 +177,8 @@ export class SettlementService {
           escrowStatus: 'released',
         })
 
-        await this.executeSettlement(tenant, target, target.currency as CurrencyCode)
-        return true
+        // False when the settlement was cancelled instead of paid (a credit player's earning).
+        return this.executeSettlement(tenant, target, target.currency as CurrencyCode)
       }
     }
 
@@ -249,8 +260,8 @@ export class SettlementService {
           })
         }
 
-        await this.executeSettlement(tenant, settlement, settlement.currency as CurrencyCode)
-        settled++
+        // A credit player's settlement is cancelled, not paid: neither settled nor failed.
+        if (await this.executeSettlement(tenant, settlement, settlement.currency as CurrencyCode)) settled++
       } catch (error) {
         failed++
       }

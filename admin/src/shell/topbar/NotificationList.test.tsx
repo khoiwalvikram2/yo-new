@@ -75,6 +75,26 @@ describe('NotificationList', () => {
     assert.ok(screen.getByText('No new tasks'))
   })
 
+  test('offers Clear all while the badge counts unread items the list does not hold', () => {
+    let cleared = 0
+    render(
+      <NotificationList
+        category="task"
+        titleId="t"
+        notifications={[]}
+        loading={false}
+        formatAmount={formatAmount}
+        onNotificationClick={noop}
+        onMarkAllAsRead={() => { cleared += 1 }}
+        onViewAll={noop}
+        unreadCount={1}
+      />,
+    )
+    assert.ok(screen.getByText('No new tasks'))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    assert.equal(cleared, 1)
+  })
+
   test('renders the header title, the unread count and each notification row', () => {
     const notifications = [
       makeNotification({ id: '1', title: 'Deposit received', message: 'A player deposited', type: 'DEPOSIT' }),

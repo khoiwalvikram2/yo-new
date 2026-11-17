@@ -2,10 +2,12 @@
 import type { ReactNode } from 'react'
 import { beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { ApolloLink, Observable, type FetchResult, type Operation } from '@apollo/client'
 import { MockedProvider } from '@apollo/client/testing'
 import { MemoryRouter, useLocation } from 'react-router-dom'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import MatkaManagementPage from './ManagementPage'
 
@@ -47,6 +49,14 @@ vi.mock('@/shared/core/useFormatDate', () => ({
 
 vi.mock('@/modules/vip/hooks/useVIP', () => ({
   useVIPTiers: () => ({ data: { vipTiers: [] }, loading: false }),
+}))
+
+const feedback = vi.hoisted(() => ({ toasts: [] as Array<Record<string, unknown>>, refuseRates: null as string | null }))
+vi.mock('@/ui/components/toast', () => ({
+  toast: (options: Record<string, unknown>) => {
+    feedback.toasts.push(options)
+    return feedback.toasts.length
+  },
 }))
 
 const MATKAS = [
@@ -130,6 +140,7 @@ function resultFor(operation: Operation): FetchResult {
         },
       }
     case 'UpdateMatkaDefaultRates':
+      if (feedback.refuseRates) return { errors: [{ message: feedback.refuseRates }] }
       return {
         data: {
           updateMatkaDefaultRates: {
@@ -181,10 +192,10 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>
 }
 
-function renderPage() {
+function renderPage(path = '/matka/list') {
   return render(
     <MockedProvider link={serverLink()}>
-      <MemoryRouter initialEntries={['/matka/list']}>
+      <MemoryRouter initialEntries={[path]}>
         <PageEyebrowProvider value="Trading">
           <MatkaManagementPage />
           <LocationProbe />
@@ -204,6 +215,8 @@ async function renderLoaded() {
 
 beforeEach(() => {
   calls = []
+  feedback.toasts.length = 0
+  feedback.refuseRates = null
   guard.allowed = true
   guard.calls.length = 0
 })
@@ -260,6 +273,15 @@ describe('MatkaManagementPage', () => {
     })), { timeout: 1500 })
   })
 
+  test('a link with ?search= (the global search "See all Matka") opens the list already filtered by the term', async () => {
+    renderPage('/matka/management?search=Kalyan')
+    await screen.findByRole('table', { name: 'Matka catalog' })
+    assert.equal((screen.getByRole('searchbox', { name: 'Search matka draws' }) as HTMLInputElement).value, 'Kalyan')
+    // The first list request already carries it: no unfiltered page first.
+    const first = calls.find((call) => call.operationName === 'Matkas' && (call.variables.filters as { limit?: number })?.limit === 20)
+    assert.deepEqual(sent(first), { filters: { query: 'Kalyan', page: 1, limit: 20 } })
+  })
+
   test('saves the inline message with the full legacy settings object', async () => {
     await renderLoaded()
     fireEvent.click(screen.getByRole('button', { name: 'Edit message for Kalyan' }))
@@ -299,5 +321,49 @@ describe('MatkaManagementPage', () => {
     assert.equal(entries.length, 1)
     assert.deepEqual(entries[0], { betType: 'SINGLE', payoutMultiplier: 10, minOdds: 1, maxOdds: 5 })
     assert.ok(entries.every(entry => Number(entry.payoutMultiplier) > 0))
+    // The mutation answers the rates (no { success, message }), so the page says it saved.
+    await waitFor(() => assert.ok(feedback.toasts.some((entry) => entry.message === 'Default rates saved' && entry.tone === 'ok')))
+    await waitFor(() => assert.ok(screen.queryByRole('dialog', { name: 'Rates Defaults' }) === null, 'the drawer closes'))
+  })
+
+  test('a refused Rates Defaults save keeps the drawer open with the server reason', async () => {
+    feedback.refuseRates = 'Payout multiplier must be below 1000000'
+    try {
+      await renderLoaded()
+      fireEvent.click(screen.getByRole('button', { name: 'Rates Defaults' }))
+      const drawer = await screen.findByRole('dialog', { name: 'Rates Defaults' })
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
+      await waitFor(() => assert.ok(feedback.toasts.some((entry) => entry.message === 'Payout multiplier must be below 1000000' && entry.tone === 'error')))
+      assert.ok(screen.getByRole('dialog', { name: 'Rates Defaults' }))
+      assert.ok(!feedback.toasts.some((entry) => entry.tone === 'ok'))
+    } finally {
+      feedback.refuseRates = null
+    }
+  })
+
+  test('a Super Admin in core mode is asked to select a whitelabel: nothing is read and no rates warning shows', async () => {
+    // Core mode read the platform's own tenant, which holds no markets: TOTAL MATKAS 0, "Default payout rates are
+    // not configured", and Create Matka and Rates Defaults still offered.
+    const auth = useAuthStore.getState(), ui = useUIStore.getState()
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      const core = renderPage()
+      assert.ok(await screen.findByText('Select a whitelabel'))
+      assert.ok(screen.getByRole('heading', { level: 1, name: 'Matka Management' }))
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+      assert.equal(calls.length, 0, 'no Matkas or MatkaDefaultRates request')
+      assert.ok(screen.queryByText('Default payout rates are not configured') === null, 'no rates warning')
+      assert.ok(screen.queryByRole('button', { name: 'Rates Defaults' }) === null, 'no Rates Defaults')
+      assert.ok(screen.queryByRole('link', { name: 'Create Matka' }) === null, 'no Create Matka')
+      assert.ok(screen.queryByRole('table', { name: 'Matka catalog' }) === null, 'no catalog')
+      core.unmount()
+      // With a site selected the same admin gets the page, as a whitelabel admin always does.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      await renderLoaded()
+      assert.ok(screen.queryByText('Select a whitelabel') === null, 'no select state with a site selected')
+      assert.ok(calls.some((call) => call.operationName === 'MatkaDefaultRates'))
+    } finally {
+      useAuthStore.setState({ roles: auth.roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
   })
 })

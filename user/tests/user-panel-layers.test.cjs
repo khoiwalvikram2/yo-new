@@ -42,7 +42,7 @@ function harness(options = {}) {
   const stubs = {
     'react-i18next': { useTranslation: () => ({ t: translate }) },
     [path.join(root, 'src/lib/auth.tsx')]: { useAuth: () => auth },
-    [path.join(root, 'src/hooks/useAppSettings.ts')]: { useFeatureFlags: () => features, useParsedSettings: () => settings },
+    [path.join(root, 'src/hooks/useAppSettings.ts')]: { useFeatureFlags: () => features, useSportsIconStyle: () => 'default', useParsedSettings: () => settings },
     [path.join(root, 'src/lib/currency.ts')]: { formatAmount: value => `₹${Number(value).toFixed(2)}` },
     [path.join(root, 'src/components/Logo.tsx')]: stub(() => null),
     [path.join(root, 'src/components/ThemeSwitch.tsx')]: stub(() => null),
@@ -118,6 +118,21 @@ test('credit players and hideDW never acquire funding/bonus shortcuts through ne
   openProfile(view); const dialog = view.getByRole('dialog', { name: 'Your account' });
   for (const target of ['/deposit', '/withdrawal', '/bonus', '/referral']) assert.equal(Boolean(dialog.querySelector(`a[href="${target}"]`)), false);
   assert.ok(dialog.querySelector('a[href="/statements"]'));
+});
+
+// D/W chips: a credit player's chips are the wallet cash. The header shows the cash figures; the account sheet adds the
+// credit reference and Ref P/L = balance - credit reference, and explains why there is no Deposit or Withdraw.
+test('a credit player gets the cash wallet figures in the header and credit reference, Ref P/L and agent note in the account sheet', () => {
+  const view = harness({ auth: { user: { id: 'credit', username: 'ravi', playerType: 'AGENT_CREDIT', balance: 800, exposure: 150, creditLimit: 1000, creditAvailable: 700 } } });
+  const trigger = view.getByRole('button', { name: 'Choose wallet' });
+  assert.equal(trigger.textContent, 'Main Wallet₹650.00Exposure₹150.00Available₹650.00');
+  openProfile(view); const dialog = view.getByRole('dialog', { name: 'Your account' });
+  const figures = [...dialog.querySelectorAll('dl.nova-panel-chips > div')].map(row => `${row.querySelector('dt').textContent}=${row.querySelector('dd').textContent}`);
+  assert.deepEqual(figures, ['Credit reference=₹1000.00', 'Ref P/L=−₹200.00']);
+  assert.equal(dialog.querySelector('dl.nova-panel-chips dd.is-down')?.textContent, '−₹200.00', 'the player owes the upline: red text');
+  assert.ok(within(dialog).getByText('Chips are managed by your agent'));
+  for (const target of ['/deposit', '/withdrawal', '/bonus', '/referral']) assert.equal(Boolean(dialog.querySelector(`a[href="${target}"]`)), false, target);
+  assert.doesNotMatch(document.body.textContent, /Available credit|₹700\.00/, 'the retired available-credit figure never shows');
 });
 
 test('wallet is named and connected to its trigger, Escape returns focus, and inert Info was replaced by close', () => {

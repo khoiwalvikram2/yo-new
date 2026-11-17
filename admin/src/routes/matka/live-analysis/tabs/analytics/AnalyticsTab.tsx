@@ -10,5 +10,5 @@ import { DigitHeatmap } from './DigitHeatmap'
 import { DigitFrequencyAnalysis } from './DigitFrequencyAnalysis'
 import styles from '../../MatkaLiveUi.module.css'
 interface Props { dashboard: MatkaDashboard | null; didAnimate: boolean }
-export const AnalyticsTab: FC<Props> = ({ dashboard }) => <div className={styles.stack}><PlayerJourneyMapping /><div className={styles.grid2}><BidTypeAnalytics breakdown={dashboard?.breakdown} /><MatkaAnalytics breakdown={dashboard?.breakdown} /></div><DigitAnalytics breakdown={dashboard?.breakdown} /><div className={styles.grid2}><DigitHeatmap breakdown={dashboard?.breakdown} /><DigitFrequencyAnalysis breakdown={dashboard?.breakdown} /></div><MarketSessionAnalytics breakdown={dashboard?.breakdown} /><PlayerAnalyticsWidget /></div>
+export const AnalyticsTab: FC<Props> = ({ dashboard }) => <div className={styles.stack}><PlayerJourneyMapping /><div className={styles.grid2}><BidTypeAnalytics breakdown={dashboard?.breakdown} /><MatkaAnalytics breakdown={dashboard?.breakdown} /></div><DigitAnalytics breakdown={dashboard?.breakdown} /><div className={`${styles.grid2} ${styles.alignStart}`}><DigitHeatmap breakdown={dashboard?.breakdown} /><DigitFrequencyAnalysis breakdown={dashboard?.breakdown} /></div><MarketSessionAnalytics breakdown={dashboard?.breakdown} /><PlayerAnalyticsWidget /></div>
 

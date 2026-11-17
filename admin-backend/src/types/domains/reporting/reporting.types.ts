@@ -183,6 +183,9 @@ export interface CasinoReportingFilter {
   tenant?: string;
   whitelabelId?: string;
   agentId?: string;
+  providerId?: string;
+  vendorId?: string;
+  gameId?: string;
   dateFrom?: string;
   dateTo?: string;
   currency?: string;
@@ -192,6 +195,10 @@ export interface MatkaReportingFilter {
   tenant?: string;
   whitelabelId?: string;
   agentId?: string;
+  matkaType?: string;
+  matkaId?: string;
+  marketSession?: string;
+  playerId?: string;
   dateFrom?: string;
   dateTo?: string;
   currency?: string;

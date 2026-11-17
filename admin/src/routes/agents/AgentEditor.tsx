@@ -28,7 +28,7 @@ export function AgentEditor({ record, onSave }: { record?: AgentRecord; onSave: 
   const panelForm = { ...form, getValue }
   async function next() {
     const fields: Path<AgentEditorValues>[] = step === 0 ? ['username', 'password', 'phone', 'schemeType', 'allowedDomains', 'status', 'currency', ...(form.values.schemeType === 'COMMISSION' ? [] : ['levelIndex' as const])] :
-      ['levelIndex', 'creditLimit', ...form.values.allowedDomains.map((domain) => `${form.values.schemeType === 'COMMISSION' ? 'commissionRates' : 'sharingRates'}.${domain}` as Path<AgentEditorValues>)]
+      ['levelIndex', 'creditLimit', 'openingChips', ...(form.values.schemeType === 'COMMISSION' ? ['tallyDomains' as const] : []), ...form.values.allowedDomains.map((domain) => `${form.values.schemeType === 'COMMISSION' ? 'commissionRates' : 'sharingRates'}.${domain}` as Path<AgentEditorValues>)]
     if (await form.validate(fields)) setStep((value) => Math.min(2, value + 1))
   }
   return <Page maxWidth="wide"><PageHeader title={record ? 'Edit Agent' : 'Create Agent'} eyebrow={eyebrow}

@@ -14,7 +14,9 @@ import { DateTimeField } from '@/ui/components/DateTimeField'
 import { DataTable, type DataTableColumn } from '@/ui/components/DataTable'
 import { StatusPill } from '@/ui/components/StatusPill'
 import { Pagination } from '@/ui/components/Pagination'
-import { type CasinoBet } from '../../casinoLiveModel'
+import { usePaymentWhitelabelScope } from '@/routes/payments/usePaymentWhitelabelScope'
+import { SelectWhitelabelForBets } from '@/routes/bets/SelectWhitelabelForBets'
+import { signedNet, type CasinoBet } from '../../casinoLiveModel'
 import styles from '../../CasinoLive.module.css'
 const CASINO_BETS_QUERY = gql`
   query CasinoLiveBetsPage($filters: BetsPageFilters, $offset: Int, $limit: Int) {
@@ -52,7 +54,9 @@ export function BetList({ windowMins = 10 }: BetListProps) {
       stakeMax: stakeRange?.includes('-') && Number.isFinite(max) ? max : undefined,
     }, offset: (currentPage-1)*pageSize, limit: pageSize }
   }, [dateRange, defaultDateFrom, statusFilter, searchQuery, vendorFilter, gameFilter, stakeRange, currentPage, pageSize])
-  const { data, loading, error, refetch } = useQuery<{ betsPage: {items: CasinoBet[]; total: number}; betsFilterOptions: {vendorNames: string[]; gameNames: string[]} }>(CASINO_BETS_QUERY, { variables: queryVariables, pollInterval: 5000, fetchPolicy: 'network-only', notifyOnNetworkStatusChange: true })
+  // Bets belong to one whitelabel: with none selected (a Super Admin in core mode) nothing is queried or polled.
+  const { selectionRequired } = usePaymentWhitelabelScope()
+  const { data, loading, error, refetch } = useQuery<{ betsPage: {items: CasinoBet[]; total: number}; betsFilterOptions: {vendorNames: string[]; gameNames: string[]} }>(CASINO_BETS_QUERY, { variables: queryVariables, skip: selectionRequired, pollInterval: selectionRequired ? 0 : 5000, fetchPolicy: 'network-only', notifyOnNetworkStatusChange: true })
   const paginatedBets = data?.betsPage?.items ?? []
   const total = data?.betsPage?.total ?? 0
   const uniqueVendors = data?.betsFilterOptions?.vendorNames ?? []
@@ -69,12 +73,13 @@ export function BetList({ windowMins = 10 }: BetListProps) {
     { key: 'vendor', header: 'Vendor', cell: bet => bet.vendorName || '-' },
     { key: 'stake', header: 'Stake', align: 'right', cell: bet => fmt(bet.stake) },
     { key: 'payout', header: 'Payout', align: 'right', cell: bet => bet.payout ? fmt(bet.payout) : '-' },
-    { key: 'net', header: 'Net', align: 'right', cell: bet => { const net = bet.netAmount ?? (bet.payout ? bet.payout - bet.stake : -bet.stake); return <strong className={net > 0 ? styles.positive : styles.negative}>{net > 0 ? '+' : ''}{fmt(Math.abs(net))}</strong> } },
+    { key: 'net', header: 'Net', align: 'right', cell: bet => { const net = bet.netAmount ?? (bet.payout ? bet.payout - bet.stake : -bet.stake); return <strong className={net > 0 ? styles.positive : styles.negative}>{signedNet(net, fmt)}</strong> } },
     { key: 'status', header: 'Status', cell: bet => <StatusPill status={bet.status}>{bet.status.charAt(0).toUpperCase() + bet.status.slice(1)}</StatusPill> },
     { key: 'transaction', header: 'Transaction ID', cell: bet => bet.transactionId ? <span className={styles.mono} title={bet.transactionId}>{bet.transactionId.slice(0, 10)}...</span> : '-' },
   ]
   const clear = () => { setSearchQuery(''); setStatusFilter(undefined); setVendorFilter(undefined); setGameFilter(undefined); setStakeRange(undefined); setDateRange(null); setDateDraft(['', '']); setCurrentPage(1) }
   const editDate = (index: 0 | 1, value: string) => { const next: [string, string] = [...dateDraft]; next[index] = value; setDateDraft(next); setDateRange(next[0] && next[1] ? next : null) }
+  if (selectionRequired) return <div className={styles.stack}><Card title="Bet List" sub="All casino bets & transactions"><SelectWhitelabelForBets /></Card></div>
   return <div className={styles.stack}>
     <Card title="Bet List" sub="All casino bets & transactions" tools={<Button size="sm" onClick={() => void refetch()}>Refresh</Button>}>
       <FilterBar label="Casino bet filters" activeCount={activeFiltersCount} onClearAll={clear} search={<SearchField label="Search casino bets" placeholder="Search user, game, transaction..." value={searchQuery} onChange={setSearchQuery} size="sm" />}>

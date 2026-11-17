@@ -17,9 +17,7 @@ const USER_FIELDS = `
   referralBalance
   referralBonusBalance
   playerType
-  creditAvailable
   creditLimit
-  creditUsed
   requirePasswordReset
 `
 

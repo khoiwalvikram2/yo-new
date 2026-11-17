@@ -27,7 +27,7 @@ function fixture(): PlayerIntelligenceProfile {
     riskProfile: { riskLevel: 'HIGH', suspiciousActivityCount: 2, manualFlags: ['REVIEW'], patternFlags: ['AUTOMATIC'], patterns: [], notes: 'Existing read-only risk note', lastReviewedAt: '2026-10-09T12:00:00Z' },
     devices: [{ ipAddress: '127.0.0.1', userAgent: 'Local fixture', location: 'Delhi', country: 'IN', firstUsed: '2026-10-09', lastUsed: '2026-10-10', betCount: 0 }],
     relatedPlayers: [{ userId: 'linked', userName: 'Linked Player', relationshipType: 'SHARED_IP', confidence: 0 }],
-    agentChain: [{ agentId: 'agent-1', agentName: 'Agent One', commissionRate: 5, creditLimit: 1250, creditUsed: 0 }],
+    agentChain: [{ agentId: 'agent-1', agentName: 'Agent One', commissionRate: 5, creditLimit: 1250 }],
     recentBets: Array.from({ length: 24 }, (_, index) => ({ id: `bet-${index + 1}`, marketId: index % 2 ? 'tennis-market' : 'cricket-market', selectionId: `selection-${index + 1}`, stake: 50, liability: 125, price: 2.5, status: index % 2 ? 'lost' : 'won', side: index % 2 ? 'lay' : 'back', currency: 'INR', createdAt: '2026-10-09T10:00:00Z' })),
   }
 }
@@ -44,8 +44,10 @@ describe('event player intelligence dialog', () => {
     assert.ok(screen.getByText('••••'))
     assert.equal(Boolean(screen.queryByText('₹987.65')), false)
     tab(/Agent Hierarchy/)
-    assert.ok(screen.getByText('Limit: ••••'))
-    assert.ok(screen.getByText('Used: ••••'))
+    // A CREDIT agent's credit limit is its credit reference (chips model); its retired "credit used" is not shown.
+    assert.ok(screen.getByText('Credit ref: ••••'))
+    assert.equal(screen.queryByText(/^Used:/), null)
+    assert.equal(screen.queryByText(/^Limit:/), null)
     rerender(<PlayerProfileModal open={false} userId="player-1" onClose={() => {}} />)
     assert.equal(harness.queryOptions.skip, true)
   })

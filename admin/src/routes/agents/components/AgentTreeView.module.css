@@ -2,6 +2,8 @@
    the same columns on every level, children indented under a guide line. Columns after the agent
    have fixed widths, so nested rows (narrower by their indent) still line up with the header. */
 .treeView { --tree-cols: minmax(220px, 1fr) 76px 140px 130px 104px 104px 92px; min-width: 0; color: var(--ink); }
+/* A CREDIT row can carry D / W / CR before View, so its action column is wider. */
+.treeView[data-scheme='CREDIT'] { --tree-cols: minmax(220px, 1fr) 76px 140px 130px 104px 104px 190px; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 12px 18px; background: var(--panel-2, var(--surf-3)); border-bottom: 1px solid var(--line); }
 .hint { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; color: var(--ink-3); font-size: 12px; }
 .hint > svg { color: var(--ink-2, var(--ink)); flex: none; }
@@ -42,11 +44,11 @@
 .value { display: inline-flex; align-items: center; gap: 6px; }
 .positive { color: var(--pos-ink); }
 .negative { color: var(--neg-ink); }
-.credit, .creditHigh { display: inline-flex; align-items: center; gap: 8px; }
-.creditHigh { color: var(--warn); }
-.creditMeter { width: 56px; }
+/* CREDIT Ref P/L: coloured text, in green and out rose, as on every chips screen (modules/chips). */
+.gain { color: var(--viz-green, var(--pos-ink)); }
+.loss { color: var(--viz-rose, var(--neg-ink)); }
 .statusCell { min-width: 0; }
-.actions { display: flex; align-items: center; justify-content: flex-end; }
+.actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 
 .branch { margin-left: 23px; padding-left: 18px; border-left: 1px solid var(--line); }
 .children > .node::before { content: ''; position: absolute; top: 30px; left: -18px; width: 18px; border-top: 1px solid var(--line); }
@@ -56,6 +58,7 @@
 /* Narrower panels drop the last-login column, then put the figures on a labelled line under the agent. */
 @container account-list (max-width: 1050px) {
   .treeView { --tree-cols: minmax(200px, 1fr) 68px 130px 120px 96px 88px; }
+  .treeView[data-scheme='CREDIT'] { --tree-cols: minmax(200px, 1fr) 68px 130px 120px 96px 184px; }
   [data-col='login'] { display: none; }
 }
 @container account-list (max-width: 760px) {
@@ -66,6 +69,7 @@
   .cellLabel { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip-path: none; color: var(--ink-3); font-size: 11px; font-weight: 500; }
   [data-col='login'] { display: grid; }
   .statusCell { margin-left: auto; }
+  .actions { flex-wrap: wrap; }
   .branch { margin-left: 18px; padding-left: 12px; }
   .children > .node::before { left: -12px; width: 12px; }
   .tree { padding-right: 10px; padding-left: 10px; }

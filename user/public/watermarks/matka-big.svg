@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <!-- Matka page watermark: one large painted matka (earthen pot) with a marigold rim, a patterned band and dots.
+       Original art; drawn in colour, faded by the page. -->
+  <defs>
+    <linearGradient id="clay" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F08A4B"/>
+      <stop offset=".55" stop-color="#E8692E"/>
+      <stop offset="1" stop-color="#B9461B"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#clay)" d="M200 118C122 118 72 176 80 250C88 324 148 360 200 360C252 360 312 324 320 250C328 176 278 118 200 118Z"/>
+  <path fill="#C2551F" d="M160 118L166 88H234L240 118Z"/>
+  <rect x="146" y="66" width="108" height="28" rx="14" fill="#F2A93B"/>
+  <rect x="146" y="66" width="108" height="9" rx="4.5" fill="#FFD166"/>
+  <path fill="none" stroke="#FFD166" stroke-width="16" stroke-linecap="round" d="M88 222C150 252 250 252 312 222"/>
+  <path fill="none" stroke="#C2185B" stroke-width="5" stroke-linejoin="round"
+    d="M98 228L114 242L130 230L146 244L162 232L178 246L194 234L210 246L226 234L242 246L258 232L274 244L290 230L302 238"/>
+  <g fill="#1FA39A">
+    <circle cx="140" cy="292" r="9"/><circle cx="200" cy="304" r="10"/><circle cx="260" cy="292" r="9"/>
+    <circle cx="170" cy="182" r="7"/><circle cx="230" cy="182" r="7"/><circle cx="200" cy="168" r="7"/>
+  </g>
+  <g fill="#7B2CBF">
+    <circle cx="112" cy="268" r="5"/><circle cx="288" cy="268" r="5"/><circle cx="200" cy="336" r="5"/>
+  </g>
+  <path fill="none" stroke="#FFFFFF" stroke-opacity=".5" stroke-width="12" stroke-linecap="round" d="M116 186C102 214 102 256 118 290"/>
+</svg>

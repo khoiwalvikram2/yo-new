@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApolloClient, useMutation, useQuery } from '@apollo/client'
+import { useSearchParams } from 'react-router-dom'
 import {
   KeyboardSensor,
   PointerSensor,
@@ -25,17 +26,25 @@ import {
 } from '@/lib/graphql/casino'
 import { VIP_TIERS_QUERY } from '@/modules/vip/services/vipService'
 import { useAuthStore } from '@/shared/core/authStore'
-import { useCasinoStore, type CasinoMainCategory } from '@/state/casinoStore'
+import { useUIStore } from '@/shared/core/uiStore'
+import { useSearchParamUpdates } from '@/shared/hooks/useSearchParamUpdates'
+import { notify } from '@/shared/services/notification'
+import { useCasinoStore } from '@/state/casinoStore'
 import { Card } from '@/ui/components/Card'
+import { Notice } from '@/ui/components/Notice'
 import {
+  CORE_MODE_HINT,
   canReorderGames,
-  combineAllCategoryGames,
   enabledVipTierIds,
   gameQueryInput,
+  isCoreModeView,
   isWhitelabelAdminRole,
+  lastGamesPage,
   moveGameId,
+  reorderVendorGameIds,
   sortGameRows,
   toggleSelection,
+  vendorOrderQueryInput,
   vendorVariables,
   type CasinoProvider,
   type CasinoVendor,
@@ -63,6 +72,8 @@ interface GameVipTiersData { gameVipTiers: GameVipTier[] }
 export function CasinoDashboard() {
   const roles = useAuthStore((state) => state.roles)
   const isWhitelabelAdmin = isWhitelabelAdminRole(roles)
+  const directorMode = useUIStore((state) => state.directorMode)
+  const coreMode = isCoreModeView(roles, directorMode)
   const {
     selectedProviderId,
     selectedCategory,
@@ -81,12 +92,23 @@ export function CasinoDashboard() {
     setPage,
     setPageSize,
   } = useCasinoStore()
-  const [debouncedSearch, setDebouncedSearch] = useState(search)
+  // A link may name a game (?search=<name>: a casino game result of the global search, or its "See all"). The
+  // search is held in the store, so the Search games box and the games query both start from the link's term.
+  const [searchParams] = useSearchParams()
+  const linkedSearch = searchParams.get('search')
+  const [debouncedSearch, setDebouncedSearch] = useState(linkedSearch ?? search)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 500)
     return () => window.clearTimeout(timer)
   }, [search])
+
+  useEffect(() => {
+    if (linkedSearch !== null) setSearch(linkedSearch)
+    // On mount only; a later link to this still-open page arrives through useSearchParamUpdates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useSearchParamUpdates(setSearch)
 
   const providersQ = useQuery<ProvidersData>(CASINO_API_PROVIDERS, { errorPolicy: 'all' })
   const defaultsSetRef = useRef(false)
@@ -120,78 +142,29 @@ export function CasinoDashboard() {
     pageSize,
     whitelabelAdmin: isWhitelabelAdmin,
   }
-  const canQuery = isWhitelabelAdmin || Boolean(selectedProviderId)
-  const allMode = canQuery && selectedCategory === 'ALL'
-  const singleMode = canQuery && Boolean(selectedCategory && selectedCategory !== 'ALL')
+  const canQuery = Boolean(selectedCategory) && (isWhitelabelAdmin || Boolean(selectedProviderId))
 
-  const gamesQLive = useQuery<GamesData>(CASINO_GAMES, {
-    variables: allMode ? gameQueryInput(queryFilters, 'LIVE_CASINO', true) : undefined,
-    skip: !allMode,
+  // One paged query for every category, "All" included (no category: the server pages all three).
+  const gamesQuery = useQuery<GamesData>(CASINO_GAMES, {
+    variables: canQuery && selectedCategory ? gameQueryInput(queryFilters, selectedCategory) : undefined,
+    skip: !canQuery,
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
   })
-  const gamesQCasino = useQuery<GamesData>(CASINO_GAMES, {
-    variables: allMode ? gameQueryInput(queryFilters, 'CASINO', true) : undefined,
-    skip: !allMode,
-    fetchPolicy: 'cache-and-network',
-    errorPolicy: 'all',
-  })
-  const gamesQSlots = useQuery<GamesData>(CASINO_GAMES, {
-    variables: allMode ? gameQueryInput(queryFilters, 'SLOTS', true) : undefined,
-    skip: !allMode,
-    fetchPolicy: 'cache-and-network',
-    errorPolicy: 'all',
-  })
-  const gamesQSingle = useQuery<GamesData>(CASINO_GAMES, {
-    variables: singleMode
-      ? gameQueryInput(queryFilters, selectedCategory as Exclude<CasinoMainCategory, 'ALL'>, false)
-      : undefined,
-    skip: !singleMode,
-    fetchPolicy: 'cache-and-network',
-    errorPolicy: 'all',
-  })
-
-  const allGamesPage = useMemo(
-    () => combineAllCategoryGames(
-      [gamesQLive.data?.casinoGames, gamesQCasino.data?.casinoGames, gamesQSlots.data?.casinoGames],
-      selectedVendorId,
-      page,
-      pageSize,
-    ),
-    [
-      gamesQLive.data?.casinoGames,
-      gamesQCasino.data?.casinoGames,
-      gamesQSlots.data?.casinoGames,
-      selectedVendorId,
-      page,
-      pageSize,
-    ],
-  )
-  const refetchLiveGames = gamesQLive.refetch
-  const refetchCasinoGames = gamesQCasino.refetch
-  const refetchSlotGames = gamesQSlots.refetch
-  const refetchAllGames = useCallback(async () => {
-    await Promise.all([refetchLiveGames(), refetchCasinoGames(), refetchSlotGames()])
-  }, [refetchLiveGames, refetchCasinoGames, refetchSlotGames])
-  const gamesQ = selectedCategory !== 'ALL'
-    ? {
-        data: gamesQSingle.data?.casinoGames,
-        loading: gamesQSingle.loading,
-        error: gamesQSingle.error,
-        refetch: () => gamesQSingle.refetch(),
-      }
-    : {
-      data: allGamesPage,
-      loading: gamesQLive.loading || gamesQCasino.loading || gamesQSlots.loading,
-      error: gamesQLive.error || gamesQCasino.error || gamesQSlots.error,
-      refetch: refetchAllGames,
-    }
+  const apolloClient = useApolloClient()
+  // A change to the games re-reads every games read on the page: the table's page, and the statistics cards' counts
+  // of the same scope (CasinoStatsCards). The cards count with reads of their own (B002), which a re-read of the
+  // table alone left as they were, so a switched game did not move the enabled/disabled figures.
+  const refetchGames = useCallback(() => apolloClient.refetchQueries({ include: [CASINO_GAMES] }), [apolloClient])
+  const gamesQ = {
+    data: gamesQuery.data?.casinoGames,
+    loading: gamesQuery.loading,
+    error: gamesQuery.error,
+    refetch: refetchGames,
+  }
 
   const [reorderGames] = useMutation(REORDER_VENDOR_GAMES, {
-    refetchQueries:
-      selectedCategory !== 'ALL' && gamesQSingle.variables
-        ? [{ query: CASINO_GAMES, variables: gamesQSingle.variables }]
-        : [],
+    refetchQueries: gamesQuery.variables ? [{ query: CASINO_GAMES, variables: gamesQuery.variables }] : [],
   })
   const [toggleVipTierGame] = useMutation(TOGGLE_VIP_TIER_GAME_ENABLED)
   const [bulkUpdateVipTierGames] = useMutation(BULK_UPDATE_VIP_TIER_GAMES)
@@ -206,7 +179,6 @@ export function CasinoDashboard() {
   const [toggleMasterActive] = useMutation(TOGGLE_CASINO_GAME_MASTER_ACTIVE, {
     context: { uiToast: 'notification' },
   })
-  const apolloClient = useApolloClient()
 
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<ViewMode>('table')
@@ -325,13 +297,31 @@ export function CasinoDashboard() {
   const [sortedIds, setSortedIds] = useState<string[]>([])
   useEffect(() => setSortedIds(rows.map((row) => row.id)), [rows])
   const handleDragEnd = (event: DragEndEvent) => {
-    if (!canReorderGames(selectedVendorId, selectedCategory)) return
-    const next = moveGameId(sortedIds, String(event.active.id), event.over ? String(event.over.id) : null)
+    if (coreMode || !canReorderGames(selectedVendorId, selectedCategory)) return
+    const activeId = String(event.active.id)
+    const next = moveGameId(sortedIds, activeId, event.over ? String(event.over.id) : null)
     if (!next || !selectedVendorId || !selectedCategory || selectedCategory === 'ALL') return
     setSortedIds(next)
-    void reorderGames({
-      variables: { vendorId: selectedVendorId, category: selectedCategory, gameIds: next },
-    }).catch(() => undefined)
+    const vendorId = selectedVendorId
+    const category = selectedCategory
+    const restore = () => setSortedIds(rows.map((row) => row.id))
+    // The priority is the vendor's whole order, so the move is made in the full list and all of it
+    // is sent: the visible page alone was numbered 1..n and collided with the first page.
+    void (async () => {
+      const full = await apolloClient.query<GamesData>({
+        query: CASINO_GAMES,
+        variables: vendorOrderQueryInput(queryFilters, vendorId, category),
+        fetchPolicy: 'network-only',
+      })
+      const gameIds = reorderVendorGameIds((full.data?.casinoGames.items ?? []).map((row) => String(row.id)), next, activeId)
+      if (!gameIds) {
+        restore()
+        notify.error('The new order could not be placed; the list was reloaded')
+        await refetchGames()
+        return
+      }
+      await reorderGames({ variables: { vendorId, category, gameIds } })
+    })().catch(() => restore())
   }
 
   const openDrawer = (mode: DrawerMode, game: GameRow | null) => {
@@ -348,6 +338,12 @@ export function CasinoDashboard() {
   }
   const totalGames = Number(gamesQ.data?.total || 0)
   const hasGames = rows.length > 0
+  const lastPage = lastGamesPage(totalGames, pageSize)
+  const gamesLoaded = Boolean(gamesQ.data)
+  useEffect(() => {
+    // A page past the end (the list shrank under a filter) moves to the last page with games.
+    if (gamesLoaded && totalGames > 0 && page > lastPage) setPage(lastPage)
+  }, [gamesLoaded, totalGames, page, lastPage, setPage])
 
   return (
     <div className={styles.dashboard}>
@@ -367,12 +363,13 @@ export function CasinoDashboard() {
         setEnabled={setEnabled}
         isWhitelabelAdmin={isWhitelabelAdmin}
       />
+      {coreMode ? <Notice tone="info" title="Core mode">{CORE_MODE_HINT}</Notice> : null}
       <Card body="flush" className={styles.gamesCard}>
         <GamesHeader
           totalGames={totalGames}
           viewMode={viewMode}
           search={search}
-          hasGames={hasGames}
+          hasGames={hasGames && !coreMode}
           selectedCount={selectedKeys.size}
           onViewModeChange={setViewMode}
           onSearchChange={setSearch}
@@ -404,8 +401,10 @@ export function CasinoDashboard() {
             await gamesQ.refetch()
           }}
           isWhitelabelAdmin={isWhitelabelAdmin}
+          coreMode={coreMode}
         />
-        {hasGames ? (
+        {/* Kept whenever there are games at all: an empty page must still offer the way back. */}
+        {totalGames > 0 ? (
           <GamesPagination
             page={page}
             pageSize={pageSize}

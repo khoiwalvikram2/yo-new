@@ -2,8 +2,7 @@
  * Void open casino bets and refund the stake back to the player's wallet.
  *
  * Why this exists: the admin path (`updateCasinoBetStatus` / `settleTestCasinoBet`) flips a
- * casino bet to `void` but only releases exposure for credit players (AGENT_CREDIT /
- * WHITELABEL_CREDIT). For a cash/bonus player the stake was really taken off the wallet by
+ * casino bet to `void` and moves no money. The stake was really taken off the wallet by
  * `debitWalletForCasino`, so an admin-side void leaves the money gone. The provider-driven
  * path that DOES refund is GAP's `handleRollback` (user-backend); this script reproduces
  * exactly what that rollback does, for bets the provider will never roll back itself.
@@ -21,8 +20,10 @@
  * Safety rails:
  *   - DRY-RUN by default; everything runs for real inside a transaction and is ROLLBACKed
  *     unless --apply is passed, so the printed numbers are the true numbers.
- *   - Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) are REFUSED: their stake was locked
- *     exposure, not cash. Releasing it needs BetCreditValidationService, not a wallet credit.
+ *   - Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) are refunded like any player: on
+ *     Deposit/Withdraw chips their casino stake is a cash debit with its `casino_bet` DEBIT row.
+ *     A bet from before D/W, whose stake was locked as credit and never debited, has no such
+ *     row and is caught by the debit proof below.
  *   - Debit proof: a bet is only refunded when a matching `casino_bet` DEBIT exists in
  *     ledger_entries for its transaction_id. No debit = the money was never taken = no refund.
  *     Override with --allow-missing-debit (voids the bet without crediting the wallet).
@@ -125,7 +126,6 @@ if (maxTotalStr && !Number.isFinite(maxTotal!)) {
 }
 
 const OPEN_STATUSES = includePending ? ['active', 'pending'] : ['active']
-const CREDIT_PLAYER_TYPES = ['AGENT_CREDIT', 'WHITELABEL_CREDIT']
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 const money = (n: number) => n.toFixed(2)
@@ -145,7 +145,7 @@ type BetRow = {
   id: string; tenant: string; user_id: number; game_name: string | null; vendor_name: string
   stake: string; status: string; wallet_type: string | null; bonus_award_id: number | null
   currency: string; game_round_id: string | null; transaction_id: string | null
-  username: string | null; player_type: string
+  username: string | null
 }
 type Plan = { bet: BetRow; stake: number; walletType: 'cash' | 'bonus' | 'referralBonus'; refund: boolean; note: string }
 
@@ -169,7 +169,7 @@ try {
   const betsRes = await c.query<BetRow>(
     `SELECT b.id, b.tenant, b.user_id, b.game_name, b.vendor_name, b.stake, b.status,
             b.wallet_type, b.bonus_award_id, b.currency, b.game_round_id, b.transaction_id,
-            u.username, u.player_type
+            u.username
        FROM casino_bets b
        JOIN users u ON u.id = b.user_id
       WHERE ${conds.join(' AND ')}
@@ -188,18 +188,6 @@ try {
   if (bets.length === 0) {
     console.log('Nothing to do: no open casino bets matched. (Already voided/settled?)')
     await c.query('ROLLBACK'); await c.end(); process.exit(0)
-  }
-
-  // Credit players cannot be refunded this way — their stake was locked exposure, not cash.
-  const creditPlayers = [...new Set(bets.filter((b) => CREDIT_PLAYER_TYPES.includes(b.player_type)).map((b) => `${b.user_id} (${b.player_type})`))]
-  if (creditPlayers.length > 0) {
-    console.error(
-      `❌ ${creditPlayers.length} credit player(s) in scope: ${creditPlayers.join(', ')}\n` +
-      `   Their stake was locked as agent/whitelabel exposure, not debited from a cash wallet — ` +
-      `crediting the wallet would create money. Exclude them (target other players explicitly) or ` +
-      `release via BetCreditValidationService.releaseCreditForBet.`,
-    )
-    await c.query('ROLLBACK'); await c.end(); process.exit(1)
   }
 
   const scope = allTenants

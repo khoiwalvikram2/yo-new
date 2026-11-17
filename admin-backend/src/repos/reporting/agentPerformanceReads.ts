@@ -9,6 +9,11 @@ import { attributedAgentId, referralAttributions, referrerUsers, referralAttribu
 
 const DOMAINS = ['sports', 'casino', 'matka'] as const;
 type Domain = typeof DOMAINS[number];
+
+/** The domain a report filter names, or undefined for All Domains (absent, '', 'all' or anything else). */
+export function reportingDomain(value: unknown): Domain | undefined {
+  return DOMAINS.includes(value as Domain) ? value as Domain : undefined;
+}
 type RateRow = { agentId: string; domain: string; rate: string | number; effectiveFrom: Date | string; effectiveTo: Date | string | null };
 type BetRow = { agentId: string; stakes: string | number; payouts: string | number; count: string | number };
 type RateSet = { commission: Record<Domain, number>; share: Record<Domain, number> };
@@ -119,5 +124,42 @@ export async function getPostedPerformanceCommissions(tenant: string, ids: strin
   } catch (error) {
     console.error('[AgentPerformance] posted commission read failed:', error instanceof Error ? error.message : error);
     return new Map<string, number>();
+  }
+}
+
+/** One agent's posted COMMISSION earnings for agentKPIs: the predicates of
+ * AgentLedgerRepo.getEarnedPostedSum, narrowed to the domain tab when one is
+ * chosen (that sum has no domain, so a Sports tab showed every domain's). */
+export async function getPostedCommissionSum(agentId: string, options: { from: Date; to: Date; currency?: string; domain?: Domain }): Promise<number> {
+  try {
+    const [row] = await db.select({ total: sql<number>`COALESCE(SUM(CAST(${agentLedger.amount} AS NUMERIC)), 0)` })
+      .from(agentLedger)
+      .where(and(eq(agentLedger.agentId, agentId), eq(agentLedger.lineType, 'COMMISSION'), ...(options.domain ? [eq(agentLedger.domain, options.domain)] : []),
+        ...(options.currency ? [eq(agentLedger.currency, options.currency)] : []), gt(agentLedger.periodTo, options.from), lt(agentLedger.periodFrom, options.to)));
+    const total = Number(row?.total ?? 0);
+    return Number.isFinite(total) ? total : 0;
+  } catch (error) {
+    console.error('[AgentKPIs] posted commission read failed:', error instanceof Error ? error.message : error);
+    return 0;
+  }
+}
+
+/** The whitelabel's posted COMMISSION earnings for an admin's agentKPIs card: every agent's own lines (each agent
+ * earns its own share, so they sum over every agent, as agentTrends' commission column does), narrowed to the Agent
+ * type and the domain tab, with the predicates of getPostedCommissionSum (an agent's own card). The card read the
+ * snapshots' agent_commission instead, a rate x GGR estimate: it disagreed with the posted commission the rest of
+ * the page shows, and it went negative on a losing period. */
+export async function getPostedTenantCommissionSum(tenant: string, options: { from: Date; to: Date; currency?: string; domain?: Domain; schemeType?: 'COMMISSION' | 'SHARING' | 'CREDIT' }): Promise<number> {
+  try {
+    const [row] = await db.select({ total: sql<number>`COALESCE(SUM(CAST(${agentLedger.amount} AS NUMERIC)), 0)` })
+      .from(agentLedger).innerJoin(agents, eq(agentLedger.agentId, agents.id))
+      .where(and(eq(agents.tenantId, tenant), ...(options.schemeType ? [eq(agents.schemeType, options.schemeType)] : []),
+        eq(agentLedger.lineType, 'COMMISSION'), ...(options.domain ? [eq(agentLedger.domain, options.domain)] : []),
+        ...(options.currency ? [eq(agentLedger.currency, options.currency)] : []), gt(agentLedger.periodTo, options.from), lt(agentLedger.periodFrom, options.to)));
+    const total = Number(row?.total ?? 0);
+    return Number.isFinite(total) ? total : 0;
+  } catch (error) {
+    console.error('[AgentKPIs] whitelabel posted commission read failed:', error instanceof Error ? error.message : error);
+    return 0;
   }
 }

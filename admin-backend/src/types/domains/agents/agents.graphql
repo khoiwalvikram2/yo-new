@@ -67,7 +67,18 @@ type AgentAccount {
   settlementBalanceCasino: Float
   settlementBalanceMatka: Float
   settlementBalanceByDomain: [DomainSettlement!]!
+  """CREDIT agents only: the agent's chip figures, resolved in batch for lists; null for other schemes."""
+  chips: ChipAccount
+  """The ancestor that restricts this agent whatever its own status says, or null: a SUSPENDED or BLOCKED one blocks its sign-in, an INACTIVE one makes it read-only, and under either its players cannot place new bets. The nearest blocking one wins over an INACTIVE one. An agent caller sees one inside its own subtree only."""
+  blockedByAncestor: AgentAncestorBlock
   createdAt: String!
+}
+
+"""An agent's nearest restricting ancestor (AgentAccount.blockedByAncestor)."""
+type AgentAncestorBlock {
+  id: ID!
+  username: String
+  status: String!
 }
 
 type AgentWallet {
@@ -139,8 +150,10 @@ input CreateAgentInput {
   password: String!
   phone: String
   currency: String!
-  # CREDIT agents only: credit limit at creation (root: whitelabel pool; sub-agent: parent's available credit).
+  # CREDIT agents only: the credit reference (a reference figure; it gates nothing and moves no chips).
   creditLimit: Float
+  # CREDIT agents only: chips deposited at creation from the new agent's parent (root: the whitelabel pool).
+  openingChips: Float
 }
 
 input UpdateAgentInput {
@@ -156,7 +169,11 @@ input UpdateAgentInput {
 input SetCredentialsInput {
   agentId: ID!
   username: String!
+  # At least 6 characters, as for every agent password.
   password: String!
+  # The caller's own login password: an agent changing its own credentials gives its current one, a parent agent or
+  # an admin gives theirs. Setting credentials ends the agent's existing sessions and is audited.
+  currentPassword: String!
 }
 
 input SetCommissionConfigInput {
@@ -180,43 +197,6 @@ input SettleInput {
   periodFrom: String!
   periodTo: String!
   currency: String!
-}
-
-input AllocateCreditToPlayerInput {
-  agentId: ID!
-  playerId: ID!
-  amount: Float!
-  reason: String
-}
-
-input CreditOperationInput {
-  agentId: ID!
-  targetEntityType: String!
-  targetEntityId: ID!
-  amount: Float!
-  reason: String
-}
-
-input AdjustAgentCreditInput {
-  agentId: ID!
-  adjustmentType: String! # INCREASE | DECREASE | LIMIT_CHANGE
-  amount: Float!
-  notes: String
-}
-
-input TransferCreditInput {
-  parentAgentId: ID!
-  fromSubAgentId: ID!
-  toSubAgentId: ID!
-  amount: Float!
-  reason: String
-}
-
-input SettlementInput {
-  agentId: ID!
-  periodFrom: String!
-  periodTo: String!
-  resetPlayerBalances: Boolean!
 }
 
 input AgentLoginInput {
@@ -272,21 +252,6 @@ type AgentsPageResult {
   items: [AgentAccount!]!
   itemsWithStats: [AgentWithStats!]
   total: Int!
-}
-
-type CreditAllocation {
-  agentId: ID!
-  creditLimit: Float!
-  creditUsed: Float!
-  creditAvailable: Float!
-  creditAlertThreshold: Float!
-  settlementBalance: Float!
-  settlementBalanceSports: Float!
-  settlementBalanceCasino: Float!
-  settlementBalanceMatka: Float!
-  usagePercentage: Float!
-  isOverLimit: Boolean!
-  isNearThreshold: Boolean!
 }
 
 type AgentActivityEvent {
@@ -500,80 +465,6 @@ type CreditTransaction {
   createdAt: String!
 }
 
-type PlayerCreditSummary {
-  playerId: ID!
-  playerName: String!
-  creditLimit: Float!
-  currentBalance: Float!
-  openExposure: Float!
-  creditUsed: Float!
-  creditAvailable: Float!
-}
-
-type CreditRecalculationResult {
-  playerId: ID!
-  currentUsed: Float!
-  calculatedUsed: Float!
-  delta: Float!
-  currentBalance: Float!
-  openExposure: Float!
-}
-
-type AgentCreditRecalculationResult {
-  agentId: ID!
-  currentUsed: Float!
-  calculatedUsed: Float!
-  delta: Float!
-  affectedPlayers: [CreditRecalculationResult!]!
-  subAgentAllocations: Float!
-}
-
-type AgentCreditAlert {
-  id: ID!
-  agentId: ID!
-  alertType: String!
-  threshold: Float
-  currentValue: Float
-  isActive: Boolean!
-  notifiedAt: String
-  createdAt: String!
-}
-
-type WhitelabelCreditPlayer {
-  id: ID!
-  name: String!
-  email: String
-  phone: String
-  creditLimit: Float!
-  creditUsed: Float!
-  creditAvailable: Float!
-}
-
-type AgentCreditAdjustment {
-  id: ID!
-  agentId: ID!
-  adjustmentType: String!
-  amount: Float!
-  previousLimit: Float!
-  newLimit: Float!
-  previousUsed: Float!
-  newUsed: Float!
-  notes: String
-  createdAt: String!
-}
-
-type AgentCreditAdjustmentPayload {
-  success: Boolean!
-  message: String!
-  adjustment: AgentCreditAdjustment
-}
-
-type AdjustSubAgentCreditPayload {
-  success: Boolean!
-  message: String!
-  agent: AgentAccount
-}
-
 type AgentSharingInfo {
   sharingRates: [AgentDomainRate!]!
   allTimeTotals: [DomainTotal!]!
@@ -588,16 +479,83 @@ type AgentCommissionInfo {
   currency: String!
 }
 
-input AdjustWhitelabelPlayerCreditInput {
-  playerId: ID!
-  creditLimit: Float!
-  reason: String
+# ---- CREDIT scheme on Deposit/Withdraw chips (spec docs/superpowers/specs/2026-11-02-credit-dw-chips-design.md §7) ----
+
+enum ChipAccountType { AGENT PLAYER }
+enum ChipMovementKind { OPENING DEPOSIT WITHDRAW CREDIT_REFERENCE }
+
+"""A CREDIT-scheme account on Deposit/Withdraw chips. Ref P/L > 0: the upline owes this account; < 0: it owes the upline."""
+type ChipAccount {
+  accountType: ChipAccountType!
+  id: ID!
+  username: String!
+  name: String
+  status: String
+  """Direct parent agent; null when the parent is the whitelabel (admin)."""
+  parentAgentId: ID
+  """PLAYER only: AGENT_CREDIT or WHITELABEL_CREDIT."""
+  playerType: String
+  currency: String!
+  creditReference: Float!
+  balance: Float!
+  exposure: Float!
+  available: Float!
+  downlineBalance: Float!
+  refPnl: Float!
+  """Direct downline accounts (agents + players); 0 for a player."""
+  downlineCount: Int!
 }
 
-input WhitelabelCreditOperationInput {
-  playerId: ID!
+type ChipPool { currency: String!, creditLimit: Float!, used: Float!, available: Float! }
+
+type ChipTotals {
+  creditReference: Float!
+  balance: Float!
+  exposure: Float!
+  available: Float!
+  downlineBalance: Float!
+  refPnl: Float!
+}
+
+type ChipDownline {
+  """The agent whose downline this is; null for the admin's (whitelabel's) downline."""
+  parent: ChipAccount
+  """Admin only: the whitelabel pool that feeds root accounts."""
+  pool: ChipPool
+  items: [ChipAccount!]!
+  total: Int!
+  totals: ChipTotals!
+}
+
+type ChipStatementRow {
+  id: ID!
+  createdAt: String!
+  kind: ChipMovementKind!
+  """Signed for this account: + chips in, - chips out."""
   amount: Float!
-  reason: String
+  balanceBefore: Float!
+  balanceAfter: Float!
+  creditReferenceBefore: Float
+  creditReferenceAfter: Float
+  counterpartyType: String
+  counterpartyId: ID
+  counterpartyName: String
+  remark: String
+  createdBy: String
+}
+
+type ChipStatementPage { rows: [ChipStatementRow!]!, total: Int! }
+
+input ChipTransferInput { accountType: ChipAccountType!, accountId: ID!, amount: Float!, remark: String }
+input CreditReferenceInput { accountType: ChipAccountType!, accountId: ID!, creditReference: Float!, remark: String }
+
+type ChipTransferResult {
+  account: ChipAccount!
+  """The agent that gave or received the chips; null when it was the whitelabel."""
+  parent: ChipAccount
+  """Set when the whitelabel pool was the other side."""
+  pool: ChipPool
+  transferId: ID!
 }
 
 type AgentsQuery {
@@ -650,23 +608,14 @@ type AgentsQuery {
     periodTo: String!
   ): [DirectPlayerCommissionSummary!]!
   settlementSummary(agentId: ID!, periodFrom: String!, periodTo: String!): SettlementSummary!
-  creditAllocation(agentId: ID!): CreditAllocation
   agentActivity(agentId: ID!, limit: Int = 10): [AgentActivityEvent!]!
   agentSecurityAudit(agentId: ID!, limit: Int): [PlayerSecurityEvent!]!
-  creditTransactionHistory(
-    entityType: String!
-    entityId: ID!
-    transactionTypes: [CreditTransactionType!]
-    from: String
-    to: String
-    limit: Int
-  ): [CreditTransaction!]!
-  agentCreditTransactions(agentId: ID!, limit: Int, offset: Int): [CreditTransaction!]!
-  agentCreditTransactionsCount(agentId: ID!): Int!
-  agentPlayerCredits(agentId: ID!): [PlayerCreditSummary!]!
-  previewCreditReconciliation(agentId: ID!): AgentCreditRecalculationResult!
-  agentCreditAlerts(agentId: ID!, isActive: Boolean): [AgentCreditAlert!]!
-  whitelabelCreditPlayers: [WhitelabelCreditPlayer!]!
+  # Chips (spec 2026-11-02 §7). An agent reads itself and its subtree; an admin the CREDIT accounts of its tenant.
+  chipAccount(accountType: ChipAccountType!, accountId: ID!): ChipAccount
+  myChipAccount: ChipAccount
+  chipDownline(parentAgentId: ID, query: String, accountType: ChipAccountType, offset: Int, limit: Int): ChipDownline!
+  chipStatement(accountType: ChipAccountType!, accountId: ID!, from: String, to: String, offset: Int, limit: Int): ChipStatementPage!
+  chipPool: ChipPool
 }
 
 type AgentsMutation {
@@ -681,25 +630,15 @@ type AgentsMutation {
   # Status management
   updateAgentStatus(agentId: ID!, status: String!): AgentAccount!
   # Hierarchy management mutations
-  adjustSubAgentCredit(agentId: ID!, creditLimit: Float!): AdjustSubAgentCreditPayload!
-  adjustAgentCredit(input: AdjustAgentCreditInput!): AgentCreditAdjustmentPayload!
   suspendSubAgent(agentId: ID!, reason: String): AgentAccount!
   blockSubAgent(agentId: ID!, reason: String): AgentAccount!
-  # Credit management mutations
-  allocateCreditToPlayer(input: AllocateCreditToPlayerInput!): PlayerCreditSummary!
-  depositCredit(input: CreditOperationInput!): CreditAllocation!
-  withdrawCredit(input: CreditOperationInput!): CreditAllocation!
-  transferCredit(input: TransferCreditInput!): Boolean!
-  settleSharingAgent(input: SettlementInput!): AgentSettlement!
-  applyCreditReconciliation(agentId: ID!): Boolean!
-  setAgentCreditAlertThreshold(agentId: ID!, threshold: Float!): CreditAllocation!
-  resolveAgentCreditAlert(alertId: ID!): Boolean!
   changeAgentPassword(currentPassword: String!, newPassword: String!): MessageResponse!
   adminResetAgentPassword(agentId: ID!, newPassword: String!, adminPassword: String!): MessageResponse!
-  # Whitelabel credit player mutations
-  adjustWhitelabelPlayerCredit(input: AdjustWhitelabelPlayerCreditInput!): WhitelabelCreditPlayer!
-  depositCreditToWhitelabelPlayer(input: WhitelabelCreditOperationInput!): WhitelabelCreditPlayer!
-  withdrawCreditFromWhitelabelPlayer(input: WhitelabelCreditOperationInput!): WhitelabelCreditPlayer!
+  # Chips (spec 2026-11-02 §7): only the account's direct parent may move its chips or set its credit reference.
+  # They replace the credit-limit model's money mutations, which spec §6 retired and which are gone from the API.
+  depositChips(input: ChipTransferInput!): ChipTransferResult!
+  withdrawChips(input: ChipTransferInput!): ChipTransferResult!
+  setCreditReference(input: CreditReferenceInput!): ChipAccount!
 }
 
 extend type Query {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, gql } from '@apollo/client'
 import { RBACGuard } from '@/shared/core/RBACGuard'
+import { useChipAccount } from '@/modules/chips'
 import { Page } from '@/ui/components/Page'
 import { Button } from '@/ui/components/Button'
 import { LoadingState } from '@/ui/components/LoadingState'
@@ -11,7 +12,7 @@ import { tabId, tabPanelId } from '@/ui/components/tabIds'
 import { AgentSummaryHeader } from './components/AgentSummaryHeader'
 import type { ProfileStatsPeriod } from './components/AgentKpiGrid'
 import { OverviewTab } from './components/OverviewTab'
-import { CreditTab } from './components/CreditTab'
+import { ChipsTab } from './components/ChipsTab'
 import { SharingTab } from './components/SharingTab'
 import { CommissionTab } from './components/CommissionTab'
 import { SettlementTab } from './components/SettlementTab'
@@ -19,11 +20,31 @@ import { PlayersTab } from './components/PlayersTab'
 import { SubAgentsTab } from './components/SubAgentsTab'
 import { AgentSecurityAuditTab } from './components/AgentSecurityAuditTab'
 import { ReferralLinkTab } from './components/ReferralLinkTab'
-import { profileStatsRange, type ProfileAgent, type ProfileStats } from './components/agentProfileModel'
+import { profileStatsRange, type AgentRestriction, type ProfileAgent, type ProfileStats } from './components/agentProfileModel'
 import styles from './AgentProfilePage.module.css'
 
 const SUB_AGENTS_COUNT_QUERY = gql`
   query SubAgentsCount($rootId: ID!) { agents { agentTree(rootId: $rootId) { id } } }
+`
+
+/** COMMISSION and SHARING profiles list their sub-agents in a tab; a CREDIT agent's downline is in its Chips tab. */
+const listsSubAgents = (scheme?: string) => scheme === 'COMMISSION' || scheme === 'SHARING'
+
+// The ancestor whose status restricts the agent (a suspension cascades down the subtree, so its own status may
+// still read Active). Asked apart from the profile, so the profile never fails on it.
+const AGENT_RESTRICTION_QUERY = gql`
+  query AgentRestriction($id: ID!) {
+    agents {
+      agentProfile(id: $id) {
+        id
+        blockedByAncestor {
+          id
+          username
+          status
+        }
+      }
+    }
+  }
 `
 
 const AGENT_PROFILE_QUERY = gql`
@@ -49,10 +70,6 @@ const AGENT_PROFILE_QUERY = gql`
           domain
           rate
         }
-        creditLimit
-        creditUsed
-        creditAvailable
-        creditAlertThreshold
         createdAt
       }
     }
@@ -138,16 +155,30 @@ function AgentProfileContent() {
     fetchPolicy: 'cache-and-network',
   })
 
+  const { data: restrictionData, loading: restrictionLoading, refetch: refetchRestriction } = useQuery<{ agents: { agentProfile: { id: string; blockedByAncestor?: AgentRestriction | null } | null } }>(AGENT_RESTRICTION_QUERY, {
+    variables: { id },
+    errorPolicy: 'all',
+    skip: !id,
+    fetchPolicy: 'cache-and-network',
+  })
+  const restriction = restrictionData?.agents?.agentProfile?.blockedByAncestor ?? null
+
   const agent = data?.agents?.agentProfile
   // Keep the visible filter controls and previous metrics stable while a new period loads.
   const agentStats = (statsData || previousStatsData)?.agents?.agentDashboardStats
 
   const { data: subAgentsCountData } = useQuery<{ agents: { agentTree: { id: string }[] } }>(SUB_AGENTS_COUNT_QUERY, {
     variables: { rootId: id },
-    skip: !id || !agent || agent.schemeType !== 'COMMISSION',
+    skip: !id || !agent || !listsSubAgents(agent.schemeType),
     fetchPolicy: 'cache-and-network',
   })
   const subAgentsCount = subAgentsCountData?.agents?.agentTree?.length ?? 0
+
+  // A CREDIT agent's chips (spec 2026-11-02 §2): read once here for the head's strip, the Overview card and
+  // the Chips tab. A move made on the page refetches it (the chips module refreshes its reads on screen).
+  const isCreditAgent = agent?.schemeType === 'CREDIT'
+  const chips = useChipAccount('AGENT', id, { skip: !isCreditAgent })
+  const chipAccount = isCreditAgent ? chips.account : null
 
   const choosePreset = (preset: string) => {
     if (preset === 'custom') {
@@ -162,20 +193,23 @@ function AgentProfileContent() {
 
   const agentWithStats = agent ? { ...agent, stats: agentStats } : null
 
-  const reload = () => { void refetchProfile(); void refetchStats() }
+  const reload = () => { void refetchProfile(); void refetchStats(); void refetchRestriction() }
   const back = <Button onClick={() => navigate('/agents')}>Back to Agents</Button>
   if (!id) return <Page><Notice tone="error" title="Invalid Agent">No agent ID provided{back}</Notice></Page>
-  if (loading) return (<Page><LoadingState label="Loading agent profile" /></Page>)
+  // The restriction's first answer is waited for too, so its notice does not push the page down when it arrives.
+  if (loading || (restrictionLoading && !restrictionData)) return (<Page><LoadingState label="Loading agent profile" /></Page>)
   if (error || !agentWithStats) return (<Page><Notice tone="error" title="Error loading agent profile" action={<div className={styles.actions}>{back}<Button onClick={reload}>Retry</Button></div>}>{error?.message || 'Agent not found'}</Notice></Page>)
   // In the order of the 2026-10-28 redesign: the money tabs of the agent's scheme, its network, then its records.
+  // A CREDIT agent settles by moving chips (D / W of its Ref P/L, spec 2026-11-02 decision 8), so it has no
+  // Settlement tab; its Chips tab carries the figures, the moves, its downline and its statement.
   const scheme = agentWithStats.schemeType
   const tabs: TabItem<string>[] = [
     { value: 'overview', label: 'Overview' },
     ...(scheme === 'COMMISSION' ? [{ value: 'commission', label: 'Commission' }] : []),
-    ...(['SHARING', 'CREDIT'].includes(scheme) ? [{ value: 'settlement', label: 'Settlement' }] : []),
-    ...(scheme === 'CREDIT' ? [{ value: 'credit', label: 'Credit' }] : scheme === 'SHARING' ? [{ value: 'sharing', label: 'Sharing' }] : []),
+    ...(scheme === 'SHARING' ? [{ value: 'settlement', label: 'Settlement' }] : []),
+    ...(scheme === 'CREDIT' ? [{ value: 'chips', label: 'Chips' }] : scheme === 'SHARING' ? [{ value: 'sharing', label: 'Sharing' }] : []),
     { value: 'players', label: 'Players', count: typeof agentStats?.totalPlayers === 'number' ? agentStats.totalPlayers : undefined },
-    ...(scheme === 'COMMISSION' && subAgentsCount > 0 ? [{ value: 'sub-agents', label: 'Sub-Agents', count: subAgentsCount }] : []),
+    ...(listsSubAgents(scheme) && subAgentsCount > 0 ? [{ value: 'sub-agents', label: 'Sub-Agents', count: subAgentsCount }] : []),
     ...(scheme === 'COMMISSION' ? [{ value: 'referral-link', label: 'Referral Link' }] : []),
     { value: 'activity-log', label: 'Activity Log' },
   ]
@@ -184,20 +218,20 @@ function AgentProfileContent() {
   const tabItems = tabs.map((tab, index) => index === 1 || index === firstRecord ? { ...tab, divider: true } : tab)
   const selectedTab = tabs.some(tab => tab.value === activeTab) ? activeTab : 'overview'
   return (<Page maxWidth="wide"><div className={styles.stack}>
-    <AgentSummaryHeader agent={agentWithStats} stats={agentStats} onRefetch={reload} onTabChange={setActiveTab} />
+    <AgentSummaryHeader agent={agentWithStats} stats={agentStats} chipAccount={chipAccount} chipLoading={chips.loading} restriction={restriction} onRefetch={reload} onTabChange={setActiveTab} />
     {/* The head's strip reads the stats too, so their failure shows above every tab. */}
     {statsError && <Notice title="Agent stats unavailable" tone="error" action={<Button onClick={() => void refetchStats()}>Retry stats</Button>}>{statsError.message}</Notice>}
     <div className={styles.tabs}><Tabs value={selectedTab} items={tabItems} label="Agent profile tabs" idPrefix="agent-profile" onChange={setActiveTab} variant="line" /></div>
     <div className={styles.panel} role="tabpanel" id={tabPanelId('agent-profile', selectedTab)} aria-labelledby={tabId('agent-profile', selectedTab)}>
-      {selectedTab === 'overview' && <OverviewTab agent={agentWithStats} stats={agentStats} statsLoading={statsLoading} statsFailed={Boolean(statsError)} period={statsPeriod} onPresetChange={choosePreset} onCustomRange={chooseCustom} onRetryStats={() => void refetchStats()} onTabChange={setActiveTab} hasSubAgents={subAgentsCount > 0} />}
+      {selectedTab === 'overview' && <OverviewTab agent={agentWithStats} stats={agentStats} statsLoading={statsLoading} statsFailed={Boolean(statsError)} period={statsPeriod} onPresetChange={choosePreset} onCustomRange={chooseCustom} onRetryStats={() => void refetchStats()} onTabChange={setActiveTab} hasSubAgents={subAgentsCount > 0} chipAccount={chipAccount} chipLoading={chips.loading} />}
       {selectedTab === 'settlement' && <SettlementTab agentId={agentWithStats.id} agent={agentWithStats} />}
-      {selectedTab === 'credit' && <CreditTab agentId={agentWithStats.id} agent={agentWithStats} />}
+      {selectedTab === 'chips' && <ChipsTab agentId={agentWithStats.id} account={chipAccount} loading={chips.loading} error={chips.error} onRetry={() => void chips.refetch()} onChanged={() => void refetchStats()} />}
       {selectedTab === 'sharing' && <SharingTab agentId={agentWithStats.id} agent={agentWithStats} />}
       {selectedTab === 'commission' && <CommissionTab agentId={agentWithStats.id} agent={agentWithStats} />}
       {selectedTab === 'referral-link' && <ReferralLinkTab agentId={agentWithStats.id} agentUsername={agentWithStats.username || ''} />}
       {selectedTab === 'activity-log' && <AgentSecurityAuditTab agentId={String(agentWithStats.id)} />}
       {selectedTab === 'players' && <PlayersTab agentId={agentWithStats.id} />}
-      {selectedTab === 'sub-agents' && <SubAgentsTab agentId={agentWithStats.id} />}
+      {selectedTab === 'sub-agents' && <SubAgentsTab agentId={agentWithStats.id} schemeType={scheme} />}
     </div>
   </div></Page>)
 }

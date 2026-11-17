@@ -334,7 +334,7 @@ describe('MatkaRiskReport contract', () => {
 })
 
 describe('MatkaRiskReport drill-down', () => {
-  test('a click on a matka-type row opens it; the breadcrumbs lead back', async () => {
+  test('a click on a matka-type row opens its markets, and the drill-down goes on; the breadcrumbs lead back (F-REP-01)', async () => {
     renderPage()
     await loaded()
 
@@ -343,14 +343,20 @@ describe('MatkaRiskReport drill-down', () => {
     const path = await screen.findByRole('navigation', { name: 'Drill-down path' })
     assert.deepStrictEqual(useReportingStore.getState().drillDownPath, [{ type: 'matkaType', id: 'Kalyan', name: 'Kalyan' }])
     assert.equal(within(path).getByText('Kalyan').closest('[aria-current="location"]') !== null, true)
+    // The cards follow the level: the KPIs are asked for the type (the server's filter now takes it).
     await waitFor(() => assert.deepStrictEqual(lastSent('MatkaKPIs'), { filter: { tenant: 'core', ...ALL_TIME, matkaType: 'Kalyan' } }))
-    await waitFor(() => assert.deepStrictEqual(bodyRows().map((tr) => cells(tr)[0]), ['Kalyan']))
-    assert.equal(screen.getByRole('searchbox', { name: 'Search the matka report' }).getAttribute('placeholder'), 'Search by matka type...')
+    // The type's markets, not the clicked type row again.
+    await loaded('Kalyan Day')
+    assert.deepStrictEqual(headers(), ['Market', 'Total Stakes', 'GGR', 'Sessions'])
+    assert.deepStrictEqual(lastSent('MatkaMarketBreakdown'), { filter: { tenant: 'core', ...ALL_TIME, matkaType: 'Kalyan' } })
+    assert.equal(screen.getByRole('searchbox', { name: 'Search the matka report' }).getAttribute('placeholder'), 'Search by market name...')
 
-    // a matka-type row carries no market id, so at this level a row opens nothing (as the legacy click)
-    assert.equal(bodyRows()[0].getAttribute('tabindex'), null)
-    fireEvent.click(within(bodyRows()[0]).getByText('Kalyan'))
-    assert.equal(useReportingStore.getState().drillDownPath.length, 1)
+    // a market row carries its id, so the drill-down continues to the market's sessions
+    assert.equal(bodyRows()[0].getAttribute('tabindex'), '0')
+    fireEvent.click(within(bodyRows()[0]).getByText('₹1,000.00'))
+    await waitFor(() => assert.deepStrictEqual(useReportingStore.getState().drillDownPath.map((level) => level.type), ['matkaType', 'market']))
+    await loaded('OPEN')
+    assert.deepStrictEqual(headers(), ['Session', 'Total Stakes', 'GGR', 'Bets'])
 
     fireEvent.click(within(path).getByRole('button', { name: 'All Matka' }))
     await waitFor(() => assert.deepStrictEqual(useReportingStore.getState().drillDownPath, []))
@@ -374,6 +380,10 @@ describe('MatkaRiskReport drill-down', () => {
       const many = Array.from({ length: 25 }, (_, index) => typeRow(`Type ${String(index + 1).padStart(2, '0')}`, 100 + index, index))
       return data('matkaTypeBreakdown', filter.matkaType ? many.filter((row) => row.matkaType === filter.matkaType) : many)
     }
+    handlers.MatkaMarketBreakdown = (variables) => {
+      const filter = variables.filter as { matkaType?: string }
+      return data('matkaMarketBreakdown', [{ ...MARKETS[0], marketName: `${filter.matkaType} Market`, matkaType: filter.matkaType }])
+    }
     renderPage()
     await loaded('Type 01')
 
@@ -381,7 +391,8 @@ describe('MatkaRiskReport drill-down', () => {
     await waitFor(() => assert.equal(bodyRows().length, 5))
     fireEvent.click(within(bodyRows()[0]).getByText('Type 21'))
 
-    await waitFor(() => assert.deepStrictEqual(bodyRows().map((tr) => cells(tr)[0]), ['Type 21']))
+    await loaded('Type 21 Market')
+    assert.equal(bodyRows().length, 1)
     screen.getByText('Total 1 items')
   })
 
@@ -408,13 +419,13 @@ describe('MatkaRiskReport drill-down', () => {
     // a player row opens nothing
     assert.equal(bodyRows()[0].getAttribute('tabindex'), null)
 
-    // the breadcrumb for the market level pops the two levels below it
+    // the breadcrumb for the market level pops the levels below it and shows the market's sessions
     const path = screen.getByRole('navigation', { name: 'Drill-down path' })
     fireEvent.click(within(path).getByRole('button', { name: 'Kalyan Day' }))
     await waitFor(() => assert.equal(useReportingStore.getState().drillDownPath.length, 2))
-    await loaded('Kalyan Day')
-    assert.deepStrictEqual(headers(), ['Market', 'Total Stakes', 'GGR', 'Sessions'])
-    assert.deepStrictEqual(bodyRows().map(cells), [['Kalyan DayKalyan', '₹1,000.00', '₹100.00', '2']])
+    await loaded('OPEN')
+    assert.deepStrictEqual(headers(), ['Session', 'Total Stakes', 'GGR', 'Bets'])
+    assert.deepStrictEqual(lastSent('MatkaSessionBreakdown'), { filter: { ...ALL_TIME, matkaType: 'Kalyan', matkaId: 12 } })
   })
 })
 

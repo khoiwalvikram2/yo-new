@@ -4,7 +4,7 @@ import {
 	creditTransactionTypeEnum,
 	creditEntityTypeEnum,
 } from '@shared/db/schema.js';
-import { eq, and, gte, lte, inArray, desc, or } from 'drizzle-orm';
+import { eq, and, inArray, desc, or } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 export type CreditTransactionType =
@@ -66,15 +66,6 @@ export interface CreditTransactionInput {
 }
 
 export class AgentCreditLedgerRepo {
-  async countTransactionsByEntity(params: { entityType: CreditEntityType; entityId: string; tenantId: string }): Promise<number> {
-    const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(agentCreditLedger).where(and(
-      eq(agentCreditLedger.tenantId, params.tenantId),
-      or(and(eq(agentCreditLedger.toEntityType, params.entityType), eq(agentCreditLedger.toEntityId, params.entityId)),
-        and(eq(agentCreditLedger.fromEntityType, params.entityType), eq(agentCreditLedger.fromEntityId, params.entityId),
-          sql`${agentCreditLedger.transactionType} not in ('CREDIT_LIMIT_ADJUSTMENT','RELEASE')`)),
-    ))
-    return row?.count ?? 0
-  }
 	/**
 	 * Record a credit transaction.
 	 * Pass optional tx to run inside an existing transaction (e.g. reversal).
@@ -137,85 +128,6 @@ export class AgentCreditLedgerRepo {
 			// Re-throw if it's a different error
 			throw error;
 		}
-	}
-
-	/**
-	 * Get transaction history with filters
-	 */
-	async getTransactionHistory(params: {
-		entityType: CreditEntityType;
-		entityId: string;
-		transactionTypes?: CreditTransactionType[];
-		from?: Date;
-		to?: Date;
-		limit?: number;
-		tenantId?: string;
-	}): Promise<CreditTransaction[]> {
-		const conditions = [
-			or(
-				and(
-					eq(agentCreditLedger.fromEntityType, params.entityType),
-					eq(agentCreditLedger.fromEntityId, params.entityId)
-				),
-				and(
-					eq(agentCreditLedger.toEntityType, params.entityType),
-					eq(agentCreditLedger.toEntityId, params.entityId)
-				)
-			),
-		];
-
-		// CRITICAL: Filter by tenantId if provided for data isolation
-		if (params.tenantId) {
-			conditions.push(eq(agentCreditLedger.tenantId, params.tenantId));
-		}
-
-		if (params.transactionTypes && params.transactionTypes.length > 0) {
-			conditions.push(
-				inArray(agentCreditLedger.transactionType, params.transactionTypes)
-			);
-		}
-
-		if (params.from) {
-			conditions.push(gte(agentCreditLedger.createdAt, params.from));
-		}
-
-		if (params.to) {
-			conditions.push(lte(agentCreditLedger.createdAt, params.to));
-		}
-
-		const query = db
-			.select({
-				id: agentCreditLedger.id,
-				tenantId: agentCreditLedger.tenantId,
-				fromEntityType: agentCreditLedger.fromEntityType,
-				fromEntityId: agentCreditLedger.fromEntityId,
-				toEntityType: agentCreditLedger.toEntityType,
-				toEntityId: agentCreditLedger.toEntityId,
-				transactionType: agentCreditLedger.transactionType,
-				amount: agentCreditLedger.amount,
-				currency: agentCreditLedger.currency,
-				balanceBefore: agentCreditLedger.balanceBefore,
-				balanceAfter: agentCreditLedger.balanceAfter,
-				reason: agentCreditLedger.reason,
-				createdBy: agentCreditLedger.createdBy,
-				betId: agentCreditLedger.betId,
-				settlementId: agentCreditLedger.settlementId,
-				cashoutId: agentCreditLedger.cashoutId,
-				createdByType: agentCreditLedger.createdByType,
-				meta: agentCreditLedger.meta,
-				metadata: agentCreditLedger.metadata,
-				createdAt: agentCreditLedger.createdAt,
-			})
-			.from(agentCreditLedger)
-			.where(and(...conditions))
-      .orderBy(desc(agentCreditLedger.createdAt), desc(agentCreditLedger.id));
-
-		if (params.limit) {
-			query.limit(params.limit);
-		}
-
-		const transactions = await query;
-		return transactions.map((t) => this.mapToCreditTransaction(t));
 	}
 
 	/**
@@ -444,74 +356,6 @@ export class AgentCreditLedgerRepo {
 			metadata: row.metadata || null,
 			createdAt: row.createdAt,
 		};
-	}
-
-	/**
-	 * Export ledger to CSV format
-	 */
-	async exportToCSV(params: {
-		entityType: CreditEntityType;
-		entityId: string;
-		transactionTypes?: CreditTransactionType[];
-		from?: Date;
-		to?: Date;
-		betId?: string;
-		tenantId?: string;
-	}): Promise<string> {
-		const transactions = await this.getTransactionHistory({
-			entityType: params.entityType,
-			entityId: params.entityId,
-			transactionTypes: params.transactionTypes,
-			from: params.from,
-			to: params.to,
-			tenantId: params.tenantId,
-		});
-
-		// Filter by betId if provided
-		const filtered = params.betId
-			? transactions.filter((t) => t.betId === params.betId)
-			: transactions;
-
-		// Generate CSV header
-		const headers = [
-			'ID',
-			'Date',
-			'Transaction Type',
-			'From Entity',
-			'To Entity',
-			'Amount',
-			'Currency',
-			'Balance Before',
-			'Balance After',
-			'Reason',
-			'Bet ID',
-			'Settlement ID',
-			'Cashout ID',
-			'Created By Type',
-		];
-
-		// Generate CSV rows
-		const rows = filtered.map((t) => [
-			t.id,
-			t.createdAt.toISOString(),
-			t.transactionType,
-			`${t.fromEntityType}:${t.fromEntityId}`,
-			`${t.toEntityType}:${t.toEntityId}`,
-			t.amount.toString(),
-			t.currency,
-			t.balanceBefore.toString(),
-			t.balanceAfter.toString(),
-			t.reason || '',
-			t.betId || '',
-			t.settlementId || '',
-			t.cashoutId || '',
-			t.createdByType || '',
-		]);
-
-		// Combine header and rows
-		const csvLines = [headers.join(','), ...rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))];
-
-		return csvLines.join('\n');
 	}
 }
 

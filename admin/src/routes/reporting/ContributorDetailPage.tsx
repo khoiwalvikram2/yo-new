@@ -48,6 +48,8 @@ import {
   type ContributorDomain,
   type ContributorPlayer,
 } from '@/modules/reporting/ui/contributorDetailModel'
+import { usePaymentWhitelabelScope } from '@/routes/payments/usePaymentWhitelabelScope'
+import { SelectWhitelabelForBets } from '@/routes/bets/SelectWhitelabelForBets'
 import styles from './ContributorDetailPage.module.css'
 
 interface SportsBetRow extends SportsBet {
@@ -177,7 +179,10 @@ function PlayerDetail({ domain, id, name, where, filter, eyebrow, back }: Detail
   const [pageSize, setPageSize] = useState(20)
   const scopeKey = JSON.stringify(filter)
   useEffect(() => { setPage(1) }, [domain, id, query, status, scopeKey])
+  // Bets belong to one whitelabel: with none selected (a Super Admin in core mode) the list is not queried.
+  const { selectionRequired } = usePaymentWhitelabelScope()
   const { data: betsData, loading: betsLoading, error: betsError, refetch: refetchBets } = useQuery(CONTRIBUTOR_BETS_PAGE, {
+    skip: selectionRequired,
     variables: { domain: domain.toUpperCase(), limit: pageSize, offset: (page-1)*pageSize, filters: {
       userId: id, sportId: filter.sportId, leagueId: filter.leagueId, eventId: filter.eventId,
       vendorId: filter.vendorId == null ? undefined : String(filter.vendorId), gameId: filter.gameId == null ? undefined : String(filter.gameId),
@@ -239,6 +244,7 @@ function PlayerDetail({ domain, id, name, where, filter, eyebrow, back }: Detail
           {figure('Win rate', player?.winRate != null ? `${(player.winRate * 100).toFixed(0)}%` : '—', <IconPercentage size={GLYPH} stroke={strokeFor(GLYPH)} />, 'vio', 'Bets won', figuresLoading && !player)}
         </StatRow>
 
+        {selectionRequired ? <Card title="Bets"><SelectWhitelabelForBets /></Card> :
         <Card title="Bets" sub={betsLoading ? 'Loading…' : `${shown.length.toLocaleString(formatLocale)} of ${totalBets.toLocaleString(formatLocale)} settled bets`} body="flush">
           <div className={styles.filters}>
             <FilterBar label="Bet filters" activeCount={activeCount} onClearAll={() => { setQuery(''); setStatus('all') }}
@@ -252,7 +258,7 @@ function PlayerDetail({ domain, id, name, where, filter, eyebrow, back }: Detail
                 empty={<EmptyState title={bets.length ? 'No bets match these filters' : 'No bets in this selection'} inset="none" />} />
               : <DataTable<SportsBetRow> columns={sportsColumns} rows={shown as SportsBetRow[]} rowKey={(row) => String(row.id)} label="Bets in this selection" pagination={pagination} state={betsError ? 'error' : 'ready'} error={betsError?.message} onRetry={() => void refetchBets()}
                 empty={<EmptyState title={bets.length ? 'No bets match these filters' : 'No bets in this selection'} inset="none" />} />}
-        </Card>
+        </Card>}
       </div>
     </Page>
   )

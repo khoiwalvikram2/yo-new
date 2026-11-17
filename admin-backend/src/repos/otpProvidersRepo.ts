@@ -83,6 +83,10 @@ export async function listOtpProviders(tenant: string) {
     secretKeyMasked: maskCredential(decryptNullable(r.secretKey)),
     apiKeyMasked: maskCredential(decryptNullable(r.apiKey)),
     apiSecretMasked: maskCredential(decryptNullable(r.apiSecret)),
+    // ISO 8601, which the OTP Providers page parses: a Date through the String scalar became epoch milliseconds
+    // ("1793645111717"), shown as "Updated: Invalid Date" (system/SYS-19).
+    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+    updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : null,
   }))
 }
 

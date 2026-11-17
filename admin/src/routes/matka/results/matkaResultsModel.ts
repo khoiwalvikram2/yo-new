@@ -301,10 +301,12 @@ export function buildRollbackInput(id: string, reason: string, tag?: string) {
   return { id, reason, tag }
 }
 
-/** The four facts above the form; the market is the raw id, the type upper-cased (legacy). */
-export function rollbackFacts(result: Pick<MatkaResult, 'matkaId' | 'date' | 'type' | 'result'>) {
+/** The four facts above the form, the type upper-cased (legacy). The market is named as the table names it
+ *  (matkaNameFor), so the operator can see which market is being reversed; the raw id was kept from the
+ *  legacy dialog until then. */
+export function rollbackFacts(result: Pick<MatkaResult, 'matkaId' | 'date' | 'type' | 'result'>, marketName: string = result.matkaId) {
   return [
-    { key: 'market', term: 'Market', value: result.matkaId },
+    { key: 'market', term: 'Market', value: marketName },
     { key: 'date', term: 'Date', value: result.date },
     { key: 'type', term: 'Type', value: result.type.toUpperCase() },
     { key: 'result', term: 'Result', value: result.result },

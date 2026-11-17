@@ -49,9 +49,25 @@ export function roleFormValues(role: StoredRole): RoleFormValues {
   return { name: role.name, permissions: role.permissions || [] }
 }
 
-/** Every domain the server offers with its actions, each action once, in the order they arrive. */
+/**
+ * Permissions the role editor no longer offers because they gate nothing (owner decisions 2026-11-04):
+ * notifications.list ("Manage system notifications") lost its last check when every admin could open its own
+ * alerts and tasks (T068), and Promotions > Campaigns and Content were retired with their pages (MAR-14). They left
+ * the backend catalogue and every role's grants on 2026-11-04, but the server's permission list is each tenant's
+ * `permissions` rows, which still carry them where they were seeded (and rbacRepo's Marketing Manager template still
+ * seeds the Promotions pair for a new whitelabel), so the editor keeps leaving them out until those rows are gone.
+ * A role that holds one anyway keeps it, unseen and harmless: the editor saves it back as it was.
+ */
+export const RETIRED_PERMISSION_DOMAINS: ReadonlySet<string> = new Set([
+  'notifications.list',
+  'promotions.campaigns',
+  'promotions.content',
+])
+
+/** Every domain the server offers with its actions (retired ones left out), each action once, in arrival order. */
 export function groupPermissionsByDomain(allPermissions: readonly Permission[]): Record<string, string[]> {
   return allPermissions.reduce((acc: Record<string, string[]>, perm: Permission) => {
+    if (RETIRED_PERMISSION_DOMAINS.has(perm.domain)) return acc
     if (!acc[perm.domain]) {
       acc[perm.domain] = []
     }

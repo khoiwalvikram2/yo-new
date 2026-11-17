@@ -1,8 +1,51 @@
 import type ExcelJS from 'exceljs'
+import type { ApolloClient } from '@apollo/client'
 import { loadExcelWriter } from '@/shared/utils/lazyExcel'
 import { formatInTimeZone, DEFAULT_ADMIN_TZ } from '@/shared/utils/date'
+import { AGENTS_PAGE_QUERY, AGENTS_STATS_QUERY } from '@/lib/graphql/agents'
+import { AGENTS_CHIPS_QUERY, chipsById, type AgentsChipsData } from '../components/agentChips'
+import type { AgentListRow, AgentsPageData } from '../components/agentsSearchModel'
 
 type AgentItem = Record<string, any>
+
+/** Agents read per request while an export gathers them: the stats read is the heavy one, so it goes page by page. */
+export const AGENT_EXPORT_PAGE_SIZE = 100
+
+/** The agents list's filters: its query variables without the page. */
+export interface AgentExportFilters { query?: string; schemeType?: string; status?: string; parentAgentId?: string; directOnly?: boolean }
+
+/**
+ * Every agent the list's filters match, not only the page on screen, with the stats (and, for the CREDIT list,
+ * the chips) its rows show. The list reads one page at a time; exporting that page under the filter's total
+ * ("64 agents" over 10 rows) dropped the rest without a word.
+ */
+export async function loadAgentsForExport(
+  client: Pick<ApolloClient<unknown>, 'query'>,
+  filters: AgentExportFilters,
+  options: { total: number; withChips: boolean },
+): Promise<AgentListRow[]> {
+  const rows: AgentListRow[] = []
+  for (let offset = 0; offset < options.total; offset += AGENT_EXPORT_PAGE_SIZE) {
+    const variables = { ...filters, offset, limit: AGENT_EXPORT_PAGE_SIZE }
+    const [list, stats, chips] = await Promise.all([
+      client.query<AgentsPageData>({ query: AGENTS_PAGE_QUERY, variables, fetchPolicy: 'network-only' }),
+      client.query<AgentsPageData>({ query: AGENTS_STATS_QUERY, variables, fetchPolicy: 'network-only' }),
+      options.withChips ? client.query<AgentsChipsData>({ query: AGENTS_CHIPS_QUERY, variables, fetchPolicy: 'no-cache' }) : null,
+    ])
+    const items = list.data?.agents?.agentsPage?.items ?? []
+    const statsById = new Map((stats.data?.agents?.agentsPage?.itemsWithStats ?? []).map((entry) => [entry.agent.id, entry.stats]))
+    const chipsByAgent = chipsById(chips?.data?.agents?.agentsPage?.items)
+    for (const item of items) rows.push({ ...item, stats: statsById.get(item.id) ?? null, chips: chipsByAgent.get(item.id) ?? null })
+    if (items.length < AGENT_EXPORT_PAGE_SIZE) break
+  }
+  return rows
+}
+
+/** The sheet's title: the filter's total, or "N of total" when fewer rows came back (the list changed meanwhile). */
+export function agentsExportTitle(count: number, totalCount: number): string {
+  const total = Math.max(totalCount, count)
+  return count === total ? `Agents Export — ${total.toLocaleString()} agents` : `Agents Export — ${count.toLocaleString()} of ${total.toLocaleString()} agents`
+}
 
 const COLORS = {
   titleBg: '4F46E5',
@@ -71,10 +114,12 @@ const COLUMNS = [
   { header: 'Allowed Domains', key: 'domains', width: 20 },
   { header: 'Commission Rates', key: 'commissionRates', width: 28 },
   { header: 'Sharing Rates', key: 'sharingRates', width: 28 },
-  { header: 'Credit Limit', key: 'creditLimit', width: 14 },
-  { header: 'Credit Used', key: 'creditUsed', width: 14 },
-  { header: 'Credit Available', key: 'creditAvailable', width: 16 },
-  { header: 'Settlement', key: 'settlement', width: 14 },
+  // A CREDIT agent's chips (spec 2026-11-02 §2), from the list's chips read; empty for the other schemes. The
+  // old Settlement column (the retired settlement balance) is gone: Pending Settlement below covers SHARING.
+  { header: 'Credit Reference', key: 'creditReference', width: 16 },
+  { header: 'Chip Balance', key: 'chipBalance', width: 14 },
+  { header: 'Downline Balance', key: 'downlineBalance', width: 16 },
+  { header: 'Ref P/L', key: 'refPnl', width: 14 },
   { header: 'Active Players', key: 'activePlayers', width: 14 },
   { header: 'Total Deposits', key: 'deposits', width: 16 },
   { header: 'Total Withdrawals', key: 'withdrawals', width: 18 },
@@ -90,7 +135,7 @@ const COLUMNS = [
 ]
 
 const AMOUNT_COLS = new Set([
-  'creditLimit', 'creditUsed', 'creditAvailable', 'settlement',
+  'creditReference', 'chipBalance', 'downlineBalance', 'refPnl',
   'deposits', 'withdrawals', 'ggr', 'pl', 'turnover',
   'commissionEarned', 'pendingSettlement', 'totalSettled',
 ])
@@ -112,7 +157,7 @@ export async function exportAgentsToExcel(agents: AgentItem[], totalCount: numbe
   sheet.columns = COLUMNS.map((c) => ({ key: c.key, width: c.width }))
 
   // Title row
-  const titleRow = sheet.addRow([`Agents Export — ${totalCount.toLocaleString()} agents`])
+  const titleRow = sheet.addRow([agentsExportTitle(agents.length, totalCount)])
   sheet.mergeCells(1, 1, 1, COLUMNS.length)
   const tc = titleRow.getCell(1)
   tc.font = { name: 'Calibri', size: 14, bold: true, color: { argb: COLORS.titleFont } }
@@ -146,6 +191,8 @@ export async function exportAgentsToExcel(agents: AgentItem[], totalCount: numbe
   // Data rows
   agents.forEach((agent, idx) => {
     const stats = agent.stats || {}
+    const chips = agent.chips || null
+    const chipFigure = (value: unknown) => chips && value != null ? Number(value) : null
     const row = sheet.addRow([
       agent.username || '',
       agent.phone || '',
@@ -156,10 +203,10 @@ export async function exportAgentsToExcel(agents: AgentItem[], totalCount: numbe
       Array.isArray(agent.allowedDomains) ? agent.allowedDomains.join(', ') : '',
       getRates(agent.commissionRates),
       getRates(agent.sharingRates),
-      agent.creditLimit != null ? Number(agent.creditLimit) : null,
-      agent.creditUsed != null ? Number(agent.creditUsed) : null,
-      agent.creditAvailable != null ? Number(agent.creditAvailable) : null,
-      agent.settlementBalance != null ? Number(agent.settlementBalance) : null,
+      chipFigure(chips?.creditReference),
+      chipFigure(chips?.balance),
+      chipFigure(chips?.downlineBalance),
+      chipFigure(chips?.refPnl),
       stats.activePlayers != null ? Number(stats.activePlayers) : null,
       stats.totalDeposits != null ? Number(stats.totalDeposits) : null,
       stats.totalWithdrawals != null ? Number(stats.totalWithdrawals) : null,
@@ -214,23 +261,11 @@ export async function exportAgentsToExcel(agents: AgentItem[], totalCount: numbe
         }
       }
 
-      // P/L coloring
-      if (key === 'pl' || key === 'ggr') {
+      // P/L and Ref P/L coloring (Ref P/L > 0: the upline owes the agent; < 0: the agent owes the upline)
+      if (key === 'pl' || key === 'ggr' || key === 'refPnl') {
         const val = typeof cell.value === 'number' ? cell.value : null
         if (val != null && val > 0) cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.positiveFont } }
         else if (val != null && val < 0) cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.negativeFont } }
-      }
-
-      // Credit used — amber
-      if (key === 'creditUsed') {
-        const val = typeof cell.value === 'number' ? cell.value : null
-        if (val != null && val > 0) cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.amberFont } }
-      }
-
-      // Credit available — green
-      if (key === 'creditAvailable') {
-        const val = typeof cell.value === 'number' ? cell.value : null
-        if (val != null && val > 0) cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.positiveFont } }
       }
 
       // Commission earned — purple

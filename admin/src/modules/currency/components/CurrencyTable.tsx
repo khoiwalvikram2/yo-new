@@ -31,6 +31,10 @@ import styles from './CurrencyTable.module.css'
 interface CurrencyTableProps {
   currencies: Currency[]
   loading?: boolean
+  /** currency.list update: Edit, Activate and Deactivate. Without it they are not offered (the server refuses them). */
+  canUpdate: boolean
+  /** currency.list delete. */
+  canDelete: boolean
   onEdit: (currency: Currency) => void
   footer?: ReactNode
 }
@@ -51,6 +55,8 @@ function actionIcon(busy: boolean, icon: ReactNode) {
 function RowActions({
   currency,
   busy,
+  canUpdate,
+  canDelete,
   onEdit,
   onActivate,
   onDeactivate,
@@ -58,6 +64,8 @@ function RowActions({
 }: {
   currency: Currency
   busy: ActionBusy
+  canUpdate: boolean
+  canDelete: boolean
   onEdit: () => void
   onActivate: () => void
   onDeactivate: () => void
@@ -68,15 +76,17 @@ function RowActions({
   const deleteBlocked = currency.isActive || busy.delete
   return (
     <span className={styles.rowActions}>
-      <Tooltip content="Edit Currency">
-        <IconButton
-          size="sm"
-          label={`Edit ${currency.code}`}
-          icon={<IconPencil size={ACTION_ICON_SIZE} stroke={strokeFor(ACTION_ICON_SIZE)} />}
-          onClick={onEdit}
-        />
-      </Tooltip>
-      {currency.isActive ? (
+      {canUpdate ? (
+        <Tooltip content="Edit Currency">
+          <IconButton
+            size="sm"
+            label={`Edit ${currency.code}`}
+            icon={<IconPencil size={ACTION_ICON_SIZE} stroke={strokeFor(ACTION_ICON_SIZE)} />}
+            onClick={onEdit}
+          />
+        </Tooltip>
+      ) : null}
+      {!canUpdate ? null : currency.isActive ? (
         <Tooltip content="Deactivate Currency">
           <IconButton
             size="sm"
@@ -99,16 +109,18 @@ function RowActions({
           />
         </Tooltip>
       )}
-      <Tooltip content="Delete Currency">
-        <IconButton
-          size="sm"
-          label={`Delete ${currency.code}`}
-          icon={actionIcon(busy.delete, <IconTrash size={ACTION_ICON_SIZE} stroke={strokeFor(ACTION_ICON_SIZE)} />)}
-          aria-disabled={deleteBlocked ? true : undefined}
-          aria-busy={busy.delete ? true : undefined}
-          onClick={onDelete}
-        />
-      </Tooltip>
+      {canDelete ? (
+        <Tooltip content="Delete Currency">
+          <IconButton
+            size="sm"
+            label={`Delete ${currency.code}`}
+            icon={actionIcon(busy.delete, <IconTrash size={ACTION_ICON_SIZE} stroke={strokeFor(ACTION_ICON_SIZE)} />)}
+            aria-disabled={deleteBlocked ? true : undefined}
+            aria-busy={busy.delete ? true : undefined}
+            onClick={onDelete}
+          />
+        </Tooltip>
+      ) : null}
     </span>
   )
 }
@@ -121,6 +133,8 @@ function RowActions({
 export function CurrencyTable({
   currencies,
   loading = false,
+  canUpdate,
+  canDelete,
   onEdit,
   footer,
 }: CurrencyTableProps) {
@@ -257,11 +271,13 @@ export function CurrencyTable({
             icon={<IconInbox size={20} stroke={strokeFor(20)} />}
           />
         )}
-        rowActions={(currency) => ({
+        rowActions={canUpdate || canDelete ? (currency) => ({
           primary: (
             <RowActions
               currency={currency}
               busy={busy}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
               onEdit={() => onEdit(currency)}
               onActivate={() => {
                 if (!busy.activate) activate(currency.code)
@@ -272,7 +288,7 @@ export function CurrencyTable({
               onDelete={() => requestDelete(currency)}
             />
           ),
-        })}
+        }) : undefined}
       />
       {footer}
     </Card>

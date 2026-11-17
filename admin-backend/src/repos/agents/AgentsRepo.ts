@@ -8,7 +8,6 @@ import {
 } from '@shared/db/schema.js';
 import { and, eq, ilike, or, ne, isNull, inArray, gt, desc } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
-import { canApplyCreditDelta } from '@src/domains/agents/services/creditMath.js';
 
 export type AgentScheme = 'COMMISSION' | 'SHARING' | 'CREDIT';
 export type AgentDomain = 'sports' | 'casino' | 'matka';
@@ -30,6 +29,13 @@ export interface CreateAgentInput {
 	passwordHash: string;
 	// Wallet
 	currency: string;
+	/** CREDIT agents: the credit reference (agents.credit_limit). A reference figure only; it gates nothing. */
+	creditLimit?: number | null;
+	/**
+	 * Runs on the creation transaction once the agent, its credentials and its closure rows exist (the opening
+	 * chips deposit). A throw rolls the whole creation back.
+	 */
+	afterInsert?: (tx: any, agentRow: typeof agents.$inferSelect) => Promise<unknown>;
 }
 
 export interface UpdateAgentInput {
@@ -42,6 +48,24 @@ export interface UpdateAgentInput {
 	// Sharing
 	parentAgentId?: string | null;
 	levelIndex?: number | null;
+}
+
+/** UUID v4 regex for validation; agents.id is uuid type in DB */
+const AGENT_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * The agents list's search (list and count share it, so the two cannot drift): the username or phone containing the
+ * text, or the agent's id. `%` and `_` are LIKE wildcards, so they are escaped and match themselves: a search for
+ * '_' finds usernames with an underscore, not every agent. The id matches whole (a UUID) or by its start (6+ hex
+ * characters), which is what the profile head shows: the first 8 characters.
+ */
+export function agentSearchCondition(text: string) {
+	const q = text.trim();
+	const term = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+	const byText = [ilike(agentCredentials.username, term), ilike(agents.phone, term)];
+	if (AGENT_UUID_REGEX.test(q)) return or(eq(agents.id, q), ...byText);
+	if (/^[0-9a-f]{6,}$/i.test(q)) return or(sql`${agents.id}::text like ${`${q.toLowerCase()}%`}`, ...byText);
+	return or(...byText);
 }
 
 export class AgentsRepo {
@@ -71,6 +95,9 @@ export class AgentsRepo {
 						input.schemeType === 'COMMISSION'
 							? (input.tallyDomains as unknown as string[]) ?? null
 							: null,
+					...(input.schemeType === 'CREDIT' && input.creditLimit != null
+						? { creditLimit: input.creditLimit.toFixed(2) }
+						: {}),
 				})
 				.returning();
 
@@ -124,6 +151,8 @@ export class AgentsRepo {
 					}
 				}
 			}
+
+			if (input.afterInsert) await input.afterInsert(tx, agentRow);
 
 			return agentRow;
 		});
@@ -327,6 +356,16 @@ export class AgentsRepo {
 			.where(eq(agents.id, agentId));
 	}
 
+	/** The agent's stored password hash, or null when it has no credentials. */
+	async getPasswordHash(agentId: string): Promise<string | null> {
+		const [row] = await db
+			.select({ passwordHash: agentCredentials.passwordHash })
+			.from(agentCredentials)
+			.where(eq(agentCredentials.agentId, agentId))
+			.limit(1);
+		return row?.passwordHash ?? null;
+	}
+
 	/**
 	 * Statuses of this agent's ancestors (closure depth > 0) that are not ACTIVE.
 	 * Empty when every ancestor is ACTIVE. One indexed query; it runs on every
@@ -349,6 +388,29 @@ export class AgentsRepo {
 	}
 
 	/**
+	 * The ancestor that restricts this agent although its own status may be ACTIVE (owner decision 1): the nearest
+	 * one that blocks it (SUSPENDED, BLOCKED) or, when none does, the nearest INACTIVE one, which makes it read-only.
+	 * null when every ancestor is ACTIVE. The same closure rows listNonActiveAncestorStatuses reads at sign-in.
+	 */
+	async findRestrictingAncestor(agentId: string): Promise<{ id: string; username: string | null; status: string } | null> {
+		const [row] = await db
+			.select({ id: agents.id, username: agentCredentials.username, status: agents.status })
+			.from(agentHierarchyClosure)
+			.innerJoin(agents, eq(agents.id, agentHierarchyClosure.ancestorId))
+			.leftJoin(agentCredentials, eq(agentCredentials.agentId, agents.id))
+			.where(
+				and(
+					eq(agentHierarchyClosure.descendantId, agentId),
+					gt(agentHierarchyClosure.depth, 0),
+					ne(agents.status, 'ACTIVE')
+				)
+			)
+			.orderBy(sql`(${agents.status} = 'INACTIVE')`, agentHierarchyClosure.depth)
+			.limit(1);
+		return row ? { id: String(row.id), username: row.username ?? null, status: String(row.status) } : null;
+	}
+
+	/**
 	 * Removes `removed` domains from allowed_domains and tally_domains of every
 	 * agent in the subtree of `agentId` (itself included, through its depth-0
 	 * closure row). Called with the parent's own update in one transaction, so a
@@ -361,10 +423,18 @@ export class AgentsRepo {
 		const strip = (column: string) =>
 			domains.reduce((acc, d) => sql`array_remove(${acc}, ${d}::text)`, sql.raw(column));
 		const removedArray = sql`ARRAY[${sql.join(domains.map((d) => sql`${d}::text`), sql`, `)}]::text[]`;
+		// A tally is on only with a domain to tally (tallyIsOn, AGE-09). When this narrowing removes an agent's last
+		// tally domain, its tally goes off with it, as commission already pays it, instead of a flag left on over an
+		// empty list. A tally that had no domain before is not this narrowing's to change.
 		const result = await (tx ?? db).execute(sql`
 			UPDATE agents
 			   SET allowed_domains = ${strip('allowed_domains')},
-			       tally_domains = CASE WHEN tally_domains IS NULL THEN NULL ELSE ${strip('tally_domains')} END
+			       tally_domains = CASE WHEN tally_domains IS NULL THEN NULL ELSE ${strip('tally_domains')} END,
+			       tally_enabled = CASE
+			         WHEN tally_enabled
+			          AND COALESCE(tally_domains && ${removedArray}, false)
+			          AND NOT COALESCE(${strip('tally_domains')} && ARRAY['sports', 'casino', 'matka']::text[], false)
+			         THEN false ELSE tally_enabled END
 			 WHERE id IN (
 			         SELECT descendant_id FROM agent_hierarchy_closure
 			          WHERE ancestor_id = ${agentId} AND depth >= 0
@@ -643,22 +713,15 @@ export class AgentsRepo {
 				conditions.push(isNull(agents.parentAgentId));
 			}
 			
-			// Add search query filter - search by id (exact), username or phone
+			// Add search query filter - search by id, username or phone (agentSearchCondition)
 			if (filters?.query && filters.query.trim().length > 0) {
-				const q = filters.query.trim();
-				const searchTerm = `%${q}%`;
-				const idMatch = AgentsRepo.UUID_REGEX.test(q) ? eq(agents.id, q) : null;
-				conditions.push(
-					idMatch
-						? or(idMatch, ilike(agentCredentials.username, searchTerm), ilike(agents.phone, searchTerm))
-						: or(ilike(agentCredentials.username, searchTerm), ilike(agents.phone, searchTerm))
-				);
+				conditions.push(agentSearchCondition(filters.query));
 			}
-			
+
 			if (conditions.length > 0) {
 				queryBuilder = queryBuilder.where(and(...conditions)) as any;
 			}
-			
+
 			queryBuilder = queryBuilder.orderBy(desc(agents.createdAt), desc(agents.id)) as any;
 			if (pagination) {
 				queryBuilder = queryBuilder.limit(pagination.limit).offset(pagination.offset) as any;
@@ -744,105 +807,20 @@ export class AgentsRepo {
 				conditions.push(isNull(agents.parentAgentId));
 			}
 			
-			// Add search query filter - search by id (exact), username or phone
+			// Add search query filter - the same search as list (agentSearchCondition)
 			if (filters?.query && filters.query.trim().length > 0) {
-				const q = filters.query.trim();
-				const searchTerm = `%${q}%`;
-				const idMatch = AgentsRepo.UUID_REGEX.test(q) ? eq(agents.id, q) : null;
-				conditions.push(
-					idMatch
-						? or(idMatch, ilike(agentCredentials.username, searchTerm), ilike(agents.phone, searchTerm))
-						: or(ilike(agentCredentials.username, searchTerm), ilike(agents.phone, searchTerm))
-				);
+				conditions.push(agentSearchCondition(filters.query));
 			}
-			
+
 			if (conditions.length > 0) {
 				queryBuilder = queryBuilder.where(and(...conditions)) as any;
 			}
-			
+
 			const result = await queryBuilder;
 			return Number(result[0]?.count || 0);
 		} catch (error) {
 			return 0;
 		}
-	}
-
-	/**
-	 * Update credit balance for an agent
-	 */
-	async updateCreditBalance(
-		agentId: string,
-		updates: {
-			creditLimit?: number;
-			creditUsed?: number;
-			creditAvailable?: number;
-			creditAlertThreshold?: number;
-		},
-		tx: any = db
-	): Promise<void> {
-		const setValues: any = {};
-		
-		if (updates.creditLimit !== undefined) {
-			setValues.creditLimit = updates.creditLimit.toString();
-		}
-		if (updates.creditUsed !== undefined) {
-			setValues.creditUsed = updates.creditUsed.toString();
-		}
-		if (updates.creditAvailable !== undefined) {
-			setValues.creditAvailable = updates.creditAvailable.toString();
-		}
-		if (updates.creditAlertThreshold !== undefined) {
-			setValues.creditAlertThreshold = updates.creditAlertThreshold.toString();
-		}
-
-		if (Object.keys(setValues).length === 0) {
-			return;
-		}
-
-		await tx.update(agents).set(setValues).where(eq(agents.id, agentId));
-	}
-
-	/**
-	 * Get credit summary for an agent
-	 */
-	async getCreditSummary(agentId: string): Promise<{
-		creditLimit: number;
-		creditUsed: number;
-		creditAvailable: number;
-		creditAlertThreshold: number;
-	} | null> {
-		const [agent] = await db
-			.select({
-				creditLimit: agents.creditLimit,
-				creditUsed: agents.creditUsed,
-				creditAvailable: agents.creditAvailable,
-				creditAlertThreshold: agents.creditAlertThreshold,
-			})
-			.from(agents)
-			.where(eq(agents.id, agentId))
-			.limit(1);
-
-		if (!agent) {
-			return null;
-		}
-
-		return {
-			creditLimit: Number(agent.creditLimit || 0),
-			creditUsed: Number(agent.creditUsed || 0),
-			creditAvailable: Number(agent.creditAvailable || 0),
-			creditAlertThreshold: Number(agent.creditAlertThreshold || 80),
-		};
-	}
-
-	/**
-	 * List agents with credit information
-	 */
-	async listWithCredit(
-		tenantId?: string,
-		filters?: { schemeType?: AgentScheme; status?: string },
-		pagination?: { offset: number; limit: number }
-	) {
-		return this.list(tenantId, filters, pagination);
 	}
 
 	/**
@@ -886,153 +864,6 @@ export class AgentsRepo {
 			settlementBalanceSports: Number(agent.settlementBalanceSports || 0),
 			settlementBalanceCasino: Number(agent.settlementBalanceCasino || 0),
 			settlementBalanceMatka: Number(agent.settlementBalanceMatka || 0),
-		};
-	}
-
-	/**
-	 * Lock agent row and update credit fields (for use in transactions)
-	 */
-	async lockAndUpdateCredit(
-		agentId: string,
-		updates: {
-			creditLimit?: number;
-			creditUsed?: number;
-			creditAvailable?: number;
-			creditAlertThreshold?: number;
-			settlementBalance?: number;
-			settlementBalanceSports?: number;
-			settlementBalanceCasino?: number;
-			settlementBalanceMatka?: number;
-			/**
-			 * MONEY-CRITICAL (CR-9): delta to apply to credit_used, computed and validated
-			 * against the FOR-UPDATE-locked row (NOT a stale pre-lock read). When provided,
-			 * this takes precedence over `creditUsed`/`creditAvailable` and the new values are
-			 * derived from the locked snapshot. A positive delta consumes availability and is
-			 * re-validated under the lock; a negative delta releases credit.
-			 */
-			creditUsedDelta?: number;
-			/**
-			 * When true and `creditUsedDelta` is positive, the operation is rejected if the
-			 * delta exceeds availability of the LOCKED row (closes the read-check-write race).
-			 */
-			requireAvailableForDelta?: boolean;
-		},
-		tx: any = db
-	): Promise<{ creditUsed: number; creditAvailable: number; creditLimit: number; settlementBalance: number }> {
-		// Get current values with row lock (FOR UPDATE)
-		// Drizzle ORM doesn't have a direct .for() method, so we use execute with sql template
-		const result = await (tx as any).execute(sql`
-			SELECT 
-				credit_limit,
-				credit_used,
-				credit_available,
-				credit_alert_threshold,
-				settlement_balance,
-				settlement_balance_sports,
-				settlement_balance_casino,
-				settlement_balance_matka
-			FROM agents
-			WHERE id = ${agentId}
-			FOR UPDATE
-			LIMIT 1
-		`);
-		const row = (result as any).rows?.[0] || (result as any)[0] || null;
-		if (!row) {
-			throw new Error('Agent not found');
-		}
-		const currentAgent = {
-			creditLimit: row.credit_limit,
-			creditUsed: row.credit_used,
-			creditAvailable: row.credit_available,
-			creditAlertThreshold: row.credit_alert_threshold,
-			settlementBalance: row.settlement_balance,
-			settlementBalanceSports: row.settlement_balance_sports,
-			settlementBalanceCasino: row.settlement_balance_casino,
-			settlementBalanceMatka: row.settlement_balance_matka,
-		};
-
-		// Calculate new values
-		const currentLimit = Number(currentAgent.creditLimit || 0);
-		const currentUsed = Number(currentAgent.creditUsed || 0);
-		const currentAvailable = Number(currentAgent.creditAvailable || 0);
-		const currentThreshold = Number(currentAgent.creditAlertThreshold || 80);
-		const currentSettlementBalance = Number(currentAgent.settlementBalance || 0);
-		const currentSettlementBalanceSports = Number(currentAgent.settlementBalanceSports || 0);
-		const currentSettlementBalanceCasino = Number(currentAgent.settlementBalanceCasino || 0);
-		const currentSettlementBalanceMatka = Number(currentAgent.settlementBalanceMatka || 0);
-
-		const newLimit = updates.creditLimit !== undefined ? updates.creditLimit : currentLimit;
-		const newSettlementBalanceSports = updates.settlementBalanceSports !== undefined ? updates.settlementBalanceSports : currentSettlementBalanceSports;
-		const newSettlementBalanceCasino = updates.settlementBalanceCasino !== undefined ? updates.settlementBalanceCasino : currentSettlementBalanceCasino;
-		const newSettlementBalanceMatka = updates.settlementBalanceMatka !== undefined ? updates.settlementBalanceMatka : currentSettlementBalanceMatka;
-
-		// Calculate total settlementBalance (sum of all domains) if not explicitly provided
-		const newSettlementBalance = updates.settlementBalance !== undefined
-			? updates.settlementBalance
-			: (newSettlementBalanceSports + newSettlementBalanceCasino + newSettlementBalanceMatka);
-
-		// MONEY-CRITICAL (CR-9): when a creditUsedDelta is supplied, derive the new credit_used
-		// from the LOCKED snapshot and re-validate availability under the lock. This guarantees
-		// the availability decision and the written value come from the same FOR UPDATE row,
-		// closing the read-check-write race that two concurrent allocations would otherwise hit.
-		const usesDelta = updates.creditUsedDelta !== undefined;
-		let newUsed: number;
-		if (usesDelta) {
-			const delta = Number(updates.creditUsedDelta);
-			if (updates.requireAvailableForDelta && delta > 0) {
-				const check = canApplyCreditDelta(
-					{ creditLimit: newLimit, creditUsed: currentUsed, settlementBalance: newSettlementBalance },
-					delta,
-				);
-				if (!check.ok) {
-					const available = newLimit - currentUsed + newSettlementBalance;
-					throw new Error(
-						`Insufficient credit. Available: ${available}, Requested: ${delta}`
-					);
-				}
-				newUsed = check.newUsed;
-			} else {
-				newUsed = currentUsed + delta;
-			}
-		} else {
-			newUsed = updates.creditUsed !== undefined ? updates.creditUsed : currentUsed;
-		}
-
-		// Calculate creditAvailable using new formula: creditLimit - creditUsed + settlementBalance.
-		// When using delta mode, always derive available from the locked snapshot (ignore any
-		// stale creditAvailable the caller may have computed pre-lock).
-		const newAvailable = (!usesDelta && updates.creditAvailable !== undefined)
-			? updates.creditAvailable
-			: Math.max(0, newLimit - newUsed + newSettlementBalance);
-		const newThreshold = updates.creditAlertThreshold !== undefined
-			? updates.creditAlertThreshold
-			: currentThreshold;
-
-		// Update using Drizzle ORM
-		const setValues: any = {};
-		if (updates.creditLimit !== undefined) setValues.creditLimit = newLimit.toString();
-		if (updates.creditUsed !== undefined || usesDelta) setValues.creditUsed = newUsed.toString();
-		if (updates.settlementBalance !== undefined) setValues.settlementBalance = newSettlementBalance.toString();
-		if (updates.settlementBalanceSports !== undefined) setValues.settlementBalanceSports = newSettlementBalanceSports.toString();
-		if (updates.settlementBalanceCasino !== undefined) setValues.settlementBalanceCasino = newSettlementBalanceCasino.toString();
-		if (updates.settlementBalanceMatka !== undefined) setValues.settlementBalanceMatka = newSettlementBalanceMatka.toString();
-		if (updates.creditAvailable !== undefined || usesDelta) setValues.creditAvailable = newAvailable.toString();
-		if (updates.creditAlertThreshold !== undefined) setValues.creditAlertThreshold = newThreshold.toString();
-
-		if (Object.keys(setValues).length > 0) {
-			await tx
-				.update(agents)
-				.set(setValues)
-				.where(eq(agents.id, agentId));
-		}
-
-		// Return the resulting locked snapshot so callers can record accurate ledger
-		// balances derived from the FOR-UPDATE row (not a stale pre-lock read).
-		return {
-			creditUsed: newUsed,
-			creditAvailable: newAvailable,
-			creditLimit: newLimit,
-			settlementBalance: newSettlementBalance,
 		};
 	}
 }

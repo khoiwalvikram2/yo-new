@@ -3,13 +3,15 @@ import type { ButtonHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import { IconAlertTriangle, IconArrowRight, IconChevronDown, IconWallet } from '@tabler/icons-react'
 import { Spinner } from '@/ui/components/Spinner'
-import { amountSign, creditAlertText } from './walletData'
-import type { CreditFigures, CreditStatus, DomainKey, SettlementSummary, SharingSummary } from './walletData'
+// The pure chips rules only: the module's index would pull its dialogs and tables into the shell.
+import { chipTone, refPnlNote, roundChips, signedChips } from '@/modules/chips/chipModel'
+import { creditAlertText } from './walletData'
+import type { ChipWalletFigures, CreditFigures, CreditStatus, DomainKey, SharingSummary } from './walletData'
 import type { FormatAmount } from './formatAmount'
 import p from './TopbarPopover.module.css'
 import s from './WalletIndicator.module.css'
 
-export type WalletTab = 'credit' | 'sharing' | 'settlement'
+export type WalletTab = 'credit' | 'chips' | 'sharing'
 
 /** Props every wallet widget container takes (Tasks 42-45). compact = icon only, below 1024px (decision 2). */
 export interface WalletWidgetProps {
@@ -18,8 +20,8 @@ export interface WalletWidgetProps {
 
 const TAB_LABEL: Readonly<Record<WalletTab, string>> = {
   credit: 'Credit',
+  chips: 'Chips',
   sharing: 'Sharing',
-  settlement: 'Settlement',
 }
 
 const DOMAIN_LABEL: Readonly<Record<DomainKey, string>> = {
@@ -32,13 +34,6 @@ function toneClass(tone: CreditStatus | null): string | undefined {
   if (tone === 'healthy') return s.toneHealthy
   if (tone === 'warning') return s.toneWarning
   if (tone === 'critical') return s.toneCritical
-  return undefined
-}
-
-function signClass(amount: number): string | undefined {
-  const sign = amountSign(amount)
-  if (sign === 'positive') return s.positive
-  if (sign === 'negative') return s.negative
   return undefined
 }
 
@@ -310,27 +305,36 @@ export function SharingBody({ sharing, loading, formatAmount, periodLabel, cappe
   )
 }
 
-export interface SettlementBodyProps {
-  settlement: SettlementSummary
+export interface ChipBodyProps {
+  chips: ChipWalletFigures
   formatAmount: FormatAmount
 }
 
-/** Settlement tab content (decision 4). formatAmount takes no currency argument, as today. */
-export function SettlementBody({ settlement, formatAmount }: SettlementBodyProps) {
+/**
+ * The CREDIT agent's wallet content (spec 2026-11-02 §8): its balance, what its downline holds, its
+ * credit reference and Ref P/L, in the account's currency. Ref P/L is green when the upline owes the
+ * agent and rose when the agent owes the upline, with the words beside it, spoken to the agent: the
+ * topbar wallet is always the signed-in agent's own.
+ */
+export function ChipBody({ chips, formatAmount }: ChipBodyProps) {
+  const format = (value: number) => formatAmount(roundChips(value), chips.currency)
+  const tone = chipTone(chips.refPnl)
+
   return (
-    <>
-      <div className={s.section}>
-        <span className={s.heroLabel}>Settlement Balance</span>
-        <span className={clsx(s.heroValue, signClass(settlement.balance))}>{formatAmount(settlement.balance)}</span>
-      </div>
-      <div className={clsx(s.domains, s.domainsCapped)}>
-        {settlement.rows.map((row) => (
-          <div key={row.domain} className={s.settleRow}>
-            <span className={s.settleLabel}>{row.domain}</span>
-            <span className={clsx(s.settleValue, signClass(row.amount))}>{formatAmount(row.amount)}</span>
-          </div>
-        ))}
-      </div>
-    </>
+    <div className={s.section}>
+      <span className={s.heroLabel}>Balance</span>
+      <span className={s.heroValue}>{format(chips.balance)}</span>
+      <dl className={s.stats}>
+        <dt className={s.statLabel}>Downline balance</dt>
+        <dd className={s.statValue}>{format(chips.downlineBalance)}</dd>
+        <dt className={s.statLabel}>Credit reference</dt>
+        <dd className={s.statValue}>{format(chips.creditReference)}</dd>
+        <dt className={s.statLabel}>
+          Ref P/L
+          <span className={s.statNote}>{refPnlNote(chips.refPnl, true)}</span>
+        </dt>
+        <dd className={clsx(s.statValue, tone === 'gain' && s.gain, tone === 'loss' && s.loss)}>{signedChips(chips.refPnl, format)}</dd>
+      </dl>
+    </div>
   )
 }

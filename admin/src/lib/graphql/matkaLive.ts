@@ -10,6 +10,7 @@ export const SUB_MATKA_LIVE_DASHBOARD = gql`
         payouts
         ggr
         rtp
+        potentialPayouts
         activePlayers
       }
       breakdown {
@@ -40,6 +41,7 @@ export const SUB_MATKA_LIVE_DASHBOARD = gql`
           wagered
           payouts
           ggr
+          potentialPayouts
           bets
         }
         bySession {
@@ -47,6 +49,7 @@ export const SUB_MATKA_LIVE_DASHBOARD = gql`
           wagered
           payouts
           ggr
+          potentialPayouts
           bets
         }
         byDigit {
@@ -63,6 +66,13 @@ export const SUB_MATKA_LIVE_DASHBOARD = gql`
           marketName
           marketSession
           bidType
+          wagered
+          payouts
+          exposure
+          bets
+        }
+        selectionTotals {
+          selections
           wagered
           payouts
           exposure

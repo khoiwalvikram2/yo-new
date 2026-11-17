@@ -1,5 +1,5 @@
 /* Home: a banner first, followed by a full-width market floor. */
-.m99-kit .m99-home-banner { position: relative; isolation: isolate; display: grid; grid-template-columns: 1.2fr 1fr; overflow: hidden; min-height: 300px; margin-bottom: 14px; border: 1px solid #34383f; border-radius: var(--ui-radius); color: #fff; background: #202329; }
+.m99-kit .m99-home-banner { position: relative; isolation: isolate; display: grid; grid-template-columns: 1.2fr 1fr; overflow: hidden; min-height: 300px; margin-bottom: 14px; border: 1px solid var(--mb-chrome-band); border-radius: var(--ui-radius); color: #fff; background: var(--mb-chrome-foot); }
 .m99-kit .m99-home-banner::before { content: ''; position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 86% 50%, #8d171c33, transparent 52%), linear-gradient(115deg, #fff0 62%, #ffffff03 62%); }
 .m99-kit .m99-home-banner-copy { position: relative; z-index: 2; padding: 28px 34px 24px; }
 .m99-kit .m99-home-banner-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-size: 11px; color: #bfc2c9; letter-spacing: .7px; text-transform: uppercase; }
@@ -15,7 +15,7 @@
 .m99-kit .m99-home-banner-art { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; background-image: radial-gradient(#ffffff12 .7px, transparent .7px); background-size: 18px 18px; }
 .m99-kit .m99-banner-orbit { position: absolute; width: 300px; height: 300px; border: 1px solid #ffffff10; border-radius: 50%; }
 .m99-kit .m99-banner-orbit-two { width: 410px; height: 410px; }
-.m99-kit .m99-banner-ticket { position: relative; transform: rotate(-8deg); width: 216px; padding: 14px 20px 16px; border: 1px solid #c64a4b; border-radius: var(--ui-radius); background: linear-gradient(145deg, #cf2025, #aa151b 55%, #7e1217); box-shadow: 13px 12px 0 -1px #202329, 13px 12px 0 0 #8b3338, 26px 24px 0 -1px #202329, 26px 24px 0 0 #573139, 0 20px 35px #0004; }
+.m99-kit .m99-banner-ticket { position: relative; transform: rotate(-8deg); width: 216px; padding: 14px 20px 16px; border: 1px solid #c64a4b; border-radius: var(--ui-radius); background: linear-gradient(145deg, #cf2025, #aa151b 55%, #7e1217); box-shadow: 13px 12px 0 -1px var(--mb-chrome-foot), 13px 12px 0 0 #8b3338, 26px 24px 0 -1px var(--mb-chrome-foot), 26px 24px 0 0 #573139, 0 20px 35px #0004; }
 .m99-kit .m99-banner-ticket-top { display: flex; align-items: center; justify-content: space-between; font-size: 8px; letter-spacing: 1.6px; color: #ffc4c7; }
 .m99-kit .m99-banner-ticket-top i { width: 6px; height: 6px; border: 1px solid #ffc4c7; border-radius: 50%; }
 .m99-kit .m99-banner-ticket > strong { position: relative; display: block; padding: 2px 0 9px; text-align: center; font-size: 116px; font-weight: 800; letter-spacing: -7px; line-height: 1.13; color: #fff; }
@@ -48,7 +48,7 @@
 /* The same square cards are used on Home and in the market directory. */
 .m99-kit .m99-market-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .m99-kit .m99-market-card.m99-market-tile { position: relative; display: flex; flex-direction: column; width: 100%; min-width: 0; aspect-ratio: 1.05; min-height: 270px; padding: 12px; overflow: hidden; border: 1px solid var(--m99-border); border-radius: var(--ui-radius); box-shadow: 0 2px 3px #16191e03; transition: border-color .18s, box-shadow .18s, transform .18s; }
-.m99-kit .m99-market-tile::before { content: ''; position: absolute; top: 0; left: 20px; width: 30px; height: 3px; background: #c51a1b; border-radius: var(--ui-radius); }
+.m99-kit .m99-market-tile::before { content: ''; position: absolute; top: 0; left: 20px; width: 30px; height: 3px; background: var(--mb-red); border-radius: var(--ui-radius); }
 .m99-kit .m99-market-tile[data-status='Closed']::before { background: #94969d; }
 .m99-kit .m99-market-tile[data-status='Upcoming']::before { background: #c99942; }
 .m99-kit .m99-market-card.m99-market-tile:hover { transform: translateY(-2px); border-color: #be9293; box-shadow: 0 5px 16px #1e20260a; }
@@ -81,14 +81,14 @@
 .m99-kit .m99-session-schedule tbody tr:last-child > * { border-bottom: 0; }
 .m99-kit .m99-market-chart-links { display: flex; align-items: center; gap: 10px; }
 .m99-kit .m99-market-chart-links > button { color: var(--m99-link); font-size: 11px; font-weight: 500; min-height: 28px; }
-.m99-kit .m99-market-chart-links > button:hover { text-decoration: underline; }
+.m99-kit .m99-market-chart-links > button:hover { color: var(--mb-link-hover); text-decoration: underline; }
 .m99-kit .m99-tile-chart-links { gap: 0; margin-top: 4px; }
 .m99-kit .m99-tile-chart-links > button { flex: 1; font-size: 11px; }
 .m99-kit .m99-tile-chart-links > button + button { position: relative; }
 .m99-kit .m99-tile-chart-links > button + button::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 1px; background: var(--m99-border); }
 .m99-kit .m99-tile-actions { display: flex; gap: 6px; margin-top: 3px; }
-.m99-kit .m99-tile-open { display: flex; align-items: center; justify-content: space-between; flex: 1; min-width: 0; gap: 5px; padding: 7px 10px; min-height: 34px; border: 1px solid #b6191b; border-radius: var(--ui-radius); background: #c51a1b; color: #fff; font-size: 11px; font-weight: 700; }
-.m99-kit .m99-tile-open:hover { background: #a81516; }
+.m99-kit .m99-tile-open { display: flex; align-items: center; justify-content: space-between; flex: 1; min-width: 0; gap: 5px; padding: 7px 10px; min-height: 34px; border: 1px solid var(--mb-brand-matka-edge); border-radius: var(--ui-radius); background: var(--mb-red); color: var(--mb-on-red); font-size: 11px; font-weight: 700; }
+.m99-kit .m99-tile-open:hover { background: var(--mb-brand-deep); }
 .m99-kit .m99-market-tile[data-status='Closed'] .m99-tile-open, .m99-kit .m99-market-tile[data-status='Upcoming'] .m99-tile-open { background: var(--m99-surface); border-color: var(--m99-border); color: var(--m99-text); }
 .m99-kit .m99-market-tile[data-status='Closed'] .m99-tile-open:hover, .m99-kit .m99-market-tile[data-status='Upcoming'] .m99-tile-open:hover { border-color: var(--m99-muted); background: var(--m99-soft); }
 .m99-kit .m99-directory > .m99-toolbar { margin-bottom: 14px; }

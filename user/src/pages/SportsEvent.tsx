@@ -801,7 +801,7 @@ export default function SportsEventPage() {
                         onClick={() => setMobileAnalyticsTab('match')}
                         className={`flex-shrink-0 px-4 py-2 text-[10px] font-semibold transition-all duration-300 rounded-lg border ${
                           mobileAnalyticsTab === 'match'
-                            ? 'bg-[var(--brand-primary)] text-white shadow-lg border-[var(--brand-primary)]/50'
+                            ? 'bg-[var(--brand-primary)] text-[color:var(--mb-on-red)] shadow-lg border-[var(--brand-primary)]/50'
                             : 'bg-[color:var(--ds-color-slate-750)] text-[color:var(--ds-color-slate-400)] hover:text-[color:var(--ds-color-slate-100)] border-[color:var(--ds-color-slate-600)] hover:border-[color:var(--ds-color-slate-500)]'
                         }`}
                       >
@@ -811,7 +811,7 @@ export default function SportsEventPage() {
                         onClick={() => setMobileAnalyticsTab('momentum')}
                         className={`flex-shrink-0 px-4 py-2 text-[10px] font-semibold transition-all duration-300 rounded-lg border ${
                           mobileAnalyticsTab === 'momentum'
-                            ? 'bg-[var(--brand-primary)] text-white shadow-lg border-[var(--brand-primary)]/50'
+                            ? 'bg-[var(--brand-primary)] text-[color:var(--mb-on-red)] shadow-lg border-[var(--brand-primary)]/50'
                             : 'bg-[color:var(--ds-color-slate-750)] text-[color:var(--ds-color-slate-400)] hover:text-[color:var(--ds-color-slate-100)] border-[color:var(--ds-color-slate-600)] hover:border-[color:var(--ds-color-slate-500)]'
                         }`}
                       >
@@ -821,7 +821,7 @@ export default function SportsEventPage() {
                         onClick={() => setMobileAnalyticsTab('odds')}
                         className={`flex-shrink-0 px-4 py-2 text-[10px] font-semibold transition-all duration-300 rounded-lg border ${
                           mobileAnalyticsTab === 'odds'
-                            ? 'bg-[var(--brand-primary)] text-white shadow-lg border-[var(--brand-primary)]/50'
+                            ? 'bg-[var(--brand-primary)] text-[color:var(--mb-on-red)] shadow-lg border-[var(--brand-primary)]/50'
                             : 'bg-[color:var(--ds-color-slate-750)] text-[color:var(--ds-color-slate-400)] hover:text-[color:var(--ds-color-slate-100)] border-[color:var(--ds-color-slate-600)] hover:border-[color:var(--ds-color-slate-500)]'
                         }`}
                       >
@@ -831,7 +831,7 @@ export default function SportsEventPage() {
                         onClick={() => setMobileAnalyticsTab('depth')}
                         className={`flex-shrink-0 px-4 py-2 text-[10px] font-semibold transition-all duration-300 rounded-lg border ${
                           mobileAnalyticsTab === 'depth'
-                            ? 'bg-[var(--brand-primary)] text-white shadow-lg border-[var(--brand-primary)]/50'
+                            ? 'bg-[var(--brand-primary)] text-[color:var(--mb-on-red)] shadow-lg border-[var(--brand-primary)]/50'
                             : 'bg-[color:var(--ds-color-slate-750)] text-[color:var(--ds-color-slate-400)] hover:text-[color:var(--ds-color-slate-100)] border-[color:var(--ds-color-slate-600)] hover:border-[color:var(--ds-color-slate-500)]'
                         }`}
                       >

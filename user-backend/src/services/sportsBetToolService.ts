@@ -543,6 +543,8 @@ export async function toolSettleSportsBet(input: {
   const marketType = marketTypeRaw as SportsResultMarketType
 
   const fallbackCurrency = (await getWhitelabelCurrency(input.whitelabelId)) || 'INR'
+  // The conversions below are synchronous: read the admin Currency page's rates first (cached for a minute).
+  await currencyService.ready()
 
   await db.transaction(async (tx: any) => {
     const step = await applySportsSingleBetSettlement(

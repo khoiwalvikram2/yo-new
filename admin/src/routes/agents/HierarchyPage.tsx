@@ -12,6 +12,7 @@ import {
 } from '@tabler/icons-react'
 import { useNavigate } from 'react-router-dom'
 import HierarchyTree from '@/modules/agents/components/HierarchyTree'
+import { ChipActions, chipTone, refPnlNote, signedChips, useChipFormat, type ChipAccount } from '@/modules/chips'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
 import { useAuthStore } from '@/shared/core/authStore'
 import { useCurrency } from '@/shared/core/CurrencyContext'
@@ -31,11 +32,13 @@ import { StatusPill } from '@/ui/components/StatusPill'
 import {
   agentDisplayName,
   canCreateHierarchyAgent,
+  hierarchySchemeFigure,
   hierarchyStatusCount,
   type HierarchyAgentNode,
 } from './hierarchyModel'
 import styles from './HierarchyPage.module.css'
 
+// A CREDIT agent's chips (spec 2026-11-02 §7 AgentAccount.chips) replace its credit limit, used and available.
 export const AGENT_DETAILS_QUERY = gql`
   query AgentDetails($agentId: ID!, $periodFrom: String!, $periodTo: String!) {
     agents {
@@ -46,11 +49,25 @@ export const AGENT_DETAILS_QUERY = gql`
         allowedDomains
         status
         phone
-        creditLimit
-        creditUsed
-        creditAvailable
         parentAgentId
         levelIndex
+        chips {
+          accountType
+          id
+          username
+          name
+          status
+          parentAgentId
+          playerType
+          currency
+          creditReference
+          balance
+          exposure
+          available
+          downlineBalance
+          refPnl
+          downlineCount
+        }
       }
       agentKPIs(agentId: $agentId, periodFrom: $periodFrom, periodTo: $periodTo) {
         totalGGR
@@ -71,10 +88,24 @@ export const AGENT_TREE_QUERY = gql`
         schemeType
         status
         levelIndex
-        creditLimit
-        creditUsed
-        creditAvailable
         parentAgentId
+        chips {
+          accountType
+          id
+          username
+          name
+          status
+          parentAgentId
+          playerType
+          currency
+          creditReference
+          balance
+          exposure
+          available
+          downlineBalance
+          refPnl
+          downlineCount
+        }
       }
     }
   }
@@ -87,11 +118,9 @@ interface AgentDetails {
   allowedDomains?: string[] | null
   status: string
   phone?: string | null
-  creditLimit?: number | null
-  creditUsed?: number | null
-  creditAvailable?: number | null
   parentAgentId?: string | null
   levelIndex?: number | null
+  chips?: ChipAccount | null
 }
 
 interface AgentKPIs {
@@ -148,6 +177,7 @@ export function HierarchyPageContent() {
     data: detailsData,
     loading: detailsLoading,
     error: detailsError,
+    refetch: refetchDetails,
   } = useQuery<AgentDetailsData>(AGENT_DETAILS_QUERY, {
     variables: { agentId: selectedAgentId, periodFrom, periodTo },
     skip: !selectedAgentId,
@@ -157,8 +187,16 @@ export function HierarchyPageContent() {
   const hierarchyAgents = treeData?.agents?.agentTree ?? []
   const selectedAgent = detailsData?.agents?.agentProfile
   const selectedAgentKPIs = detailsData?.agents?.agentKPIs
+  const selectedChips = selectedAgent?.schemeType === 'CREDIT' ? selectedAgent.chips ?? null : null
+  const selectedRefTone = selectedChips ? chipTone(selectedChips.refPnl) : undefined
+  const chipFormat = useChipFormat(selectedChips?.currency)
+  // After chips moved (D / W / CR on a row or in the drawer): read the tree and the open agent again.
+  const chipsChanged = () => {
+    void refetchTree().catch(() => { /* the tree shows its own failure */ })
+    if (selectedAgentId) void refetchDetails().catch(() => { /* the drawer shows its own failure */ })
+  }
   const activeAgents = hierarchyStatusCount(hierarchyAgents, 'ACTIVE')
-  const creditAgents = hierarchyAgents.filter((item) => item.schemeType === 'CREDIT').length
+  const schemeFigure = hierarchySchemeFigure(hierarchyAgents, agent?.schemeType)
   const treePending = treeLoading && !treeData
   const amount = useCallback(
     (value?: number | null) => formatAmount(convertFromWhitelabelCurrency(Number(value || 0))),
@@ -171,15 +209,11 @@ export function HierarchyPageContent() {
   }
 
   const handleAction = (
-    action: 'edit' | 'credit' | 'suspend' | 'activate',
+    action: 'edit' | 'suspend' | 'activate',
     agentId: string,
   ) => {
     if (action === 'edit') {
       navigate(`/agents/${agentId}/edit`)
-      return
-    }
-    if (action === 'credit') {
-      navigate(`/agents/${agentId}`)
       return
     }
     selectAgent(agentId)
@@ -240,12 +274,12 @@ export function HierarchyPageContent() {
           note={`${hierarchyAgents.length - activeAgents} inactive or restricted`}
         />
         <Stat
-          label="Credit accounts"
-          value={creditAgents}
+          label={schemeFigure.label}
+          value={schemeFigure.value}
           icon={<IconCoinRupee size={18} stroke={strokeFor(18)} />}
           hue="amb"
           loading={treePending}
-          note={`${hierarchyAgents.length - creditAgents} sharing accounts`}
+          note={schemeFigure.note}
         />
       </div>
 
@@ -258,13 +292,14 @@ export function HierarchyPageContent() {
         onRefresh={() => void refetchTree()}
         onSelectAgent={selectAgent}
         onAction={handleAction}
+        onChipsChanged={chipsChanged}
       />
 
       <Drawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         title={selectedAgent ? agentDisplayName(selectedAgent) : 'Agent details'}
-        sub="Account, credit and last-30-day performance"
+        sub="Account, chips and last-30-day performance"
         size="md"
         footer={selectedAgent ? (
           <div className={styles.drawerFooter}>
@@ -327,21 +362,34 @@ export function HierarchyPageContent() {
             </DescriptionList.Section>
 
             {selectedAgent.schemeType === 'CREDIT' ? (
-              <Card title="Credit position" headingLevel={3} className={styles.drawerCard}>
-                <DescriptionList
-                  items={[
-                    { term: 'Credit limit', value: amount(selectedAgent.creditLimit) },
-                    { term: 'Credit used', value: amount(selectedAgent.creditUsed) },
-                    { term: 'Available', value: <strong className={styles.positive}>{amount(selectedAgent.creditAvailable)}</strong> },
-                  ]}
-                />
-                <Button
-                  size="sm"
-                  icon={<IconCoinRupee size={15} stroke={strokeFor(15)} />}
-                  onClick={() => navigate(`/agents/${selectedAgent.id}`)}
-                >
-                  Adjust credit
-                </Button>
+              <Card title="Chips" headingLevel={3} className={styles.drawerCard}>
+                {selectedChips ? (
+                  <>
+                    <DescriptionList
+                      items={[
+                        { term: 'Credit reference', value: chipFormat(selectedChips.creditReference) },
+                        { term: 'Balance', value: chipFormat(selectedChips.balance) },
+                        { term: 'Downline balance', value: chipFormat(selectedChips.downlineBalance) },
+                        { term: 'Exposure', value: chipFormat(selectedChips.exposure) },
+                        {
+                          term: 'Ref P/L',
+                          value: (
+                            <span className={styles.refPnl}>
+                              <strong className={selectedRefTone === 'gain' ? styles.gain : selectedRefTone === 'loss' ? styles.loss : undefined}>
+                                {signedChips(selectedChips.refPnl, chipFormat)}
+                              </strong>
+                              <span>{refPnlNote(selectedChips.refPnl)}</span>
+                            </span>
+                          ),
+                        },
+                      ]}
+                    />
+                    {/* Deposit / Withdraw / Credit reference for its direct parent only (ChipActions checks it). */}
+                    <ChipActions account={selectedChips} variant="full" onDone={chipsChanged} />
+                  </>
+                ) : (
+                  <p className={styles.chipsNote}>This agent&apos;s chips could not be read. Open the full profile to try again.</p>
+                )}
               </Card>
             ) : null}
 

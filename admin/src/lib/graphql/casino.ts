@@ -280,6 +280,7 @@ export const PROVIDERS_ANALYTICS = gql`
         ggr
         shareAmount
         transactionCount
+        totalStake
       }
     }
   }
@@ -293,6 +294,7 @@ export const VENDOR_ANALYTICS = gql`
       ggr
       shareAmount
       transactionCount
+      totalStake
     }
   }
 `

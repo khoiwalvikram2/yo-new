@@ -4,6 +4,8 @@ import type { ReactNode } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { contributorDetailPath, parseContributorSearch } from '@/modules/reporting/ui/contributorDetailModel'
+import { useAuthStore } from '@/shared/core/authStore'
+import { useUIStore } from '@/shared/core/uiStore'
 import ContributorDetailPage from './ContributorDetailPage'
 
 interface QueryOptions { variables: { domain: string; filters: Record<string, any>; limit: number; offset: number }; skip?: boolean; fetchPolicy: string }
@@ -127,6 +129,29 @@ describe('Contributor page', () => {
     assert.equal(cellsOf(screen.getByRole('table', { name: 'Bets in this selection' })).length, 1)
     fireEvent.click(screen.getByRole('button', { name: 'Player profile' }))
     assert.ok(screen.getByText('Profile page'))
+  })
+
+  test('a Super Admin with no whitelabel selected is asked to pick one instead of shown no bets; the list is not queried', () => {
+    // Core mode read the platform's own tenant, which holds no bets: "0 of 0 settled bets" beside the player's figures.
+    const ui = useUIStore.getState(); const roles = useAuthStore.getState().roles
+    useAuthStore.setState({ roles: ['Super Admin'] }); useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+    try {
+      const core = open(contributorDetailPath('sports', 'player', 'p1', { name: 'asha', filter: SPORTS_FILTER }))
+      const bets = screen.getByRole('region', { name: 'Bets' })
+      assert.ok(within(bets).getByText('Select a whitelabel'))
+      assert.equal(screen.queryByRole('table', { name: 'Bets in this selection' }), null)
+      assert.ok(calls.length > 0 && calls.every((call) => call.options.skip === true), 'the bets query is skipped')
+      // The player's figures are not bets of a tenant and still show.
+      assert.ok(within(screen.getByRole('group', { name: 'Figures in this selection' })).getByText('₹200.00'))
+      core.unmount(); calls = []
+      // With a site selected the bets load as before.
+      useUIStore.setState({ directorMode: 'whitelabel', selectedWhitelabelId: 'grandwinn-com' })
+      open(contributorDetailPath('sports', 'player', 'p1', { name: 'asha', filter: SPORTS_FILTER }))
+      assert.equal(lastOptions('SPORTS').skip, false)
+      assert.ok(screen.getByRole('table', { name: 'Bets in this selection' }))
+    } finally {
+      useAuthStore.setState({ roles }); useUIStore.setState({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId })
+    }
   })
 
   test('a casino player gets the casino query and columns', () => {

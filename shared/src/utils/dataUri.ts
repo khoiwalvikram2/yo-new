@@ -1,13 +1,18 @@
 /**
  * Pure helpers describing how an asset value is stored in the database.
  *
- * Historically these columns held Amazon S3 object keys (and, for some rows,
- * full S3 URLs). They now hold base64 data URIs. Read paths must be able to
- * tell the shapes apart, and the backfill script must classify legacy values.
+ * Files are stored as base64 data URIs (owner decision 2026-11-04: Amazon S3 is
+ * gone, nothing uploads to it or reads from it). Some columns may also hold an
+ * external http(s) link. Older rows held S3 object keys (and, for some rows,
+ * full S3 URLs): nothing can fetch those any more, so read paths hand them out
+ * as null (displayableAsset), and the 2026-11-04 data step cleared them.
  */
 
-/** Deposit proof sentinels that are not files and must never be fetched. */
-const DEPOSIT_SENTINELS = new Set(['welivepay', 'manual', 'proof-missing'])
+/**
+ * Deposit proof sentinels that are not files and must never be fetched. 'inline' marks a
+ * request whose screenshot is the data URI in proof_data (user-backend depositProof.ts).
+ */
+const DEPOSIT_SENTINELS = new Set(['welivepay', 'manual', 'proof-missing', 'inline'])
 
 export type StoredAssetKind =
   | 'empty'
@@ -31,6 +36,16 @@ export function classifyStoredAsset(value: string | null | undefined): StoredAss
     return value.includes('.amazonaws.com/') ? 's3-url' : 'external-url'
   }
   return 's3-key'
+}
+
+/**
+ * A stored asset as a read path hands it to a page: a data URI or an external
+ * URL as stored; anything else as null. A legacy S3 key or S3 URL can no longer
+ * be fetched, a deposit sentinel is not a file, and an empty value names none.
+ */
+export function displayableAsset(value: string | null | undefined): string | null {
+  const kind = classifyStoredAsset(value)
+  return kind === 'data-uri' || kind === 'external-url' ? (value as string) : null
 }
 
 /** Decoded byte size of a data URI's base64 payload; 0 for non-data-URIs. */

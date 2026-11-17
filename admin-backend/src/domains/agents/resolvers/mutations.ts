@@ -2,7 +2,6 @@ import { AgentsRepo } from '../../../repos/agents/AgentsRepo';
 import { AgentConfigsRepo } from '../../../repos/agents/AgentConfigsRepo';
 import { AgentLedgerRepo } from '../../../repos/agents/AgentLedgerRepo';
 import { AgentSettlementsRepo } from '../../../repos/agents/AgentSettlementsRepo';
-import { CreditService } from '../services/CreditService';
 import { CommissionService } from '../services/CommissionService';
 import { SharingService } from '../services/SharingService';
 import { SettlementService } from '../services/SettlementService';
@@ -23,7 +22,6 @@ import { validateAgentUsername } from '../agentUsernameValidation.js';
 import {
 	ensureAgentMayActOn,
 	requireCallerTenant,
-	ensureAdminCaller,
 	ensureDirectChildForAgent,
 } from '@src/domains/agents/services/agentSubtree.js'
 import {
@@ -36,10 +34,33 @@ import {
 	firstChildAbove,
 	firstRatePeriodStart,
 	clampFirstRateEffectiveFrom,
+	tallyIsOn,
+	isRedundantRateRow,
 	type RateRow,
 } from '../services/agentMutationRules.js';
 import { AgentRateHistoryRepo } from '../../../repos/agents/AgentRateHistoryRepo';
 import { ensureAgentMayChangeStatus } from '../services/agentStatusGuard';
+import { buildChipMutationResolvers } from './chipResolvers.js';
+import { creatorActorOf, creditReferenceOf, depositOpeningChipsInTx, openingChipsOf } from '../services/openingChips.js';
+import { CREDIT_MOVES_AS_CHIPS } from '@src/domains/settlements/schemeIsolation.js';
+
+/**
+ * The CREDIT scheme moved from credit limits to Deposit/Withdraw chips (spec
+ * docs/superpowers/specs/2026-11-02-credit-dw-chips-design.md §6): credit moves only through depositChips,
+ * withdrawChips and setCreditReference, and the credit-limit model's money mutations are gone from this map.
+ * What is left to refuse is settling a CREDIT agent through the legacy settleAgent below.
+ */
+function refuseCreditLimitModel(): never {
+	throw new Error(CREDIT_MOVES_AS_CHIPS);
+}
+
+/**
+ * Who an agent audit row names as its actor: the agent for an agent caller, the admin's user id for an admin. An
+ * admin's JWT is { sub, name, roles } with no `id`, so reading ctx.user.id recorded every admin action as 'system'.
+ */
+function auditActorOf(ctx: any): string {
+	return String(ctx?.user?.agentId || ctx?.user?.sub || 'system');
+}
 
 export function buildAgentsMutationResolvers() {
 	const agentsRepo = new AgentsRepo();
@@ -57,8 +78,23 @@ export function buildAgentsMutationResolvers() {
 		commissionService,
 		sharingService
 	);
-	const creditService = new CreditService(agentsRepo);
 	const rateHistoryRepo = new AgentRateHistoryRepo();
+
+	/**
+	 * Whether `password` is the caller's own login password: the agent's for an agent caller, the admin user's
+	 * otherwise. setAgentCredentials is confirmed with it.
+	 */
+	const callerPasswordMatches = async (ctx: any, password: string): Promise<boolean> => {
+		if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) {
+			const hash = await agentsRepo.getPasswordHash(String(ctx.user.agentId));
+			return hash ? verifyPassword(password, hash) : false;
+		}
+		const adminId = Number(ctx?.user?.sub);
+		if (!Number.isFinite(adminId)) return false;
+		const { getUserPasswordHashDb } = await import('@/repos/users/usersRepo.js');
+		const hash = await getUserPasswordHashDb(adminId);
+		return hash ? verifyPassword(password, hash) : false;
+	};
 
 	/**
 	 * Decides the effectiveFrom/effectiveTo of a new commission or sharing rate row
@@ -83,7 +119,7 @@ export function buildAgentsMutationResolvers() {
 		effectiveFromInput: unknown;
 		effectiveToInput: unknown;
 		ctx: any;
-	}): Promise<{ effectiveFrom: Date; effectiveTo: Date | null }> => {
+	}): Promise<{ effectiveFrom: Date; effectiveTo: Date | null; redundant: boolean }> => {
 		const { kind, agent, domain, rate, ctx } = params;
 		const requested = new Date(params.effectiveFromInput as any);
 		if (Number.isNaN(requested.getTime())) {
@@ -159,7 +195,8 @@ export function buildAgentsMutationResolvers() {
 			}
 		}
 
-		return { effectiveFrom, effectiveTo };
+		// The same rate again, while it is in force, adds nothing to the history (isRedundantRateRow).
+		return { effectiveFrom, effectiveTo, redundant: isRedundantRateRow(ownRows, { effectiveFrom, effectiveTo, rate }) };
 	};
 
 	return {
@@ -194,15 +231,14 @@ export function buildAgentsMutationResolvers() {
 				}
 			}
 
-			// A credit limit at creation applies to CREDIT agents only.
-			if (input.creditLimit !== null && input.creditLimit !== undefined) {
-				const limit = Number(input.creditLimit);
-				if (!Number.isFinite(limit) || limit < 0) {
-					throw new Error(`Invalid credit limit: ${input.creditLimit}. Must be zero or a positive number.`);
-				}
-				if (limit > 0 && input.schemeType !== 'CREDIT') {
-					throw new Error('A credit limit can only be set for CREDIT agents');
-				}
+			// CREDIT agents only (spec 2026-11-02 §4.4): creditLimit is the credit reference, a figure the agent's
+			// Ref P/L is measured against that gates nothing, and openingChips is a deposit from the new agent's
+			// parent. Both are checked before anything is written.
+			const creditReference = creditReferenceOf(input.creditLimit);
+			const openingChips = openingChipsOf(input.openingChips);
+			if (input.schemeType !== 'CREDIT') {
+				if (creditReference > 0) throw new Error('A credit limit can only be set for CREDIT agents');
+				if (openingChips > 0) throw new Error('Opening chips can only be given to CREDIT agents');
 			}
 
 			// If parentAgentId is provided, validate hierarchy level and scheme type matching
@@ -288,8 +324,8 @@ export function buildAgentsMutationResolvers() {
 				const validation = await hierarchyService.validateSubAgentCreation(
 					parentAgentId,
 					{
+						// No creditLimit: it is a credit reference now and is not drawn from the parent.
 						allowedDomains: input.allowedDomains,
-						creditLimit: input.creditLimit,
 						commissionRate: input.commissionRate,
 						shareRate: input.shareRate,
 					}
@@ -332,52 +368,12 @@ export function buildAgentsMutationResolvers() {
 				input.currency = whitelabelBaseCurrency;
 			}
 
-			// ENFORCE WHITELABEL CREDIT: Validate BEFORE creating agent to avoid orphaned agents if validation fails
-			const isRootAgent = !input.parentAgentId;
+			// A CREDIT agent no longer receives a limit at creation: nothing is allocated from its parent's credit or
+			// debited from the whitelabel pool. Its opening chips (if any) are a deposit from its own parent, or from the
+			// pool for a root agent, made on the creation transaction: a refused deposit (not enough chips, a parent
+			// that is not ACTIVE, a tenant with no pool) leaves no agent behind.
 			const isCreditAgent = input.schemeType === 'CREDIT';
-			
-			// Validate whitelabel credit BEFORE creating agent
-			if (isRootAgent && isCreditAgent && input.creditLimit) {
-				const isWhitelabel = tenantId && tenantId !== 'default';
-				if (isWhitelabel) {
-					const requestedCreditLimit = Number(input.creditLimit);
-					
-					// Validate credit limit is positive and finite
-					if (!Number.isFinite(requestedCreditLimit) || requestedCreditLimit <= 0) {
-						throw new Error(`Invalid credit limit: ${input.creditLimit}. Must be a positive number.`);
-					}
-
-					const { WhitelabelCreditService } = await import('@src/domains/common/services/WhitelabelCreditService.js');
-					const { WhitelabelCreditRepo } = await import('@src/repos/common/whitelabelCreditRepo.js');
-					const whitelabelCreditService = new WhitelabelCreditService(new WhitelabelCreditRepo());
-					
-					// Validate whitelabel exists
-					const whitelabelCredit = await whitelabelCreditService.getCreditAllocation(tenantId);
-					if (!whitelabelCredit) {
-						throw new Error(`Whitelabel not found: ${tenantId}`);
-					}
-					
-					// Validate whitelabel has enough credit available (BEFORE creating agent)
-					const hasCredit = await whitelabelCreditService.validateCreditAvailable(tenantId, requestedCreditLimit);
-					if (!hasCredit) {
-						throw new Error(
-							`Insufficient whitelabel credit. Available: ${whitelabelCredit.creditAvailable.toFixed(2)}, Requested: ${requestedCreditLimit.toFixed(2)}`
-						);
-					}
-				}
-			}
-
-			// A CREDIT sub-agent's limit at creation is allocated from its parent's credit.
-			// Checked before the insert so a parent without enough credit leaves no agent behind.
-			const requestedSubAgentCredit = !isRootAgent && isCreditAgent ? Number(input.creditLimit ?? 0) : 0;
-			if (requestedSubAgentCredit > 0) {
-				const parentCredit = await creditService.getCreditAllocation(input.parentAgentId);
-				if (requestedSubAgentCredit > parentCredit.creditAvailable) {
-					throw new Error(
-						`Insufficient credit available from parent agent. Available: ${parentCredit.creditAvailable}, Requested: ${requestedSubAgentCredit}`
-					);
-				}
-			}
+			const actor = creatorActorOf(ctx);
 
 			const passwordHash = await hashPassword(input.password);
 			const row = await agentsRepo.createAgent({
@@ -388,66 +384,50 @@ export function buildAgentsMutationResolvers() {
 				phone: input.phone ?? null,
 				parentAgentId: input.parentAgentId ?? null,
 				levelIndex: input.levelIndex ?? null,
-				tallyEnabled: Boolean(input.tallyEnabled),
+				// On only with a domain to tally (tallyIsOn); the flag alone is how commission is paid as off.
+				tallyEnabled: tallyIsOn(input.tallyEnabled, input.tallyDomains),
 				tallyDomains: input.tallyDomains ?? [],
 				username: usernameValidation.normalized!,
 				passwordHash,
 				currency: input.currency || whitelabelBaseCurrency,
+				creditLimit: isCreditAgent ? creditReference : null,
+				// The new agent's closure rows hold a foreign-key share lock on every ancestor, and the deposit then
+				// locks the parent FOR UPDATE. Two sub-agents created under one parent at the very same moment can
+				// therefore make Postgres abort one of the two with a deadlock error: nothing of it is kept, and it
+				// can simply be retried.
+				afterInsert:
+					isCreditAgent && openingChips > 0
+						? (tx, agentRow) =>
+								depositOpeningChipsInTx(
+									{ tenant: String(tenantId), accountType: 'AGENT', accountId: agentRow.id, amount: openingChips, actor },
+									tx
+								)
+						: undefined,
 			});
 
-			// Now that agent is created, deduct whitelabel credit and set credit limit in a transaction
-			if (isRootAgent && isCreditAgent && input.creditLimit) {
-				const isWhitelabel = tenantId && tenantId !== 'default';
-				if (isWhitelabel) {
-					const requestedCreditLimit = Number(input.creditLimit);
-					const { WhitelabelCreditService } = await import('@src/domains/common/services/WhitelabelCreditService.js');
-					const { WhitelabelCreditRepo } = await import('@src/repos/common/whitelabelCreditRepo.js');
-					const whitelabelCreditService = new WhitelabelCreditService(new WhitelabelCreditRepo());
-
-					// Use transaction to ensure atomicity
-					const { db } = await import('@/db/client.js');
-					await db.transaction(async (tx) => {
-						// Deduct from whitelabel credit (with row-level locking)
-						await whitelabelCreditService.deductCredit(
-							tenantId,
-							requestedCreditLimit,
-							`Root CREDIT agent created - Agent ID: ${row.id}, Credit Limit: ${requestedCreditLimit}`,
-							tx
-						);
-						
-						// Set agent credit limit directly (avoid calling adjustCreditLimit which would deduct whitelabel credit again)
-						await agentsRepo.lockAndUpdateCredit(row.id, {
-							creditLimit: requestedCreditLimit,
-							creditUsed: 0,
-							creditAvailable: requestedCreditLimit,
-						}, tx);
-					});
-				} else if (input.creditLimit) {
-					// For non-whitelabel tenants, just set the credit limit without whitelabel deduction
-					const { CreditService } = await import('@src/domains/agents/services/CreditService.js');
-					const creditService = new CreditService(agentsRepo);
-					await creditService.adjustCreditLimit(row.id, Number(input.creditLimit), 'Initial credit limit on agent creation');
-				}
-			}
-
-			if (requestedSubAgentCredit > 0) {
-				try {
-					await creditService.allocateCreditToSubAgent(
-						input.parentAgentId,
-						row.id,
-						requestedSubAgentCredit,
-						'Initial credit limit on agent creation',
-						{
-							createdBy: ctx?.user?.id || ctx?.user?.agentId,
-							createdByType: ctx?.user?.type === 'agent' ? 'agent' : 'admin',
-						}
-					);
-				} catch (err: any) {
-					throw new Error(
-						`Agent '${usernameValidation.normalized}' was created, but its credit limit could not be allocated: ${err?.message ?? err}. Set it from the agent's credit page.`
-					);
-				}
-			}
+			// The creation is audited like every other agent change (never the password). Its status also makes the
+			// creator the setter of the starting status (agentStatusGuard), so an agent that creates a sub-agent
+			// INACTIVE can activate it later, while one an admin created INACTIVE stays the admin's to lift.
+			await recordAuditDb({
+				tenant: String(tenantId),
+				actorId: auditActorOf(ctx),
+				domain: 'agents',
+				action: 'create_agent',
+				resourceType: 'agent',
+				resourceId: String(row.id),
+				before: null,
+				after: {
+					username: usernameValidation.normalized,
+					status: row.status,
+					schemeType: row.schemeType,
+					parentAgentId: row.parentAgentId ?? null,
+					levelIndex: row.levelIndex ?? null,
+					allowedDomains: row.allowedDomains,
+					tallyEnabled: row.tallyEnabled,
+					tallyDomains: row.tallyDomains,
+					...(isCreditAgent ? { creditReference, openingChips } : {}),
+				},
+			});
 
 			return row;
 		},
@@ -544,8 +524,14 @@ export function buildAgentsMutationResolvers() {
 			if (input.levelIndex !== undefined) {
 				updateInput.levelIndex = input.levelIndex;
 			}
-			if (input.tallyEnabled !== undefined) {
-				updateInput.tallyEnabled = input.tallyEnabled;
+			if (input.tallyEnabled !== undefined || input.tallyDomains !== undefined) {
+				// The tally is on only with a domain left to tally, after any narrowing below (tallyIsOn).
+				const enabled = input.tallyEnabled !== undefined ? input.tallyEnabled : agent.tallyEnabled;
+				const domains = (input.tallyDomains !== undefined ? input.tallyDomains : agent.tallyDomains) ?? [];
+				updateInput.tallyEnabled = tallyIsOn(
+					enabled,
+					(domains as string[]).filter((d) => !narrowedDomains.includes(d))
+				);
 			}
 			if (input.tallyDomains !== undefined) {
 				updateInput.tallyDomains = input.tallyDomains;
@@ -573,7 +559,7 @@ export function buildAgentsMutationResolvers() {
 			const tenant = directorTenant ?? (ctx?.tenant || agent.tenantId || 'default');
 			await recordAuditDb({
 				tenant,
-				actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
+				actorId: auditActorOf(ctx),
 				domain: 'agents',
 				action: 'update_agent',
 				resourceType: 'agent',
@@ -617,8 +603,43 @@ export function buildAgentsMutationResolvers() {
 			if (!usernameValidation.valid) {
 				throw new Error(usernameValidation.message ?? 'Invalid username');
 			}
-			const passwordHash = await hashPassword(input.password);
+			// The same rules as changeAgentPassword and adminResetAgentPassword. Without them an agent token (or an
+			// admin session) could re-key an account for good: any password ('' locked the agent out), no proof of
+			// who is asking, the old sessions left running and nothing in the audit log.
+			const { z } = await import('zod');
+			const p = z.object({
+				password: z
+					.string()
+					.min(6, 'Password must be at least 6 characters')
+					.refine((value) => value.trim() !== '', 'Password cannot be blank'),
+				currentPassword: z.string().min(1, 'Your current password is required to change credentials'),
+			}).safeParse({ password: input.password ?? '', currentPassword: input.currentPassword ?? '' });
+			if (!p.success) {
+				throw new Error(p.error.issues.map((e) => e.message).join(', '));
+			}
+			// Confirmed with the caller's own login password: an agent changing its own credentials gives its current
+			// one, a parent agent or an admin gives theirs (as adminResetAgentPassword's adminPassword).
+			if (!(await callerPasswordMatches(ctx, p.data.currentPassword))) {
+				throw new Error('Current password is incorrect. Enter your own login password to confirm the change.');
+			}
+			const passwordHash = await hashPassword(p.data.password);
 			await agentsRepo.setCredentials(input.agentId, usernameValidation.normalized!, passwordHash);
+			// End every existing session of the agent, as adminResetAgentPassword does.
+			await agentsRepo.incrementTokenVersion(input.agentId);
+			await recordAuditDb({
+				tenant: String(callerTenant),
+				actorId: auditActorOf(ctx),
+				domain: 'agents.security',
+				action: 'set_agent_credentials',
+				resourceType: 'agent',
+				resourceId: String(input.agentId),
+				before: { username: agent.username ?? null },
+				after: {
+					username: usernameValidation.normalized,
+					passwordChanged: true,
+					setBy: ctx?.user?.type === 'agent' ? (String(ctx?.user?.agentId) === String(input.agentId) ? 'self' : 'agent') : 'admin',
+				},
+			});
 			return true;
 		},
 		setCommissionConfig: async (_: any, { input }: any, ctx: any) => {
@@ -693,6 +714,11 @@ export function buildAgentsMutationResolvers() {
 				effectiveToInput: input.effectiveTo,
 				ctx,
 			});
+			// Re-saving the rate in force inserts nothing: the row already in force is returned.
+			if (commissionDates.redundant) {
+				const inForce = await configsRepo.getCommissionConfig(input.agentId, input.domain, commissionDates.effectiveFrom);
+				if (inForce) return inForce;
+			}
 
 			return configsRepo.setCommissionConfig({
 				agentId: input.agentId,
@@ -754,6 +780,11 @@ export function buildAgentsMutationResolvers() {
 				effectiveToInput: input.effectiveTo,
 				ctx,
 			});
+			// Re-saving the rate in force inserts nothing: the row already in force is returned.
+			if (sharingDates.redundant) {
+				const inForce = await configsRepo.getSharingConfig(input.agentId, input.domain, sharingDates.effectiveFrom);
+				if (inForce) return inForce;
+			}
 
 			return configsRepo.setSharingConfig({
 				agentId: input.agentId,
@@ -773,6 +804,9 @@ export function buildAgentsMutationResolvers() {
 				throw new Error('Agent not found');
 			}
 			ensureDirectChildForAgent(ctx, settleTarget, 'settle');
+			// A CREDIT agent settles by a Deposit or Withdraw of its Ref P/L now (spec 2026-11-02 §6); SHARING
+			// keeps this path.
+			if (settleTarget.schemeType === 'CREDIT') refuseCreditLimitModel();
 			// Block commission agents from accessing settlement operations
 			// Settlements for commission agents should be handled via commission payouts
 			if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) {
@@ -990,591 +1024,6 @@ export function buildAgentsMutationResolvers() {
 		},
 
 		// Hierarchy management mutations
-		adjustSubAgentCredit: async (_: any, { agentId, creditLimit }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// An agent may adjust a sub-agent's limit at any depth, never its own:
-			// canManageAgent, used here before, returns true for SELF, so a CREDIT agent
-			// could raise its own limit. See services/agentSubtree.ts.
-			await ensureAgentMayActOn(ctx, agentId, { allowSelf: false, action: 'adjust a credit limit' });
-
-			// CR-11: enforce target agent belongs to caller's tenant
-			const callerDirectorTenant = getEffectiveTenantForDirector(ctx)
-			const callerTenant = callerDirectorTenant ?? (ctx?.tenant || ctx?.whitelabel?.id);
-			if (!callerTenant) {
-				throw new Error('Tenant ID is required. Please ensure you are authenticated.');
-			}
-			// Implement credit limit adjustment
-			const agent = await agentsRepo.findByIdScoped(agentId, callerTenant);
-			if (!agent) {
-				throw new Error('Forbidden');
-			}
-
-			// Store parentAgentId before operations to avoid stale data issues
-			const agentParentId = agent.parentAgentId;
-
-			// Validate CREDIT agent only - credit operations are not available for SHARING agents
-			if (agent.schemeType !== 'CREDIT') {
-				throw new Error('Credit operations are only available for CREDIT scheme agents');
-			}
-
-			// Validate credit limit
-			if (creditLimit < 0) {
-				throw new Error('Credit limit cannot be negative');
-			}
-
-			// Get current credit to validate against used credit
-			const currentCredit = await creditService.getCreditAllocation(agentId);
-			
-			// Validate that new limit is not less than current used credit
-			if (creditLimit < currentCredit.creditUsed) {
-				throw new Error(
-					`Credit limit cannot be less than current used credit (${currentCredit.creditUsed})`
-				);
-			}
-
-			// If agent has a parent, validate against parent's available credit
-			let parentCreditBefore: any = null;
-			const creditDelta = creditLimit - currentCredit.creditLimit;
-			
-			if (agentParentId) {
-				parentCreditBefore = await creditService.getCreditAllocation(agentParentId);
-				
-				if (creditDelta > 0 && creditDelta > parentCreditBefore.creditAvailable) {
-					throw new Error(
-						`Insufficient credit available from parent. Available: ${parentCreditBefore.creditAvailable}, Requested: ${creditDelta}`
-					);
-				}
-
-				// Adjust credit allocation only if there's a change. The service writes the
-				// parent's ALLOCATION / RELEASE credit-ledger row inside its transaction.
-				const creditActor = {
-					createdBy: ctx?.user?.id || ctx?.user?.agentId,
-					createdByType: (ctx?.user?.type === 'agent' ? 'agent' : 'admin') as 'agent' | 'admin',
-				};
-				if (creditDelta > 0) {
-					await creditService.allocateCreditToSubAgent(
-						agentParentId,
-						agentId,
-						creditDelta,
-						`Allocated credit to sub-agent ${agentId}`,
-						creditActor
-					);
-				} else if (creditDelta < 0) {
-					await creditService.releaseCreditFromSubAgent(
-						agentParentId,
-						agentId,
-						Math.abs(creditDelta),
-						`Released credit from sub-agent ${agentId}`,
-						creditActor
-					);
-				} else {
-					// creditDelta === 0, no change needed
-					// Return early since no update was made
-					const updatedAgent = await agentsRepo.findById(agentId);
-					if (!updatedAgent) {
-						throw new Error('Agent not found');
-					}
-					return {
-						success: true,
-						message: 'Credit limit unchanged (no update needed)',
-						agent: updatedAgent,
-					};
-				}
-			} else {
-				// Root agent - just adjust the limit directly
-				// Check if limit actually changed to avoid unnecessary updates
-				if (creditLimit === currentCredit.creditLimit) {
-					// No change needed
-					const updatedAgent = await agentsRepo.findById(agentId);
-					if (!updatedAgent) {
-						throw new Error('Agent not found');
-					}
-					return {
-						success: true,
-						message: 'Credit limit unchanged (no update needed)',
-						agent: updatedAgent,
-					};
-				}
-				// adjustCreditLimit already creates an audit log, so we don't need to create another one
-				await creditService.adjustCreditLimit(agentId, creditLimit, 'Credit limit adjustment', {
-					createdBy: ctx?.user?.id || ctx?.user?.agentId,
-					createdByType: ctx?.user?.type === 'agent' ? 'agent' : 'admin',
-				});
-			}
-
-			// Log the change for sub-agents only (root agents are already logged by adjustCreditLimit)
-			// CRITICAL: For Director Admin, use effective tenant based on mode
-			// Use agentParentId (stored before operations) to avoid stale data
-			const directorTenant = getEffectiveTenantForDirector(ctx)
-			const tenant = directorTenant ?? (ctx?.tenant || agent.tenantId || 'default');
-			
-			if (agentParentId) {
-				await recordAuditDb({
-					tenant,
-					actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
-					domain: 'agents',
-					action: 'adjust_credit_limit',
-					resourceType: 'agent',
-					resourceId: agentId,
-					before: { creditLimit: currentCredit.creditLimit },
-					after: { creditLimit },
-				});
-			}
-
-			// Create credit ledger transactions for sub-agents (root agents are handled by adjustCreditLimit)
-			if (agentParentId) {
-				try {
-					const { AgentCreditLedgerRepo } = await import('@/repos/agents/AgentCreditLedgerRepo.js');
-					const creditLedgerRepo = new AgentCreditLedgerRepo();
-					
-					// Get currency from app config
-					const { getAppConfigDb } = await import('@src/repos/app-config/appConfigRepo.js');
-					const appConfig = await getAppConfigDb(tenant);
-					const currency = appConfig?.baseCurrency || appConfig?.currency || 'INR';
-					
-					// Get updated credit allocations AFTER the operations
-					const updatedCredit = await creditService.getCreditAllocation(agentId);
-
-					// Convert userId to UUID format if needed
-					let createdByUuid: string | null = null;
-					const userId = ctx?.user?.id || ctx?.user?.agentId || null;
-					if (userId) {
-						const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-						if (uuidRegex.test(userId)) {
-							createdByUuid = userId;
-						}
-					}
-					
-					// Create transaction for sub-agent (CREDIT_LIMIT_ADJUSTMENT)
-					await creditLedgerRepo.recordTransaction({
-						tenantId: tenant,
-						fromEntityType: 'agent',
-						fromEntityId: agentParentId,
-						toEntityType: 'agent',
-						toEntityId: agentId,
-						transactionType: 'CREDIT_LIMIT_ADJUSTMENT',
-						amount: Math.abs(creditDelta),
-						currency,
-						balanceBefore: currentCredit.creditLimit,
-						balanceAfter: updatedCredit.creditLimit,
-						reason: `Credit limit adjustment by ${ctx?.user?.type === 'agent' ? 'agent' : 'admin'}`,
-						createdBy: createdByUuid ?? undefined,
-						createdByType: ctx?.user?.type === 'agent' ? 'agent' : 'admin',
-						metadata: {
-							adjustmentType: 'LIMIT_CHANGE',
-							previousLimit: currentCredit.creditLimit,
-							newLimit: creditLimit,
-							parentAgentId: agentParentId,
-						},
-					});
-					
-					// The parent's ALLOCATION / RELEASE row is written by
-					// allocateCreditToSubAgent / releaseCreditFromSubAgent inside their
-					// transaction (balances from the locked parent row), so every caller of
-					// those services gets it, not only this mutation.
-				} catch (err) {
-					// Don't fail the mutation if transaction logging fails
-				}
-			}
-
-			// Get updated credit allocation
-			const updatedCredit = await creditService.getCreditAllocation(agentId);
-
-			// Publish subscription event for the sub-agent
-			if (ctx?.pubsub && typeof ctx.pubsub.publish === 'function') {
-				try {
-					const topic = `AGENT_CREDIT_${agentId}`;
-					const publishResult = ctx.pubsub.publish({
-						topic,
-						payload: { agentCreditUpdated: updatedCredit },
-					});
-					if (publishResult && typeof publishResult.catch === 'function') {
-						publishResult.catch((err: Error) => {
-							// Ignore EOF errors (stream already closed)
-							if (err?.message?.includes('EOF') || err?.message?.includes('stream.push')) {
-								return;
-							}
-						});
-					}
-				} catch (err: any) {
-					// Ignore EOF errors (stream already closed)
-					if (err?.message?.includes('EOF') || err?.message?.includes('stream.push')) {
-						// Ignore
-					} else {
-					}
-				}
-			}
-
-			// If this is a sub-agent, also publish subscription for parent agent (parent's credit also changed)
-			// Use agentParentId (stored before operations) to avoid stale data
-			if (agentParentId && ctx?.pubsub && typeof ctx.pubsub.publish === 'function') {
-				try {
-					const parentCredit = await creditService.getCreditAllocation(agentParentId);
-					const parentTopic = `AGENT_CREDIT_${agentParentId}`;
-					const publishResult = ctx.pubsub.publish({
-						topic: parentTopic,
-						payload: { agentCreditUpdated: parentCredit },
-					});
-					if (publishResult && typeof publishResult.catch === 'function') {
-						publishResult.catch((err: Error) => {
-							// Ignore EOF errors (stream already closed)
-							if (err?.message?.includes('EOF') || err?.message?.includes('stream.push')) {
-								return;
-							}
-						});
-					}
-				} catch (err: any) {
-					// Ignore EOF errors (stream already closed)
-					if (err?.message?.includes('EOF') || err?.message?.includes('stream.push')) {
-						// Ignore
-					} else {
-					}
-					// Don't fail the mutation if parent subscription fails
-				}
-			}
-
-			const updatedAgent = await agentsRepo.findById(agentId);
-			if (!updatedAgent) {
-				throw new Error('Agent not found after credit update');
-			}
-			return {
-				success: true,
-				message: 'Credit limit adjusted successfully',
-				agent: updatedAgent,
-			};
-		},
-
-		adjustAgentCredit: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// The agent model authorises downward. Without this, an agent could name
-			// its own parent or a sibling here. See services/agentSubtree.ts.
-			await ensureAgentMayActOn(ctx, input.agentId, { allowSelf: false, action: 'adjust credit' });
-			// CRITICAL: For Director Admin, use effective tenant based on mode
-			const directorTenant = getEffectiveTenantForDirector(ctx)
-			const tenant = directorTenant ?? (ctx?.tenant || 'default');
-			const userId = ctx?.user?.id || ctx?.user?.agentId || 'system';
-
-			// Validate input
-			if (!input.agentId || !input.adjustmentType || !input.amount) {
-				return {
-					success: false,
-					message: 'Missing required fields: agentId, adjustmentType, and amount are required',
-					adjustment: null,
-				};
-			}
-
-			// Provide default notes if not provided or empty
-			const notes = input.notes?.trim() || `Credit ${input.adjustmentType === 'INCREASE' ? 'increased' : input.adjustmentType === 'DECREASE' ? 'decreased' : 'adjusted'} by ${input.amount}`;
-
-			if (input.amount <= 0) {
-				return {
-					success: false,
-					message: 'Adjustment amount must be greater than 0',
-					adjustment: null,
-				};
-			}
-
-			// Prevent sharing agents from adjusting agent credit
-			if (ctx?.user?.type === 'agent' && ctx?.user?.agentId) {
-				const { AgentsRepo } = await import('@/repos/agents/AgentsRepo.js')
-				const agentsRepo = new AgentsRepo()
-				const loggedInAgent = await agentsRepo.findById(ctx.user.agentId)
-				if (loggedInAgent?.schemeType === 'SHARING') {
-					return {
-						success: false,
-						message: 'Sharing agents cannot adjust credit',
-						adjustment: null,
-					}
-				}
-			}
-
-			// Verify agent exists, is CREDIT type, and belongs to caller's tenant (CR-11)
-			const agent = await agentsRepo.findByIdScoped(input.agentId, tenant);
-			if (!agent) {
-				return {
-					success: false,
-					message: 'Forbidden',
-					adjustment: null,
-				};
-			}
-
-			if (agent.schemeType !== 'CREDIT') {
-				return {
-					success: false,
-					message: 'Only CREDIT agents can have credit adjustments',
-					adjustment: null,
-				};
-			}
-
-			// Store parentAgentId before operations to avoid stale data issues
-			const agentParentId = agent.parentAgentId;
-
-			// Get current credit values
-			const creditData = await creditService.getCreditAllocation(input.agentId);
-			const previousLimit = creditData.creditLimit;
-			const previousUsed = creditData.creditUsed;
-
-			let newLimit = previousLimit;
-			let newUsed = previousUsed;
-
-			// Apply adjustment with validation
-			if (input.adjustmentType === 'INCREASE') {
-				// MONEY-CRITICAL (CR-9 family): validate-and-write under the FOR UPDATE lock.
-				// A positive creditUsedDelta consumes availability; the lock guarantees the
-				// availability decision and the written value come from the same locked row,
-				// closing the read-check-write race that the prior getCreditAllocation +
-				// updateCreditBalance pair was exposed to.
-				const { db: dbInc } = await import('@/db/client.js');
-				try {
-					const result = await dbInc.transaction(async (tx: any) => {
-						return await agentsRepo.lockAndUpdateCredit(input.agentId, {
-							creditUsedDelta: input.amount,
-							requireAvailableForDelta: true,
-						}, tx);
-					});
-					newLimit = result.creditLimit;
-					newUsed = result.creditUsed;
-				} catch (err: any) {
-					return {
-						success: false,
-						message: `Increasing credit by ${input.amount} would exceed the credit limit of ${previousLimit}. Maximum increase allowed: ${Math.max(0, previousLimit - previousUsed)}`,
-						adjustment: null,
-					};
-				}
-			} else if (input.adjustmentType === 'DECREASE') {
-				// Lowering an agent's credit_used frees credit out of nothing (no limit is
-				// released back to anyone), so it is an admin correction, not an agent action.
-				if (ctx?.user?.type === 'agent') {
-					return {
-						success: false,
-						message: 'Only an administrator can decrease an agent\'s used credit',
-						adjustment: null,
-					};
-				}
-				// Validate that decrease amount doesn't exceed current used before calculating
-				// (friendly pre-check; the authoritative release is performed under the lock below)
-				if (input.amount > previousUsed) {
-					return {
-						success: false,
-						message: `Decrease amount cannot be greater than current used credit (${previousUsed})`,
-						adjustment: null,
-					};
-				}
-				// MONEY-CRITICAL: release used credit via a negative delta derived from the
-				// FOR-UPDATE-locked row (cannot over-allocate; race-free).
-				const { db: dbDec } = await import('@/db/client.js');
-				const result = await dbDec.transaction(async (tx: any) => {
-					return await agentsRepo.lockAndUpdateCredit(input.agentId, {
-						creditUsedDelta: -input.amount,
-					}, tx);
-				});
-				newLimit = result.creditLimit;
-				newUsed = Math.max(0, result.creditUsed);
-			} else if (input.adjustmentType === 'LIMIT_CHANGE') {
-				// Validate that new limit is not less than current used credit
-				if (input.amount < previousUsed) {
-					return {
-						success: false,
-						message: `Credit limit cannot be less than current used credit (${previousUsed})`,
-						adjustment: null,
-					};
-				}
-				newLimit = input.amount;
-				
-				// Check if limit actually changed to avoid unnecessary updates
-				const limitDelta = newLimit - previousLimit;
-				if (limitDelta === 0) {
-					// No change needed, return early
-					return {
-						success: true,
-						message: 'Credit limit unchanged (no update needed)',
-						adjustment: {
-							id: `adj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-							agentId: input.agentId,
-							adjustmentType: input.adjustmentType,
-							amount: input.amount,
-							previousLimit,
-							newLimit,
-							previousUsed,
-							newUsed,
-							notes: notes,
-							createdAt: new Date().toISOString(),
-						},
-					};
-				}
-				
-				// If agent has a parent, validate against parent's available credit before updating
-				// Use agentParentId (stored before operations) to avoid stale data
-				if (agentParentId) {
-					const parentCredit = await creditService.getCreditAllocation(agentParentId);
-					
-					if (limitDelta > 0 && limitDelta > parentCredit.creditAvailable) {
-						return {
-							success: false,
-							message: `Insufficient credit available from parent. Available: ${parentCredit.creditAvailable}, Requested: ${limitDelta}`,
-							adjustment: null,
-						};
-					}
-					
-					const creditActor = {
-						createdBy: ctx?.user?.id || ctx?.user?.agentId,
-						createdByType: (ctx?.user?.type === 'agent' ? 'agent' : 'admin') as 'agent' | 'admin',
-					};
-					if (limitDelta > 0) {
-						// Increase: allocate credit from parent (writes the parent's ALLOCATION row)
-						await creditService.allocateCreditToSubAgent(
-							agentParentId,
-							input.agentId,
-							limitDelta,
-							'Credit limit adjustment via adjustAgentCredit',
-							creditActor
-						);
-					} else {
-						// Decrease: release credit back to parent (limitDelta < 0; writes the RELEASE row)
-						await creditService.releaseCreditFromSubAgent(
-							agentParentId,
-							input.agentId,
-							Math.abs(limitDelta),
-							'Credit limit adjustment via adjustAgentCredit',
-							creditActor
-						);
-					}
-				} else {
-					// Root agent - just update directly (the whitelabel pool moves with it)
-					await creditService.adjustCreditLimit(input.agentId, newLimit, 'Credit limit adjustment via adjustAgentCredit', {
-						createdBy: ctx?.user?.id || ctx?.user?.agentId,
-						createdByType: ctx?.user?.type === 'agent' ? 'agent' : 'admin',
-					});
-				}
-
-				// Create notification for significant credit limit increases (LIMIT_CHANGE with increase)
-				if (limitDelta > 0) {
-					const increasePercent = previousLimit > 0 ? (limitDelta / previousLimit) * 100 : 100;
-					// Notify for increases >= 10% or >= 10000 INR
-					if (increasePercent >= 10 || limitDelta >= 10000) {
-						try {
-							const whitelabelId = directorTenant ?? tenant;
-							const { getWhitelabelCurrency, getCurrencySymbol } = await import('@src/shared/whitelabelConfig.js');
-							const currency = await getWhitelabelCurrency(whitelabelId);
-							const sym = getCurrencySymbol(currency);
-							const { NotificationsRepo } = await import('@/repos/notifications/notificationsRepo.js');
-							const { NotificationService } = await import('@/domains/notifications/services/NotificationService.js');
-							const notificationsRepo = new NotificationsRepo();
-							const notificationService = new NotificationService(notificationsRepo);
-							const formattedAmount = limitDelta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-							const formattedNewLimit = newLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-							await notificationService.createNotification(
-								{
-									tenant,
-									whitelabelId: whitelabelId || tenant,
-									agentId: input.agentId,
-									type: 'AGENT',
-									category: 'task',
-									title: 'Agent credit limit increased',
-									message: `Agent credit limit increased by ${sym}${formattedAmount} to ${sym}${formattedNewLimit}.${notes ? ` Notes: ${notes}` : ''}`,
-									actionUrl: `/agents/${input.agentId}/credit`,
-									metadata: { agentId: input.agentId, previousLimit, newLimit, limitDelta, notes: notes || null },
-								},
-								ctx?.pubsub
-							);
-						} catch (err: any) {
-						}
-					}
-				}
-			}
-
-			// NOTE: INCREASE/DECREASE now perform their balance write under the FOR UPDATE lock
-			// (see above), and LIMIT_CHANGE is handled in its own branch. No separate
-			// non-transactional updateCreditBalance is needed here anymore (CR-9 race fix).
-
-			// Credit alerts (plan W7): INCREASE/DECREASE moved credit_used directly; the
-			// LIMIT_CHANGE services run the check themselves. Best-effort, never throws.
-			if (input.adjustmentType === 'INCREASE' || input.adjustmentType === 'DECREASE') {
-				await creditService.checkCreditAlerts(input.agentId);
-			}
-
-			// Create adjustment record (we'll need to create a repo for this, similar to PlayerCreditAdjustmentsRepo)
-			// For now, we'll just log it in audit
-			const adjustmentId = `adj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-			// Log audit event
-			// For LIMIT_CHANGE on root agents, adjustCreditLimit already creates an audit log, so skip to avoid duplicate
-			// For LIMIT_CHANGE on sub-agents, we need to log the user action (adjustCreditLimit doesn't log for sub-agents)
-			// For INCREASE/DECREASE, always log the user action
-			if (!(input.adjustmentType === 'LIMIT_CHANGE' && !agentParentId)) {
-				await recordAuditDb({
-					tenant,
-					actorId: userId,
-					domain: 'agents',
-					action: 'adjust_agent_credit',
-					resourceType: 'agent',
-					resourceId: input.agentId,
-					before: { creditLimit: previousLimit, creditUsed: previousUsed },
-					after: { creditLimit: newLimit, creditUsed: newUsed, creditAvailable: Math.max(0, newLimit - newUsed) },
-				});
-			}
-
-			// Get updated credit allocation
-			const updatedCredit = await creditService.getCreditAllocation(input.agentId);
-
-			// Publish subscription event for the agent
-			if (ctx?.pubsub) {
-				try {
-					const topic = `AGENT_CREDIT_${input.agentId}`;
-					const publishResult = ctx.pubsub.publish({
-						topic,
-						payload: { agentCreditUpdated: updatedCredit },
-					});
-					
-					// Check if publish returns a Promise before calling .catch()
-					if (publishResult && typeof publishResult.then === 'function') {
-						publishResult.catch((err: Error) => {
-						});
-					}
-				} catch (err: any) {
-					// Don't fail mutation if subscription fails
-				}
-			}
-
-			// If this is a sub-agent and LIMIT_CHANGE was used, also publish subscription for parent agent
-			// Use agentParentId (stored before operations) to avoid stale data
-			if (input.adjustmentType === 'LIMIT_CHANGE' && agentParentId && ctx?.pubsub) {
-				try {
-					const parentCredit = await creditService.getCreditAllocation(agentParentId);
-					const parentTopic = `AGENT_CREDIT_${agentParentId}`;
-					const publishResult = ctx.pubsub.publish({
-						topic: parentTopic,
-						payload: { agentCreditUpdated: parentCredit },
-					});
-					
-					// Check if publish returns a Promise before calling .catch()
-					if (publishResult && typeof publishResult.then === 'function') {
-						publishResult.catch((err: Error) => {
-						});
-					}
-				} catch (err) {
-					// Don't fail the mutation if parent subscription fails
-				}
-			}
-
-			return {
-				success: true,
-				message: 'Credit adjusted successfully',
-				adjustment: {
-					id: adjustmentId,
-					agentId: input.agentId,
-					adjustmentType: input.adjustmentType,
-					amount: input.amount,
-					previousLimit,
-					newLimit,
-					previousUsed,
-					newUsed,
-					notes: notes,
-					createdAt: new Date().toISOString(),
-				},
-			};
-		},
-
 		updateAgentStatus: async (_: any, { agentId, status }: { agentId: string; status: string }, ctx: any) => {
 			ensureAgentCanMutate(ctx);
 			// Validate status value (BLOCKED removed; only Active, Inactive, Suspended allowed)
@@ -1619,7 +1068,7 @@ export function buildAgentsMutationResolvers() {
 			const tenant = directorTenant ?? (ctx?.tenant || agent.tenantId || 'default');
 			await recordAuditDb({
 				tenant,
-				actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
+				actorId: auditActorOf(ctx),
 				domain: 'agents',
 				action: 'update_agent_status',
 				resourceType: 'agent',
@@ -1661,7 +1110,7 @@ export function buildAgentsMutationResolvers() {
 			const tenant = ctx?.tenant || updatedAgent.tenantId || 'default';
 			await recordAuditDb({
 				tenant,
-				actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
+				actorId: auditActorOf(ctx),
 				domain: 'agents',
 				action: 'suspend_agent',
 				resourceType: 'agent',
@@ -1704,7 +1153,7 @@ export function buildAgentsMutationResolvers() {
 			const tenant = ctx?.tenant || updatedAgent.tenantId || 'default';
 			await recordAuditDb({
 				tenant,
-				actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
+				actorId: auditActorOf(ctx),
 				domain: 'agents',
 				action: 'block_agent',
 				resourceType: 'agent',
@@ -1714,361 +1163,6 @@ export function buildAgentsMutationResolvers() {
 			});
 
 			return updatedAgent;
-		},
-
-		allocateCreditToPlayer: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// The agent model authorises downward. Without this, an agent could name
-			// its own parent or a sibling here. See services/agentSubtree.ts.
-			await ensureAgentMayActOn(ctx, input.agentId, { allowSelf: true, action: 'allocate credit' });
-			const agent = await agentsRepo.findByIdScoped(input.agentId, requireCallerTenant(ctx));
-			if (!agent) {
-				throw new Error('Agent not found');
-			}
-
-			// Validate CREDIT agent only - credit operations are not available for SHARING agents
-			if (agent.schemeType !== 'CREDIT') {
-				throw new Error('Credit allocation is only available for CREDIT scheme agents');
-			}
-
-			// Check authorization
-			if (ctx?.user?.type === 'agent' && ctx?.user?.agentId !== input.agentId) {
-				throw new Error('Unauthorized: You can only allocate credit from your own account');
-			}
-
-			await creditService.allocateCreditToPlayer(
-				input.agentId,
-				parseInt(input.playerId),
-				input.amount,
-				input.reason
-			);
-
-			const { AgentPlayerCreditsRepo } = await import('../../../repos/agents/AgentPlayerCreditsRepo');
-			const playerCreditsRepo = new AgentPlayerCreditsRepo();
-			const summary = await playerCreditsRepo.getPlayerCreditSummary(input.agentId, parseInt(input.playerId));
-			
-			if (!summary) {
-				throw new Error('Player credit summary not found');
-			}
-
-			return {
-				playerId: summary.playerId.toString(),
-				playerName: summary.playerName,
-				creditLimit: summary.creditLimit,
-				currentBalance: summary.currentBalance,
-				openExposure: summary.openExposure,
-				creditUsed: summary.creditUsed,
-				creditAvailable: summary.creditAvailable,
-			};
-		},
-
-		depositCredit: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// The agent model authorises downward. Without this, an agent could name
-			// its own parent or a sibling here. See services/agentSubtree.ts.
-			await ensureAgentMayActOn(ctx, input.agentId, { allowSelf: true, action: 'deposit credit' });
-			const agent = await agentsRepo.findByIdScoped(input.agentId, requireCallerTenant(ctx));
-			if (!agent) {
-				throw new Error('Agent not found');
-			}
-
-			// Validate CREDIT agent only - credit operations are not available for SHARING agents
-			if (agent.schemeType !== 'CREDIT') {
-				throw new Error('Credit operations are only available for CREDIT scheme agents');
-			}
-
-			// Check authorization
-			if (ctx?.user?.type === 'agent' && ctx?.user?.agentId !== input.agentId) {
-				throw new Error('Unauthorized: You can only deposit credit from your own account');
-			}
-
-			const result = await creditService.depositCredit(
-				input.agentId,
-				input.targetEntityType,
-				input.targetEntityId,
-				input.amount,
-				input.reason
-			);
-
-			return result;
-		},
-
-		withdrawCredit: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// The agent model authorises downward. Without this, an agent could name
-			// its own parent or a sibling here. See services/agentSubtree.ts.
-			await ensureAgentMayActOn(ctx, input.agentId, { allowSelf: true, action: 'withdraw credit' });
-			const agent = await agentsRepo.findByIdScoped(input.agentId, requireCallerTenant(ctx));
-			if (!agent) {
-				throw new Error('Agent not found');
-			}
-
-			// Validate CREDIT agent only - credit operations are not available for SHARING agents
-			if (agent.schemeType !== 'CREDIT') {
-				throw new Error('Credit operations are only available for CREDIT scheme agents');
-			}
-
-			// Check authorization
-			if (ctx?.user?.type === 'agent' && ctx?.user?.agentId !== input.agentId) {
-				throw new Error('Unauthorized: You can only withdraw credit from your own account');
-			}
-
-			const result = await creditService.withdrawCredit(
-				input.agentId,
-				input.targetEntityType,
-				input.targetEntityId,
-				input.amount,
-				input.reason
-			);
-
-			return result;
-		},
-
-		transferCredit: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// Check authorization
-			if (ctx?.user?.type === 'agent' && ctx?.user?.agentId !== input.parentAgentId) {
-				throw new Error('Unauthorized: You can only transfer credit between your own sub-agents');
-			}
-
-			// Validate parent agent is CREDIT and in the caller's tenant (CreditService
-			// then requires both sub-agents to be its direct children).
-			const parentAgent = await agentsRepo.findByIdScoped(input.parentAgentId, requireCallerTenant(ctx));
-			if (!parentAgent) {
-				throw new Error('Parent agent not found');
-			}
-			if (parentAgent.schemeType !== 'CREDIT') {
-				throw new Error('Credit operations are only available for CREDIT scheme agents');
-			}
-
-			await creditService.transferCredit(
-				input.parentAgentId,
-				input.fromSubAgentId,
-				input.toSubAgentId,
-				input.amount,
-				input.reason
-			);
-
-			return true;
-		},
-
-		settleSharingAgent: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// Legacy (no admin UI calls it). Scoped to the caller's tenant, and an agent
-			// may settle only a DIRECT child, never itself. See services/agentSubtree.ts.
-			const agent = await agentsRepo.findByIdScoped(input.agentId, requireCallerTenant(ctx));
-			if (!agent) {
-				throw new Error('Agent not found');
-			}
-			ensureDirectChildForAgent(ctx, agent, 'settle');
-
-			// Validate CREDIT agent only - credit operations are not available for SHARING agents
-			if (agent.schemeType !== 'CREDIT') {
-				throw new Error('Settlement with credit release is only available for CREDIT scheme agents');
-			}
-
-			const periodFrom = new Date(input.periodFrom);
-			const periodTo = new Date(input.periodTo);
-
-			// Run settlement
-			const settlement = await settlementService.settle({
-				pubsub: ctx?.pubsub,
-				agentId: input.agentId,
-				from: periodFrom,
-				to: periodTo,
-				currency: 'INR',
-				postedBy: ctx?.user?.id || ctx?.user?.agentId || null,
-			});
-
-			// If resetPlayerBalances is true, reset player balances to zero
-			if (input.resetPlayerBalances) {
-				const { AgentPlayerCreditsRepo } = await import('../../../repos/agents/AgentPlayerCreditsRepo');
-				const playerCreditsRepo = new AgentPlayerCreditsRepo();
-				const playerCredits = await playerCreditsRepo.listAgentPlayers(input.agentId);
-
-				for (const pc of playerCredits) {
-					await playerCreditsRepo.updatePlayerCredit({
-						id: pc.id,
-						currentBalance: 0,
-					});
-				}
-			}
-
-			return settlement;
-		},
-		applyCreditReconciliation: async (_: any, { agentId }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// An agent may reconcile its sub-agents, never itself (rewriting your own
-			// credit_used is the escalation); admins are bound to their tenant.
-			await ensureAgentMayActOn(ctx, agentId, { allowSelf: false, action: 'reconcile credit' });
-			const agent = await agentsRepo.findByIdScoped(agentId, requireCallerTenant(ctx));
-			if (!agent) {
-				throw new Error('Agent not found');
-			}
-
-			// Validate CREDIT agent only - credit operations are not available for SHARING agents
-			if (agent.schemeType !== 'CREDIT') {
-				throw new Error('Credit reconciliation is only available for CREDIT scheme agents');
-			}
-
-			const { CreditCalculationRepo } = await import('../../../repos/agents/CreditCalculationRepo');
-			// CRITICAL: For Director Admin, use effective tenant based on mode
-			const directorTenant = getEffectiveTenantForDirector(ctx)
-			const tenant = directorTenant ?? (ctx?.tenant || agent.tenantId || 'default');
-			const calcRepo = new CreditCalculationRepo(agentsRepo);
-
-			// Preview reconciliation to get calculated values
-			const preview = await calcRepo.recalculateCreditUsedForAgent(agentId, tenant);
-
-			// Apply reconciliation for each affected player first (credit_used = open exposure,
-			// recomputed under each player's row lock), then for the agent:
-			// credit_used = Σ child agents' limits + Σ direct players' limits, recomputed under
-			// the agent's row lock (plan W7). Player exposure is not part of the agent's figure.
-			for (const player of preview.affectedPlayers) {
-				await calcRepo.applyRecalculationForPlayer(player.playerId, tenant);
-			}
-			const applied = await calcRepo.applyRecalculationForAgent(agentId);
-			await creditService.checkCreditAlerts(agentId);
-
-			// Log audit
-			const { recordAuditDb } = await import('@/repos/audit/auditRepo');
-			await recordAuditDb({
-				tenant,
-				actorId: ctx?.user?.id || ctx?.user?.agentId || 'system',
-				domain: 'agents',
-				action: 'apply_credit_reconciliation',
-				resourceType: 'agent',
-				resourceId: agentId,
-				before: { creditUsed: applied.previousUsed },
-				after: {
-					creditUsed: applied.creditUsed,
-					creditAvailable: applied.creditAvailable,
-					delta: Math.round((applied.creditUsed - applied.previousUsed) * 100) / 100,
-				},
-			});
-
-			return true;
-		},
-		setAgentCreditAlertThreshold: async (_: any, { agentId, threshold }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// Self (its own alert) or its subtree for an agent; the tenant for an admin.
-			await ensureAgentMayActOn(ctx, agentId, { allowSelf: true, action: 'set a credit alert threshold' });
-			const agent = await agentsRepo.findByIdScoped(agentId, requireCallerTenant(ctx));
-			if (!agent) {
-				throw new Error('Agent not found');
-			}
-
-			// Validate CREDIT agent only - credit operations are not available for SHARING agents
-			if (agent.schemeType !== 'CREDIT') {
-				throw new Error('Credit operations are only available for CREDIT scheme agents');
-			}
-
-			await creditService.setCreditAlertThreshold(agentId, threshold);
-
-			return await creditService.getCreditAllocation(agentId);
-		},
-		adjustWhitelabelPlayerCredit: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// WHITELABEL_CREDIT players draw on the whitelabel's own pool: admins only.
-			// (This used to refuse COMMISSION agents only, so any SHARING or CREDIT
-			// agent could move the whitelabel's credit.)
-			ensureAdminCaller(ctx, 'adjusting whitelabel player credit');
-
-			const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default';
-			const playerId = parseInt(input.playerId);
-			await creditService.adjustWhitelabelPlayerCreditLimit(playerId, tenant, input.creditLimit, input.reason);
-			const players = await creditService.listWhitelabelCreditPlayers(tenant);
-			const player = players.find((p) => p.id === playerId);
-			if (!player) {
-				throw new Error('Player not found');
-			}
-			return {
-				id: player.id.toString(),
-				name: player.name,
-				email: player.email,
-				phone: player.phone,
-				creditLimit: player.creditLimit,
-				creditUsed: player.creditUsed,
-				creditAvailable: player.creditAvailable,
-			};
-		},
-
-		depositCreditToWhitelabelPlayer: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// WHITELABEL_CREDIT players draw on the whitelabel's own pool: admins only.
-			ensureAdminCaller(ctx, 'managing whitelabel player credit');
-
-			const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default';
-			const playerId = parseInt(input.playerId);
-			await creditService.depositCreditToWhitelabelPlayer(playerId, tenant, input.amount, input.reason);
-			const players = await creditService.listWhitelabelCreditPlayers(tenant);
-			const player = players.find((p) => p.id === playerId);
-			if (!player) {
-				throw new Error('Player not found');
-			}
-			return {
-				id: player.id.toString(),
-				name: player.name,
-				email: player.email,
-				phone: player.phone,
-				creditLimit: player.creditLimit,
-				creditUsed: player.creditUsed,
-				creditAvailable: player.creditAvailable,
-			};
-		},
-
-		withdrawCreditFromWhitelabelPlayer: async (_: any, { input }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// WHITELABEL_CREDIT players draw on the whitelabel's own pool: admins only.
-			ensureAdminCaller(ctx, 'managing whitelabel player credit');
-
-			const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default';
-			const playerId = parseInt(input.playerId);
-			await creditService.withdrawCreditFromWhitelabelPlayer(playerId, tenant, input.amount, input.reason);
-			const players = await creditService.listWhitelabelCreditPlayers(tenant);
-			const player = players.find((p) => p.id === playerId);
-			if (!player) {
-				throw new Error('Player not found');
-			}
-			return {
-				id: player.id.toString(),
-				name: player.name,
-				email: player.email,
-				phone: player.phone,
-				creditLimit: player.creditLimit,
-				creditUsed: player.creditUsed,
-				creditAvailable: player.creditAvailable,
-			};
-		},
-
-		resolveAgentCreditAlert: async (_: any, { alertId }: any, ctx: any) => {
-			ensureAgentCanMutate(ctx);
-			// The alert's agent must be in the caller's tenant, and for an agent caller
-			// itself or in its subtree. Before this any alert id could be resolved.
-			const alertIdStr = typeof alertId === 'string' ? alertId.trim() : '';
-			if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alertIdStr)) {
-				throw new Error('Alert not found');
-			}
-			const { db: alertDb } = await import('@/db/client.js');
-			const { agentCreditAlerts } = await import('@shared/db/schema.js');
-			const { eq: eqAlert } = await import('drizzle-orm');
-			const [alertRow] = await alertDb
-				.select({ agentId: agentCreditAlerts.agentId })
-				.from(agentCreditAlerts)
-				.where(eqAlert(agentCreditAlerts.id, alertIdStr))
-				.limit(1);
-			if (!alertRow) {
-				throw new Error('Alert not found');
-			}
-			const alertAgent = await agentsRepo.findByIdScoped(String(alertRow.agentId), requireCallerTenant(ctx));
-			if (!alertAgent) {
-				throw new Error('Alert not found');
-			}
-			await ensureAgentMayActOn(ctx, alertAgent.id, { allowSelf: true, action: 'resolve a credit alert' });
-			const { AgentCreditAlertsRepo } = await import('../../../repos/agents/AgentCreditAlertsRepo');
-			const alertsRepo = new AgentCreditAlertsRepo();
-			await alertsRepo.resolveAlert(alertId);
-			return true;
 		},
 
 		changeAgentPassword: async (_: any, args: any, ctx: any) => {
@@ -2246,5 +1340,8 @@ export function buildAgentsMutationResolvers() {
 
 			return { success: true, message: 'Agent password reset successfully' };
 		},
+
+		// Chips (spec 2026-11-02 §7): depositChips, withdrawChips, setCreditReference.
+		...buildChipMutationResolvers(),
 	};
 }

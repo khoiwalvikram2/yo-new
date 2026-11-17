@@ -37,7 +37,7 @@ function EventDetailPageContent() {
   if (error && !data) return <Page>{header}<Notice tone="error" title="Error">Failed to load audit event: {error.message}</Notice></Page>
   if (!event) return <Page>{header}<Notice tone="warn" title="Not Found">Audit event not found</Notice></Page>
   const formatted = formatEvent(event)
-  const resourceNav = getResourceNavigationPath(event.resourceType, event.resourceId)
+  const resourceNav = getResourceNavigationPath(event.resourceType, event.resourceId, event)
   const actorNav = event.actor ? getActorNavigationPath(event.actor.type, event.actor.id) : null
   const copy = (value: string, message: string) => { void copyToClipboard(value, message) }
   return (

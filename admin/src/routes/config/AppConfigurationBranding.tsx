@@ -11,19 +11,17 @@ import { Card } from '@/ui/components/Card'
 import { Form } from '@/ui/components/Form'
 import { Notice } from '@/ui/components/Notice'
 import { Spinner } from '@/ui/components/Spinner'
-import { Tabs } from '@/ui/components/Tabs'
-import { tabId, tabPanelId } from '@/ui/components/tabIds'
+import { StoredImage } from '@/ui/components/StoredImage'
 import { strokeFor } from '@/ui/components/icons'
 import type { FormApi } from '@/ui/form/useForm'
-import { ConfigColorField, ConfigSaveBar } from './AppConfigurationSection'
-import { DEFAULT_THEME_COLORS, errorMessage, text, type BrandingValues, type ConfigRecord } from './appConfigurationModel'
+import { ConfigSaveBar } from './AppConfigurationSection'
+import { SportsIconsCard, ThemeColorsCard } from './AppConfigurationTheme'
+import { brandingSchema, brandingThemeInput, errorMessage, legacyThemeColors, storedThemeUnreadable, text, type BrandingValues, type ConfigRecord } from './appConfigurationModel'
+import type { ThemeMode } from '../../../../shared/src/theme/playerTheme'
 import styles from './AppConfigurationPage.module.css'
 
 type AssetKind = 'logo' | 'favicon' | 'preLoginBanner' | 'postLoginBanner'
-type ThemeMode = 'dark' | 'light'
 interface BannerDraft { preview: string | null; value: string | null; changed: boolean }
-
-const MODE_FIELDS = [['bgPage', 'Background'], ['textPrimary', 'Text Primary'], ['textSecondary', 'Text Secondary'], ['border', 'Border']] as const
 
 /** One stored image as a tile: the current image is the tile (or an empty stage that takes a drop), with
  * Upload/Replace and Remove under it. The real file input keeps its action name ("Upload Logo"). */
@@ -45,13 +43,14 @@ function AssetTile({ label, hint, action, preview, uploading, kind, removeLabel,
         <span className={styles.assetHint}>{hint}</span>
       </div>
       <figure className={clsx(styles.stage, styles[`stage_${kind}`])}>
+        {/* A stored image that will not load is a placeholder naming it, never a broken image (SYS-18). */}
         {preview ? (
           kind === 'favicon' ? (
             <span className={styles.faviconPreview}>
-              <img src={preview} alt={alt} className={styles.faviconLarge} />
-              <span className={styles.faviconTab} aria-hidden="true"><img src={preview} alt="" />{tabName || 'Browser tab'}</span>
+              <StoredImage src={preview} alt={alt} className={styles.faviconLarge} />
+              <span className={styles.faviconTab} aria-hidden="true"><StoredImage src={preview} alt="" />{tabName || 'Browser tab'}</span>
             </span>
-          ) : <img src={preview} alt={alt} className={styles.stageImage} />
+          ) : <StoredImage src={preview} alt={alt} className={styles.stageImage} />
         ) : (
           <figcaption className={styles.stageEmpty}><IconPhoto size={22} stroke={strokeFor(22)} aria-hidden="true" /><span>No {kind === 'banner' ? 'banner' : label.toLowerCase()} yet</span><span className={styles.stageDrop}>Drop an image here</span></figcaption>
         )}
@@ -67,47 +66,6 @@ function AssetTile({ label, hint, action, preview, uploading, kind, removeLabel,
         onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void onUpload(file) }}
       />
     </div>
-  )
-}
-
-/** Dark or light ink, whichever reads on a stored hex fill (other color syntaxes keep white). */
-function readableOn(fill: string) {
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(fill.trim())?.[1]
-  if (!hex) return '#FFFFFF'
-  const full = hex.length === 3 ? hex.split('').map((digit) => digit + digit).join('') : hex
-  const [r, g, b] = [0, 2, 4].map((at) => { const channel = parseInt(full.slice(at, at + 2), 16) / 255; return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4 })
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#111111' : '#FFFFFF'
-}
-
-/** A small mock of the user panel painted with the colors being edited. The colors are the stored
- * user-site values (not admin paint), so they are inline. */
-function ThemePreview({ mode, values, logo, appName }: { mode: ThemeMode; values: BrandingValues; logo: string | null; appName: string }) {
-  const surface = values[mode]
-  const page = { background: surface.bgPage, color: surface.textPrimary, borderColor: surface.border }
-  const line = { borderColor: surface.border }
-  const muted = { color: surface.textSecondary }
-  const dot = (color: string) => <i className={styles.previewDot} style={{ background: color }} />
-  return (
-    <figure className={styles.preview}>
-      <div className={styles.previewFrame} style={page} role="img" aria-label={`User panel preview in the ${mode} theme`}>
-        <div className={styles.previewBar} style={line}>
-          {logo ? <img src={logo} alt="" className={styles.previewLogo} /> : <b>{appName || 'Your brand'}</b>}
-          <span className={styles.previewButton} style={{ background: values.primary, color: readableOn(values.primary) }}>Deposit</span>
-        </div>
-        <div className={styles.previewBody}>
-          <span className={styles.previewCaption} style={muted}>Main balance</span>
-          <b className={styles.previewAmount}>₹12,500.00</b>
-          <div className={styles.previewMarket} style={line}>
-            <span><b>India v Australia</b><span style={muted}>Today · 19:30</span></span>
-            <span className={styles.previewOdds} style={{ background: values.primary, color: readableOn(values.primary) }}>1.85</span>
-          </div>
-          <div className={styles.previewStates} style={muted}>
-            <span>{dot(values.success)}Won</span><span>{dot(values.warning)}Pending</span><span>{dot(values.danger)}Lost</span>
-          </div>
-        </div>
-      </div>
-      <figcaption className={styles.previewNote}>Live preview · {mode === 'dark' ? 'Dark' : 'Light'} theme</figcaption>
-    </figure>
   )
 }
 
@@ -153,30 +111,37 @@ export function AppConfigurationBranding({ form, whitelabel, config, targetId, u
     savingRef.current = true
     try {
       if (!await form.validate()) {
-        const missingMode = (['dark', 'light'] as const).find((mode) => Object.values(form.values[mode]).some((value) => !value))
-        if (missingMode) setThemeMode(missingMode)
+        const invalidMode = brandingSchema.safeParse(form.values).error?.issues
+          .map((issue) => issue.path[0])
+          .find((path): path is ThemeMode => path === 'light' || path === 'dark')
+        if (invalidMode) setThemeMode(invalidMode)
         setFocusRequest((request) => request + 1)
         return
       }
       setSaving(true); setSaveError(null)
       const values = form.values
-      const context = { headers: targetId ? { 'x-whitelabel-id': targetId } : {} }
+      // Both writes name the managed whitelabel (see AppConfigurationPage), so logo and theme land on one tenant.
+      // This save reports the outcome once; the notification link toasted each write's message on top of it.
+      const context = { ...(targetId ? { targetWhitelabelId: targetId } : {}), skipNotification: true }
       const whitelabelResult = await updateWhitelabel({ variables: { input: { id: whitelabel.id, logoUrl: values.logoUrl || null, faviconUrl: values.faviconUrl || null } }, context })
-      const input: ConfigRecord = { theme: { primary: values.primary, success: values.success, warning: values.warning, danger: values.danger, dark: values.dark, light: values.light } }
+      const input: ConfigRecord = { playerTheme: brandingThemeInput(values) }
       if (preLogin.changed) input.preLoginBannerUrl = preLogin.value ?? null
       if (postLogin.changed) input.postLoginBannerUrl = postLogin.value ?? null
       const configResult = await updateAppConfig({ variables: { input }, context })
       if (whitelabelResult.data?.updateWhitelabel?.success && configResult.data?.updateAppConfig?.success) {
         notify.success('Branding & theme settings saved successfully')
         await onSaveSuccess()
-      } else { throw new Error('Failed to save some settings') }
+      } else {
+        // The refusal's own words, which only the notification link used to show.
+        const refused = [whitelabelResult.data?.updateWhitelabel, configResult.data?.updateAppConfig].find((result) => !result?.success)
+        throw new Error(refused?.message || 'Failed to save some settings')
+      }
     } catch (error) {
       const message = errorMessage(error, 'Failed to save branding settings'); setSaveError(message); notify.error(message)
     } finally { savingRef.current = false; setSaving(false) }
   }
   const anyUploading = Object.values(uploading).some(Boolean)
   const busy = saving || whitelabelLoading || appConfigLoading || anyUploading
-  const modeColors = form.values[themeMode]
   const storedLogo = text(whitelabel.logoUrl) || null
   const storedFavicon = text(whitelabel.faviconUrl) || null
   return (
@@ -189,32 +154,14 @@ export function AppConfigurationBranding({ form, whitelabel, config, targetId, u
             <AssetTile kind="favicon" label="Favicon" hint="Browser tab icon" action="Upload Favicon" alt="Favicon" removeLabel="Remove Favicon" tabName={text(whitelabel.name)} preview={form.values.faviconUrl} unsaved={form.values.faviconUrl !== storedFavicon} uploading={uploading.favicon} onUpload={(file) => upload('favicon', file)} onRemove={() => form.setValue('faviconUrl', null)} />
           </div>
         </Card>
-        <Card title="User Panel Banners" sub="Shown on the user panel's home page: one before players sign in, one after." headingLevel={3}>
+        <Card title="User Panel Banners" sub="Shown as a popup on the user panel: one to visitors before they sign in, one right after a player signs in." headingLevel={3}>
           <div className={styles.assetGrid}>
-            <AssetTile kind="banner" label="Pre-Login Banner" hint="Before sign-in" action="Upload Pre-Login Banner" alt="Pre-Login Banner preview" removeLabel="Remove Banner" preview={preLogin.preview} unsaved={preLogin.changed} uploading={uploading.preLoginBanner} onUpload={(file) => upload('preLoginBanner', file)} onRemove={() => setPreLogin({ preview: null, value: null, changed: true })} />
-            <AssetTile kind="banner" label="Post-Login Banner" hint="After sign-in" action="Upload Post-Login Banner" alt="Post-Login Banner preview" removeLabel="Remove Banner" preview={postLogin.preview} unsaved={postLogin.changed} uploading={uploading.postLoginBanner} onUpload={(file) => upload('postLoginBanner', file)} onRemove={() => setPostLogin({ preview: null, value: null, changed: true })} />
+            <AssetTile kind="banner" label="Pre-Login Banner" hint="Popup before sign-in" action="Upload Pre-Login Banner" alt="Pre-Login Banner preview" removeLabel="Remove Banner" preview={preLogin.preview} unsaved={preLogin.changed} uploading={uploading.preLoginBanner} onUpload={(file) => upload('preLoginBanner', file)} onRemove={() => setPreLogin({ preview: null, value: null, changed: true })} />
+            <AssetTile kind="banner" label="Post-Login Banner" hint="Popup after sign-in" action="Upload Post-Login Banner" alt="Post-Login Banner preview" removeLabel="Remove Banner" preview={postLogin.preview} unsaved={postLogin.changed} uploading={uploading.postLoginBanner} onUpload={(file) => upload('postLoginBanner', file)} onRemove={() => setPostLogin({ preview: null, value: null, changed: true })} />
           </div>
         </Card>
-        <Card title="Theme Colors" sub="The user panel's colors. Action colors are shared; surface and text colors are set per theme." headingLevel={3} tools={<Button size="sm" onClick={() => { form.setValues(DEFAULT_THEME_COLORS); notify.success('Theme colors reset to default values') }}>Reset to Default</Button>}>
-          <div className={styles.themeLayout}>
-            <div className={styles.themeControls}>
-              <section className={styles.colorGroup} aria-labelledby="config-action-colors">
-                <h4 className={styles.colorGroupTitle} id="config-action-colors">Action colors <span>Both themes</span></h4>
-                <div className={styles.colorGrid}>{(['primary', 'success', 'warning', 'danger'] as const).map((name) => <ConfigColorField key={name} label={`${name[0].toUpperCase()}${name.slice(1)}`} name={name} value={form.values[name]} onChange={(value) => form.setValue(name, value)} error={form.errors[name]} required />)}</div>
-              </section>
-              <section className={styles.colorGroup} aria-labelledby="config-surface-colors">
-                <div className={styles.colorGroupHead}>
-                  <h4 className={styles.colorGroupTitle} id="config-surface-colors">Surface & text</h4>
-                  <Tabs size="sm" label="User panel theme colors" idPrefix="config-theme" value={themeMode} items={[{ value: 'dark', label: 'Dark Theme' }, { value: 'light', label: 'Light Theme' }]} onChange={setThemeMode} />
-                </div>
-                <div role="tabpanel" id={tabPanelId('config-theme', themeMode)} aria-labelledby={tabId('config-theme', themeMode)} className={styles.colorGrid}>
-                  {MODE_FIELDS.map(([name, label]) => <ConfigColorField key={name} label={label} name={`${themeMode}.${name}`} value={modeColors[name] || ''} onChange={(value) => form.setValue(themeMode, { ...modeColors, [name]: value })} error={form.errors[`${themeMode}.${name}`]} required />)}
-                </div>
-              </section>
-            </div>
-            <ThemePreview mode={themeMode} values={form.values} logo={form.values.logoUrl} appName={text(whitelabel.name)} />
-          </div>
-        </Card>
+        <ThemeColorsCard form={form} mode={themeMode} onModeChange={setThemeMode} appName={text(whitelabel.name)} legacy={legacyThemeColors(config.theme)} storedUnreadable={storedThemeUnreadable(config)} />
+        <SportsIconsCard value={form.values.sportsIconStyle} onChange={(style) => form.setValue('sportsIconStyle', style)} />
       </fieldset>
       <ConfigSaveBar dirty={form.dirty || preLogin.changed || postLogin.changed} busy={busy} saving={saving || whitelabelLoading || appConfigLoading} saveDisabled={anyUploading} saveText="Save Branding & Theme" onDiscard={() => { form.reset(); resetBanners() }} />
     </Form>

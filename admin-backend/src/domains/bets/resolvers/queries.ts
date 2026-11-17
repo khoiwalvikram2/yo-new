@@ -1,4 +1,5 @@
 import { getEffectiveTenantForDirector } from '@src/domains/common/directorModeUtils.js'
+import { paymentWhitelabelSelectionRequired } from '@src/domains/payments/paymentTenant.js'
 import { hasPermission } from '@src/domains/common/auth.js'
 import { getSportsBets, getSportsBetsCount, getSportsBetsCountAndStake } from '@src/repos/sports/sportsBetsRepo.js'
 import { getCasinoBets, getCasinoBetsCount, getCasinoBetsCountAndStake, buildCasinoBetsQuery } from '@src/repos/casino/casinoBetsRepo.js'
@@ -82,8 +83,17 @@ function requireBetsAccess(ctx: any) {
   }
 }
 
-/** Builds filters for betsPage/betsPageTotals. Returns null when no whitelabel or no data (e.g. empty user list). */
+export const SELECT_WHITELABEL_FOR_BETS = 'Select a whitelabel to view bets'
+
+/**
+ * Builds filters for betsPage/betsPageTotals/betsFilterOptions. Returns null when no whitelabel or no data (e.g. empty
+ * user list). Bets belong to one whitelabel: a Super Admin in core mode, or in whitelabel mode with no site selected,
+ * would read the platform's own tenant, which holds none, and see every count at 0 as if there were no bets. That is
+ * refused with a clear message, under the same rule the admin UI skips these queries by (paymentScopeOf's
+ * selectionRequired). Agents and whitelabel admins are unaffected.
+ */
 async function buildBetsPageFilters(ctx: any, filters: BetsPageFilters): Promise<{ sportsFilter: any; casinoFilter: any; matkaFilter: any; allowed: Record<BetTableDomain, boolean> } | null> {
+  if (paymentWhitelabelSelectionRequired(ctx)) throw new Error(SELECT_WHITELABEL_FOR_BETS)
   const allowed = allowedBetDomains(ctx)
   if (!allowed.sports && !allowed.casino && !allowed.matka) return null
   const directorTenant = getEffectiveTenantForDirector(ctx)
@@ -202,6 +212,7 @@ async function buildBetsPageFilters(ctx: any, filters: BetsPageFilters): Promise
   }
   const sportsFilter = {
     ...baseFilter,
+    statuses: mapStatusesForSports(statuses),
     sportId: filters.sportId,
     leagueId: filters.leagueId,
     eventId: filters.eventId,
@@ -240,6 +251,32 @@ async function buildBetsPageFilters(ctx: any, filters: BetsPageFilters): Promise
     offset: 0,
   }
   return { sportsFilter, casinoFilter, matkaFilter, allowed }
+}
+
+/**
+ * Sports enum: matched, unmatched, cancelled, settled, won, lost, void. Settlement writes won or lost, so
+ * 'settled' -> won+lost (and the rare stored 'settled'); the casino/matka open statuses pending and active
+ * -> matched+unmatched; drop other invalid statuses. The raw list went to the sports table, so "settled"
+ * matched no sports bet at all and, under Domain All, silently dropped every sports bet from the list and
+ * the totals; an 'active' status there was an enum error.
+ */
+export function mapStatusesForSports(statuses: string[] | undefined): string[] | undefined {
+  if (!statuses?.length) return undefined
+  const valid = new Set(['matched', 'unmatched', 'cancelled', 'settled', 'won', 'lost', 'void'])
+  const out = new Set<string>()
+  for (const s of statuses) {
+    if (s === 'settled') {
+      out.add('won')
+      out.add('lost')
+      out.add('settled')
+    } else if (s === 'pending' || s === 'active') {
+      out.add('matched')
+      out.add('unmatched')
+    } else if (valid.has(s)) {
+      out.add(s)
+    }
+  }
+  return out.size ? [...out] : undefined
 }
 
 /** Casino/matka enums: pending, active, won, lost, cancelled, void. Map 'settled' -> won+lost; sports 'matched' (admin "Open") -> pending+active; drop other invalid statuses. */

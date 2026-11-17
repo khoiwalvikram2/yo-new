@@ -25,12 +25,12 @@ export const CONFIG_PREVIEW_DATA = {
   theme: { primary: '#123456', success: '#147852', warning: '#af5700', danger: '#d41111', dark: { bgPage: '#111112', textPrimary: '#eeeeef', textSecondary: '#a2a2a3', border: '#343435' }, light: { bgPage: '#fafafb', textPrimary: '#171718', textSecondary: '#626263', border: '#e3e3e4' } },
   preLoginBannerUrl: CONFIG_ASSET, postLoginBannerUrl: CONFIG_ASSET,
 }
-export interface ConfigFixtureOptions { refused?: boolean; appNameRefused?: boolean; configFailure?: boolean }
+export interface ConfigFixtureOptions { refused?: boolean; appNameRefused?: boolean; configFailure?: boolean; playerTheme?: unknown }
 export function appConfigurationResponse(operation: Operation, options: ConfigFixtureOptions = {}): FetchResult {
   let result: Record<string, unknown>
   const tenant = (id: string) => ({ id, name: 'Preview partner with a long descriptive name', domain: 'preview.example.test', logoUrl: CONFIG_ASSET, faviconUrl: CONFIG_ASSET, theme: CONFIG_PREVIEW_DATA.theme })
   switch (operation.operationName) {
-    case 'AppConfig': if (options.configFailure) throw new Error('Preview config unavailable'); result = { appConfig: CONFIG_PREVIEW_DATA }; break
+    case 'AppConfig': if (options.configFailure) throw new Error('Preview config unavailable'); result = { appConfig: { ...CONFIG_PREVIEW_DATA, playerTheme: options.playerTheme ?? null } }; break
     case 'WhitelabelCurrent': result = { whitelabelCurrent: tenant('own-tenant') }; break
     case 'GetWhitelabel': result = { whitelabel: tenant(operation.variables.id) }; break
     case 'UpdateAppConfig': result = { updateAppConfig: { success: !options.refused, message: options.refused ? 'Settings refused' : 'Settings saved successfully' } }; break

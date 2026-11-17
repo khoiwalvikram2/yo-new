@@ -1,20 +1,22 @@
 /**
- * Credit release on matka / casino settlement passes the NET P&L, not the gross return.
+ * The bet-status tools move no credit (CREDIT scheme on Deposit/Withdraw chips, 2026-11-02).
  *
- * matka_bets.actual_win and casino_bets.payout are GROSS (stake included). For a credit
- * player releaseCreditForBet adds payoutAmount to the settlement balance on 'win', so the
- * repos passed the gross and overstated every credit win by the stake. Both repos now map
- * (stake, gross) through mapGrossSettlementToCredit.
+ * updateCasinoBetStatus (the settleTestCasinoBet diagnostic) and updateMatkaBetStatus used to
+ * release a credit player's credit through BetCreditValidationService.releaseCreditForBet and
+ * book the bet's net P&L into the player's and the agent's / whitelabel's settlement balances.
+ * Credit players (AGENT_CREDIT, WHITELABEL_CREDIT) now hold their chips in wallets.cash and play
+ * on the cash-wallet path, where these tools only record the status, as they always did for cash
+ * players: the provider callbacks and the matka settlement move the money. Credit players also
+ * pay no referral loss-share, while a cash player's settled bet still reaches the referral hook.
  *
  * No database: the shared `db` handle is pointed at a drizzle pg-proxy that answers from
- * scripted rows (and throws for anything else), releaseCreditForBet is stubbed to record
- * its arguments, and the referral hook after the transaction is stubbed out.
+ * scripted rows (and throws for anything else) and records every statement it is sent, and
+ * the referral hook is stubbed to record its calls.
  */
 import { after, before, beforeEach, describe, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { drizzle } from 'drizzle-orm/pg-proxy'
 import { db, pool } from '@src/db/client.js'
-import { BetCreditValidationService } from '@src/domains/agents/services/BetCreditValidationService.js'
 import { referralIntegrationService } from '@src/services/referrals/referralIntegrationService.js'
 import { updateMatkaBetStatus } from '@src/repos/matka/matkaBetsRepo.js'
 import { updateCasinoBetStatus } from '@src/repos/casino/casinoBetsRepo.js'
@@ -33,9 +35,13 @@ function resultColumns(sqlText: string): string[] {
 	})
 }
 
+/** Every statement the code sent, answered or not, flattened and lower-cased. */
+let statements: string[] = []
+
 function fakeDb(routes: Route[]) {
 	return drizzle(async (sqlText: string, params: unknown[], method: string) => {
 		const flat = sqlText.replace(/\s+/g, ' ').trim().toLowerCase()
+		statements.push(flat)
 		const route = routes.find((r) => r.match(flat))
 		if (!route) throw new Error(`unexpected statement in test: ${flat}`)
 		if (method === 'all') {
@@ -48,11 +54,8 @@ function fakeDb(routes: Route[]) {
 
 const METHODS = ['select', 'insert', 'update', 'delete', 'execute', 'transaction'] as const
 const originals: Record<string, unknown> = {}
-const originalRelease = BetCreditValidationService.prototype.releaseCreditForBet
 const originalReferral = referralIntegrationService.handleBetSettlement
-
-type ReleaseCall = { playerId: number; betAmount: number; betResult: string; payoutAmount: number; tenant: string; betId: unknown; domain: string; tx: unknown }
-let releases: ReleaseCall[] = []
+let referrals: unknown[][] = []
 
 function useFake(fake: any) {
 	for (const m of ['select', 'insert', 'update', 'delete', 'execute'] as const) (db as any)[m] = fake[m].bind(fake)
@@ -61,13 +64,13 @@ function useFake(fake: any) {
 
 before(() => {
 	for (const m of METHODS) originals[m] = (db as any)[m]
-	BetCreditValidationService.prototype.releaseCreditForBet = async function (playerId, betAmount, betResult, payoutAmount, tenant, betId, domain, tx) {
-		releases.push({ playerId, betAmount, betResult, payoutAmount, tenant: tenant as string, betId, domain: domain as string, tx })
+	;(referralIntegrationService as any).handleBetSettlement = async (...args: unknown[]) => {
+		referrals.push(args)
 	}
-	;(referralIntegrationService as any).handleBetSettlement = async () => {}
 })
 beforeEach(() => {
-	releases = []
+	statements = []
+	referrals = []
 	const refuse = () => {
 		throw new Error('real database access is not allowed in this test')
 	}
@@ -75,7 +78,6 @@ beforeEach(() => {
 })
 after(async () => {
 	for (const [m, f] of Object.entries(originals)) (db as any)[m] = f
-	BetCreditValidationService.prototype.releaseCreditForBet = originalRelease
 	;(referralIntegrationService as any).handleBetSettlement = originalReferral
 	await pool.end().catch(() => {})
 })
@@ -83,131 +85,94 @@ after(async () => {
 const USER = 4712
 const TENANT = 'wiringtest'
 const BET = '00000000-0000-0000-0000-0000000000b1'
-const creditPlayer = { player_type: 'AGENT_CREDIT', agent_id: '00000000-0000-0000-0000-0000000000a7' }
+const AGENT = '00000000-0000-0000-0000-0000000000a7'
+const CREDIT_TYPES = ['AGENT_CREDIT', 'WHITELABEL_CREDIT']
+
+/**
+ * The tool's only write is its own bet row: no credit, agent, whitelabel or wallet figure moves,
+ * and no row is locked for a credit release.
+ */
+function assertStatusOnly(table: 'casino_bets' | 'matka_bets') {
+	const writes = statements.filter((s) => !s.startsWith('select'))
+	assert.equal(writes.length, 1, `exactly one write expected, got: ${writes.join(' | ')}`)
+	assert.ok(writes[0].startsWith(`update "${table}"`), writes[0])
+	assert.ok(!statements.some((s) => s.includes(' for update')), 'no row is locked for a credit release')
+}
+
+// ================================================================= casino
+describe('updateCasinoBetStatus: records the status only, credit players included', () => {
+	const casinoRoutes = (stored: { status: string; payout: string | null }, playerType: string): Route[] => {
+		const bet = { id: BET, tenant: TENANT, user_id: USER, stake: '100.00', currency: 'INR', status: 'active', payout: null, win_amount: null }
+		return [
+			{ match: has('update "casino_bets"'), rows: [{ ...bet, status: stored.status, payout: stored.payout, win_amount: stored.payout }] },
+			{ match: has('from "casino_bets"'), rows: [bet] },
+			{ match: has('from "users"'), rows: [{ id: USER, player_type: playerType, agent_id: AGENT }] },
+		]
+	}
+
+	for (const playerType of CREDIT_TYPES) {
+		for (const [status, payout, net] of [['won', '250.00', 150], ['lost', '40.00', -60], ['lost', '0.00', -100]] as const) {
+			test(`${playerType} ${status} with payout ${payout}: no credit release and no referral loss-share`, async () => {
+				useFake(fakeDb(casinoRoutes({ status, payout }, playerType)))
+				const bet = await updateCasinoBetStatus(BET, status, Number(payout), net, new Date())
+				assert.equal(bet?.status, status)
+				assertStatusOnly('casino_bets')
+				assert.equal(referrals.length, 0)
+			})
+		}
+
+		test(`${playerType} void: no credit release`, async () => {
+			useFake(fakeDb(casinoRoutes({ status: 'void', payout: null }, playerType)))
+			const bet = await updateCasinoBetStatus(BET, 'void')
+			assert.equal(bet?.status, 'void')
+			assertStatusOnly('casino_bets')
+			assert.equal(referrals.length, 0)
+		})
+	}
+
+	test('a cash player is unchanged: status only, and a loss still reaches the referral hook', async () => {
+		useFake(fakeDb(casinoRoutes({ status: 'lost', payout: '40.00' }, 'REGULAR')))
+		await updateCasinoBetStatus(BET, 'lost', 40, -60, new Date())
+		assertStatusOnly('casino_bets')
+		assert.deepEqual(referrals, [[TENANT, USER, -60, 'INR', 'casino']])
+	})
+})
 
 // ================================================================= matka
-describe('updateMatkaBetStatus: credit release gets the net P&L of actual_win (gross)', () => {
-	const matkaRoutes = (stored: { status: string; actualWin: string | null }, playerType = creditPlayer.player_type): Route[] => {
+describe('updateMatkaBetStatus: records the status only, credit players included', () => {
+	const matkaRoutes = (stored: { status: string; actualWin: string | null }, playerType: string): Route[] => {
 		const bet = { id: BET, tenant: TENANT, user_id: USER, bet_amount: '100.00', currency: 'INR', status: 'pending', actual_win: null }
 		return [
 			{ match: has('update "matka_bets"'), rows: [{ ...bet, status: stored.status, actual_win: stored.actualWin }] },
 			{ match: has('from "matka_bets"'), rows: [bet] },
-			{ match: has('from "users"'), rows: [{ ...creditPlayer, player_type: playerType }] },
+			{ match: has('from "users"'), rows: [{ id: USER, player_type: playerType, agent_id: AGENT }] },
 		]
 	}
 
-	test('won with actual_win 250 on a 100 stake releases a 150 win', async () => {
-		const fake = fakeDb(matkaRoutes({ status: 'won', actualWin: '250.00' }))
-		useFake(fake)
-		await updateMatkaBetStatus(BET, 'won', 250)
-		assert.equal(releases.length, 1)
-		const r = releases[0]
-		assert.deepEqual(
-			{ playerId: r.playerId, betAmount: r.betAmount, betResult: r.betResult, payoutAmount: r.payoutAmount, tenant: r.tenant, betId: r.betId, domain: r.domain },
-			{ playerId: USER, betAmount: 100, betResult: 'win', payoutAmount: 150, tenant: TENANT, betId: BET, domain: 'matka' }
-		)
-		assert.equal(r.tx, fake, 'released inside the settlement transaction')
-	})
+	for (const playerType of CREDIT_TYPES) {
+		for (const [status, actualWin] of [['won', '250.00'], ['lost', '40.00'], ['lost', '0.00']] as const) {
+			test(`${playerType} ${status} with actual_win ${actualWin}: no credit release and no referral loss-share`, async () => {
+				useFake(fakeDb(matkaRoutes({ status, actualWin }, playerType)))
+				const bet = await updateMatkaBetStatus(BET, status, Number(actualWin))
+				assert.equal(bet?.status, status)
+				assertStatusOnly('matka_bets')
+				assert.equal(referrals.length, 0)
+			})
+		}
 
-	test('won with no amount passed reads the stored gross', async () => {
-		useFake(fakeDb(matkaRoutes({ status: 'won', actualWin: '180.00' })))
-		await updateMatkaBetStatus(BET, 'won')
-		assert.equal(releases[0].betResult, 'win')
-		assert.equal(releases[0].payoutAmount, 80)
-	})
+		test(`${playerType} void: no credit release`, async () => {
+			useFake(fakeDb(matkaRoutes({ status: 'void', actualWin: null }, playerType)))
+			const bet = await updateMatkaBetStatus(BET, 'void')
+			assert.equal(bet?.status, 'void')
+			assertStatusOnly('matka_bets')
+			assert.equal(referrals.length, 0)
+		})
+	}
 
-	test('lost with no return is a full-stake loss (unchanged)', async () => {
-		useFake(fakeDb(matkaRoutes({ status: 'lost', actualWin: '0.00' })))
-		await updateMatkaBetStatus(BET, 'lost', 0)
-		assert.equal(releases[0].betResult, 'loss')
-		assert.equal(releases[0].payoutAmount, 100)
-	})
-
-	test('lost carrying a partial return loses only stake - gross, as the matka P&L does', async () => {
-		useFake(fakeDb(matkaRoutes({ status: 'lost', actualWin: '40.00' })))
+	test('a cash player is unchanged: status only, and a loss still reaches the referral hook', async () => {
+		useFake(fakeDb(matkaRoutes({ status: 'lost', actualWin: '40.00' }, 'REGULAR')))
 		await updateMatkaBetStatus(BET, 'lost', 40)
-		assert.equal(releases[0].betResult, 'loss')
-		assert.equal(releases[0].payoutAmount, 60)
-	})
-
-	test('void releases the exposure with no settlement move (unchanged)', async () => {
-		useFake(fakeDb(matkaRoutes({ status: 'void', actualWin: null })))
-		await updateMatkaBetStatus(BET, 'void')
-		assert.equal(releases[0].betResult, 'void')
-		assert.equal(releases[0].payoutAmount, 0)
-		assert.equal(releases[0].betAmount, 100)
-	})
-
-	test('a cash player gets no credit release', async () => {
-		useFake(fakeDb(matkaRoutes({ status: 'won', actualWin: '250.00' }, 'CASH')))
-		await updateMatkaBetStatus(BET, 'won', 250)
-		assert.equal(releases.length, 0)
-	})
-})
-
-// ================================================================= casino
-describe('updateCasinoBetStatus: credit release gets the net P&L of payout (gross)', () => {
-	const casinoRoutes = (stored: { status: string; payout: string | null }, playerType = creditPlayer.player_type): Route[] => {
-		const bet = { id: BET, tenant: TENANT, user_id: USER, stake: '100.00', currency: 'INR', status: 'pending', payout: null, win_amount: null }
-		return [
-			{ match: has('update "casino_bets"'), rows: [{ ...bet, status: stored.status, payout: stored.payout, win_amount: stored.payout }] },
-			{ match: has('from "casino_bets"'), rows: [bet] },
-			{ match: has('from "users"'), rows: [{ ...creditPlayer, player_type: playerType }] },
-		]
-	}
-
-	test('won with payout 250 on a 100 stake releases a 150 win', async () => {
-		const fake = fakeDb(casinoRoutes({ status: 'won', payout: '250.00' }))
-		useFake(fake)
-		await updateCasinoBetStatus(BET, 'won', 250, 150, new Date())
-		assert.equal(releases.length, 1)
-		const r = releases[0]
-		assert.deepEqual(
-			{ playerId: r.playerId, betAmount: r.betAmount, betResult: r.betResult, payoutAmount: r.payoutAmount, tenant: r.tenant, betId: r.betId, domain: r.domain },
-			{ playerId: USER, betAmount: 100, betResult: 'win', payoutAmount: 150, tenant: TENANT, betId: BET, domain: 'casino' }
-		)
-		assert.equal(r.tx, fake, 'released inside the settlement transaction')
-	})
-
-	test('won with no amount passed reads the stored payout', async () => {
-		useFake(fakeDb(casinoRoutes({ status: 'won', payout: '180.00' })))
-		await updateCasinoBetStatus(BET, 'won')
-		assert.equal(releases[0].betResult, 'win')
-		assert.equal(releases[0].payoutAmount, 80)
-	})
-
-	test('won returning exactly the stake is a 0 win', async () => {
-		useFake(fakeDb(casinoRoutes({ status: 'won', payout: '100.00' })))
-		await updateCasinoBetStatus(BET, 'won', 100, 0, new Date())
-		assert.equal(releases[0].betResult, 'win')
-		assert.equal(releases[0].payoutAmount, 0)
-	})
-
-	test('lost with a partial return loses only stake - payout', async () => {
-		useFake(fakeDb(casinoRoutes({ status: 'lost', payout: '40.00' })))
-		await updateCasinoBetStatus(BET, 'lost', 40, -60, new Date())
-		assert.equal(releases[0].betResult, 'loss')
-		assert.equal(releases[0].payoutAmount, 60)
-	})
-
-	test('lost with payout 0 is a full-stake loss (unchanged)', async () => {
-		useFake(fakeDb(casinoRoutes({ status: 'lost', payout: '0.00' })))
-		await updateCasinoBetStatus(BET, 'lost', 0, -100, new Date())
-		assert.equal(releases[0].betResult, 'loss')
-		assert.equal(releases[0].payoutAmount, 100)
-	})
-
-	test('void releases the exposure with no settlement move (unchanged)', async () => {
-		useFake(fakeDb(casinoRoutes({ status: 'void', payout: null })))
-		await updateCasinoBetStatus(BET, 'void')
-		assert.equal(releases[0].betResult, 'void')
-		assert.equal(releases[0].payoutAmount, 0)
-		assert.equal(releases[0].betAmount, 100)
-	})
-
-	test('a cash player gets no credit release', async () => {
-		useFake(fakeDb(casinoRoutes({ status: 'won', payout: '250.00' }, 'CASH')))
-		await updateCasinoBetStatus(BET, 'won', 250, 150, new Date())
-		assert.equal(releases.length, 0)
+		assertStatusOnly('matka_bets')
+		assert.deepEqual(referrals, [[TENANT, USER, -60, 'INR', 'matka']])
 	})
 })

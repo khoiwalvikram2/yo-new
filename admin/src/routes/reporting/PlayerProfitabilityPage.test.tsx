@@ -17,12 +17,8 @@ import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
 import PlayerProfitabilityPage from './PlayerProfitabilityPage'
 import styles from './PlayerProfitabilityPage.module.css'
 import {
-  ACTIVE_PLAYERS_QUERY,
-  CASINO_KPIS_QUERY,
   CASINO_PLAYER_BREAKDOWN_QUERY,
-  MATKA_KPIS_QUERY,
   MATKA_PLAYER_BREAKDOWN_QUERY,
-  SPORTS_KPIS_QUERY,
   SPORTS_PLAYER_BREAKDOWN_QUERY,
 } from './playerProfitabilityQueries'
 
@@ -136,12 +132,6 @@ const CASINO_ROWS = [
 ]
 const MATKA_ROWS = [breakdownRow(27, { totalStakes: 3000, totalPayouts: 3000, grossGamingRevenue: 0, betCount: 30 })]
 
-const KPIS = {
-  sports: { totalStakes: 10000, totalPayouts: 4000, grossGamingRevenue: 6000, betCount: 300 },
-  casino: { totalStakes: 1500, totalPayouts: 1500, grossGamingRevenue: 0, betCount: 7 },
-  matka: { totalStakes: 500, totalPayouts: 100, grossGamingRevenue: 400, betCount: 3 },
-}
-
 interface Counters {
   [name: string]: number
 }
@@ -150,8 +140,6 @@ interface DataSet {
   sports?: Row[] | Error
   casino?: Row[] | Error
   matka?: Row[] | Error
-  sportsKpi?: Error
-  activePlayers?: number
 }
 
 function mock(
@@ -188,22 +176,6 @@ function mocksFor(range: Range, set: DataSet, counters: Counters): MockedRespons
     mock('sports', SPORTS_PLAYER_BREAKDOWN_QUERY, { filter }, rows(set.sports, 'sportsPlayerBreakdown'), counters),
     mock('casino', CASINO_PLAYER_BREAKDOWN_QUERY, { filter }, rows(set.casino, 'casinoPlayerBreakdown'), counters),
     mock('matka', MATKA_PLAYER_BREAKDOWN_QUERY, { filter }, rows(set.matka, 'matkaPlayerBreakdown'), counters),
-    mock(
-      'sportsKpi',
-      SPORTS_KPIS_QUERY,
-      { filter },
-      set.sportsKpi ?? { sportsKPIs: { __typename: 'SportsKPIs', ...KPIS.sports } },
-      counters,
-    ),
-    mock('casinoKpi', CASINO_KPIS_QUERY, { filter }, { casinoKPIs: { __typename: 'CasinoKPIs', ...KPIS.casino } }, counters),
-    mock('matkaKpi', MATKA_KPIS_QUERY, { filter }, { matkaKPIs: { __typename: 'MatkaKPIs', ...KPIS.matka } }, counters),
-    mock(
-      'activePlayers',
-      ACTIVE_PLAYERS_QUERY,
-      { dateRange: filter },
-      { overviewKPIs: { __typename: 'OverviewKPIs', activePlayers: set.activePlayers ?? 321 } },
-      counters,
-    ),
   ]
 }
 
@@ -220,6 +192,11 @@ function renderPage(set: DataSet = STANDARD, counters: Counters = {}) {
       </MockedProvider>
     </MemoryRouter>,
   )
+}
+
+/** Whether useQuery ran an operation at all. */
+function asked(name: string): boolean {
+  return apollo.queries.some((entry) => entry.name === name)
 }
 
 function lastOptions(name: string): Record<string, unknown> {
@@ -263,7 +240,7 @@ afterEach(() => {
 })
 
 describe('PlayerProfitabilityPage — documents, access and personas', () => {
-  test('keeps the seven documents, their legacy variables and policies, the guard and the page frame', async () => {
+  test('keeps the three breakdown documents, their legacy variables and policies, the guard and the page frame', async () => {
     renderPage()
     await loaded()
 
@@ -279,22 +256,6 @@ describe('PlayerProfitabilityPage — documents, access and personas', () => {
       body(MATKA_PLAYER_BREAKDOWN_QUERY),
       'query MatkaPlayerBreakdownProfitability($filter: MatkaDrillDownFilter!) { matkaPlayerBreakdown(filter: $filter) { playerId playerUsername playerPhone directAgentId directAgentName agentChain totalStakes totalPayouts grossGamingRevenue betCount avgStake winRate } }',
     )
-    assert.equal(
-      body(SPORTS_KPIS_QUERY),
-      'query SportsKPIsProfitability($filter: SportsReportingFilter) { sportsKPIs(filter: $filter) { totalStakes totalPayouts grossGamingRevenue betCount } }',
-    )
-    assert.equal(
-      body(CASINO_KPIS_QUERY),
-      'query CasinoKPIsProfitability($filter: CasinoReportingFilter) { casinoKPIs(filter: $filter) { totalStakes totalPayouts grossGamingRevenue betCount } }',
-    )
-    assert.equal(
-      body(MATKA_KPIS_QUERY),
-      'query MatkaKPIsProfitability($filter: MatkaReportingFilter) { matkaKPIs(filter: $filter) { totalStakes totalPayouts grossGamingRevenue betCount } }',
-    )
-    assert.equal(
-      body(ACTIVE_PLAYERS_QUERY),
-      'query ActivePlayersProfitability($dateRange: DashboardDateRange) { overviewKPIs(dateRange: $dateRange) { activePlayers } }',
-    )
 
     for (const name of [
       'SportsPlayerBreakdownProfitability',
@@ -308,18 +269,10 @@ describe('PlayerProfitabilityPage — documents, access and personas', () => {
         fetchPolicy: 'network-only',
       }, name)
     }
-    for (const name of ['SportsKPIsProfitability', 'CasinoKPIsProfitability', 'MatkaKPIsProfitability']) {
-      assert.deepEqual(lastOptions(name), {
-        variables: { filter: ALL_TIME },
-        errorPolicy: 'all',
-        fetchPolicy: 'network-only',
-      }, name)
+    // F-REP-16: the cards are summed from the listed rows; the domain KPI and active-player documents are gone.
+    for (const name of ['SportsKPIsProfitability', 'CasinoKPIsProfitability', 'MatkaKPIsProfitability', 'ActivePlayersProfitability']) {
+      assert.equal(asked(name), false, name)
     }
-    assert.deepEqual(lastOptions('ActivePlayersProfitability'), {
-      variables: { dateRange: ALL_TIME },
-      errorPolicy: 'all',
-      fetchPolicy: 'network-only',
-    })
 
     assert.deepEqual(guard.calls.at(-1), {
       required: [{ domain: 'reporting.players-profitability', actions: ['view'] }],
@@ -403,14 +356,15 @@ describe('PlayerProfitabilityPage — rows and figures', () => {
     assert.ok(within(second).getByText('INR 240.00').classList.contains(styles.ggrPos))
     assert.ok(within(second).getByText('40.0%'))
 
-    assert.ok(screen.getByText('INR 12800.00'))
+    // the 27 listed players' rows: GGR 19,500 + 400 + 0, stakes 32,500 + 1,500 + 3,000, payouts
+    // 13,000 + 1,100 + 3,000, bets 325 + 9 + 30, all converted x2
+    assert.ok(screen.getByText('INR 39800.00'))
     assert.equal(screen.getAllByText('27 players').length, 2, 'the GGR note and the card subtitle')
-    assert.ok(screen.getByText('INR 24000.00'))
-    assert.ok(screen.getByText('310 bets'))
-    assert.ok(screen.getByText('INR 11200.00'))
-    assert.ok(screen.getByText('Payout: 46.7%'))
-    assert.ok(screen.getByText('321'))
-    assert.ok(screen.getByText('20 showing'))
+    assert.ok(screen.getByText('INR 74000.00'))
+    assert.ok(screen.getByText('364 bets'))
+    assert.ok(screen.getByText('INR 34200.00'))
+    assert.ok(screen.getByText('Payout: 46.2%'))
+    assert.equal(screen.getByText('Active Players').parentElement?.textContent, 'Active Players2720 showing')
     assert.ok(screen.getByText('Total 27 players'))
     assert.equal(bodyRows().length, 20)
   })
@@ -445,8 +399,9 @@ describe('PlayerProfitabilityPage — rows and figures', () => {
     const first = screen.getByRole('link', { name: /player_1\b/ }).closest('tr')
     assert.ok(first)
     assert.ok(within(first).getByText('INR 1000.00'))
-    // the KPI row never follows the tab
-    assert.ok(screen.getByText('INR 12800.00'))
+    // F-REP-16: the cards follow the tab: the casino rows' GGR, -400 + 800, converted x2
+    assert.ok(screen.getByText('INR 800.00'))
+    assert.equal(screen.getAllByText('2 players').length, 2, 'the GGR note and the card subtitle')
   })
 })
 
@@ -486,12 +441,11 @@ describe('PlayerProfitabilityPage — filters, paging and sorting', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Period' })).getByRole('button', { name: 'Today' }))
     await waitFor(() => {
       assert.deepEqual(lastOptions('SportsPlayerBreakdownProfitability').variables, { filter: TODAY })
-      assert.deepEqual(lastOptions('MatkaKPIsProfitability').variables, { filter: TODAY })
-      assert.deepEqual(lastOptions('ActivePlayersProfitability').variables, { dateRange: TODAY })
+      assert.deepEqual(lastOptions('MatkaPlayerBreakdownProfitability').variables, { filter: TODAY })
     })
     assert.equal(currentPage(), '1')
     await screen.findByRole('button', { name: 'Period: 07 Oct 2026 – 07 Oct 2026' })
-    await waitFor(() => assert.equal(counters.activePlayers, 2))
+    await waitFor(() => assert.equal(counters.matka, 2))
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     await waitFor(() => {
@@ -526,15 +480,15 @@ describe('PlayerProfitabilityPage — filters, paging and sorting', () => {
     )
   })
 
-  test('Refresh re-runs the visible tab’s breakdowns and every KPI document', async () => {
+  test('Refresh re-runs the visible tab’s breakdowns', async () => {
     const counters: Counters = {}
     renderPage(STANDARD, counters)
     await loaded()
-    await waitFor(() => assert.equal(counters.activePlayers, 1))
+    await waitFor(() => assert.equal(counters.matka, 1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     await waitFor(() => {
-      for (const name of ['sports', 'casino', 'matka', 'sportsKpi', 'casinoKpi', 'matkaKpi', 'activePlayers']) {
+      for (const name of ['sports', 'casino', 'matka']) {
         assert.equal(counters[name], 2, name)
       }
     })
@@ -543,7 +497,6 @@ describe('PlayerProfitabilityPage — filters, paging and sorting', () => {
     await screen.findByText('Total 1 players')
     const before = { ...counters }
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    await waitFor(() => assert.equal(counters.activePlayers, (before.activePlayers ?? 0) + 1))
     await waitFor(() => assert.equal(counters.matka, (before.matka ?? 0) + 1))
     assert.equal(counters.sports, before.sports)
     assert.equal(counters.casino, before.casino)
@@ -561,14 +514,15 @@ describe('PlayerProfitabilityPage — loading, empty and error states', () => {
     assert.equal(screen.getAllByText('0 players').length, 2)
   })
 
-  test('a failed breakdown keeps the rows that arrived under an error with Retry; a failed total says so', async () => {
+  test('a failed breakdown keeps the rows that arrived under an error with Retry', async () => {
     const counters: Counters = {}
-    renderPage({ sports: new Error('Sports breakdown failed'), casino: CASINO_ROWS, matka: MATKA_ROWS, sportsKpi: new Error('KPI failed') }, counters)
+    renderPage({ sports: new Error('Sports breakdown failed'), casino: CASINO_ROWS, matka: MATKA_ROWS }, counters)
 
     const alert = await screen.findByText('Sports breakdown failed')
     assert.ok(alert)
     assert.ok(screen.getByRole('link', { name: /player_26/ }))
-    assert.ok(screen.getByText('Some totals could not be loaded'))
+    // the cards are the rows' own sums, so there is no separate totals notice any more
+    assert.ok(screen.queryByText('Some totals could not be loaded') === null)
     const retries = counters.casino ?? 0
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => assert.equal(counters.casino, retries + 1))
@@ -576,7 +530,7 @@ describe('PlayerProfitabilityPage — loading, empty and error states', () => {
 
   test('a permission refusal stays silent: what arrived is shown with no error, Retry or totals notice', async () => {
     const refusal = new Error('Forbidden: insufficient permissions for reporting.sports:view')
-    renderPage({ sports: refusal, casino: CASINO_ROWS, matka: MATKA_ROWS, sportsKpi: refusal })
+    renderPage({ sports: refusal, casino: CASINO_ROWS, matka: MATKA_ROWS })
     await loaded('Total 3 players')
 
     assert.ok(screen.getByRole('link', { name: /player_26/ }))
@@ -584,7 +538,7 @@ describe('PlayerProfitabilityPage — loading, empty and error states', () => {
     assert.ok(screen.queryByText(/Forbidden/) === null)
     assert.equal(screen.queryByRole('button', { name: 'Retry' }), null)
     assert.ok(screen.queryByText('Some totals could not be loaded') === null)
-    // Total GGR is casino's 0 and matka's 400 alone, converted ×2
+    // Total GGR is the listed casino and matka rows' -400 + 800 + 0, converted ×2
     assert.ok(screen.getByText('INR 800.00'))
   })
 

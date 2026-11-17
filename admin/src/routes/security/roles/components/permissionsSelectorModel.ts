@@ -37,8 +37,7 @@ export const CATEGORY_META: Readonly<Record<string, CategoryMeta>> = {
   support: { label: 'Support', desc: 'Live Chat & Player Support', hue: 'red' },
   audit: { label: 'Audit', desc: 'Audit Trail & Logs', hue: 'neutral' },
   notifications: { label: 'Notifications', desc: 'Notification System', hue: 'red' },
-  credit: { label: 'Credit', desc: 'Credit Management', hue: 'grn' },
-  promotions: { label: 'Promotions', desc: 'Marketing Campaigns', hue: 'red' },
+  credit: { label: 'Credit', desc: 'Chips: pool, Deposit & Withdraw', hue: 'grn' },
 }
 export const DEFAULT_META: CategoryMeta = { label: 'Other', desc: 'Other Permissions', hue: 'neutral' }
 
@@ -71,7 +70,7 @@ export const RESOURCE_LABELS: Readonly<Record<string, string>> = {
   app: 'Application', whitelabels: 'Whitelabels', 'otp-providers': 'OTP Providers',
   advertisements: 'Advertisements', cms: 'CMS', 'sports-advanced': 'Sports Advanced',
   roles: 'Roles', 'support-admins': 'Support Admins', 'ip-allowlist': 'IP Allowlist',
-  annotations: 'Annotations', campaigns: 'Campaigns', content: 'Content',
+  annotations: 'Annotations',
   history: 'History', general: 'General',
 }
 
@@ -118,7 +117,7 @@ export const RESOURCE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'players.bets': 'View player bet history',
   'players.responsible-gaming': 'Manage self-exclusion and limits',
   'players.devices': 'View and manage player devices',
-  'players.credit': 'Manage player credit lines',
+  'players.credit': "View credit players' chips and credit references",
   'players.ledger': 'View financial ledger entries',
   'players.referral-bonus': 'View referral bonus activity',
   'players.security-audit': 'View security audit trail',
@@ -127,7 +126,7 @@ export const RESOURCE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'agents.profile': 'Manage agent profiles',
   'agents.hierarchy': 'View agent tree structure',
   'agents.performance': 'View performance metrics',
-  'agents.credit': 'Manage agent credit allocation',
+  'agents.credit': 'Deposit / withdraw chips and set credit references',
   'agents.commission': 'Configure commission structure',
   'agents.sharing': 'Configure profit sharing rules',
   'bonuses.list': 'View all bonus templates',
@@ -174,12 +173,9 @@ export const RESOURCE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'security.ip-allowlist': 'Manage IP access restrictions',
   'audit.events': 'View system audit events',
   'audit.annotations': 'Manage audit annotations',
-  'notifications.list': 'Manage system notifications',
   'credit.management': 'View credit overview',
   'credit.history': 'View credit transaction history',
   'credit.settlements': 'Process credit settlements',
-  'promotions.campaigns': 'Manage promotional campaigns',
-  'promotions.content': 'Manage promotional content',
 }
 
 function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { IconCircleCheck } from '@tabler/icons-react'
 import { useCreateMatka, useMatka, useSetMatkaStatus, useUpdateMatka } from '../../modules/matka'
+import { MatkaWhitelabelGate } from '../../modules/matka/MatkaWhitelabelGate'
 import { RBACGuard } from '@/shared/core/RBACGuard'
 import { notify } from '@/shared/services/notification'
 import { usePageEyebrow } from '@/shell/PageEyebrowContext'
@@ -9,6 +10,7 @@ import { Button } from '@/ui/components/Button'
 import { Card } from '@/ui/components/Card'
 import { Dialog } from '@/ui/components/Dialog'
 import { Form, FormActions } from '@/ui/components/Form'
+import { Notice } from '@/ui/components/Notice'
 import { Page } from '@/ui/components/Page'
 import { PageHeader } from '@/ui/components/PageHeader'
 import { Steps } from '@/ui/components/Steps'
@@ -27,6 +29,7 @@ import {
   buildCreateMatkaInput,
   buildUpdateMatkaInput,
   createMatkaInitialValues,
+  matkaErrorStep,
   matkaFormSchema,
   matkaStepFields,
   matkaValuesFromRecord,
@@ -37,14 +40,20 @@ import {
   type MatkaFormValues,
   type MatkaRecord,
 } from './matkaFormModel'
+import { matkaErrorText } from './matkaManagementModel'
 import styles from './CreateEditPage.module.css'
 
 const ACCESS_REQUIREMENT = [{ domain: 'matka.management', actions: ['view', 'create', 'update'] }]
 
 export default function MatkaCreateEditPage() {
+  // A Super Admin in core mode is asked for a whitelabel: a create or save there fell back to the platform's own
+  // tenant ('default'), where no whitelabel sees it, and an edit read that tenant and called a real matka not found.
+  const { id } = useParams<{ id?: string }>()
   return (
     <RBACGuard required={ACCESS_REQUIREMENT}>
-      <MatkaCreateEditPageContent />
+      <MatkaWhitelabelGate title={pageTitle(Boolean(id))}>
+        <MatkaCreateEditPageContent />
+      </MatkaWhitelabelGate>
     </RBACGuard>
   )
 }
@@ -55,7 +64,7 @@ function MatkaCreateEditPageContent() {
   const navigate = useNavigate()
   const pageEyebrow = usePageEyebrow()
   const formRef = useRef<HTMLFormElement>(null)
-  const { data } = useMatka(id || '')
+  const { data, loading: matkaLoading, error: matkaError } = useMatka(id || '')
   const matka = data?.matka as MatkaRecord | null | undefined
   const [createMatka, { loading: creating }] = useCreateMatka()
   const [updateMatka, { loading: updating }] = useUpdateMatka()
@@ -84,8 +93,10 @@ function MatkaCreateEditPageContent() {
         await createMatka({ variables: { input: buildCreateMatkaInput(values) } })
       }
       navigate(MATKA_LIST_PATH)
-    } catch {
-      notify.error(SAVE_FAILURE)
+    } catch (error) {
+      // The server's own reason ("Settle or void pending bets ...", a name or code already taken), which the
+      // catch-all hid; SAVE_FAILURE stays for a failure with nothing to show (never a driver error).
+      notify.error(matkaErrorText(error, SAVE_FAILURE))
     } finally {
       close()
     }
@@ -102,6 +113,17 @@ function MatkaCreateEditPageContent() {
 
   const form = useForm({ schema, initialValues, onSubmit: submitValues })
   const { reset } = form
+
+  // A submit validates every step, but the Review step shows no fields: a refused submit (Min Bet 0, say)
+  // returns to the first step holding an error, where the field shows its message.
+  const { errorAnnouncementRevision, errors } = form
+  const errorsRef = useRef(errors)
+  errorsRef.current = errors
+  useEffect(() => {
+    if (!errorAnnouncementRevision) return
+    const step = matkaErrorStep(Object.keys(errorsRef.current))
+    if (step !== null) setCurrentStep((current) => Math.min(current, step))
+  }, [errorAnnouncementRevision])
 
   useEffect(() => {
     if (matka) reset(matkaValuesFromRecord(matka))
@@ -142,6 +164,24 @@ function MatkaCreateEditPageContent() {
 
   const finalStep = currentStep === MATKA_STEP_COUNT - 1
   const activeStep = MATKA_STEPS[currentStep]
+
+  // No matka to edit: the load failed, or the server has no such matka in this whitelabel (another tenant's or
+  // a deleted id answers null). The editor used to open on the defaults with a live Next Step.
+  if (isEdit && !matkaLoading && !matka) {
+    return (
+      <Page>
+        <PageHeader
+          eyebrow={pageEyebrow}
+          title={pageTitle(isEdit)}
+          sub={pageSubtitle(isEdit)}
+          back={{ label: 'Back to Matkas', onClick: () => navigate(MATKA_LIST_PATH) }}
+        />
+        <Notice tone="error" title={matkaError ? 'Error loading matka' : 'Matka not found'}>
+          {matkaError ? matkaError.message : 'There is no such matka in this whitelabel. It may have been deleted.'}
+        </Notice>
+      </Page>
+    )
+  }
 
   return (
     <Page>

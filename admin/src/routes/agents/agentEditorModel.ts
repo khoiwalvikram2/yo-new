@@ -4,13 +4,21 @@ export interface AgentRate { domain: string; rate: number }
 export interface AgentParentOption {
   id: string; username: string | null; levelIndex: number | null; schemeType: string
   allowedDomains?: string[]; sharingRates?: AgentRate[]; commissionRates?: AgentRate[]
-  status?: string | null; creditAvailable?: number | null
+  status?: string | null
 }
 export interface AgentRecord extends AgentParentOption {
   phone?: string | null; status: string; parentAgentId?: string | null; tallyEnabled?: boolean; tallyDomains?: string[] | null
 }
 /** SHARING and CREDIT hierarchies stop at level 4; COMMISSION has no depth cap. */
 export const MAX_AGENT_LEVEL = 4
+/**
+ * Whether a COMMISSION agent's cross-domain tally is on: the flag AND at least one domain, which is how commission
+ * is calculated (the server's tallyIsOn / applyTallyRulesForSettlement). Every screen shows the tally by this rule,
+ * so a flag left on with no domain reads "off" everywhere, as it is paid.
+ */
+export function tallyIsOn(enabled: boolean | null | undefined, domains: readonly string[] | null | undefined): boolean {
+  return Boolean(enabled) && (domains ?? []).length > 0
+}
 /** Agents that may be chosen as a new agent's parent: same scheme, ACTIVE, and (SHARING/CREDIT) below level 4. */
 export function eligibleParentAgents<T extends AgentParentOption>(options: readonly T[], schemeType: string): T[] {
   return options.filter((option) => option.schemeType === schemeType && (option.status == null || option.status.toUpperCase() === 'ACTIVE') &&
@@ -24,8 +32,14 @@ const base = z.object({
   status: z.string().min(1, 'Please select account status'), parentAgentId: z.string().nullable(), levelIndex: z.number().nullable(),
   tallyEnabled: z.boolean(), tallyDomains: z.array(z.string()), currency: z.string().min(1, 'Currency is required'),
   commissionRates: z.record(z.string(), z.number().nullable()), sharingRates: z.record(z.string(), z.number().nullable()),
-  // Credit limit at creation (CREDIT only). Blank means "not set": the field is then left out of the input.
-  creditLimit: z.number().min(0, 'Credit limit cannot be negative').nullable(),
+  // CREDIT only, at creation (spec 2026-11-02 §4.4). creditLimit is the input's name for the credit reference: a
+  // reference the agent's Ref P/L is measured against, which moves no chips. Blank leaves it out of the input.
+  creditLimit: z.number().min(0, 'Credit reference cannot be negative').nullable(),
+  // Chips deposited to the new agent from its parent (the whitelabel pool for a root agent). Blank or 0: none.
+  // Offered only when the creator is that parent (givesOpeningChips).
+  openingChips: z.number().min(0, 'Opening chips cannot be negative').nullable(),
+  // The parent's free chips, read by the Scheme step; null while unknown (the server checks it then).
+  _chipsFree: z.number().nullable(),
   _usernameError: z.string(), _parentLevel: z.number(), _caps: capsSchema,
 })
 export type AgentEditorValues = z.infer<typeof base>
@@ -42,8 +56,14 @@ export function agentEditorSchema(isEdit: boolean) {
       else if (value.password.length < 6) issue(['password'], 'Password must be at least 6 characters')
     }
     if (!isEdit && value.phone && !/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/.test(value.phone)) issue(['phone'], 'Please enter a valid phone number')
+    // A tally switched on with nothing to tally would be paid as off (tallyIsOn), so the editor asks for a domain.
+    if (value.schemeType === 'COMMISSION' && value.tallyEnabled && !value.tallyDomains.length) issue(['tallyDomains'], 'Select at least one domain to tally, or turn the tally off')
     if (value.schemeType !== 'COMMISSION' && value.levelIndex == null) issue(['levelIndex'], 'Hierarchy level is required')
     if (value.schemeType !== 'COMMISSION' && value.levelIndex != null && value._parentLevel > 0 && value.levelIndex <= value._parentLevel) issue(['levelIndex'], `Level must be greater than parent's level (L${value._parentLevel})`)
+    // The opening deposit cannot take more than the parent's free chips (spec 2026-11-02 decision 4).
+    if (!isEdit && value.schemeType === 'CREDIT' && value.openingChips != null && value._chipsFree != null && value.openingChips > value._chipsFree) {
+      issue(['openingChips'], `Not enough chips: ${Math.max(0, value._chipsFree).toFixed(2)} free`)
+    }
     const key = value.schemeType === 'COMMISSION' ? 'commissionRates' : 'sharingRates'
     for (const domain of value.allowedDomains) {
       const rate = value[key][domain]
@@ -61,22 +81,38 @@ export function agentEditorValues(record?: AgentRecord): AgentEditorValues {
   const rates = (source?: AgentRate[]) => Object.fromEntries((source || []).map(({ domain, rate }) => [domain, Number(Number(rate).toFixed(2))]))
   return { id: record?.id || '', username: record?.username || '', password: '', phone: record?.phone || '',
     schemeType: (record?.schemeType || 'COMMISSION') as AgentEditorValues['schemeType'], allowedDomains: record?.allowedDomains || [], status: record?.status || 'ACTIVE',
-    // A new agent starts with cross-domain tally on (it only applies to COMMISSION); an edit keeps the stored value.
-    parentAgentId: record?.parentAgentId || null, levelIndex: record?.levelIndex ?? null, tallyEnabled: record ? Boolean(record.tallyEnabled) : true,
+    // A new agent starts with the cross-domain tally off (it only applies to COMMISSION): it used to start "on" with
+    // no domain, which tallied nothing. An edit shows the stored tally as it is paid (tallyIsOn).
+    parentAgentId: record?.parentAgentId || null, levelIndex: record?.levelIndex ?? null, tallyEnabled: record ? tallyIsOn(record.tallyEnabled, record.tallyDomains) : false,
     tallyDomains: record?.tallyDomains || [], currency: 'INR', commissionRates: rates(record?.commissionRates), sharingRates: rates(record?.sharingRates),
-    creditLimit: null, _usernameError: '', _parentLevel: 0, _caps: { limits: {}, blocked: false, missingWhitelabelDomains: [] } }
+    creditLimit: null, openingChips: null, _chipsFree: null, _usernameError: '', _parentLevel: 0, _caps: { limits: {}, blocked: false, missingWhitelabelDomains: [] } }
+}
+/** A signed-in agent always creates under itself; anyone else (an admin) picks the parent, or none. */
+function isAgentCreator(creator?: { schemeType: string } | null): boolean {
+  return Boolean(creator && ['SHARING', 'CREDIT', 'COMMISSION'].includes(creator.schemeType))
+}
+/**
+ * Whether the creator may give the new CREDIT agent opening chips. Only its direct parent moves its chips (spec
+ * 2026-11-02 decision 3), at creation too: an agent creating its own sub-agent, or an admin creating a root agent
+ * (from the whitelabel pool). An admin who picks a parent agent leaves them to that agent, which deposits once
+ * the account exists; the server refuses opening chips from anyone else.
+ */
+export function givesOpeningChips(values: Pick<AgentEditorValues, 'schemeType' | 'parentAgentId'>, creator?: { schemeType: string } | null): boolean {
+  return values.schemeType === 'CREDIT' && (isAgentCreator(creator) || !values.parentAgentId)
 }
 export function createAgentInput(values: AgentEditorValues, creator?: { id: string; schemeType: string; levelIndex: number | null }) {
-  const isAgent = creator && ['SHARING', 'CREDIT', 'COMMISSION'].includes(creator.schemeType)
-  const parentAgentId = isAgent ? creator.id : values.parentAgentId || null
+  const isAgent = isAgentCreator(creator)
+  const parentAgentId = isAgent && creator ? creator.id : values.parentAgentId || null
   const parentLevel = creator?.levelIndex || 1
   const levelIndex = isAgent && (!values.levelIndex || values.levelIndex <= parentLevel) ? parentLevel + 1 : values.levelIndex || null
   const commission = values.schemeType === 'COMMISSION'
   return { username: values.username.trim().toLowerCase(), password: values.password.trim(), phone: values.phone.trim() || null,
     schemeType: values.schemeType, allowedDomains: values.allowedDomains, status: values.status.toUpperCase(), parentAgentId, levelIndex,
-    // Tally is a COMMISSION setting; other schemes never send it on.
-    tallyEnabled: commission && Boolean(values.tallyEnabled), tallyDomains: commission ? values.tallyDomains : [], currency: values.currency || 'INR',
-    ...(values.schemeType === 'CREDIT' && values.creditLimit != null && Number.isFinite(values.creditLimit) ? { creditLimit: values.creditLimit } : {}) }
+    // Tally is a COMMISSION setting; other schemes never send it on, and it is on only with a domain (tallyIsOn).
+    tallyEnabled: commission && tallyIsOn(values.tallyEnabled, values.tallyDomains), tallyDomains: commission ? values.tallyDomains : [], currency: values.currency || 'INR',
+    ...(values.schemeType === 'CREDIT' && values.creditLimit != null && Number.isFinite(values.creditLimit) ? { creditLimit: values.creditLimit } : {}),
+    // Left out (none) unless the creator is the new agent's direct parent, whatever the form still holds.
+    ...(givesOpeningChips(values, creator) && values.openingChips != null && Number.isFinite(values.openingChips) && values.openingChips > 0 ? { openingChips: values.openingChips } : {}) }
 }
 /**
  * The updateAgent input. An agent editing one of its sub-agents may change the domains (within the
@@ -86,14 +122,22 @@ export function createAgentInput(values: AgentEditorValues, creator?: { id: stri
 export function updateAgentInput(id: string, values: AgentEditorValues, options: { agentCaller?: boolean } = {}) {
   if (options.agentCaller) return { id, allowedDomains: values.allowedDomains, status: values.status.toUpperCase() }
   return { id, allowedDomains: values.allowedDomains, status: values.status.toUpperCase(), parentAgentId: values.parentAgentId || null,
-    levelIndex: values.levelIndex || null, tallyEnabled: Boolean(values.tallyEnabled), tallyDomains: values.tallyDomains }
+    levelIndex: values.levelIndex || null, tallyEnabled: tallyIsOn(values.tallyEnabled, values.tallyDomains), tallyDomains: values.tallyDomains }
 }
 /** A setCommissionConfig input (commissionRate) or a setSharingConfig input (shareRate), as a fraction. */
 export interface AgentRateInput { agentId: string; domain: string; effectiveFrom: string; commissionRate?: number; shareRate?: number }
-/** One rate input per allowed domain with a rate. 0 is a real rate (it can lower a rate to zero); blank is "not set". */
-export function agentRateInputs(agentId: string, values: AgentEditorValues, effectiveFrom: string): AgentRateInput[] {
+/**
+ * One rate input per allowed domain with a rate. 0 is a real rate (it can lower a rate to zero); blank is "not set".
+ * Given the record being edited, only the rates that differ from its current ones (both in percent, to 2 decimals):
+ * re-sending an unchanged rate added one more identical open row to the agent's rate history on every save.
+ */
+export function agentRateInputs(agentId: string, values: AgentEditorValues, effectiveFrom: string, current?: AgentRecord): AgentRateInput[] {
   const commission = values.schemeType === 'COMMISSION'
+  const currentRates = current ? (commission ? current.commissionRates : current.sharingRates) ?? [] : []
+  const percent = (rate: number) => Number(Number(rate).toFixed(2))
+  const unchanged = (domain: string, rate: number) => currentRates.some((row) => row.domain === domain && percent(row.rate) === percent(rate))
   return Object.entries(commission ? values.commissionRates : values.sharingRates)
     .filter(([domain, rate]) => values.allowedDomains.includes(domain) && rate != null && Number.isFinite(Number(rate)) && Number(rate) >= 0)
+    .filter(([domain, rate]) => !unchanged(domain, Number(rate)))
     .map(([domain, rate]) => commission ? { agentId, domain, commissionRate: Number(rate) / 100, effectiveFrom } : { agentId, domain, shareRate: Number(rate) / 100, effectiveFrom })
 }

@@ -1,117 +1,69 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { ApolloLink, Observable, type FetchResult, type Operation } from '@apollo/client'
-import { MockedProvider } from '@apollo/client/testing'
+import { afterEach, beforeEach, describe, test, vi } from 'vitest'
+import assert from 'node:assert/strict'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { ApolloProvider } from '@apollo/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { PageEyebrowProvider } from '@/shell/PageEyebrowContext'
+import { useAuthStore } from '@/shared/core/authStore'
+import {
+  agentSession,
+  chipAccountFixture,
+  chipRowFixture,
+  chipServer,
+  chipTotalsFixture,
+  type ChipHandler,
+  type ChipServer,
+} from '@/modules/chips/chipTestKit'
 import AgentCreditManagementPage from './CreditManagementPage'
 
-interface MockAgent { id: string; schemeType: string }
-interface Call { operationName: string; variables: Record<string, unknown> }
-
-const auth = vi.hoisted(() => ({ agent: undefined as MockAgent | undefined }))
-
-vi.mock('@/shared/core/authStore', () => ({
-  useAuthStore: (selector: (state: { agent?: MockAgent }) => unknown) => selector({ agent: auth.agent }),
-}))
-
+vi.mock('@/ui/components/toast', () => ({ toast: vi.fn() }))
 vi.mock('@/shared/core/CurrencyContext', () => ({
-  useCurrency: () => ({ formatAmount: (amount: number) => `INR ${amount.toFixed(2)}` }),
+  useCurrency: () => ({
+    formatAmount: (amount: number, currency = 'INR') => `${currency} ${Number(amount).toFixed(2)}`,
+    getCurrencySymbol: () => '₹',
+  }),
 }))
-
 vi.mock('@/shared/core/useFormatDate', () => ({
   useFormatDate: () => ({ formatDateTime: (value: string) => `shown:${value}` }),
 }))
 
-let calls: Call[]
-let historyRows = 1
+const ME = chipAccountFixture({ id: 'agent-1', username: 'agent1', creditReference: 100000, balance: 95000, available: 95000, downlineBalance: 9700, refPnl: 4700, downlineCount: 2 })
+const CHILD = chipAccountFixture({ id: 'agent-2', username: 'agent2', parentAgentId: 'agent-1', creditReference: 10000, balance: 9000, available: 9000, refPnl: -1000 })
+const PLAYER = chipAccountFixture({ accountType: 'PLAYER', id: 'player-1', username: 'player1', parentAgentId: 'agent-1', playerType: 'AGENT_CREDIT', creditReference: 1000, balance: 700, exposure: 200, available: 500, refPnl: -300 })
 
-const credit = {
-  __typename: 'AgentCreditInfo',
-  creditLimit: 100000,
-  creditUsed: 25000,
-  creditAvailable: 75000,
-  creditAlertThreshold: 80,
-  settlementBalance: 0,
-  settlementBalanceSports: 0,
-  settlementBalanceCasino: 0,
-  settlementBalanceMatka: 0,
-  usagePercentage: 25,
-  isNearLimit: false,
-}
+const servers: ChipServer[] = []
 
-function transaction(index: number) {
+function handlers(overrides: Record<string, ChipHandler> = {}): Record<string, ChipHandler> {
   return {
-    __typename: 'CreditTransaction',
-    id: `tx-${index}`,
-    transactionType: index % 2 ? 'DEPOSIT' : 'WITHDRAW',
-    amount: index % 2 ? 500 : -250,
-    balanceBefore: 1000,
-    balanceAfter: index % 2 ? 1500 : 750,
-    reason: index === 1 ? 'Opening allocation' : null,
-    createdBy: null,
-    createdByType: null,
-    createdAt: '2026-10-01T10:00:00.000Z',
-  }
-}
-
-function response(operation: Operation): FetchResult {
-  calls.push({
-    operationName: operation.operationName,
-    variables: JSON.parse(JSON.stringify(operation.variables)) as Record<string, unknown>,
-  })
-  if (operation.operationName === 'MyAgentCredit') return { data: { myAgentCredit: credit } }
-  if (operation.operationName === 'MyAgentCreditHistory') {
-    const offset = Number(operation.variables.offset || 0)
-    return { data: { myAgentCreditHistory: Array.from({ length: historyRows }, (_, index) => transaction(offset + index + 1)) } }
-  }
-  if (operation.operationName === 'MyAgentSettlements') {
-    return {
-      data: {
-        myAgentSettlements: {
-          __typename: 'MyAgentSettlements',
-          totalAgentSettled: 1200,
-          totalCreditTransactions: 500,
-          agentSettlements: [{
-            __typename: 'AgentSettlement',
-            id: 'settlement-1',
-            tenant: 'tenant-1',
-            agentId: 'agent-1',
-            settlementType: 'WEEKLY',
-            amount: 1200,
-            direction: 'TO_AGENT',
-            previousBalance: 0,
-            newBalance: 1200,
-            notes: 'Weekly settlement',
-            settledBy: null,
-            createdAt: '2026-10-02T10:00:00.000Z',
-          }],
-          creditTransactions: [transaction(50)],
-        },
+    MyChipAccount: () => ({ myChipAccount: ME }),
+    ChipDownline: () => ({
+      chipDownline: {
+        __typename: 'ChipDownline',
+        parent: ME,
+        pool: null,
+        items: [CHILD, PLAYER],
+        total: 2,
+        totals: chipTotalsFixture({ creditReference: 11000, balance: 9700, exposure: 200, available: 9500, refPnl: -1300 }),
       },
-    }
+    }),
+    ChipStatement: () => ({
+      chipStatement: {
+        __typename: 'ChipStatementPage',
+        rows: [chipRowFixture({ id: 'row-1', kind: 'DEPOSIT', amount: 5000, balanceBefore: 90000, balanceAfter: 95000, counterpartyType: 'whitelabel', counterpartyId: 'tenant-1', counterpartyName: null, remark: 'Opening top-up' })],
+        total: 1,
+      },
+    }),
+    ...overrides,
   }
-  throw new Error(`Unexpected operation ${operation.operationName}`)
 }
 
-function serverLink() {
-  return new ApolloLink((operation) => new Observable((observer) => {
-    queueMicrotask(() => {
-      try {
-        observer.next(response(operation))
-        observer.complete()
-      } catch (error) {
-        observer.error(error)
-      }
-    })
-  }))
-}
-
-function renderPage(initialEntries = ['/agent/credit']) {
-  return render(
-    <MockedProvider link={serverLink()} cache={undefined}>
+function renderPage(overrides: Record<string, ChipHandler> = {}, initialEntries = ['/agent/credit']) {
+  const server = chipServer(handlers(overrides))
+  servers.push(server)
+  render(
+    <ApolloProvider client={server.client}>
       <MemoryRouter initialEntries={initialEntries} initialIndex={initialEntries.length - 1}>
-        <PageEyebrowProvider value="Analytics">
+        <PageEyebrowProvider value="Finance">
           <Routes>
             <Route path="/agent/credit" element={<AgentCreditManagementPage />} />
             <Route path="/agent" element={<p>Agent overview</p>} />
@@ -119,73 +71,86 @@ function renderPage(initialEntries = ['/agent/credit']) {
           </Routes>
         </PageEyebrowProvider>
       </MemoryRouter>
-    </MockedProvider>,
+    </ApolloProvider>,
   )
+  return server
 }
 
-beforeEach(() => {
-  auth.agent = { id: 'agent-1', schemeType: 'CREDIT' }
-  calls = []
-  historyRows = 1
+beforeEach(() => useAuthStore.setState({ agent: agentSession(), user: undefined, permissions: [], agentPermissions: [], isReadOnly: false }))
+afterEach(() => {
+  servers.splice(0).forEach((server) => server.client.stop())
 })
 
-describe('/agent/credit', () => {
-  test('shows the unauthenticated state beneath a stable page header', () => {
-    auth.agent = undefined
-    renderPage()
-    expect(screen.getByRole('heading', { level: 1, name: 'Credit Management' })).toBeTruthy()
-    expect(screen.getByText('Not Authenticated')).toBeTruthy()
+describe('/agent/credit (the agent Chips page)', () => {
+  test('shows the unauthenticated state beneath a stable page header and asks for nothing', async () => {
+    useAuthStore.setState({ agent: undefined })
+    const server = renderPage()
+    assert.ok(screen.getByRole('heading', { level: 1, name: 'Chips' }))
+    assert.ok(screen.getByText('Not Authenticated'))
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    assert.deepEqual(server.calls, [])
   })
 
-  test('keeps the exact CREDIT access gate and overview destination', async () => {
-    auth.agent = { id: 'agent-1', schemeType: 'SHARING' }
-    renderPage()
-    expect(screen.getByText('Access Denied')).toBeTruthy()
-    expect(screen.getByText(/only available for CREDIT scheme agents/)).toBeTruthy()
+  test('keeps the CREDIT-only gate and the overview destination', async () => {
+    useAuthStore.setState({ agent: agentSession({ schemeType: 'SHARING' }) })
+    const server = renderPage()
+    assert.ok(screen.getByText('Access Denied'))
+    assert.ok(screen.getByText(/only available for CREDIT scheme agents/))
     fireEvent.click(screen.getByRole('button', { name: 'Go to Overview' }))
-    expect(await screen.findByText('Agent overview')).toBeTruthy()
+    assert.ok(await screen.findByText('Agent overview'))
+    assert.deepEqual(server.calls, [])
   })
 
-  test('renders the overview from the unchanged query and status rules', async () => {
-    renderPage()
-    expect(await screen.findByText('Healthy')).toBeTruthy()
-    expect(screen.getByText('Credit Limit')).toBeTruthy()
-    expect(screen.getByText('Available Credit')).toBeTruthy()
-    expect(calls.find((call) => call.operationName === 'MyAgentCredit')?.variables).toEqual({})
-    expect(screen.getByRole('tab', { name: /Overview/ }).getAttribute('aria-selected')).toBe('true')
+  test('my figures come from myChipAccount and my direct downline opens with D / W / CR', async () => {
+    const server = renderPage()
+    const figures = await screen.findByRole('group', { name: 'My chips' })
+    // An agent's available is its balance, so the figure shows twice.
+    assert.equal((await within(figures).findAllByText('INR 95000.00')).length, 2)
+    for (const text of ['Credit Reference', 'INR 100000.00', 'Balance', 'Downline holds INR 9700.00', 'Ref P/L', '+INR 4700.00', 'Upline owes you']) {
+      assert.ok(within(figures).getByText(text), text)
+    }
+    for (const gone of ['Credit Limit', 'Credit Used', 'Usage Status', 'Credit Utilization']) assert.equal(screen.queryByText(gone), null, gone)
+
+    assert.equal(screen.getByRole('tab', { name: /Downline/ }).getAttribute('aria-selected'), 'true')
+    const table = await screen.findByRole('table', { name: 'My downline' })
+    await within(table).findByText('player1')
+    assert.ok(within(table).getByRole('button', { name: 'Deposit chips to agent2' }))
+    assert.ok(within(table).getByRole('button', { name: 'Withdraw chips from player1' }))
+    assert.deepEqual(server.callsOf('ChipDownline').map((call) => call.variables.parentAgentId), [null])
+    assert.equal(server.callsOf('MyChipAccount').length, 1)
+    assert.ok(server.calls.every((call) => !/AgentCredit|Settlement|CreditAllocation/.test(call.operationName)), 'no credit-limit reads')
   })
 
-  test('loads adjustments only after its tab with exact paging variables', async () => {
-    renderPage()
-    await screen.findByText('Healthy')
-    expect(calls.some((call) => call.operationName === 'MyAgentCreditHistory')).toBe(false)
-    fireEvent.click(screen.getByRole('tab', { name: /Adjustments/ }))
-    expect(await screen.findByText('Opening allocation')).toBeTruthy()
-    expect(calls.find((call) => call.operationName === 'MyAgentCreditHistory')?.variables).toEqual({ limit: 20, offset: 0 })
+  test('the statement tab reads my chip statement from the first page', async () => {
+    const server = renderPage()
+    await screen.findByRole('group', { name: 'My chips' })
+    assert.equal(server.callsOf('ChipStatement').length, 0, 'the statement loads with its tab')
+    fireEvent.click(screen.getByRole('tab', { name: /Statement/ }))
+    const table = await screen.findByRole('table', { name: 'My chip statement' })
+    await within(table).findByText('Opening top-up')
+    assert.ok(within(table).getByText('+INR 5000.00'))
+    assert.ok(within(table).getByText('Whitelabel pool'))
+    assert.deepEqual(server.callsOf('ChipStatement').map((call) => call.variables), [
+      { accountType: 'AGENT', accountId: 'agent-1', from: null, to: null, offset: 0, limit: 20 },
+    ])
   })
 
-  test('offers next-page navigation only for a full server page', async () => {
-    historyRows = 20
-    renderPage()
-    fireEvent.click(screen.getByRole('tab', { name: /Adjustments/ }))
-    const next = await screen.findByRole('button', { name: 'Next' })
-    expect(next.hasAttribute('disabled')).toBe(false)
-    fireEvent.click(next)
-    await waitFor(() => expect(calls.some((call) => call.operationName === 'MyAgentCreditHistory' && call.variables.offset === 20)).toBe(true))
-  })
-
-  test('loads both settlement tables and totals with the exact query variables', async () => {
-    renderPage()
-    fireEvent.click(screen.getByRole('tab', { name: /Settlements/ }))
-    expect(await screen.findByText('Weekly settlement')).toBeTruthy()
-    expect(screen.getByText('To Agent')).toBeTruthy()
-    expect(calls.find((call) => call.operationName === 'MyAgentSettlements')?.variables).toEqual({ limit: 20, offset: 0 })
+  test('a failed read says so in the server’s words and can be retried', async () => {
+    let fail = true
+    const server = renderPage({ MyChipAccount: () => (fail ? new Error('Chips service unavailable') : { myChipAccount: ME }) })
+    assert.ok(await screen.findByText('Your chips could not be loaded'))
+    assert.ok(screen.getByText('Chips service unavailable'))
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    const figures = await screen.findByRole('group', { name: 'My chips' })
+    await within(figures).findAllByText('INR 95000.00')
+    assert.equal(server.callsOf('MyChipAccount').length, 2)
   })
 
   test('keeps the header back action', async () => {
-    renderPage(['/previous', '/agent/credit'])
-    await screen.findByText('Healthy')
+    renderPage({}, ['/previous', '/agent/credit'])
+    await screen.findByRole('group', { name: 'My chips' })
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-    expect(await screen.findByText('Previous page')).toBeTruthy()
+    await waitFor(() => assert.ok(screen.getByText('Previous page')))
   })
 })

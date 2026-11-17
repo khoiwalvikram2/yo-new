@@ -21,6 +21,10 @@ export interface SportsLiveDashboardFilter {
 /**
  * Get live dashboard using SQL aggregation with agent filtering
  * Much faster than fetching 50K rows and aggregating in JavaScript
+ *
+ * Total stake sums the bets' stakes and total liability their liabilities. Every total_stake below used to
+ * be a copy of the liability sum, so the page showed Total Stake equal to Liability (20,490 for 19,000 of
+ * stakes), drew the two as one line and divided the exposure ratio by the wrong figure.
  */
 export async function getSportsLiveDashboard(
   filter: SportsLiveDashboardFilter
@@ -32,7 +36,7 @@ export async function getSportsLiveDashboard(
   const kpisResult = await db.execute(sql`
     ${cte}
     SELECT
-      COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_stake,
+      COALESCE(SUM(CAST(sb.stake AS DECIMAL)), 0) as total_stake,
       COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_liability,
       COUNT(DISTINCT sb.market_id) as active_markets,
       COUNT(DISTINCT sb.user_id) as active_players,
@@ -103,7 +107,7 @@ export async function getSportsLiveDashboard(
     SELECT
       sb.sport_id,
       s.name as sport_name,
-      COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_stake,
+      COALESCE(SUM(CAST(sb.stake AS DECIMAL)), 0) as total_stake,
       COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_liability,
       SUM(CASE 
         WHEN sb.side = 'back' THEN CAST(sb.liability AS DECIMAL)
@@ -138,7 +142,7 @@ export async function getSportsLiveDashboard(
     SELECT
       sb.league_id,
       l.name as league_name,
-      COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_stake,
+      COALESCE(SUM(CAST(sb.stake AS DECIMAL)), 0) as total_stake,
       COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_liability,
       SUM(CASE 
         WHEN sb.side = 'back' THEN CAST(sb.liability AS DECIMAL)
@@ -173,7 +177,7 @@ export async function getSportsLiveDashboard(
     SELECT
       sb.event_id,
       e.name as event_name,
-      COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_stake,
+      COALESCE(SUM(CAST(sb.stake AS DECIMAL)), 0) as total_stake,
       COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_liability,
       SUM(CASE 
         WHEN sb.side = 'back' THEN CAST(sb.liability AS DECIMAL)
@@ -211,7 +215,7 @@ export async function getSportsLiveDashboard(
         WHEN LOWER(sm.type) LIKE '%bookmaker%' OR LOWER(sm.type) LIKE '%book%' THEN 'bookmaker'
         ELSE 'exchange'
       END as market_type,
-      COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_stake,
+      COALESCE(SUM(CAST(sb.stake AS DECIMAL)), 0) as total_stake,
       COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_liability,
       SUM(CASE 
         WHEN sb.side = 'back' THEN CAST(sb.liability AS DECIMAL)
@@ -247,7 +251,7 @@ export async function getSportsLiveDashboard(
     ${cte}
     SELECT
       sb.side,
-      COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_stake,
+      COALESCE(SUM(CAST(sb.stake AS DECIMAL)), 0) as total_stake,
       COALESCE(SUM(CAST(sb.liability AS DECIMAL)), 0) as total_liability,
       COUNT(*) as bets
     FROM sports_bets sb

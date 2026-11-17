@@ -1,14 +1,14 @@
 import { gql } from '@apollo/client';
 
+// CREDIT left the settlement centre on 2026-11-02 (spec §6): its pending credit, direct credit adjustments
+// and credit balance by domain are always empty now, so the dashboard no longer reads them.
 export const SETTLEMENT_DASHBOARD_QUERY = gql`
   query SettlementDashboard($fromDate: String, $toDate: String) {
     settlementDashboard(fromDate: $fromDate, toDate: $toDate) {
       pendingSharingSettlements
       pendingSharingToAgents
       pendingSharingFromAgents
-      pendingCreditSettlements
       pendingCommissionPayouts
-      pendingDirectCreditAdjustments
       totalSettledThisMonth
       totalSettledLast30Days
       totalCommissionPaidThisMonth
@@ -18,10 +18,6 @@ export const SETTLEMENT_DASHBOARD_QUERY = gql`
       totalPaidToAgentsInPeriod
       totalCollectedFromAgentsInPeriod
       totalCommissionPaidInPeriod
-      domainBreakdown {
-        domain
-        settlementBalance
-      }
       monthlyTrend {
         month
         totalSettled
@@ -322,32 +318,6 @@ export const COMMISSION_PAYOUTS_QUERY = gql`
   }
 `;
 
-export const PLAYER_CREDIT_ADJUSTMENTS_QUERY = gql`
-  query PlayerCreditAdjustments($playerId: ID, $limit: Int, $offset: Int, $fromDate: String, $toDate: String) {
-    playerCreditAdjustments(playerId: $playerId, limit: $limit, offset: $offset, fromDate: $fromDate, toDate: $toDate) {
-      id
-      tenant
-      playerId
-      player {
-        id
-        name
-        username
-      }
-      adjustmentType
-      amount
-      previousLimit
-      newLimit
-      previousUsed
-      newUsed
-      notes
-      adjustedBy
-      balanceBefore
-      balanceAfter
-      createdAt
-    }
-  }
-`;
-
 export const SETTLE_AGENT_MUTATION = gql`
   mutation SettleAgent($input: SettleAgentInput!) {
     settleAgent(input: $input) {
@@ -390,34 +360,6 @@ export const PAY_COMMISSION_MUTATION = gql`
         periodFrom
         periodTo
         notes
-        createdAt
-      }
-    }
-  }
-`;
-
-export const ADJUST_PLAYER_CREDIT_MUTATION = gql`
-  mutation AdjustPlayerCredit($input: AdjustPlayerCreditInput!) {
-    adjustPlayerCredit(input: $input) {
-      success
-      message
-      adjustment {
-        id
-        playerId
-        player {
-          id
-          name
-          username
-        }
-        adjustmentType
-        amount
-        previousLimit
-        newLimit
-        previousUsed
-        newUsed
-        notes
-        balanceBefore
-        balanceAfter
         createdAt
       }
     }

@@ -1,5 +1,5 @@
 import { db } from '@src/db/client.js'
-import { mapGrossSettlementToCredit } from '@src/domains/agents/services/creditSettlementMapping.js'
+import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
 import { eq, and, or, not, gte, lte, desc, inArray, sql, ilike } from 'drizzle-orm'
 import { casinoBets, users } from '@shared/db/schema.js'
 import { getWhitelabelCurrency, getWhitelabelTimezone } from '@src/shared/whitelabelConfig.js'
@@ -275,46 +275,29 @@ export async function updateCasinoBetStatus(
   if (netAmount !== undefined) updateData.netAmount = String(netAmount)
   if (settledAt !== undefined) updateData.settledAt = settledAt
 
-  const bet = await db.transaction(async (tx): Promise<Awaited<ReturnType<typeof getCasinoBetById>>> => {
-    const [updated] = await tx.update(casinoBets).set(updateData).where(eq(casinoBets.id, id)).returning()
-    const row = updated ?? null
-    if (!row || (status !== 'won' && status !== 'lost' && status !== 'void')) return row
-
-    try {
-      const [player] = await tx
-        .select({ playerType: users.playerType, agentId: users.agentId })
-        .from(users)
-        .where(and(eq(users.id, row.userId), eq(users.tenant, tenant)))
-        .limit(1)
-
-      if (player?.playerType !== 'AGENT_CREDIT' && player?.playerType !== 'WHITELABEL_CREDIT') return row
-
-      const { BetCreditValidationService } = await import('@src/domains/agents/services/BetCreditValidationService.js')
-      const { AgentsRepo } = await import('@src/repos/agents/AgentsRepo.js')
-      const { AgentPlayerCreditsRepo } = await import('@src/repos/agents/AgentPlayerCreditsRepo.js')
-      const agentsRepo = new AgentsRepo()
-      const playerCreditsRepo = new AgentPlayerCreditsRepo()
-      const betCreditService = new BetCreditValidationService(agentsRepo, playerCreditsRepo)
-
-      const stake = Number(betBefore?.stake || 0)
-      // Stored returns include the stake; credit balances book only the net result.
-      const { betResult, payoutAmount } = status === 'won' || status === 'lost'
-        ? mapGrossSettlementToCredit(stake, Number(winAmount ?? row.payout ?? 0))
-        : { betResult: 'void' as const, payoutAmount: 0 }
-      await betCreditService.releaseCreditForBet(row.userId, stake, betResult, payoutAmount, tenant, row.id, 'casino', tx)
-    } catch (creditError: any) {
-    }
-    return row
-  })
+  // A status change only. Every player, credit players included, is on the cash-wallet path:
+  // the provider callbacks move the money, so this diagnostic tool moves none. Credit players
+  // (AGENT_CREDIT / WHITELABEL_CREDIT) hold Deposit/Withdraw chips in cash; a settled bet no
+  // longer touches their credit figures or their agent's / whitelabel's settlement balances.
+  const [updated] = await db.update(casinoBets).set(updateData).where(eq(casinoBets.id, id)).returning()
+  const bet = updated ?? null
 
   if (bet && (status === 'won' || status === 'lost') && netAmount !== undefined && betBefore) {
     try {
-      const { referralIntegrationService } = await import('@src/services/referrals/referralIntegrationService.js')
-      await referralIntegrationService.handleBetSettlement(tenant, bet.userId, netAmount, (bet.currency || 'INR') as any, 'casino')
+      const [player] = await db
+        .select({ playerType: users.playerType })
+        .from(users)
+        .where(and(eq(users.id, bet.userId), eq(users.tenant, tenant)))
+        .limit(1)
+      // Credit players pay no referral loss-share.
+      if (!isCreditPlayer(player?.playerType)) {
+        const { referralIntegrationService } = await import('@src/services/referrals/referralIntegrationService.js')
+        await referralIntegrationService.handleBetSettlement(tenant, bet.userId, netAmount, (bet.currency || 'INR') as any, 'casino')
+      }
     } catch (err) {
     }
   }
-  return bet ?? null
+  return bet
 }
 
 export type PlayerOverviewSettledByWallet = {

@@ -64,19 +64,24 @@ export const EVENT_SPORT_OPTIONS: readonly EventOption[] = [
   { label: 'Horse Racing', value: 'Horse Racing' },
 ]
 
+/* The statuses runningEvents reports: upcoming, in_play or finished (admin-backend sportsRepo). The list
+ * offered Suspended and Closed, which no event ever has, so either one emptied the table while the table
+ * itself showed FINISHED events. */
 export const EVENT_STATUS_OPTIONS: readonly EventOption[] = [
   { label: 'In-Play', value: 'inplay' },
   { label: 'Upcoming', value: 'upcoming' },
-  { label: 'Suspended', value: 'suspended' },
-  { label: 'Closed', value: 'closed' },
+  { label: 'Finished', value: 'finished' },
 ]
 
-export const EVENT_COMPETITION_OPTIONS: readonly EventOption[] = [
-  { label: 'IPL - Indian Premier League', value: 'IPL' },
-  { label: 'EPL - English Premier League', value: 'EPL' },
-  { label: 'Wimbledon Championships', value: 'Wimbledon' },
-  { label: 'NBA - National Basketball', value: 'NBA' },
-]
+/**
+ * The competitions of the loaded events, each once, by name. The filter compares an event's competition
+ * (its league name) with the choice, and the list was a fixed IPL / EPL / Wimbledon / NBA whose codes
+ * matched no league, so any choice emptied the table.
+ */
+export function eventCompetitionOptions(events: readonly Pick<SportsEvent, 'competition'>[]): EventOption[] {
+  const names = [...new Set(events.map((event) => event.competition).filter(Boolean))]
+  return names.sort((a, b) => a.localeCompare(b)).map((name) => ({ label: name, value: name }))
+}
 
 /* ---------- filtering and figures ---------- */
 

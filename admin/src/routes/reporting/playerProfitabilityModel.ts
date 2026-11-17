@@ -39,13 +39,6 @@ export interface PlayerBreakdownSource {
 }
 
 /** The four figures each domain's KPI document returns. */
-export interface ProfitabilityKpis {
-  totalStakes?: number | string | null
-  totalPayouts?: number | string | null
-  grossGamingRevenue?: number | string | null
-  betCount?: number | string | null
-}
-
 export interface ProfitabilityTotals {
   totalStakes: number
   totalPayouts: number
@@ -254,18 +247,20 @@ export function sortProfitabilityPage(
   })
 }
 
-/** The KPI row's figures: the three domains' KPI documents added up (never the tab or the search). */
+/**
+ * The KPI row's figures: the listed players' rows (the tab's, then the search) added up. They were the
+ * three domains' KPI documents added up whatever the tab, so the Sports tab showed the all-domain GGR
+ * next to its sports players' count (F-REP-16).
+ */
 export function profitabilityTotals(
-  s?: ProfitabilityKpis | null,
-  c?: ProfitabilityKpis | null,
-  m?: ProfitabilityKpis | null,
+  rows: readonly Pick<PlayerBreakdownData, 'totalStakes' | 'totalPayouts' | 'grossGamingRevenue' | 'betCount'>[],
 ): ProfitabilityTotals {
+  const sum = (pick: (row: (typeof rows)[number]) => unknown) => rows.reduce((total, row) => total + (Number(pick(row)) || 0), 0)
   return {
-    totalStakes: (Number(s?.totalStakes) || 0) + (Number(c?.totalStakes) || 0) + (Number(m?.totalStakes) || 0),
-    totalPayouts: (Number(s?.totalPayouts) || 0) + (Number(c?.totalPayouts) || 0) + (Number(m?.totalPayouts) || 0),
-    totalGGR:
-      (Number(s?.grossGamingRevenue) || 0) + (Number(c?.grossGamingRevenue) || 0) + (Number(m?.grossGamingRevenue) || 0),
-    totalBets: (Number(s?.betCount) || 0) + (Number(c?.betCount) || 0) + (Number(m?.betCount) || 0),
+    totalStakes: sum((row) => row.totalStakes),
+    totalPayouts: sum((row) => row.totalPayouts),
+    totalGGR: sum((row) => row.grossGamingRevenue),
+    totalBets: sum((row) => row.betCount),
   }
 }
 

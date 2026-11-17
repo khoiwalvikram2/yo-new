@@ -13,27 +13,43 @@
   background: var(--mb-panel);
   box-shadow: var(--mb-shadow-lg);
 }
+/* The header (owner 2026-11-01, replacing the charcoal bar): the surface's own colours, so light in the light theme and
+   dark in the dark one, under a red accent line; the title in ink, its subtitle muted, and a soft square close button
+   that turns red on hover. The page modals (deposit, withdrawal, bonus, statements) and the Matka dialogs
+   (matka-page-refresh.css) use the same header. */
+.nova-modal-layer .nova-modal-surface:has(> .nova-modal-header)::before { content: ''; flex: none; height: 3px; background: var(--mb-red); }
 .nova-modal-layer .nova-modal-header {
   align-items: center;
   gap: 12px;
-  min-height: 54px;
-  padding: 8px 8px 8px 18px;
-  border-bottom: 0;
-  color: var(--mb-bar-text);
-  background: var(--mb-bar);
+  min-height: 62px;
+  padding: 13px 12px 13px 20px;
+  border-bottom: 1px solid var(--mb-line);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
 }
-.nova-modal-layer .nova-modal-header h2 { color: var(--mb-bar-text); font-size: 19px; font-weight: 700; letter-spacing: 0; }
-.nova-modal-layer .nova-modal-header p { margin-top: 2px; color: var(--mb-bar-muted); }
+.nova-modal-layer .nova-modal-header h2 { color: var(--mb-ink); font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
+.nova-modal-layer .nova-modal-header p { margin-top: 3px; color: var(--mb-muted); font-size: 13px; line-height: 1.4; }
 .nova-modal-layer .nova-modal-header .nova-modal-close,
 .nova-modal-layer :is(.nova-modal-header, .nova-mb-modal-head) .nova-modal-close {
-  width: 40px;
-  height: 40px;
-  border: 0;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--mb-line);
   border-radius: var(--ui-radius);
-  color: var(--mb-bar-text);
-  background: transparent;
+  color: var(--mb-text);
+  background: var(--mb-soft);
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
 }
-.nova-modal-layer .nova-modal-header .nova-modal-close:hover { color: var(--mb-bar-text); background: rgb(255 255 255 / 10%); }
+.nova-modal-layer .nova-modal-header .nova-modal-close:hover { color: var(--mb-red); border-color: color-mix(in oklab, var(--mb-red) 45%, var(--mb-line)); background: color-mix(in oklab, var(--mb-red) 8%, var(--mb-panel)); }
+/* Phones: these dialogs rise from the bottom edge as a sheet with the sports bet slip's spring. */
+@media (max-width: 640px) {
+  .nova-modal-layer:is(:has(> .nova-modal-surface > .nova-modal-header), :has(> .nova-modal-surface.gw-matka-native-dialog)) { align-items: flex-end; padding: 0; }
+  .nova-modal-layer .nova-modal-surface:is(:has(> .nova-modal-header), .gw-matka-native-dialog) { max-width: 100%; max-height: 92dvh; border-bottom: 0; animation: nova-sheet-spring .4s cubic-bezier(.34, 1.56, .64, 1); }
+  .nova-modal-layer .nova-modal-header { min-height: 58px; padding: 11px 10px 11px 16px; }
+}
+@keyframes nova-sheet-spring { 0% { transform: translateY(100%); } 60% { transform: translateY(-8px); } 80% { transform: translateY(4px); } 100% { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .nova-modal-layer .nova-modal-surface:is(:has(> .nova-modal-header), .gw-matka-native-dialog) { animation: none; }
+}
 .nova-modal-layer .nova-modal-body { padding: 18px; }
 .nova-modal-layer :is(.nova-modal-footer, .nova-modal-actions) { padding: 14px 18px; border-top: 1px solid var(--mb-line); background: var(--mb-panel-2); }
 .nova-modal-layer :is(.nova-modal-footer, .nova-modal-actions) button { border-radius: var(--ui-radius); }
@@ -73,25 +89,27 @@ html:not(.dark) .nova-modal-layer :is(.text-red-400, .text-red-500, .text-rose-4
 /* An actions row inside the body belongs to the form, not a footer bar. */
 .nova-modal-layer .nova-modal-body .nova-modal-actions { padding: 20px 0 0; border-top: 0; background: none; }
 /* Primary action: the red Matchbook button. */
-.nova-modal-layer .nova-modal-actions .nova-button:not(.nova-button-secondary) { min-height: 46px; padding: 0 18px; border: 1px solid #B21718; border-radius: var(--ui-radius); color: #FFFFFF; background: linear-gradient(180deg, #D02223 0%, #C51A1B 100%); box-shadow: none; filter: none; font-size: 16px; font-weight: 700; }
+.nova-modal-layer .nova-modal-actions .nova-button:not(.nova-button-secondary) { min-height: 46px; padding: 0 18px; border: 1px solid var(--mb-brand-edge); border-radius: var(--ui-radius); color: var(--mb-on-red); background: linear-gradient(180deg, var(--mb-brand-top-action) 0%, var(--mb-red) 100%); box-shadow: none; filter: none; font-size: 16px; font-weight: 700; }
 .nova-modal-layer .nova-modal-actions .nova-button:not(.nova-button-secondary):hover:not(:disabled) { border-color: var(--mb-red-hover); background: var(--mb-red-hover); }
 .nova-modal-layer .nova-modal-actions .nova-button:disabled { border-color: var(--mb-line); color: var(--mb-disabled-fg); background: var(--mb-disabled-bg); cursor: not-allowed; }
 
 /* ---------------------------------------------------------------- Analytics */
-/* The analysis modal draws its own header row (hideHeader): make it the charcoal bar. */
+/* The analysis modal draws its own header row (hideHeader): it gets the shared modal header look (above). */
 .nova-modal-layer .nova-event-analysis-surface { border-radius: var(--ui-radius); }
+.nova-modal-layer .nova-event-analysis-surface::before { content: ''; flex: none; height: 3px; background: var(--mb-red); }
 .nova-modal-layer .nova-event-analysis-surface > div:first-child {
-  min-height: 54px;
-  padding: 8px 10px 8px 18px;
-  border-bottom: 0;
-  color: var(--mb-bar-text);
-  background: var(--mb-bar);
+  min-height: 62px;
+  padding: 12px 12px 12px 20px;
+  border-bottom: 1px solid var(--mb-line);
+  color: var(--mb-ink);
+  background: var(--mb-panel);
 }
-.nova-modal-layer .nova-event-analysis-surface > div:first-child h2 { color: var(--mb-bar-text); font-size: 19px; font-weight: 700; }
-.nova-modal-layer .nova-event-analysis-surface > div:first-child :is(button, span) { color: var(--mb-bar-muted); }
-.nova-modal-layer .nova-event-analysis-surface > div:first-child button { border: 1px solid rgb(255 255 255 / 0%); border-radius: var(--ui-radius); }
-.nova-modal-layer .nova-event-analysis-surface > div:first-child button:hover { color: var(--mb-bar-text); background: rgb(255 255 255 / 10%); }
-.nova-modal-layer .nova-event-analysis-surface > div:first-child button:last-child { border-color: rgb(255 255 255 / 30%); color: var(--mb-bar-text); font-weight: 700; }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child h2 { color: var(--mb-ink); font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child :is(button, span) { color: var(--mb-muted); }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child button { border: 1px solid transparent; border-radius: var(--ui-radius); }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child button:hover { color: var(--mb-ink); background: var(--mb-soft); }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child button:last-child { border-color: var(--mb-line); color: var(--mb-text); background: var(--mb-soft); font-weight: 700; }
+.nova-modal-layer .nova-event-analysis-surface > div:first-child button:last-child:hover { border-color: color-mix(in oklab, var(--mb-red) 45%, var(--mb-line)); color: var(--mb-red); }
 .nova-modal-layer .nova-event-analysis-surface .nova-modal-body { background: var(--mb-page); }
 /* Chart cards inside: flat white (or dark) panels with hairlines. */
 .nova-modal-layer .nova-event-analysis-surface .nova-modal-body > * { border-radius: var(--ui-radius); }
@@ -114,6 +132,14 @@ html:not(.dark) .nova-modal-layer :is(.text-red-400, .text-red-500, .text-rose-4
 .nova-shell-matchbook .nova-profile-sheet .nova-panel-links p { color: var(--mb-muted); }
 /* panel-refresh.css pads the sheet's first child (its old header); here that child is the whole drawer content. */
 .nova-shell-matchbook .nova-profile-sheet > .nova-panel-content { min-height: 100%; padding: 0 0 18px; }
+
+/* Drawers are square on all four corners (owner 2026-11-01): the rail panels, the phone menu and the phone "Your
+   account" sheet carry data-ui-radius="square". Their header strip touches the top edge, but radius.css rounds it as a
+   panel head (5px 5px 0 0) with a selector more specific than the square mark, so it is squared here, inside that same
+   first layer: only an !important there beats the policy. */
+@layer ui-radius-policy {
+  body :is(.nova-panel, .nova-profile-sheet)[data-ui-radius='square'] .nova-panel-content > header { border-radius: 0 !important; }
+}
 
 /* ------------------------------------------------- Rail panels, phone menu */
 /* Preferences and help stay at the foot of the rail even when the top group (sports only) is absent. */
@@ -152,14 +178,45 @@ html.dark .nova-shell-matchbook .nova-panel.nova-rail-panel { box-shadow: -14px 
   font-weight: 600;
   box-shadow: none;
 }
-.nova-shell-matchbook .nova-panel-links > :is(a, button):not(.nova-button):hover { border-color: var(--mb-line-3); background: var(--mb-drawer-row-hover); }
+.nova-shell-matchbook .nova-panel-links > :is(a, button):not(.nova-button):hover { border-color: var(--mb-line-3); color: var(--mb-link-hover); background: var(--mb-drawer-row-hover); }
 .nova-shell-matchbook .nova-panel-links > :is(a, button) svg { color: var(--mb-muted); }
 /* Account drawer: button rows (change password, sign out) look like the link rows; sign out has a red icon.
    The wallet group gets a small label and a hairline before the account rows. */
 .nova-shell-matchbook .nova-panel-links > .nova-panel-action { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; cursor: pointer; }
 .nova-shell-matchbook .nova-panel-links > .nova-panel-action.is-logout svg { color: var(--mb-red-text); }
+/* The account list's icons in their own colours, each in a soft round chip of that colour (owner 2026-11-02, "thoda
+   colorful"). AccountLinks sets data-tone per row; dark mode takes lighter shades so the icons keep their contrast. */
+.nova-shell-matchbook .nova-panel-links > [data-tone] svg { box-sizing: content-box; flex: none; padding: 6px; --ui-radius: 50%; border-radius: var(--ui-radius); color: var(--tone); background: color-mix(in srgb, var(--tone) 13%, transparent); }
+.nova-shell-matchbook .nova-panel-links > [data-tone='green'] { --tone: #15803D; }
+.nova-shell-matchbook .nova-panel-links > [data-tone='orange'] { --tone: #C2410C; }
+.nova-shell-matchbook .nova-panel-links > [data-tone='pink'] { --tone: #BE185D; }
+.nova-shell-matchbook .nova-panel-links > [data-tone='violet'] { --tone: #6D28D9; }
+.nova-shell-matchbook .nova-panel-links > [data-tone='teal'] { --tone: #0F766E; }
+.nova-shell-matchbook .nova-panel-links > [data-tone='blue'] { --tone: #1D4ED8; }
+.nova-shell-matchbook .nova-panel-links > [data-tone='cyan'] { --tone: #0E7490; }
+.nova-shell-matchbook .nova-panel-links > [data-tone='amber'] { --tone: #B45309; }
+.nova-shell-matchbook .nova-panel-links > [data-tone='red'] { --tone: var(--mb-red-text); }
+html.dark .nova-shell-matchbook .nova-panel-links > [data-tone='green'] { --tone: #4ADE80; }
+html.dark .nova-shell-matchbook .nova-panel-links > [data-tone='orange'] { --tone: #FB923C; }
+html.dark .nova-shell-matchbook .nova-panel-links > [data-tone='pink'] { --tone: #F472B6; }
+html.dark .nova-shell-matchbook .nova-panel-links > [data-tone='violet'] { --tone: #A78BFA; }
+html.dark .nova-shell-matchbook .nova-panel-links > [data-tone='teal'] { --tone: #2DD4BF; }
+html.dark .nova-shell-matchbook .nova-panel-links > [data-tone='blue'] { --tone: #60A5FA; }
+html.dark .nova-shell-matchbook .nova-panel-links > [data-tone='cyan'] { --tone: #22D3EE; }
+html.dark .nova-shell-matchbook .nova-panel-links > [data-tone='amber'] { --tone: #FBBF24; }
 .nova-shell-matchbook .nova-panel-links > .nova-panel-group { margin: 4px 0 -2px; color: var(--mb-muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .nova-shell-matchbook .nova-panel-links > .nova-panel-divider { margin: 4px 0; border: 0; border-top: 1px solid var(--mb-line); }
+/* A credit player's wallet group (D/W chips, AccountLinks): the credit reference and Ref P/L in one box shaped like the
+   rows, then the note that their agent manages their chips. Ref P/L colours its text only: green when the upline owes
+   the player, red when the player owes the upline. */
+.nova-shell-matchbook .nova-panel-links > .nova-panel-chips { display: grid; margin: 0; border: 1px solid var(--mb-line); border-radius: var(--ui-radius); background: var(--mb-drawer-row); }
+.nova-shell-matchbook .nova-panel-chips > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; padding: 0 14px; }
+.nova-shell-matchbook .nova-panel-chips > div + div { border-top: 1px solid var(--mb-line); }
+.nova-shell-matchbook .nova-panel-chips dt { color: var(--mb-muted); font-size: 14px; font-weight: 600; }
+.nova-shell-matchbook .nova-panel-chips dd { margin: 0; color: var(--mb-ink); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nova-shell-matchbook .nova-panel-chips dd.is-up { color: var(--mb-green); }
+.nova-shell-matchbook .nova-panel-chips dd.is-down { color: var(--mb-error); }
+.nova-shell-matchbook .nova-panel-links > .nova-panel-note { margin: 0; font-size: 13px; line-height: 1.5; }
 .nova-shell-matchbook .nova-panel .nova-button { border-radius: var(--ui-radius); }
 .nova-shell-matchbook .nova-panel :is(.nova-muted, p) { color: var(--mb-muted); }
 .nova-shell-matchbook .nova-panel :is(.nova-panel-theme, .nova-panel-mobile-theme) { color: var(--mb-ink); font-size: 15px; font-weight: 600; }
@@ -187,11 +244,11 @@ html.dark .nova-shell-matchbook .nova-panel.nova-rail-panel { box-shadow: -14px 
 .nova-wallet-popover .nova-wallet-option.is-active:hover { border-left-color: var(--mb-red); background: var(--mb-panel-2); }
 .nova-wallet-popover .nova-wallet-option:focus-visible { outline: 2px solid var(--mb-focus); outline-offset: 2px; }
 .nova-wallet-popover .nova-wallet-option-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-bar); }
-.nova-wallet-popover .nova-wallet-option.is-active .nova-wallet-option-icon { background: var(--mb-red); }
+.nova-wallet-popover .nova-wallet-option.is-active .nova-wallet-option-icon { color: var(--mb-on-red); background: var(--mb-red); }
 .nova-wallet-popover .nova-wallet-option-icon svg { width: 18px; height: 18px; }
 .nova-wallet-popover .nova-wallet-option-copy { display: grid; min-width: 0; gap: 2px; }
 .nova-wallet-popover .nova-wallet-option-copy strong { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--mb-ink); font-size: 15px; font-weight: 700; line-height: 1.25; white-space: nowrap; }
-.nova-wallet-popover .nova-wallet-option-copy em { flex: none; padding: 1px 6px; border-radius: var(--ui-radius); color: #FFFFFF; background: var(--mb-red); font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: .04em; line-height: 16px; text-transform: uppercase; }
+.nova-wallet-popover .nova-wallet-option-copy em { flex: none; padding: 1px 6px; border-radius: var(--ui-radius); color: var(--mb-on-red); background: var(--mb-red); font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: .04em; line-height: 16px; text-transform: uppercase; }
 .nova-wallet-popover .nova-wallet-option-copy small { color: var(--mb-muted); font-size: 12px; line-height: 1.2; }
 .nova-wallet-popover .nova-wallet-option-amount { color: var(--mb-ink); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .nova-wallet-popover .nova-wallet-exposure-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--mb-line); background: var(--mb-soft); }
@@ -241,7 +298,7 @@ html.dark .nova-shell-matchbook .nova-panel.nova-rail-panel { box-shadow: -14px 
 .nova-provider-actions button { min-height: 44px; border-radius: var(--ui-radius); font-size: 15px; font-weight: 700; cursor: pointer; }
 .nova-provider-cancel { border: 1px solid var(--mb-line-2); color: var(--mb-ink); background: var(--mb-drawer-row); }
 .nova-provider-cancel:hover { border-color: var(--mb-line-3); }
-.nova-provider-apply { border: 1px solid #B21718; color: #FFFFFF; background: var(--mb-red); }
+.nova-provider-apply { border: 1px solid var(--mb-brand-edge); color: var(--mb-on-red); background: var(--mb-red); }
 .nova-provider-apply:hover { background: var(--mb-red-hover); }
 /* Phones have no rail: the drawer is a modal sheet that slides in from the right edge the same way. */
 @media (max-width: 800px) {

@@ -265,6 +265,17 @@
   text-underline-offset: 3px;
 }
 
+/* Core mode opens no settings drawer, so the name is text rather than a link (used with .gameName). */
+.gameNameStatic {
+  color: var(--ink);
+  cursor: default;
+}
+
+.gameNameStatic:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+
 .gameName:focus-visible,
 .gamePoster:focus-visible,
 .tierBadges:focus-visible,

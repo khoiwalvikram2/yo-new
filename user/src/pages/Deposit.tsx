@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { AlertCircle, Banknote, ArrowLeft, ArrowRight, ImagePlus, Check, X } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Banknote, ArrowLeft, ArrowRight, ImagePlus, Check, X } from 'lucide-react'
 // import { useTranslation } from 'react-i18next' // i18n hook for future use
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
@@ -9,12 +9,13 @@ import { formatAmount } from '@/lib/currency'
 import { DepositPageHeader } from '@/components/deposit'
 import { usePageSEO } from '@/hooks/usePageSEO'
 import {
-  createDeposit,
+  createWelivepayDeposit,
   getAdminAccounts,
   createAdminDeposit,
   getAdminDepositRequests,
-  uploadDepositProof,
+  type WelivepayCheckout as OnlineCheckout,
 } from '@/lib/api/user'
+import { compressDepositProof, PROOF_UNREADABLE } from '@/lib/depositProof'
 import { requestWithToast } from '@/lib/request'
 import { SegmentedTabs } from '@/components/bonus/SegmentedTabs'
 import {
@@ -22,14 +23,51 @@ import {
   PaymentMethodSelector,
   DepositHistory,
   TransactionReceipt,
+  CopyableField,
+  CryptoCoinBadge,
+  CryptoBonusBadge,
+  CryptoBonusSummary,
+  WelivepayCheckout,
   type PaymentMethod,
 } from '@/components/deposit'
+import { CRYPTO_COIN, cryptoBonusPercent, cryptoDepositInfo, cryptoNetworkWarning, formatUsdt, usdtFor } from '@/lib/cryptoDeposit'
+import { clearSavedCheckout, readSavedCheckout, saveCheckout, welivepayCheckoutKey } from '@/lib/welivepayCheckout'
+import { getWhitelabelId } from '@/lib/whitelabel'
 import { usePaymentConfig, useParsedSettings } from '@/hooks/useAppSettings'
 import FeeBreakdown from '@/components/payment/FeeBreakdown'
 import '../styles/account/deposit.css'
 
 type DepositStep = 'amount' | 'method' | 'confirm'
 type DepositTab = 'deposit' | 'history'
+
+const optionalNumber = (value: unknown) => (value != null && value !== '' ? Number(value) : undefined)
+
+/**
+ * A USDT wallet from adminAccounts(includeCrypto: true) as a deposit method. The server offers a wallet
+ * only while the whitelabel has a rate to quote it at; one without a rate or an address is left out
+ * (empty list), since the player could not know what to send or where.
+ */
+function cryptoMethods(acc: any): PaymentMethod[] {
+  const walletAddress = acc?.walletAddress || acc?.accountNumber || undefined
+  const cryptoRate = optionalNumber(acc?.cryptoRate)
+  if (!walletAddress || cryptoRate === undefined || !Number.isFinite(cryptoRate) || cryptoRate <= 0) return []
+  return [{
+    id: acc?.id || acc?._id,
+    type: 'crypto',
+    name: CRYPTO_COIN,
+    displayName: acc?.displayName || (acc?.network ? `${CRYPTO_COIN} (${acc.network})` : CRYPTO_COIN),
+    accountNumber: walletAddress,
+    walletAddress,
+    network: acc?.network || undefined,
+    qrUrl: acc?.qrUrl || undefined,
+    cryptoRate,
+    cryptoBonusPercent: cryptoBonusPercent(acc?.cryptoBonusPercent) ?? undefined,
+    minAmount: optionalNumber(acc?.minAmount),
+    maxAmount: optionalNumber(acc?.maxAmount),
+    processingTime: 'After network confirmation',
+    isActive: true,
+  }]
+}
 
 export default function DepositPage() {
   usePageSEO({ 
@@ -40,7 +78,7 @@ export default function DepositPage() {
   // Translation hook (currently unused)
   // const { t } = useTranslation()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
 
   // Check if user is a credit player or belongs to CREDIT agent
   const playerType = (user as any)?.playerType || 'REGULAR'
@@ -63,6 +101,16 @@ export default function DepositPage() {
   const [amount, setAmount] = useState<string>('')
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
 
+  // The open WeLivePay checkout. Saved per site and player, so the card comes back after a reload or a
+  // return from the payment tab; the key changes (and the card is read again) once the player is known.
+  const checkoutKey = welivepayCheckoutKey(getWhitelabelId(), (user as any)?.id)
+  const [onlineCheckout, setOnlineCheckout] = useState<OnlineCheckout | null>(() => readSavedCheckout(checkoutKey))
+  // The checkout just started on this page: its card takes the focus (and scrolls into view)
+  const [startedCheckoutId, setStartedCheckoutId] = useState<string | null>(null)
+  useEffect(() => {
+    setOnlineCheckout(readSavedCheckout(checkoutKey))
+  }, [checkoutKey])
+
   // Payment methods state
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [methodsLoading, setMethodsLoading] = useState(false)
@@ -75,8 +123,8 @@ export default function DepositPage() {
 
   // Manual deposit fields (for admin accounts)
   const [txnRef, setTxnRef] = useState<string>('')
-  const [proofKey, setProofKey] = useState<string>('')
-  const [, setProofPreview] = useState<string>('')
+  // The screenshot as the compressed image data URI sent with the request (there is no separate upload)
+  const [proofImage, setProofImage] = useState<string>('')
   const [proofFileName, setProofFileName] = useState<string>('')
   const [proofUploading, setProofUploading] = useState(false)
   const [proofUploadError, setProofUploadError] = useState<string | null>(null)
@@ -126,7 +174,7 @@ export default function DepositPage() {
     try {
       const res = await getAdminAccounts()
       if (res?.meta?.code === 200 && Array.isArray(res.data)) {
-        const methods: PaymentMethod[] = res.data.map((acc: any) => ({
+        const methods: PaymentMethod[] = res.data.flatMap((acc: any): PaymentMethod[] => acc?.type === 'crypto' ? cryptoMethods(acc) : [{
           id: acc?.id || acc?._id,
           type: acc?.type === 'upi' ? 'upi' : acc?.type === 'gateway' ? 'gateway' : 'bank',
           name: acc?.displayName || acc?.bankName || (acc?.type === 'upi' ? 'UPI' : 'Bank Account'),
@@ -144,7 +192,7 @@ export default function DepositPage() {
             acc?.maxAmount != null && acc?.maxAmount !== '' ? Number(acc.maxAmount) : undefined,
           processingTime: '1-5 minutes',
           isActive: true,
-        }))
+        }])
         setPaymentMethods(methods)
         setSelectedMethod(current => current ? methods.find(method => method.id === current.id) || null : null)
       } else {
@@ -201,38 +249,25 @@ export default function DepositPage() {
     setError(current => current || 'That account is no longer available for your VIP tier. Please choose another.')
   }, [currentStep, selectedMethod])
 
-  // Handle proof upload
-  const handleProofUpload = async (file: File) => {
+  // A chosen screenshot is scaled down to a JPEG data URI here and sent with the deposit request itself
+  const handleProofChosen = async (file: File) => {
     setProofUploadError(null)
     setProofUploading(true)
-    setProofKey('')
+    setProofImage('')
     setProofFileName(file.name)
     try {
-      // Show preview immediately
-      const reader = new FileReader()
-      reader.onload = () => setProofPreview(String(reader.result || ''))
-      reader.readAsDataURL(file)
-
-      // Upload via backend (bypasses S3 CORS issues)
-      const result = await uploadDepositProof(file)
-      
-      if (!result.success || !result.data?.key) {
-        throw new Error(result.message || 'Failed to upload proof')
-      }
-      
-      setProofKey(result.data.key)
+      setProofImage(await compressDepositProof(file))
     } catch (err: any) {
-      setProofUploadError(err?.message || 'Failed to upload proof')
-      setProofPreview('')
+      setProofUploadError(err?.message || PROOF_UNREADABLE)
       setProofFileName('')
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } finally {
       setProofUploading(false)
     }
   }
 
   const clearProof = () => {
-    setProofKey('')
-    setProofPreview('')
+    setProofImage('')
     setProofFileName('')
     setProofUploadError(null)
     if (fileInputRef.current) {
@@ -240,48 +275,47 @@ export default function DepositPage() {
     }
   }
 
-  // Handle gateway deposit
+  // Handle gateway deposit: the payment gateway (WeLivePay, the only one) gets a checkout card on this
+  // page. Its link opens in a new tab; the page itself never navigates away.
   const handleGatewayDeposit = async () => {
-    if (processing) return
+    if (processing || onlineCheckout) return
     if (!isSelectionValid) { setError(limitsChangedMessage); return }
     setProcessing(true)
     setError(null)
-      try {
-      const res = await requestWithToast(
-        () => createDeposit({ amount: parsedAmount }),
-        {
-          loading: 'Creating deposit...',
-          success: 'Redirecting to payment gateway',
-          error: 'Failed to create deposit',
-        }
-      )
-      const redirectUrl = (res as any)?.data?.redirectUrl || (res as any)?.data?.url
-      if (redirectUrl) {
-        window.open(redirectUrl, '_self')
-      } else {
-        // Show success receipt for non-redirect payments
-        setReceipt({
-          id: (res as any)?.data?.id || 'N/A',
-          amount: parsedAmount,
-          status: 'pending' as const,
-          method: 'Payment Gateway',
-          timestamp: new Date().toISOString(),
-          expectedSettlement: '1-5 minutes',
-        })
-        // The pending order now counts against the daily and monthly limits.
-        void loadPaymentMethods()
-        }
-      } catch (e: any) {
-      setError(e?.message || 'Failed to create deposit')
-      } finally {
+    try {
+      const res = await createWelivepayDeposit(parsedAmount)
+      if (res?.meta?.code !== 200 || !res.data) throw new Error(res?.meta?.message || 'Unable to start the online payment')
+      const checkout: OnlineCheckout = { ...res.data, amount: parsedAmount }
+      // Saved first: after a reload or back from the payment tab, the card picks the order up again
+      saveCheckout(checkoutKey, checkout)
+      setOnlineCheckout(checkout)
+      setStartedCheckoutId(checkout.orderId)
+      // The pending order now counts against the daily and monthly limits.
+      void loadPaymentMethods()
+    } catch (e: any) {
+      setError(e?.message || 'Unable to start the online payment')
+    } finally {
       setProcessing(false)
-      }
     }
+  }
+
+  // The gateway confirmed the checkout's payment: show the new balance and the deposit in the history
+  const handleCheckoutPaid = () => {
+    void refreshUser()
+    void loadHistory()
+  }
+
+  const handleCheckoutClose = () => {
+    clearSavedCheckout(checkoutKey)
+    setOnlineCheckout(null)
+  }
 
   // Handle admin deposit
   const handleAdminDeposit = async () => {
     if (!selectedMethod || processing) return
     if (!isSelectionValid) { setError(limitsChangedMessage); return }
+    // A crypto transfer is checked by its hash: the server refuses one without it (the button is disabled too)
+    if (selectedMethod.type === 'crypto' && !txnRef.trim()) return
     setProcessing(true)
     setError(null)
       try {
@@ -291,8 +325,12 @@ export default function DepositPage() {
             accountId: selectedMethod.id,
             amount: parsedAmount,
             txnRef: txnRef || undefined,
-            proofKey: proofKey || undefined,
+            proofKey: proofImage || undefined,
             type: selectedMethod.type,
+          }).then((response) => {
+            // A refusal the server answers in `meta` (not as an error) must not toast as a success
+            if (response?.meta?.code !== 200) throw new Error(response?.meta?.message || 'Failed to submit deposit')
+            return response
           }),
         {
           loading: 'Submitting deposit request...',
@@ -301,20 +339,25 @@ export default function DepositPage() {
         }
       )
       if ((res as any)?.meta?.code === 200) {
+        // `data` is the list of requests created: one row
+        const data: any = (res as any)?.data
+        const created = Array.isArray(data) ? data[0] : data
+        // A crypto receipt states the USDT and bonus the server quoted, not this page's preview
+        const crypto = cryptoDepositInfo(created)
         // Show success receipt
         setReceipt({
-          id: (res as any)?.data?.id || 'N/A',
+          id: created?.id || 'N/A',
           amount: parsedAmount,
           status: 'pending' as const,
           method: selectedMethod.displayName || selectedMethod.name,
-          reference: txnRef || undefined,
+          reference: crypto ? (created?.utr || txnRef.trim() || undefined) : (txnRef || undefined),
           timestamp: new Date().toISOString(),
-          expectedSettlement: '1-5 minutes',
+          expectedSettlement: selectedMethod.processingTime || '1-5 minutes',
+          ...(crypto ? { cryptoAmount: crypto.usdt, cryptoNetwork: crypto.network, cryptoBonusAmount: crypto.bonus } : {}),
         })
         // Reset form
         setTxnRef('')
-        setProofKey('')
-        setProofPreview('')
+        clearProof()
         setAmount('')
         setSelectedMethod(null)
         setCurrentStep('amount')
@@ -343,11 +386,25 @@ export default function DepositPage() {
     setCurrentStep('amount')
   }
 
-  const handleMethodNext = () => {
-    if (selectedMethod) {
-      setError(null)
-      setCurrentStep('confirm')
+  const handleSelectMethod = (method: PaymentMethod) => {
+    // A bank/UPI reference is not a transaction hash (and the other way round): moving between
+    // crypto and the other methods starts the reference and the screenshot afresh.
+    if (selectedMethod && (selectedMethod.type === 'crypto') !== (method.type === 'crypto')) {
+      setTxnRef('')
+      clearProof()
     }
+    setSelectedMethod(method)
+  }
+
+  const handleMethodNext = () => {
+    if (!selectedMethod) return
+    setError(null)
+    // A payment gateway needs no confirm step: Proceed starts its checkout card on this page
+    if (selectedMethod.type === 'gateway') {
+      void handleGatewayDeposit()
+      return
+    }
+    setCurrentStep('confirm')
   }
 
   const handleConfirmBack = () => {
@@ -370,6 +427,18 @@ export default function DepositPage() {
 
   const [infoModalOpen, setInfoModalOpen] = useState(false)
 
+  // Methods paid outside the app and confirmed by an admin from the reference / screenshot
+  const isManualMethod = selectedMethod?.type === 'bank' || selectedMethod?.type === 'upi' || selectedMethod?.type === 'crypto'
+  const isCrypto = selectedMethod?.type === 'crypto'
+  // Preview of the USDT to send; the server quotes the request itself when it is submitted
+  const usdtToSend = isCrypto ? usdtFor(parsedAmount, selectedMethod?.cryptoRate) : null
+  // A crypto transfer can only be checked on-chain by its hash, so a screenshot alone is not enough
+  const missingProof = isCrypto ? !txnRef.trim() : !txnRef.trim() && !proofImage
+  // One gateway checkout at a time: a new one waits until the open card is closed
+  const gatewayBlockedReason = selectedMethod?.type === 'gateway' && onlineCheckout
+    ? 'Complete or close your open online payment to start a new one.'
+    : null
+
   // Rendered after every hook has run: an early return above the hooks would
   // change hook order between renders (hideDW arrives asynchronously with
   // settings) and crash the page with "rendered fewer hooks than expected".
@@ -380,6 +449,16 @@ export default function DepositPage() {
   return (
     <div className="dep-page">
       <DepositPageHeader onHelpClick={() => setInfoModalOpen(true)} />
+
+      {/* Above the tabs, so the payment status stays in view on both */}
+      {onlineCheckout && (
+        <WelivepayCheckout
+          checkout={onlineCheckout}
+          onPaid={handleCheckoutPaid}
+          onDismiss={handleCheckoutClose}
+          focusOnMount={startedCheckoutId === onlineCheckout.orderId}
+        />
+      )}
 
       <div className="w-full">
         <SegmentedTabs
@@ -489,10 +568,12 @@ export default function DepositPage() {
                     loading={methodsLoading}
                     error={methodsError}
                     selectedMethodId={selectedMethod?.id}
-                    onSelect={setSelectedMethod}
+                    onSelect={handleSelectMethod}
                     onProceed={handleMethodNext}
                     amount={parsedAmount}
                     disabled={processing}
+                    busy={processing && selectedMethod?.type === 'gateway'}
+                    proceedBlockedReason={gatewayBlockedReason}
                     prominentAccountLimits={noGlobalDepositLimits}
                   />
                 </>
@@ -519,6 +600,12 @@ export default function DepositPage() {
                         <span className="dep-summary-label">Method</span>
                         <span className="dep-summary-value">{selectedMethod.displayName || selectedMethod.name}</span>
                       </div>
+                      {isCrypto && usdtToSend !== null && (
+                        <div className="dep-summary-row">
+                          <span className="dep-summary-label">You send</span>
+                          <span className="dep-summary-value">{formatUsdt(usdtToSend)}</span>
+                        </div>
+                      )}
                     </div>
 
                     {parsedAmount > 0 && <FeeBreakdown amount={parsedAmount} type="deposit" />}
@@ -530,10 +617,30 @@ export default function DepositPage() {
                     )}
                   </div>
 
-                  {(selectedMethod.type === 'bank' || selectedMethod.type === 'upi') && (
+                  {isManualMethod && (
                     <div className="dep-pay">
                       <p className="dep-pay-head">Payment details</p>
                       <div className="dep-pay-body">
+                      {isCrypto ? (
+                        <div className="dep-crypto-pay">
+                          <div className="dep-crypto-meta">
+                            <CryptoCoinBadge network={selectedMethod.network} />
+                            <CryptoBonusBadge percent={selectedMethod.cryptoBonusPercent} />
+                            {selectedMethod.cryptoRate != null && (
+                              <span className="dep-crypto-rate">1 {CRYPTO_COIN} = {formatAmount(selectedMethod.cryptoRate)}</span>
+                            )}
+                          </div>
+                          <div className="dep-copy-list">
+                            {selectedMethod.walletAddress && <CopyableField label="Wallet Address" value={selectedMethod.walletAddress} wrap />}
+                            {usdtToSend !== null && <CopyableField label="Amount to Send" value={formatUsdt(usdtToSend)} copyValue={usdtToSend.toFixed(2)} />}
+                          </div>
+                          {usdtToSend !== null && <CryptoBonusSummary amount={parsedAmount} percent={selectedMethod.cryptoBonusPercent} />}
+                          <p className="dep-warn" role="note">
+                            <AlertTriangle aria-hidden="true" />
+                            <span>{cryptoNetworkWarning(selectedMethod.network)}. Funds sent on another network cannot be recovered.</span>
+                          </p>
+                        </div>
+                      ) : (
                       <div className="dep-pay-lines">
                         {selectedMethod.type === 'upi' && selectedMethod.upiId && (
                           <div className="dep-pay-line"><span className="dep-pay-key">UPI: </span><span className="dep-pay-val is-mono">{selectedMethod.upiId}</span></div>
@@ -546,37 +653,46 @@ export default function DepositPage() {
                           </>
                         )}
                       </div>
+                      )}
 
                       {selectedMethod.qrUrl && (
                         <div className="dep-pay-qr">
-                          <img src={selectedMethod.qrUrl} alt="Payment QR" />
+                          {/* A wallet QR stays dark-on-white in both themes so a phone can scan it */}
+                          <img src={selectedMethod.qrUrl} alt={isCrypto ? 'Wallet QR Code' : 'Payment QR'} className={isCrypto ? 'is-scan' : undefined} />
                         </div>
                       )}
                       <div>
-                        <label className="dep-label">UTR / Reference</label>
+                        <label className="dep-label" htmlFor="dep-txn-ref">{isCrypto ? 'Transaction hash (TxID)' : 'UTR / Reference'}</label>
                         <input
+                          id="dep-txn-ref"
                           type="text"
                           value={txnRef}
                           onChange={(e) => setTxnRef(e.target.value)}
-                          placeholder="Transaction reference"
+                          placeholder={isCrypto ? 'Paste the transaction hash' : 'Transaction reference'}
                           className="dep-input"
+                          // A hash must reach the server exactly as the wallet app shows it
+                          required={isCrypto}
+                          autoComplete={isCrypto ? 'off' : undefined}
+                          autoCapitalize={isCrypto ? 'off' : undefined}
+                          autoCorrect={isCrypto ? 'off' : undefined}
+                          spellCheck={isCrypto ? false : undefined}
                         />
                       </div>
                       <div>
-                        <label className="dep-label">Screenshot (or UTR)</label>
+                        <label className="dep-label">{isCrypto ? 'Screenshot (optional)' : 'Screenshot (or UTR)'}</label>
                         <input
                           ref={fileInputRef}
                           type="file"
-                          accept="image/*,application/pdf"
+                          accept="image/*"
                           onChange={(e) => {
                             const file = e.target.files?.[0]
                             if (!file) { clearProof(); return }
-                            void handleProofUpload(file)
+                            void handleProofChosen(file)
                           }}
                           className="sr-only"
                           disabled={proofUploading}
                         />
-                        {!proofKey && !proofUploading ? (
+                        {!proofImage && !proofUploading ? (
                           <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
@@ -588,12 +704,12 @@ export default function DepositPage() {
                         ) : proofUploading ? (
                           <div className="dep-drop is-busy">
                             <div className="dep-drop-spinner animate-spin" />
-                            <span>Uploading…</span>
+                            <span>Preparing…</span>
                           </div>
                         ) : (
                           <div className="dep-file">
                             <Check />
-                            <span className="dep-file-name">{proofFileName || 'Uploaded'}</span>
+                            <span className="dep-file-name">{proofFileName || 'Screenshot added'}</span>
                             <button type="button" onClick={clearProof} className="dep-file-remove"><X /></button>
                             <button type="button" onClick={() => fileInputRef.current?.click()} className="dep-file-change">Change</button>
                           </div>
@@ -617,17 +733,17 @@ export default function DepositPage() {
                       <p>{limitsChangedMessage}</p>
                     </div>
                   )}
-                  {(selectedMethod.type === 'bank' || selectedMethod.type === 'upi') && !txnRef.trim() && !proofKey && (
-                    <p className="dep-hint">Provide UTR or screenshot</p>
+                  {isManualMethod && missingProof && (
+                    <p className="dep-hint">{isCrypto ? 'Enter the transaction hash after sending' : 'Provide UTR or screenshot'}</p>
                   )}
                   <button
                     type="button"
                     onClick={handleConfirmSubmit}
-                    disabled={processing || proofUploading || !isSelectionValid || ((selectedMethod.type === 'bank' || selectedMethod.type === 'upi') && !txnRef.trim() && !proofKey)}
+                    disabled={processing || proofUploading || !isSelectionValid || (isManualMethod && missingProof)}
                     className="dep-btn dep-btn-primary"
                   >
                     {processing || proofUploading ? (
-                      <><div className="dep-spinner animate-spin" /> {processing ? 'Processing…' : 'Uploading…'}</>
+                      <><div className="dep-spinner animate-spin" /> {processing ? 'Processing…' : 'Preparing…'}</>
                     ) : (
                       'Confirm Deposit'
                     )}

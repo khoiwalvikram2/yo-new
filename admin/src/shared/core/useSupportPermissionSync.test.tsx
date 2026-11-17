@@ -1,9 +1,9 @@
-import { beforeEach, describe, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useAuthStore } from './authStore'
 import { useUIStore } from './uiStore'
-import { useSupportPermissionSync } from './useSupportPermissionSync'
+import { mayHaveSupportInbox, useSupportPermissionSync } from './useSupportPermissionSync'
 import { useShellNavigation } from '@/shell/useShellNavigation'
 
 const request = vi.hoisted(() => vi.fn())
@@ -91,5 +91,76 @@ describe('support permission refresh for existing sessions', () => {
     await flush();assert.equal(request.mock.calls.length, 0)
     act(() => useAuthStore.setState({ token: undefined, user: undefined }))
     view.rerender();await flush();assert.equal(request.mock.calls.length, 0)
+  })
+})
+
+/* N006: an admin without the support grant asked GET /support/bootstrap at every sign-in, page load, minute and
+   focus, and every answer was 403 "Support inbox permission is required" in the browser console. */
+describe('support inbox requests for admins without the grant', () => {
+  const denied = () => Object.assign(new Error('Support inbox permission is required'), { status: 403 })
+  let clock = 0
+  /** Focus and visibility, some minutes on: past the minute between requests, when the hook would ask again. */
+  const laterFocus = (minutes: number) => act(() => {
+    clock += minutes * 60_000
+    window.dispatchEvent(new Event('focus'))
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+
+  beforeEach(() => {
+    clock = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    request.mockReset()
+    useUIStore.setState({ directorMode: 'core', selectedWhitelabelId: null })
+  })
+  afterEach(() => { vi.restoreAllMocks() })
+
+  test('a session that holds no support grant never asks', async () => {
+    useAuthStore.setState({ token: 'finance-session', user: { id: '648', name: 'Finance' }, agent: undefined, roles: ['Finance Manager'], permissions })
+    request.mockRejectedValue(denied())
+    renderHook(() => useSupportPermissionSync())
+    await flush()
+    await laterFocus(2)
+    await flush()
+    assert.equal(request.mock.calls.length, 0, 'the inbox was asked for by an admin the server can only refuse')
+  })
+
+  test('a stored grant asks; once refused the grant goes and the hook asks no more', async () => {
+    useAuthStore.setState({ token: 'support-session', user: { id: '700', name: 'Support' }, agent: undefined, roles: ['Customer Support'],
+      permissions: [...permissions, { domain: 'support.chat', actions: ['view'] }] })
+    request.mockRejectedValue(denied())
+    renderHook(() => useSupportPermissionSync())
+    await waitFor(() => assert.equal(grants(), undefined))
+    assert.equal(request.mock.calls.length, 1)
+    await laterFocus(2)
+    await flush()
+    await laterFocus(5)
+    await flush()
+    assert.equal(request.mock.calls.length, 1, 'kept polling after the 403')
+  })
+
+  test('a refused Whitelabel Admin stops asking until the session changes, then asks again', async () => {
+    useAuthStore.setState({ token: 'owner-session', user: { id: 'owner', name: 'Owner' }, agent: undefined, roles: ['Whitelabel Admin'], permissions })
+    request.mockRejectedValue(denied())
+    renderHook(() => useSupportPermissionSync())
+    await waitFor(() => assert.equal(request.mock.calls.length, 1))
+    await laterFocus(2)
+    await flush()
+    assert.equal(request.mock.calls.length, 1, 'the owner kept polling after the 403')
+
+    // A new session (its permissions come with it) is asked about again, and live chat works when it is granted.
+    request.mockResolvedValue({ actor })
+    act(() => useAuthStore.setState({ token: 'owner-session-2' }))
+    await waitFor(() => assert.deepEqual(grants(), ['view', 'reply', 'assign', 'settings']))
+    assert.equal(request.mock.calls.length, 2)
+  })
+
+  test('who may ask: a stored support grant, all:*, a Super Admin or a Whitelabel Admin', () => {
+    assert.equal(mayHaveSupportInbox([{ domain: 'support.chat', actions: ['view'] }], ['Customer Support']), true)
+    assert.equal(mayHaveSupportInbox([{ domain: 'all', actions: ['*'] }], []), true)
+    assert.equal(mayHaveSupportInbox([], ['Super Admin']), true)
+    assert.equal(mayHaveSupportInbox([], ['Whitelabel Admin']), true)
+    assert.equal(mayHaveSupportInbox([], ['whitelabel_admin']), true)
+    assert.equal(mayHaveSupportInbox(permissions, ['Finance Manager']), false)
+    assert.equal(mayHaveSupportInbox([{ domain: 'support.chat', actions: [] }], ['Viewer']), false, 'a grant with no view is no grant')
   })
 })

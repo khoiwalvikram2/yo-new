@@ -25,9 +25,31 @@ export interface CasinoReportingFilter {
   tenant?: string;
   whitelabelId?: string;
   agentId?: string;
+  /**
+   * The Casino report's drill-down (a provider, a vendor, a game): its cards follow the level shown,
+   * as the sports report's do. Snapshots are not kept per provider, vendor or game, so any of these
+   * reads live bets.
+   */
+  providerId?: string | number;
+  vendorId?: string | number;
+  gameId?: string | number;
   dateFrom?: Date | string;
   dateTo?: Date | string;
   currency?: string;
+}
+
+/** True when the filter narrows to part of the casino book (see CasinoReportingFilter). */
+function drilled(filter: CasinoReportingFilter): boolean {
+  return Boolean(filter.providerId || filter.vendorId || filter.gameId);
+}
+
+/** The drill-down's narrowing on casino_bets, the same columns the breakdowns filter on (buildBetConditions). */
+function drillConditions(filter: CasinoReportingFilter): any[] {
+  const conditions: any[] = [];
+  if (filter.providerId) conditions.push(eq(casinoBets.providerId, Number(filter.providerId)));
+  if (filter.vendorId) conditions.push(eq(casinoBets.vendorId, Number(filter.vendorId)));
+  if (filter.gameId) conditions.push(eq(casinoBets.gameId, Number(filter.gameId)));
+  return conditions;
 }
 
 export interface CasinoDrillDownFilter {
@@ -95,7 +117,7 @@ async function rangeIncludesToday(filter: CasinoReportingFilter): Promise<boolea
  * the other used snapshots — verify both tables imported and tenant filters match.
  */
 export async function getCasinoKPIs(filter: CasinoReportingFilter): Promise<CasinoKPIs> {
-  if (await rangeIncludesToday(filter)) {
+  if (drilled(filter) || await rangeIncludesToday(filter)) {
     return getCasinoKPIsFromBets(filter);
   }
 
@@ -181,6 +203,7 @@ async function getCasinoKPIsFromBets(filter: CasinoReportingFilter): Promise<Cas
   betConditions.push(inArray(casinoBets.status, ['won', 'lost']));
   // Cash only: align with commission and snapshots (bonus/referralBonus do not generate commission)
   betConditions.push(eq(casinoBets.walletType, 'cash'));
+  betConditions.push(...drillConditions(filter));
 
   let query = db
     .select({
@@ -249,6 +272,7 @@ async function getCasinoTrendsFromBets(filter: CasinoReportingFilter): Promise<C
   }
   betConditions.push(inArray(casinoBets.status, ['won', 'lost']));
   betConditions.push(eq(casinoBets.walletType, 'cash'));
+  betConditions.push(...drillConditions(filter));
 
   let query = db
     .select({
@@ -289,7 +313,7 @@ async function getCasinoTrendsFromBets(filter: CasinoReportingFilter): Promise<C
  * Casino trends: snapshot rollups for past-only ranges; else / empty → {@link getCasinoTrendsFromBets}.
  */
 export async function getCasinoTrends(filter: CasinoReportingFilter): Promise<CasinoTrendPoint[]> {
-  if (await rangeIncludesToday(filter)) {
+  if (drilled(filter) || await rangeIncludesToday(filter)) {
     return getCasinoTrendsFromBets(filter);
   }
 

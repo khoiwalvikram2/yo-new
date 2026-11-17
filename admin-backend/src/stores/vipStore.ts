@@ -86,7 +86,6 @@ const vipTransactions = new Map<string, VIPTransaction[]>()
 const vipHistories = new Map<string, VIPHistory[]>()
 type VIPTierSchedule = { id: string; tierId: string; toStatus: string; effectiveAt: string; createdAt: string }
 type VIPAuditEvent = { id: string; action: string; tierId?: string; message: string; at: string; actor?: string }
-type VIPValidationIssue = { code: string; message: string; tierId?: string }
 type VIPTierVersion = { id: string; tierId: string; snapshot: VIPTier; createdAt: string; reason: string }
 const vipSchedules = new Map<string, VIPTierSchedule>()
 const vipAudit: VIPAuditEvent[] = []
@@ -607,23 +606,9 @@ export function addVIPAudit(actor: string | undefined, action: string, tierId: s
   vipAudit.push({ id: randomUUID(), action, tierId, message, at: new Date().toISOString(), actor })
 }
 
-// Validation
-export function validateTiers(): VIPValidationIssue[] {
-  const issues: VIPValidationIssue[] = []
-  const tiers = listTiers()
-  const names = new Set<string>()
-  const levels = new Set<number>()
-  let lastDeposit = -Infinity
-  for (const t of tiers) {
-    if (names.has(t.name)) issues.push({ code: 'DUP_NAME', message: `Duplicate name ${t.name}`, tierId: t.id })
-    names.add(t.name)
-    if (levels.has(t.level)) issues.push({ code: 'DUP_LEVEL', message: `Duplicate level ${t.level}`, tierId: t.id })
-    levels.add(t.level)
-    if (t.minMonthlyDeposit < lastDeposit) issues.push({ code: 'ASC_DEPOSIT', message: `Min deposit should ascend`, tierId: t.id })
-    lastDeposit = t.minMonthlyDeposit
-  }
-  return issues
-}
+// Validation: validateTiers() lived here and checked this store's mock tiers, so the
+// /vip/tiers Validation card never saw a tenant's real tiers (MAR-12). The rules now run
+// on vip_tiers in domains/vip/tierValidation.ts.
 
 // Versions
 export function listVIPVersions(tierId: string) {

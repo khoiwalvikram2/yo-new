@@ -2,12 +2,25 @@ import { beforeEach, afterEach, test, vi } from 'vitest'
 import assert from 'node:assert/strict'
 import { cleanup, fireEvent, render, screen, waitFor, within, act } from '@testing-library/react'
 import { ApolloClient, ApolloLink, ApolloProvider, InMemoryCache, Observable, type FetchResult } from '@apollo/client'
-import type { SubscriptionObserver } from 'zen-observable-ts'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useAuthStore } from '@/shared/core/authStore'
+import { chipAccountFixture, chipRowFixture, chipTotalsFixture } from '@/modules/chips/chipTestKit'
 import AgentProfilePage from './index'
 import { agentProfileResponse, type AgentProfileFixtureState } from '../../../../test/agentProfilePreviewData'
+
+// The CREDIT agent's chips (spec 2026-11-02 §7), answered here: the profile fixture predates the chips API.
+const ROOT_CHIPS = chipAccountFixture({ id: 'root1', username: 'Root Partner', parentAgentId: 'parent1', creditReference: 100000, balance: 95000, exposure: 1200, available: 95000, downlineBalance: 8000, refPnl: 3000, downlineCount: 2 })
+const PARENT_CHIPS = chipAccountFixture({ id: 'parent1', username: 'Parent Partner', parentAgentId: null, creditReference: 500000, balance: 300000, available: 300000, downlineBalance: 103000, refPnl: -97000, downlineCount: 1 })
+const CHILD_CHIPS = chipAccountFixture({ id: 'child1', username: 'Child Partner', parentAgentId: 'root1', creditReference: 5000, balance: 4000, available: 4000, refPnl: -1000 })
+const PLAYER_CHIPS = chipAccountFixture({ accountType: 'PLAYER', id: 'player2', username: 'credit_player', parentAgentId: 'root1', playerType: 'AGENT_CREDIT', creditReference: 4000, balance: 4500, exposure: 300, available: 4200, refPnl: 500 })
+function chipsResponse(name: string, variables: Record<string, unknown>): FetchResult | null {
+  const agents = (payload: Record<string, unknown>) => ({ data: { agents: { __typename: 'AgentsQuery', ...payload } } })
+  if (name === 'ChipAccount') return agents({ chipAccount: variables.accountId === 'root1' ? ROOT_CHIPS : variables.accountId === 'parent1' ? PARENT_CHIPS : { ...ROOT_CHIPS, id: String(variables.accountId), username: 'Child Profile' } })
+  if (name === 'ChipDownline') return agents({ chipDownline: { __typename: 'ChipDownline', parent: ROOT_CHIPS, pool: null, items: [CHILD_CHIPS, PLAYER_CHIPS], total: 2, totals: chipTotalsFixture({ creditReference: 9000, balance: 8500, exposure: 300, available: 8200, refPnl: -500 }) } })
+  if (name === 'ChipStatement') return agents({ chipStatement: { __typename: 'ChipStatementPage', rows: [chipRowFixture({ id: 'chip-row1', amount: 95000, balanceBefore: 0, balanceAfter: 95000, kind: 'OPENING', counterpartyType: null, counterpartyId: null, counterpartyName: null, remark: 'Opening chips' })], total: 1 } })
+  return null
+}
 
 const feedback = vi.hoisted(() => ({ toast: vi.fn(), success: vi.fn(), error: vi.fn() }))
 const guard = vi.hoisted(() => ({ update: true, view: true, calls: [] as unknown[] }))
@@ -17,10 +30,15 @@ vi.mock('@/shared/core/RBACGuard', () => ({ RBACGuard: ({ children, required, fa
 vi.mock('@/shared/core/CurrencyContext', () => ({ useCurrency: () => ({ formatAmount: (value: number) => `INR ${value}`, getCurrencySymbol: () => '₹', convertFromWhitelabelCurrency: (value: number) => value * 2 }) }))
 vi.mock('@/shared/core/useFormatDate', () => ({ useFormatDate: () => ({ formatDate: (value: string) => value, formatDateTime: (value: string) => value, formatTime: () => '09:00' }) }))
 let state: AgentProfileFixtureState
+// The ancestor that restricts the agent (AgentAccount.blockedByAncestor, AGE-16): none unless a test sets one.
+let restriction: { id: string; username: string | null; status: string } | null
+function restrictionResponse(name: string, variables: Record<string, unknown>): FetchResult | null {
+  if (name !== 'AgentRestriction') return null
+  return { data: { agents: { agentProfile: { id: String(variables.id), blockedByAncestor: restriction && { __typename: 'AgentAncestorBlock', ...restriction } } } } }
+}
 // Per-test change to a fixture answer (e.g. upper-case player statuses).
 let rewrite: ((name: string, result: FetchResult) => FetchResult) | undefined
 let calls: Array<{ name: string; variables: Record<string, unknown> }>
-let creditObserver: SubscriptionObserver<FetchResult> | undefined
 let holdStats: boolean
 let failStats: boolean
 let heldStats: Map<string, () => void>
@@ -31,16 +49,19 @@ function JumpToChild() {
 function mount(entry = '/agents/root1', navigation = false) {
   const client = new ApolloClient({ cache: new InMemoryCache({ typePolicies: { Query: { fields: { agents: { merge: true } } } } }), link: new ApolloLink(operation => new Observable(observer => {
     calls.push({ name: operation.operationName, variables: JSON.parse(JSON.stringify(operation.variables)) as Record<string, unknown> })
-    if (operation.operationName === 'AgentCreditUpdated') { creditObserver = observer; return }
     const send = () => {
       if (state.profileError && operation.operationName === 'AgentProfile') { observer.error(new Error('Profile unavailable')); return }
       if (failStats && operation.operationName === 'AgentDashboardStats') { observer.error(new Error('Stats temporarily unavailable')); return }
       try {
-        const result = agentProfileResponse(operation, state)
+        const result = restrictionResponse(operation.operationName, operation.variables) ?? chipsResponse(operation.operationName, operation.variables) ?? agentProfileResponse(operation, state)
         if (operation.operationName === 'AgentProfile' && operation.variables.id === 'child1') {
           const account = result.data?.agents?.agentProfile as Record<string, unknown>
           result.data!.agents.agentProfile = { ...account, id: 'child1', username: 'Child Profile' }
         }
+        // The profile and its restriction both read agentProfile(id). The server's answers carry __typename, so the
+        // two become one AgentAccount in the cache; the fixture's untyped objects would replace each other instead.
+        const profile = result.data?.agents?.agentProfile as Record<string, unknown> | null | undefined
+        if ((operation.operationName === 'AgentProfile' || operation.operationName === 'AgentRestriction') && profile) profile.__typename = 'AgentAccount'
         observer.next(rewrite ? rewrite(operation.operationName, result) : result); observer.complete()
       } catch (error) { observer.error(error) }
     }
@@ -53,7 +74,7 @@ function mount(entry = '/agents/root1', navigation = false) {
   return render(<ApolloProvider client={client}><MemoryRouter initialEntries={[entry]}>{navigation && <JumpToChild />}<Routes><Route path="/agents/:id" element={<AgentProfilePage />} /><Route path="/agents" element={<div>Agents list</div>} /><Route path="/settlement" element={<div>Settlement management</div>} /><Route path="/players/profile/:playerId" element={<div>Player profile</div>} /></Routes></MemoryRouter></ApolloProvider>)
 }
 beforeEach(() => {
-  state = { scheme: 'CREDIT' }; rewrite = undefined; calls = []; creditObserver = undefined; guard.update = true; guard.view = true; guard.calls = []
+  state = { scheme: 'CREDIT' }; restriction = null; rewrite = undefined; calls = []; guard.update = true; guard.view = true; guard.calls = []
   holdStats = false; failStats = false; heldStats = new Map()
   feedback.toast.mockClear(); feedback.success.mockClear(); feedback.error.mockClear()
   useAuthStore.setState({ agent: undefined, user: undefined, roles: [], permissions: [{ domain: 'players.wallet', actions: ['view'] }, { domain: 'players.credit', actions: ['view'] }] })
@@ -74,7 +95,7 @@ function mutation(name: string) { return calls.filter(call => call.name === name
 test('profile query/stats stay scoped, overview retains all identifiers/rates/hierarchy and header update guard', async () => {
   mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
   assert.equal((await screen.findByRole('link', { name: 'Parent Partner' })).getAttribute('href'), '/agents/parent1')
-  assert.ok(screen.getByRole('heading', { name: 'Agent details' })); assert.ok(screen.getAllByText('40.00%').length > 0); assert.ok(screen.getByText('Manage credit allocation for players'))
+  assert.ok(screen.getByRole('heading', { name: 'Agent details' })); assert.ok(screen.getAllByText('40.00%').length > 0); assert.ok(screen.getByText('Deposits and withdraws chips for its downline'))
   assert.deepEqual(calls.find(call => call.name === 'AgentProfile')?.variables, { id: 'root1' })
   assert.equal(calls.find(call => call.name === 'AgentDashboardStats')?.variables.id, 'root1')
   assert.ok(guard.calls.some(value => JSON.stringify(value) === JSON.stringify([{ domain: 'agents.profile', actions: ['update'] }])))
@@ -90,7 +111,7 @@ test('delayed stats leave the header and selected Players tab usable without pre
   holdStats = true; mount()
   await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
   await waitFor(() => assert.ok(heldStats.has('root1')))
-  assert.equal(calls.some(call => ['AgentPlayers','CreditAllocation','AgentCreditTransactions','AgentSecurityAudit'].includes(call.name)), false)
+  assert.equal(calls.some(call => ['AgentPlayers','ChipDownline','ChipStatement','AgentSecurityAudit'].includes(call.name)), false)
   await openTab('Players'); await screen.findByText('Referred by: Referrer Partner (9000000002)')
   assert.equal(calls.filter(call => call.name === 'AgentDashboardStats').length, 1)
 })
@@ -101,7 +122,7 @@ test('failed stats show a stats-only retry while the selected tab stays availabl
   const headerReads = calls.filter(call => call.name === 'AgentProfile').length
   failStats = false; fireEvent.click(screen.getByRole('button', { name: 'Retry stats' }))
   // The head's strip reads the stats on every tab.
-  await within(screen.getByRole('group', { name: 'Credit and players' })).findByText('17')
+  await within(screen.getByRole('group', { name: 'Chips and players' })).findByText('17')
   assert.equal(calls.filter(call => call.name === 'AgentProfile').length, headerReads)
   assert.equal(screen.getByRole('tab', { name: tabName('Players') }).getAttribute('aria-selected'), 'true')
 })
@@ -123,9 +144,12 @@ test('wallet KPI arrays preserve conversion, counts and credit raw limits across
   const wallet = within(screen.getByRole('group', { name: 'Wallet type' }))
   fireEvent.click(wallet.getByRole('button', { name: 'Bonus' })); assert.ok(kpis.getByText('-INR 400')); assert.ok(kpis.getByText('INR 1400'))
   fireEvent.click(wallet.getByRole('button', { name: 'Referral Bonus' })); assert.ok(kpis.getByText('+INR 80')); assert.ok(kpis.getByText('INR 160'))
-  // A credit agent's limits are raw (unconverted) figures, in the head's strip.
-  const strip = within(screen.getByRole('group', { name: 'Credit and players' }))
-  for (const text of ['INR 10000', 'INR 3000', 'INR 7000', '30% of the limit', '10 direct · 7 under sub-agents']) assert.ok(strip.getByText(text), text)
+  // A credit agent's chips are raw (unconverted) figures in the whitelabel currency, in the head's strip.
+  const strip = within(screen.getByRole('group', { name: 'Chips and players' }))
+  for (const text of ['INR 95000', 'Downline holds INR 8000', 'INR 100000', 'Reference only', '+INR 3000', 'Upline owes', '10 direct · 7 under sub-agents']) assert.ok(await strip.findByText(text), text)
+  // The old credit-limit words are gone from the head.
+  for (const text of ['Credit Limit', 'Credit Used', '30% of the limit']) assert.equal(strip.queryByText(text), null, text)
+  assert.deepEqual(calls.find(call => call.name === 'ChipAccount')?.variables, { accountType: 'AGENT', accountId: 'root1' })
 })
 test('stats all-time and custom date filters preserve existing nullable API values and ISO calendar strings', async () => {
   mount(); await (await figures()).findByText('+INR 2400')
@@ -144,9 +168,13 @@ test('the Overview groups the period by product and downline money, beside the a
   const money = within(screen.getByRole('region', { name: 'Downline money' }))
   for (const text of ['INR 50000', 'INR 20000', 'INR 40000', 'INR 14000', 'INR 10000', 'INR 6000']) assert.ok(money.getAllByText(text).length, text)
   const side = within(screen.getByRole('complementary', { name: 'Agent details' }))
-  for (const text of ['L1 · Super Master', 'Under a parent agent', 'On · Sports', 'Sharing rates', 'Credit', 'Network', '80% used']) assert.ok(side.getAllByText(text).length, text)
+  for (const text of ['L1 · Super Master', 'Under a parent agent', 'On · Sports', 'Sharing rates', 'Chips', 'Network']) assert.ok(side.getAllByText(text).length, text)
+  // The Chips card: the agent's own balance, its downline's, the exposure, the reference and Ref P/L in words.
+  const chips = within(screen.getByRole('region', { name: 'Chips' }))
+  for (const text of ['INR 95000', 'INR 8000', 'INR 1200', 'INR 100000', '+INR 3000', 'Upline owes']) assert.ok(await chips.findByText(text), text)
+  assert.equal(side.queryByText('80% used'), null)
   // Nothing on the Overview reads another tab's data.
-  assert.equal(calls.some(call => ['AgentPlayers', 'CreditAllocation', 'AgentCreditTransactions', 'AgentSecurityAudit', 'CommissionSummary', 'CommissionCyclesForAgent'].includes(call.name)), false)
+  assert.equal(calls.some(call => ['AgentPlayers', 'ChipDownline', 'ChipStatement', 'AgentSecurityAudit', 'CommissionSummary', 'CommissionCyclesForAgent'].includes(call.name)), false)
 })
 test('Pay Commission follows the agents list: the direct parent pays a sub-agent, an admin only a top-level one', async () => {
   state.scheme = 'COMMISSION'; mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
@@ -189,22 +217,45 @@ test('read-only header hides password/status/credit changes and server refusals 
   fireEvent.change(screen.getByLabelText('New Password', { exact: true }), { target: { value: 'preview-pass' } }); fireEvent.change(screen.getByLabelText('Confirm New Password'), { target: { value: 'preview-pass' } }); fireEvent.change(screen.getByLabelText('Your Login Password'), { target: { value: 'preview-admin' } })
   fireEvent.click(screen.getByRole('button', { name: 'Reset Password' })); await screen.findByText('Password reset refused'); assert.ok(screen.getByRole('dialog'))
 })
-test('credit allocation threshold/resolve actions and subscription retain their exact scope and refresh behavior', async () => {
-  mount(); await openTab('Credit'); await screen.findByText('Funding credit')
-  assert.ok(calls.some(call => call.name === 'AgentCreditTransactions' && call.variables.agentId === 'root1' && call.variables.limit === 20 && call.variables.offset === 0))
-  fireEvent.click(screen.getByRole('button', { name: 'Set Alert Threshold' })); fireEvent.change(screen.getByRole('textbox', { name: 'Alert Threshold (%)' }), { target: { value: '0' } }); fireEvent.click(screen.getByRole('button', { name: 'Set Threshold' }))
-  await waitFor(() => assert.deepEqual(mutation('SetAgentCreditAlertThreshold'), { agentId: 'root1', threshold: 0 }))
-  await waitFor(() => assert.equal(screen.queryByRole('dialog'), null))
-  fireEvent.click(screen.getByRole('button', { name: 'Resolve' })); await waitFor(() => assert.deepEqual(mutation('ResolveAgentCreditAlert'), { alertId: 'alert1' }))
-  const before = calls.filter(call => call.name === 'CreditAllocation').length
-  await act(async () => { creditObserver?.next({ data: { agentCreditUpdated: { agentId: 'root1', creditLimit: 10000, creditUsed: 3000, creditAvailable: 7000 } } }) })
-  await waitFor(() => assert.ok(calls.filter(call => call.name === 'CreditAllocation').length > before))
+test('the Chips tab shows the figures, the downline and the statement, and reads no old credit API', async () => {
+  mount(); await openTab('Chips')
+  const figures = within(await screen.findByRole('group', { name: 'Agent chip figures' }))
+  // An agent's available chips are its balance: both read INR 95000.
+  for (const text of ['INR 100000', 'INR 95000', 'INR 1200', '+INR 3000', 'Upline owes', 'Downline holds INR 8000']) assert.ok((await figures.findAllByText(text)).length, text)
+  const downline = await screen.findByRole('table', { name: 'Agent chip downline' })
+  await within(downline).findByText('Child Partner'); assert.ok(within(downline).getByText('credit_player'))
+  assert.equal(calls.find(call => call.name === 'ChipDownline')?.variables.parentAgentId, 'root1')
+  const statement = await screen.findByRole('table', { name: 'Agent chip statement' })
+  await within(statement).findByText('Opening chips')
+  assert.deepEqual(calls.find(call => call.name === 'ChipStatement')?.variables, { accountType: 'AGENT', accountId: 'root1', from: null, to: null, offset: 0, limit: 20 })
+  // root1 sits under parent1: an admin is not its direct parent, so no D / W / CR for it here.
+  assert.equal(screen.queryByRole('button', { name: 'Deposit chips to Root Partner' }), null)
+  assert.equal(calls.some(call => ['CreditAllocation', 'AgentCreditAlerts', 'AgentPlayerCredits', 'AgentCreditTransactions', 'AgentCreditUpdated'].includes(call.name)), false)
 })
-test('player credit mask remains permission-dependent, and credit reconciliation stays a preview without invented mutations', async () => {
-  useAuthStore.setState({ permissions: [] }); mount(); await openTab('Credit')
-  const table = await screen.findByRole('table', { name: 'Agent player credit allocations' })
-  assert.equal((await within(table).findAllByText('••••')).length, 5); assert.equal(within(table).queryByText('INR 8000'), null)
-  fireEvent.click(screen.getByRole('button', { name: 'Credit Reconciliation' })); assert.ok(screen.getByText('Credit reconciliation features are available in the credit management section.')); assert.equal(calls.some(call => call.name === 'ApplyCreditReconciliation'), false)
+test('the direct parent agent gets Deposit / Withdraw chips and the credit reference on the head and the Chips tab', async () => {
+  useAuthStore.setState({ agent: agentLogin('parent1', 'CREDIT') }); mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
+  const head = await screen.findByRole('group', { name: 'Chips for Root Partner' })
+  for (const name of ['Deposit chips to Root Partner', 'Withdraw chips from Root Partner', 'Set credit reference for Root Partner']) assert.ok(within(head).getByRole('button', { name }), name)
+  fireEvent.click(within(head).getByRole('button', { name: 'Deposit chips to Root Partner' }))
+  assert.ok(await screen.findByRole('dialog'))
+  // Settlement is a D / W of the Ref P/L for a CREDIT agent: the old Settle and Adjust Credit are gone.
+  assert.equal(screen.queryByRole('button', { name: 'Adjust Credit' }), null)
+  assert.equal(screen.queryByRole('tab', { name: 'Settlement' }), null)
+})
+test('a credit player on the Players tab shows its chips, masked without players.credit:view', async () => {
+  rewrite = (name, result) => {
+    if (name !== 'AgentPlayers') return result
+    const rows = result.data?.usersPage?.itemsWithStats as Array<{ player: Record<string, unknown> }>
+    rows[1].player.chips = PLAYER_CHIPS
+    return result
+  }
+  mount(); await openTab('Players')
+  const table = await screen.findByRole('table', { name: 'Agent downline players' })
+  const row = within((await within(table).findByText('Credit Player')).closest('tr') as HTMLElement)
+  assert.ok(row.getByText('INR 4500')); assert.ok(row.getByText('+INR 500'))
+  cleanup(); useAuthStore.setState({ permissions: [{ domain: 'players.wallet', actions: ['view'] }] }); mount(); await openTab('Players')
+  const masked = within((await within(await screen.findByRole('table', { name: 'Agent downline players' })).findByText('Credit Player')).closest('tr') as HTMLElement)
+  assert.equal(masked.queryByText('INR 4500'), null); assert.ok(masked.getAllByText('••••').length >= 2)
 })
 test('Sharing dates/rates/ledger amounts and Initiate Settlement keep existing query variables and navigation', async () => {
   state.scheme = 'SHARING'; mount(); await openTab('Sharing')
@@ -241,7 +292,7 @@ test('Commission View Bets passes child/player IDs and cycle range into already-
 test('Players downline scope, balance sorting, masks and paging preserve server input', async () => {
   mount(); await openTab('Players'); await screen.findByText('Referred by: Referrer Partner (9000000002)')
   assert.ok(calls.some(call => call.name === 'AgentPlayers' && call.variables.includeDownline === true && call.variables.limit === 10 && call.variables.offset === 0))
-  fireEvent.click(screen.getByRole('button', { name: 'Balance / Credit' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Balance' }))
   await waitFor(() => assert.ok(calls.some(call => call.name === 'AgentPlayers' && call.variables.sortBy === 'balance' && call.variables.sortOrder === 'asc')))
   fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
   await waitFor(() => assert.ok(calls.some(call => call.name === 'AgentPlayers' && call.variables.offset === 10)))
@@ -252,6 +303,35 @@ test('Sub-Agent hierarchy retains lazy-root query and no duplicate child fetch a
   assert.ok(calls.some(call => call.name === 'AgentTree' && call.variables.rootId === 'child1'))
   fireEvent.click(screen.getByRole('button', { name: 'Collapse Child Partner' })); fireEvent.click(screen.getByRole('button', { name: 'Expand Child Partner' }))
   assert.equal(calls.filter(call => call.name === 'AgentTree' && call.variables.rootId === 'child1').length, 1)
+})
+test('a SHARING profile lists its sub-agents too, with their share rates and no tally (AGE-11)', async () => {
+  // Its head counted them ("SUB-AGENTS 2") but no tab or link led to them; only COMMISSION profiles had the tab.
+  state.scheme = 'SHARING'; mount(); await openTab('Sub-Agents'); await screen.findByText('Child Partner')
+  assert.deepEqual(calls.find(call => call.name === 'SubAgentsCount')?.variables, { rootId: 'root1' })
+  const figures = within(screen.getByRole('group', { name: 'Sub-agent figures' }))
+  assert.ok(figures.getByText('Direct Sub-Agents')); assert.equal(figures.queryByText('Tally On'), null, 'the tally is a COMMISSION setting')
+  assert.ok(screen.getByRole('columnheader', { name: 'Share Rates' })); assert.equal(screen.queryByRole('columnheader', { name: 'Commission Rates' }), null)
+  assert.ok(screen.getByText('Sports 40.00%')); assert.equal(screen.queryByText(/^Tally (on|off)/), null)
+  cleanup(); state = { scheme: 'COMMISSION' }; mount(); await openTab('Sub-Agents'); await screen.findByText('Child Partner')
+  assert.ok(within(screen.getByRole('group', { name: 'Sub-agent figures' })).getByText('Tally On'))
+  // A CREDIT agent's downline stays in its Chips tab.
+  cleanup(); calls = []; state = { scheme: 'CREDIT' }; mount(); await screen.findByRole('tab', { name: tabName('Chips') })
+  assert.equal(screen.queryByRole('tab', { name: tabName('Sub-Agents') }), null); assert.equal(calls.some(call => call.name === 'SubAgentsCount'), false)
+})
+test('an agent restricted through its upline says so under its own status (AGE-16)', async () => {
+  // It read ACTIVE with no hint while its sign-in was refused because its parent was suspended.
+  restriction = { id: 'parent1', username: 'Parent Partner', status: 'SUSPENDED' }
+  mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
+  assert.deepEqual(calls.find(call => call.name === 'AgentRestriction')?.variables, { id: 'root1' })
+  const notice = within(screen.getByText('Blocked by its parent').parentElement as HTMLElement)
+  assert.equal(notice.getByRole('link', { name: 'Parent Partner' }).getAttribute('href'), '/agents/parent1')
+  assert.ok(notice.getByText(/^, its parent, is suspended\. Until it is active again this agent cannot sign in and its players cannot place new bets/))
+  cleanup(); restriction = null; mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
+  assert.equal(screen.queryByText(/^(Blocked by|Read-only through) its/), null, 'none while every ancestor is ACTIVE')
+  // A server that cannot answer it (one without the field) costs the notice only, never the profile.
+  cleanup(); rewrite = (name, result) => { if (name === 'AgentRestriction') throw new Error('Cannot query field "blockedByAncestor" on type "AgentAccount".'); return result }
+  mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
+  assert.ok(screen.getByRole('tab', { name: tabName('Overview') })); assert.equal(screen.queryByText(/^(Blocked by|Read-only through) its/), null)
 })
 test('Activity Log queries only selected agent and keeps event counts/details; referral link generation preserves code URL shape', async () => {
   state.scheme = 'COMMISSION'; state.referralMissing = true; mount(); await openTab('Activity Log'); await screen.findByText('Successful sign in')
@@ -264,12 +344,15 @@ test('profile errors and missing records keep retry/back actions without renderi
   cleanup(); state = { scheme: 'CREDIT', missing: true }; mount(); await screen.findByText('Agent not found'); assert.equal(screen.queryByRole('tab', { name: 'Commission' }), null)
 })
 
-const agentLogin = (id: string) => ({ id, username: 'Logged agent', tenantId: 'preview', phone: null, schemeType: 'SHARING', allowedDomains: ['sports'], status: 'ACTIVE', parentAgentId: null, levelIndex: 1, tallyEnabled: false, tallyDomains: [], createdAt: '2026-09-22' })
+const agentLogin = (id: string, schemeType = 'SHARING') => ({ id, username: 'Logged agent', tenantId: 'preview', phone: null, schemeType, allowedDomains: ['sports'], status: 'ACTIVE', parentAgentId: null, levelIndex: 1, tallyEnabled: false, tallyDomains: [], createdAt: '2026-09-22' })
 test('admins and the parent agent get Edit Agent; an agent on its own profile gets no management actions', async () => {
   mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
   assert.equal(screen.getByRole('link', { name: 'Edit Agent' }).getAttribute('href'), '/agents/root1/edit')
   cleanup(); useAuthStore.setState({ agent: agentLogin('root1') }); mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
-  assert.equal(screen.queryByRole('link', { name: 'Edit Agent' }), null); assert.equal(screen.queryByRole('button', { name: 'Agent actions' }), null); assert.equal(screen.queryByRole('button', { name: 'Adjust Credit' }), null)
+  assert.equal(screen.queryByRole('link', { name: 'Edit Agent' }), null); assert.equal(screen.queryByRole('button', { name: 'Agent actions' }), null)
+  // Its own chips are moved by its parent, never by itself.
+  await within(screen.getByRole('group', { name: 'Chips and players' })).findByText('INR 95000')
+  assert.equal(screen.queryByRole('button', { name: 'Deposit chips to Root Partner' }), null)
   cleanup(); useAuthStore.setState({ agent: agentLogin('parent1') }); mount(); await screen.findByRole('heading', { name: 'Root Partner', level: 2 })
   assert.ok(screen.getByRole('link', { name: 'Edit Agent' }))
 })
@@ -286,18 +369,21 @@ test('Players figures count the whole downline: Active comes from a status count
   const figures = within(screen.getByRole('group', { name: 'Player figures' }))
   for (const text of ['21', '15', '71.4% of players', '6']) assert.ok(await figures.findByText(text), text)
 })
-test('the tabs open with their figures: sub-agents, activity, settlement and credit', async () => {
+test('the tabs open with their figures: sub-agents, activity, settlement and chips', async () => {
   state.scheme = 'COMMISSION'; mount(); await openTab('Sub-Agents'); await screen.findByText('Child Partner')
   const tree = within(screen.getByRole('group', { name: 'Sub-agent figures' }))
   assert.ok(tree.getByText('Direct Sub-Agents')); assert.equal(screen.getByRole('link', { name: 'Child Partner' }).getAttribute('href'), '/agents/child1')
   await openTab('Activity Log'); await screen.findByText('Successful sign in')
   const activity = within(screen.getByRole('group', { name: 'Activity figures' }))
   for (const [label, value] of [['Total Events', '3'], ['Successful Logins', '1'], ['Failed Logins', '1'], ['Password Changes', '1']]) assert.ok(activity.getByText(label) && activity.getAllByText(value).length, label)
-  cleanup(); state = { scheme: 'CREDIT' }; mount(); await openTab('Settlement'); await screen.findByText('Pending Settlement Available')
+  cleanup(); state = { scheme: 'SHARING' }; mount(); await openTab('Settlement'); await screen.findByText('Pending Settlement Available')
   assert.ok(within(screen.getByRole('group', { name: 'Settlement figures' })).getByText('Collected from Agent'))
-  await openTab('Credit'); await screen.findByText('Funding credit')
-  const credit = within(screen.getByRole('group', { name: 'Credit figures' }))
-  assert.ok(credit.getByText('Players on Credit')); assert.ok(await credit.findByText('Given INR 8000'))
+  // A CREDIT agent settles with chips: a Chips tab and no Settlement tab.
+  cleanup(); state = { scheme: 'CREDIT' }; mount(); await openTab('Chips')
+  const chips = within(await screen.findByRole('group', { name: 'Agent chip figures' }))
+  assert.ok(chips.getByText('Ref P/L')); assert.ok(await chips.findByText('+INR 3000'))
+  assert.equal(screen.queryByRole('tab', { name: 'Settlement' }), null)
+  assert.equal(screen.queryByRole('tab', { name: 'Credit' }), null)
 })
 test('the Review adjustments link lands on the Commission tab and its Adjustments card, read-only without the permission', async () => {
   state.scheme = 'COMMISSION'; mount('/agents/root1?tab=commission#commission-adjustments')

@@ -234,8 +234,8 @@ export function PlayerProfileModal({ open, onClose, userId }: PlayerProfileModal
   </>
   else content = <Card title="Agent Hierarchy" headingLevel={3}><ol className={styles.list}>{agentChain.map(agent => <li key={agent.agentId} className={styles.listItem}><strong>{agent.agentName}</strong><div className={styles.row}>
     {!!agent.commissionRate && <span>Commission: {agent.commissionRate}%</span>}
-    {!!agent.creditLimit && <span>Limit: {canViewCredit ? formatAmount(agent.creditLimit) : walletMask}</span>}
-    {agent.creditUsed !== null && agent.creditUsed !== undefined && <span>Used: {canViewCredit ? formatAmount(agent.creditUsed) : walletMask}</span>}
+    {/* A CREDIT agent's credit limit is its credit reference now (spec 2026-11-02); "credit used" is retired. */}
+    {!!agent.creditLimit && <span>Credit ref: {canViewCredit ? formatAmount(agent.creditLimit) : walletMask}</span>}
   </div></li>)}</ol></Card>
 
   return <Dialog open={open} onOpenChange={next => { if (!next && !busy) onClose() }} dismissible={!busy} title={`Player Profile${user?.name ? ` — ${user.name}` : ''}`} size="xl">

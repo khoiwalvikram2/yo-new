@@ -1,7 +1,8 @@
 /* PG Settings (/payments/pg-settings, mockup M:2575-2583). The mockup lists gateways in the generic table
    template (M:3361-3409); this page is the single WeLivePay configuration form. BEYOND-MOCKUP, redrawn on the
    kit's idioms at the owner's request (2026-10-21), as App Configuration was: the form in kit panels (Gateway,
-   Credentials, Deposit limits, Redirects), a side column with the webhook and what is live now, and the kit
+   Credentials, Deposit limits, Redirects, IMPS Payouts since WeLivePay v2), a side column with both webhook
+   URLs and what is live now, and the kit
    .formbar that sticks to the bottom only while something is unsaved. Columns follow the form's own width. */
 .form {
   min-width: 0;
@@ -127,7 +128,87 @@
   margin-right: 4px;
 }
 
+/* ---- Gateway list line, warnings and card notes --------------------------------------------- */
+/* What the live WeLivePay list holds (or why there is none), with its reload at the end of the line. */
+.gatewayList {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.gatewayListText {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.gatewayListError {
+  color: var(--neg-ink);
+}
+
+.gatewayList > button {
+  flex: none;
+  width: auto;
+}
+
+/* A select's help line that warns: the value stays, the line says what WeLivePay will refuse. */
+.warnText {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--warn);
+}
+
+.warnIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.cardNote {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* An outside link reads as one (the link blue), like every other clickable text in the admin. */
+.docLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--ui-radius);
+  color: var(--link, var(--acc-ink));
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-1) ease;
+}
+
+.docLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.docLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ---- Webhook -------------------------------------------------------------------------------- */
+/* One URL box with its copy button level with the box's foot. */
+.urlRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+}
+
 .webhookText {
   margin: 0;
   color: var(--ink-2);
@@ -293,7 +374,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .secretFace {
+  .secretFace,
+  .docLink {
     transition: none;
   }
 }

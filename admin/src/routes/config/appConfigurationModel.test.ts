@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 import { CONFIG_PREVIEW_DATA } from '../../../test/appConfigurationPreviewData'
-import { CONFIG_DEFINITIONS, CONFIG_MENU, DEFAULT_THEME_COLORS, brandingInitialValues, configRoles, configurationColorValid, sectionInitialValues, sectionPayload, sectionSchema, settingsEmailValid, settingsUrlValid, tabVisible } from './appConfigurationModel'
+import { MATCHBOOK_COLORS, PLAYER_THEME_PRESETS } from '../../../../shared/src/theme/playerTheme'
+import { CONFIG_DEFINITIONS, CONFIG_MENU, brandingInitialValues, brandingThemeInput, legacyThemeColors, storedThemeUnreadable, configRoles, configurationColorValid, sectionInitialValues, sectionPayload, sectionSchema, settingsEmailValid, settingsUrlValid, tabVisible } from './appConfigurationModel'
 
 describe('App configuration section contracts', () => {
   test('original contact/webhook validator acceptance remains independent of Antd', () => {
@@ -36,13 +37,20 @@ describe('App configuration section contracts', () => {
       assert.equal('unused' in sectionPayload(key, values), false)
     }
   })
-  test('brand theme uses app-config values, legacy dark fallback, and existing distinct initial/reset primary', () => {
-    const current = brandingInitialValues({ logoUrl: 'logo', faviconUrl: null }, CONFIG_PREVIEW_DATA)
-    assert.deepEqual(current.dark, CONFIG_PREVIEW_DATA.theme.dark); assert.deepEqual(current.light, CONFIG_PREVIEW_DATA.theme.light)
-    assert.equal(current.primary, '#123456'); assert.equal(current.logoUrl, 'logo'); assert.equal(current.faviconUrl, null)
-    const fallback = brandingInitialValues({}, { theme: { bgPage: '#010203', textPrimary: '#abcdef' } })
-    assert.equal(fallback.dark.bgPage, '#010203'); assert.equal(fallback.dark.textPrimary, '#abcdef')
-    assert.deepEqual(fallback.light, DEFAULT_THEME_COLORS.light); assert.equal(fallback.primary, '#2952E3'); assert.equal(DEFAULT_THEME_COLORS.primary, '#FF3B30')
+  test('brand values come from the stored player theme, else Matchbook; legacy colors are only offered', () => {
+    const none = brandingInitialValues({ logoUrl: 'logo', faviconUrl: null }, CONFIG_PREVIEW_DATA)
+    assert.equal(none.presetId, 'matchbook'); assert.equal(none.sportsIconStyle, 'default'); assert.equal(none.action, MATCHBOOK_COLORS.action)
+    assert.deepEqual(none.light, MATCHBOOK_COLORS.light); assert.equal(none.logoUrl, 'logo'); assert.equal(none.faviconUrl, null)
+    const blue = PLAYER_THEME_PRESETS.find((preset) => preset.id === 'royal-blue')!.colors
+    const stored = brandingInitialValues({}, { playerTheme: { presetId: 'royal-blue', sportsIconStyle: '3d', colors: blue } })
+    assert.equal(stored.presetId, 'royal-blue'); assert.equal(stored.sportsIconStyle, '3d'); assert.deepEqual(stored.dark, blue.dark)
+    assert.deepEqual(brandingThemeInput({ ...stored, action: '#1d4ed8' }), { presetId: 'royal-blue', sportsIconStyle: '3d', colors: blue })
+    const legacy = legacyThemeColors(CONFIG_PREVIEW_DATA.theme)!
+    assert.equal(legacy.action, '#123456'); assert.equal(legacy.light.page, '#FAFAFB'); assert.equal(legacy.dark.text, '#EEEEEF')
+    assert.equal(legacy.light.panel, MATCHBOOK_COLORS.light.panel); assert.equal(legacy.link, MATCHBOOK_COLORS.link)
+    assert.equal(legacyThemeColors(null), null); assert.equal(legacyThemeColors({}), null)
+    assert.equal(storedThemeUnreadable({ playerTheme: { primary: '#123456' } }), true)
+    assert.equal(storedThemeUnreadable({ playerTheme: null }), false); assert.equal(storedThemeUnreadable({}), false)
   })
   test('payments preserves nullable unlimited cap, integer floor, payouts and limits', () => {
     const values = sectionInitialValues('payments', CONFIG_PREVIEW_DATA, {})

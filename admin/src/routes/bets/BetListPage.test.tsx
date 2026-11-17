@@ -31,13 +31,20 @@ interface ServerCall {
 
 type Handler = (operation: Operation) => FetchResult | Promise<FetchResult>
 
-const auth = vi.hoisted(() => ({ agent: undefined as { id: string } | undefined }))
+const auth = vi.hoisted(() => ({ agent: undefined as { id: string } | undefined, roles: [] as string[] }))
 const guard = vi.hoisted(() => ({ allowed: true, calls: [] as GuardCall[] }))
 const feedback = vi.hoisted(() => ({ toast: vi.fn(), exportBets: vi.fn() }))
 
 vi.mock('@/shared/core/authStore', () => ({
-  useAuthStore: (selector: (state: { agent?: { id: string } }) => unknown) => selector({ agent: auth.agent }),
+  useAuthStore: (selector: (state: { agent?: { id: string }; roles: string[] }) => unknown) => selector({ agent: auth.agent, roles: auth.roles }),
 }))
+
+// The director mode a Super Admin works in; nobody else is asked to pick a whitelabel.
+const ui = vi.hoisted(() => ({ directorMode: 'whitelabel', selectedWhitelabelId: null as string | null }))
+vi.mock('@/shared/core/uiStore', () => {
+  const state = () => ({ directorMode: ui.directorMode, selectedWhitelabelId: ui.selectedWhitelabelId, tenant: 'qa' })
+  return { useUIStore: Object.assign((select: (value: ReturnType<typeof state>) => unknown) => select(state()), { getState: state }) }
+})
 
 vi.mock('@/shared/core/RBACGuard', () => ({
   RBACGuard: ({ required, requireAny, bypassForAgents, children }: GuardCall & { children: ReactNode }) => {
@@ -294,10 +301,10 @@ function serverLink(handler: Handler) {
   }))
 }
 
-function renderPage(handler: Handler = defaultHandler) {
+function renderPage(handler: Handler = defaultHandler, entry = '/bets') {
   return render(
     <MockedProvider link={serverLink(handler)}>
-      <MemoryRouter initialEntries={['/bets']}>
+      <MemoryRouter initialEntries={[entry]}>
         <PageEyebrowProvider value="Trading">
           <Routes>
             <Route path="/bets" element={<BetListPage />} />
@@ -332,6 +339,9 @@ const today = () => todayISTString()
 
 beforeEach(() => {
   auth.agent = undefined
+  auth.roles = []
+  ui.directorMode = 'whitelabel'
+  ui.selectedWhitelabelId = null
   guard.allowed = true
   guard.calls.length = 0
   feedback.toast.mockReset()
@@ -364,6 +374,44 @@ describe('BetListPage', () => {
     assert.equal(calls('AgentsForBetFilter').length, 0, 'an admin searches agents only after two characters')
     assert.equal(calls('SubAgentsForBetFilter').length, 0, 'only an agent loads sub-agents')
     assert.equal(calls('PlayersForBetFilter').length, 0)
+  })
+
+  test('the stuck casino rounds alert opens open casino bets of every date, not Today across all domains', async () => {
+    renderPage(defaultHandler, '/bets?domain=casino&status=active')
+    await screen.findByRole('table', { name: 'Bets' })
+    await waitFor(() => assert.deepEqual(lastSent('BetsPage'), { domain: 'CASINO', filters: { status: ['matched'] }, offset: 0, limit: 50 }))
+    assert.deepEqual(lastSent('BetsPageTotals'), { filters: { status: ['matched'] } })
+    assert.ok(screen.getByRole('button', { name: 'Date range: Any date' }))
+    assert.equal(screen.getByText(/filters? applied/).textContent, '2 filters applied')
+  })
+
+  test('a link can name a range and a search; the global search opens on every date', async () => {
+    const ranged = renderPage(defaultHandler, '/bets?domain=sports&status=settled&dateFrom=2026-10-01&dateTo=2026-10-07')
+    await waitFor(() => assert.deepEqual(lastSent('BetsPage'), {
+      domain: 'SPORTS', filters: { status: ['settled'], dateFrom: '2026-10-01', dateTo: '2026-10-07' }, offset: 0, limit: 50,
+    }))
+    assert.ok(screen.getByRole('button', { name: 'Date range: 2026-10-01 – 2026-10-07' }))
+    ranged.unmount()
+
+    renderPage(defaultHandler, '/bets?search=BET-77')
+    await waitFor(() => assert.deepEqual(lastSent('BetsPage'), { domain: 'ALL', filters: { search: 'BET-77' }, offset: 0, limit: 50 }))
+    assert.equal((screen.getByRole('searchbox', { name: 'Search bets' }) as HTMLInputElement).value, 'BET-77')
+  })
+
+  test('a Super Admin with no whitelabel selected is asked to pick one instead of shown zeros', async () => {
+    auth.roles = ['Super Admin']
+    ui.directorMode = 'core'
+    const core = renderPage()
+    assert.ok(await screen.findByText('Select a whitelabel'))
+    assert.equal(calls('BetsPage').length + calls('BetsPageTotals').length, 0)
+    core.unmount()
+
+    // With a whitelabel selected the list loads as usual.
+    ui.directorMode = 'whitelabel'
+    ui.selectedWhitelabelId = 'qa'
+    renderPage()
+    await screen.findByRole('table', { name: 'Bets' })
+    await waitFor(() => assert.equal(calls('BetsPage').length > 0, true))
   })
 
   test('renders one h1, the statistics and the mixed list with every legacy column', async () => {
@@ -602,28 +650,27 @@ describe('BetListPage', () => {
     assert.equal(calls('AgentsForBetFilter').length, 0)
   })
 
-  test('typed player text filters at once and searches players; a picked player filters by username', async () => {
+  test('typed player text filters at once and searches players; a picked player filters by its id alone', async () => {
     await renderLoaded()
     const player = screen.getByRole('combobox', { name: 'Player' }) as HTMLInputElement
+    const sentFilters = () => lastSent('BetsPage').filters as { playerSearch?: string; userId?: string }
 
     fireEvent.change(player, { target: { value: 'rk' } })
-    await waitFor(() => assert.equal((lastSent('BetsPage').filters as { playerSearch?: string }).playerSearch, 'rk'))
+    await waitFor(() => assert.equal(sentFilters().playerSearch, 'rk'))
     await waitFor(() => assert.deepEqual(lastSent('PlayersForBetFilter'), { query: 'rk', limit: 50 }))
 
+    // The pick is player 7 itself, not every player whose name contains 'rk_sharma88'; the totals follow.
     fireEvent.click(await screen.findByRole('option', { name: 'rk_sharma88 (9876543210)' }))
-    await waitFor(() => assert.equal(
-      (lastSent('BetsPage').filters as { playerSearch?: string }).playerSearch,
-      'rk_sharma88',
-    ))
+    await waitFor(() => assert.equal(sentFilters().userId, '7'))
+    assert.equal(sentFilters().playerSearch, undefined)
+    await waitFor(() => assert.equal((lastSent('BetsPageTotals').filters as { userId?: string }).userId, '7'))
     assert.equal(player.value, 'rk_sharma88 (9876543210)')
     assert.equal(screen.getByText(/filters? applied/).textContent, '1 filter applied')
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     await waitFor(() => assert.equal(player.value, ''))
-    await waitFor(() => assert.equal(
-      (lastSent('BetsPage').filters as { playerSearch?: string }).playerSearch,
-      undefined,
-    ))
+    await waitFor(() => assert.equal(sentFilters().userId, undefined))
+    assert.equal(sentFilters().playerSearch, undefined)
   })
 
   test('typed player text and its filter go when the list closes without a pick, as antd emptied its search', async () => {
@@ -662,6 +709,7 @@ describe('BetListPage', () => {
     await renderLoaded()
     const player = screen.getByRole('combobox', { name: 'Player' }) as HTMLInputElement
     const playerSearch = () => (lastSent('BetsPage').filters as { playerSearch?: string }).playerSearch
+    const userId = () => (lastSent('BetsPage').filters as { userId?: string }).userId
     const label = 'rk_sharma88 (9876543210)'
 
     fireEvent.change(player, { target: { value: 'rk' } })
@@ -669,7 +717,8 @@ describe('BetListPage', () => {
     // The players arrived after the typing, so no option is active; antd made the first one active then.
     assert.equal(player.getAttribute('aria-activedescendant'), null)
     fireEvent.keyDown(player, { key: 'Enter' })
-    await waitFor(() => assert.equal(playerSearch(), 'rk_sharma88'))
+    await waitFor(() => assert.equal(userId(), '7'))
+    assert.equal(playerSearch(), undefined)
     assert.equal(player.value, label)
     assert.equal(screen.queryByRole('listbox', { name: 'Player' }), null)
 
@@ -681,21 +730,24 @@ describe('BetListPage', () => {
     assert.equal(player.value, label)
     assert.equal(calls('BetsPage').length, lists)
 
-    // A character typed after the pick starts a fresh search from that character, not from the label.
+    // A character typed after the pick starts a fresh search from that character, not from the label,
+    // and the picked player goes with it.
     fireEvent.change(player, { target: { value: `${label}m` } })
     await waitFor(() => assert.equal(playerSearch(), 'm'))
+    assert.equal(userId(), undefined)
     assert.equal(player.value, 'm')
 
     fireEvent.change(player, { target: { value: 'rk' } })
     await screen.findByRole('option', { name: 'rk_kumar' })
     fireEvent.keyDown(player, { key: 'Tab' })
-    await waitFor(() => assert.equal(playerSearch(), 'rk_sharma88'))
+    await waitFor(() => assert.equal(userId(), '7'))
     fireEvent.blur(player)
     assert.equal(player.value, label)
 
     // Deleting from the picked label leaves an empty search: the field empties and the filter goes.
     fireEvent.change(player, { target: { value: label.slice(0, -1) } })
-    await waitFor(() => assert.equal(playerSearch(), undefined))
+    await waitFor(() => assert.equal(userId(), undefined))
+    assert.equal(playerSearch(), undefined)
     assert.equal(player.value, '')
   })
 

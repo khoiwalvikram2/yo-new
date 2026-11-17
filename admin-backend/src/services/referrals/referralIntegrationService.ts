@@ -12,6 +12,7 @@ import {
 } from '@src/repos/referrals/referralsRepo.js'
 import { getReferralEarningsByRefereeDb } from '@src/repos/referrals/referralEarningsRepo.js'
 import { CurrencyCode } from '@src/types/currency.js'
+import { isCreditBeneficiary } from './creditBeneficiaries.js'
 
 /**
  * Referral Integration Service - Hooks into user events to trigger referral rewards
@@ -257,11 +258,13 @@ export class ReferralIntegrationService {
         }
       }
 
-      // Process referral deposit bonus for referrer
+      // Process referral deposit bonus for referrer. A credit player gets no bonus (credit D/W chips, decision 7).
       try {
         const { findEligibleCampaigns, awardBonus } = await import('@shared/services/bonusService.js')
-        const campaigns = await findEligibleCampaigns(tenant, 'referral_deposit')
-        
+        const campaigns = (await isCreditBeneficiary(tenant, attribution.referrerId))
+          ? []
+          : await findEligibleCampaigns(tenant, 'referral_deposit')
+
         for (const campaign of campaigns) {
           const result = await awardBonus({
             userId: attribution.referrerId,

@@ -1,63 +1,185 @@
-/* Market directory scorecards. Shared home and entry components keep their own styles. */
+/* Market directory scorecards: the departure board. Shared home and entry components keep their own styles.
+   Each card reads like a station board. The market name is the destination. Each session is one row: its label,
+   its panna in split flaps, its result time. The jodi is the gate, one cell spanning both rows, red once declared.
+   The session taking entries now is lit green and a declared one settles to grey. The status is a board remark
+   with an indicator lamp: Open lit and breathing, Upcoming lit amber, Closed off. Every colour is a token or a
+   color-mix() of tokens, so both themes follow. */
+
+/* Upcoming's amber, from the status badge's existing literals, as a token for both themes. */
+.gw-matka { --m99-warning: #8a4f00; }
+.gw-matka[data-theme='dark'] { --m99-warning: #edb26e; }
+
+/* Board aliases: only the mapping changes per theme. --dep-warm is the board's lamplight, a trace of the amber
+   token in its neutrals. */
+.gw-matka {
+  --dep-warm: var(--m99-warning);
+  --dep-light: var(--m99-surface);
+  --dep-band: color-mix(in oklab, var(--m99-soft) 97.5%, var(--dep-warm));
+  --dep-band-edge: color-mix(in oklab, var(--m99-border) 70%, transparent);
+  --dep-spot: color-mix(in oklab, var(--m99-surface) 85%, transparent);
+  --dep-frame: color-mix(in oklab, color-mix(in oklab, var(--m99-border) 82%, var(--m99-muted)) 96%, var(--dep-warm));
+  --dep-flap-hi: color-mix(in oklab, var(--m99-surface) 98.5%, var(--dep-warm));
+  --dep-flap-lo: color-mix(in oklab, color-mix(in oklab, var(--m99-surface) 55%, var(--m99-soft)) 97%, var(--dep-warm));
+  --dep-flap-shade: color-mix(in oklab, var(--m99-ink) 7%, var(--dep-flap-lo));
+  --dep-hinge: color-mix(in oklab, var(--m99-border) 55%, var(--m99-muted));
+  --dep-char: var(--m99-ink);
+  --dep-rail: color-mix(in oklab, var(--m99-border) 85%, var(--m99-soft));
+  --dep-drop: color-mix(in oklab, var(--m99-ink) 10%, transparent);
+  --dep-glow: transparent;
+  --dep-lamp-glow: transparent;
+  --dep-card-shadow: 0 1px 2px color-mix(in oklab, var(--m99-ink) 6%, transparent);
+  --dep-sheen: color-mix(in oklab, var(--m99-surface) 70%, transparent);
+}
+.gw-matka[data-theme='dark'] {
+  --dep-light: var(--m99-ink);
+  --dep-band: color-mix(in oklab, color-mix(in oklab, var(--m99-canvas) 60%, var(--m99-surface)) 96%, var(--dep-warm));
+  --dep-band-edge: var(--m99-canvas);
+  --dep-spot: color-mix(in oklab, var(--dep-warm) 7%, transparent);
+  --dep-frame: var(--m99-canvas);
+  --dep-flap-hi: color-mix(in oklab, color-mix(in oklab, var(--m99-soft) 88%, var(--m99-ink)) 96%, var(--dep-warm));
+  --dep-flap-lo: color-mix(in oklab, color-mix(in oklab, var(--m99-soft) 96%, var(--m99-ink)) 97%, var(--dep-warm));
+  --dep-flap-shade: color-mix(in oklab, var(--m99-canvas) 45%, var(--dep-flap-lo));
+  --dep-hinge: var(--m99-canvas);
+  --dep-char: color-mix(in oklab, var(--m99-ink) 88%, var(--dep-warm));
+  --dep-rail: var(--m99-canvas);
+  --dep-drop: color-mix(in oklab, var(--m99-canvas) 80%, transparent);
+  --dep-glow: color-mix(in oklab, var(--md-accent-ink) 34%, transparent);
+  --dep-lamp-glow: currentColor;
+  --dep-card-shadow: none;
+  --dep-sheen: color-mix(in oklab, var(--m99-success) 14%, transparent);
+}
+
+/* A split-flap module: a frame of cells, each a lit top half, a shaded bottom half and a hinge. A pending cell
+   holds the Matka `*`, quiet and optically centred over a softer hinge. */
+.gw-matka .dep-mod { --cw: 22px; --ch: 30px; --fs: 21px; position: relative; display: inline-flex; gap: 1px; padding: 1px; --ui-radius: 4px; background: var(--dep-frame); box-shadow: 0 1px 0 var(--dep-drop); }
+.gw-matka .dep-mod > i { position: relative; isolation: isolate; display: grid; place-items: center; width: var(--cw); height: var(--ch); --ui-radius: 2.5px; color: var(--dep-char); background: linear-gradient(var(--dep-flap-hi) 50%, var(--dep-flap-shade) 50%, var(--dep-flap-lo) calc(50% + 4px)); font-size: var(--fs); font-style: normal; font-weight: 700; line-height: 1; }
+.gw-matka .dep-mod > i::after { content: ''; position: absolute; left: 0; right: 0; top: calc(50% - 1px); height: 1px; background: var(--dep-hinge); }
+.gw-matka .dep-mod > i.is-pending { padding-top: .36em; color: var(--m99-muted); font-size: calc(var(--fs) * .9); font-weight: 400; }
+.gw-matka .dep-mod > i.is-pending::after { z-index: -1; background: color-mix(in oklab, var(--dep-hinge) 55%, var(--dep-flap-hi)); }
+.gw-matka .dep-mod > i[data-fresh] { animation: m99-dep-drop .5s cubic-bezier(.2, .8, .25, 1) both; }
+
+/* Grid: each card adopts four row tracks (subgrid), so every board in a row sits on one line even when a name
+   wraps to two lines. */
 .gw-matka .m99-market-board-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; align-items: stretch; }
 .gw-matka .m99-market-board-grid.m99-mobile-market-grid { display: none; }
-.gw-matka .m99-market-board-card { position: relative; min-width: 0; display: flex; flex-direction: column; padding: 17px 17px 0; border: 1px solid var(--m99-border); border-radius: var(--m99-radius); background: var(--m99-surface); overflow: hidden; transition: border-color .18s ease, box-shadow .18s ease; }
-.gw-matka .m99-market-board-card::before { content: ''; position: absolute; width: 28px; height: 3px; top: 0; left: 17px; background: var(--m99-brand); }
-.gw-matka .m99-market-board-card:hover { border-color: var(--m99-muted); box-shadow: 0 5px 15px #00000006; }
-.gw-matka .m99-market-board-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 23px; }
-.gw-matka .m99-market-board-rules-button { display: grid; flex: 0 0 28px; width: 28px; height: 28px; margin: -3px -6px -3px 0; place-items: center; color: var(--m99-muted); }
-.gw-matka .m99-market-board-rules-button:hover { color: var(--m99-ink); background: var(--m99-soft); }
-.gw-matka .m99-market-board-rules-button[aria-expanded='true'] { color: var(--m99-brand); }
-.gw-matka .m99-market-board-card-header .m99-badge { flex-shrink: 0; font-size: 9px; padding: 3px 7px; letter-spacing: .2px; }
-.gw-matka .m99-market-board-name { margin: 8px 0 0; color: var(--m99-ink); font-size: 23px; font-weight: 700; letter-spacing: -.35px; line-height: 1.15; }
-.gw-matka .m99-market-board-name > button { display: block; width: 100%; color: inherit; text-align: left; font: inherit; overflow-wrap: anywhere; }
-.gw-matka .m99-market-board-name > button:hover { color: var(--m99-link); }
-.gw-matka .m99-market-board-result { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px; min-height: 89px; margin-top: 13px; padding: 12px 8px; background: var(--m99-sidebar); border-top: 1px solid var(--m99-border); border-bottom: 1px dashed var(--m99-border); }
-.gw-matka .m99-market-board-result > strong { display: flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; color: var(--m99-ink); font-size: clamp(27px, 2.1vw, 33px); line-height: 1.1; font-weight: 700; letter-spacing: .4px; white-space: nowrap; }
-.gw-matka .m99-market-board-result > strong > span { display: inline-flex; align-items: center; gap: 9px; }
-.gw-matka .m99-market-board-result b { font-weight: inherit; }
-.gw-matka .m99-market-board-result i { color: var(--m99-muted); font-size: 16px; line-height: 1; font-style: normal; font-weight: 400; }
-.gw-matka .m99-market-board-result .is-middle > b { color: var(--m99-brand); }
-.gw-matka[data-theme='dark'] .m99-market-board-result .is-middle > b { color: var(--m99-danger); }
-.gw-matka .m99-market-board-schedule { padding: 12px 0 13px; margin-top: auto; }
-.gw-matka .m99-market-board-sessions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.gw-matka .m99-market-board-session { min-width: 0; }
-.gw-matka .m99-market-board-session + .m99-market-board-session { padding-left: 16px; border-left: 1px solid var(--m99-border); }
-.gw-matka .m99-market-board-session:first-child { padding-right: 12px; }
-.gw-matka .m99-market-board-session > h4 { color: var(--m99-ink); font-size: 11px; line-height: 1.3; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
-.gw-matka .m99-market-board-session > p { margin: 5px 0 0; color: var(--m99-ink); font-size: 16px; line-height: 1.2; font-weight: 650; white-space: nowrap; }
-.gw-matka .m99-market-board-card-footer { display: flex; align-items: center; gap: 8px; margin: 0 -17px; padding: 8px 13px 8px 17px; min-height: 49px; border-top: 1px solid var(--m99-border); background: var(--m99-sidebar); }
-.gw-matka .m99-market-board-charts { display: flex; align-items: center; flex-wrap: wrap; gap: 11px; margin-right: auto; }
-.gw-matka .m99-market-board-charts > button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-size: 11px; font-weight: 500; color: var(--m99-link); }
-.gw-matka .m99-market-board-charts > button:hover { text-decoration: underline; }
-.gw-matka .m99-market-board-favorite { flex-shrink: 0; width: 30px; height: 32px; color: var(--m99-muted); }
-.gw-matka .m99-market-board-favorite:hover { color: var(--m99-ink); background: var(--m99-soft); }
+.gw-matka .m99-market-board-card { position: relative; min-width: 0; grid-row: span 4; display: grid; grid-template-rows: subgrid; row-gap: 0; padding: 0 16px; overflow: hidden; border: 1px solid var(--m99-border); background: var(--m99-surface); box-shadow: var(--dep-card-shadow); transition: border-color .18s ease, transform .25s cubic-bezier(.2, .7, .2, 1), box-shadow .25s ease; animation: m99-dep-enter .45s cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 35ms); }
+@supports not (grid-template-rows: subgrid) {
+  .gw-matka .m99-market-board-card { grid-row: auto; display: flex; flex-direction: column; }
+  .gw-matka .dep-foot { margin-top: auto; }
+}
+.gw-matka .m99-market-board-card:hover { transform: translateY(-2px); border-color: color-mix(in oklab, var(--m99-muted) 45%, var(--m99-border)); box-shadow: 0 14px 28px -18px color-mix(in oklab, var(--m99-ink) 45%, transparent); }
+/* The status rail along the card's top edge: Open green with a light travelling along it, Upcoming amber, Closed a
+   quiet grey. It is the card's one band of colour; the board below stays a board. */
+.gw-matka .m99-market-board-card::before { content: ''; position: absolute; z-index: 1; top: 0; left: 0; right: 0; height: 3px; background: color-mix(in oklab, var(--m99-muted) 35%, var(--m99-border)); pointer-events: none; }
+.gw-matka .m99-market-board-card[data-status='Open']::before { background: linear-gradient(90deg, var(--m99-success) 0%, color-mix(in oklab, var(--m99-success) 55%, var(--m99-link)) 25%, var(--m99-success) 50%, color-mix(in oklab, var(--m99-success) 55%, var(--m99-link)) 75%, var(--m99-success) 100%) 0 0 / 200% 100%; animation: m99-dep-rail 4s linear infinite; }
+.gw-matka .m99-market-board-card[data-status='Upcoming']::before { background: var(--m99-warning); }
+/* A golden matka watermark, barely visible and still (owner 2026-11-01: no animation). It lies over the board
+   band, which would hide it underneath, but under the rules panel, and takes no clicks. */
+.gw-matka .dep-pot { position: absolute; inset: 0; z-index: 2; background: url('../../../assets/images/matka-pot.svg') no-repeat 50% 62% / auto 72%; opacity: .1; pointer-events: none; }
+
+/* 1 · Remark row: the status lamp and word, then favourite and rules. */
+.gw-matka .dep-top { display: flex; align-items: center; height: 48px; margin-right: -8px; }
+.gw-matka .dep-remark { display: inline-flex; align-items: center; gap: 8px; margin: 0 auto 0 0; color: var(--m99-muted); font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .14em; text-transform: uppercase; }
+.gw-matka .dep-lamp { position: relative; flex: 0 0 7px; width: 7px; height: 7px; --ui-radius: 50%; background: radial-gradient(circle at 35% 32%, color-mix(in oklab, currentColor 55%, var(--dep-light)) 0 .8px, currentColor 2.2px); box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 16%, transparent), 0 0 8px 1px var(--dep-lamp-glow); }
+.gw-matka [data-status='Open'] .dep-remark { color: var(--m99-success); }
+.gw-matka [data-status='Open'] .dep-lamp { animation: m99-dep-lamp 2.4s ease-in-out infinite; }
+.gw-matka [data-status='Upcoming'] .dep-remark { color: var(--m99-warning); }
+.gw-matka [data-status='Closed'] .dep-lamp { background: color-mix(in oklab, currentColor 38%, transparent); box-shadow: none; }
+.gw-matka .dep-icon { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; color: var(--m99-muted); }
+.gw-matka .dep-icon svg { width: 18px; height: 18px; }
+.gw-matka .dep-icon:hover { color: var(--m99-ink); background: var(--m99-soft); }
+.gw-matka .dep-icon[aria-expanded='true'] { color: var(--md-accent-ink); }
 .gw-matka .m99-market-board-favorite.is-active { color: var(--m99-ink); }
 .gw-matka .m99-market-board-favorite.is-active svg { fill: currentColor; }
-.gw-matka .m99-market-board-view { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; margin-left: auto; padding: 5px 8px; border: 1px solid var(--m99-border); border-radius: var(--m99-radius); color: var(--m99-ink); background: var(--m99-surface); white-space: nowrap; font-size: 11px; font-weight: 700; }
-.gw-matka .m99-market-board-view:hover { border-color: var(--m99-brand); color: var(--m99-brand); }
-.gw-matka[data-theme='dark'] .m99-market-board-view:hover { border-color: var(--m99-danger); color: var(--m99-danger); }
-/* The rules panel the info button opens: it covers the card (whose clip would cut a popover), names the market,
-   lists what the face leaves out and gives both sessions' result times and entry cutoffs in the market's timezone. */
-.gw-matka .m99-market-board-rules { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; gap: 12px; padding: 15px 17px; overflow-y: auto; background: var(--m99-surface); }
-.gw-matka .m99-market-board-rules > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--m99-border); }
-.gw-matka .m99-market-board-rules > header strong { display: block; color: var(--m99-ink); font-size: 19px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
-.gw-matka .m99-market-board-rules > header span { display: block; margin-top: 3px; color: var(--m99-muted); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
-.gw-matka .m99-market-board-rules > header button { display: grid; flex: 0 0 28px; width: 28px; height: 28px; margin: -2px -6px 0 0; place-items: center; color: var(--m99-muted); }
-.gw-matka .m99-market-board-rules > header button:hover { color: var(--m99-ink); background: var(--m99-soft); }
-.gw-matka .m99-market-board-rules dl { display: grid; gap: 7px; margin: 0; }
-.gw-matka .m99-market-board-rules dl > div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; line-height: 1.3; }
-.gw-matka .m99-market-board-rules dt { color: var(--m99-muted); }
-.gw-matka .m99-market-board-rules dd { margin: 0; color: var(--m99-ink); font-weight: 600; text-align: right; }
-.gw-matka .m99-market-board-rules table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.3; }
-.gw-matka .m99-market-board-rules caption { padding-bottom: 6px; color: var(--m99-ink); font-size: 11px; font-weight: 700; letter-spacing: .5px; text-align: left; text-transform: uppercase; }
-.gw-matka .m99-market-board-rules :is(th, td) { padding: 7px 0; border-top: 1px solid var(--m99-border); text-align: right; white-space: nowrap; }
-.gw-matka .m99-market-board-rules thead th { padding-top: 0; border-top: 0; color: var(--m99-muted); font-size: 10px; font-weight: 500; }
-.gw-matka .m99-market-board-rules tbody th { color: var(--m99-ink); font-size: 11px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: .5px; }
-.gw-matka .m99-market-board-rules tbody td { color: var(--m99-ink); font-weight: 600; }
-.gw-matka .m99-market-board-rules tbody td + td { padding-left: 12px; color: var(--m99-text); font-weight: 500; }
-.gw-matka .m99-market-board-card button:focus-visible, .gw-matka .m99-market-board-table button:focus-visible { outline: 2px solid var(--m99-link); outline-offset: 3px; }
 
+/* 2 · Destination: the market name, centred in its track so a row with a two-line name shares the air evenly. */
+.gw-matka .m99-market-board-name { align-self: center; margin: 0; padding: 2px 0; color: var(--m99-ink); font-size: 24px; font-weight: 800; line-height: 28px; letter-spacing: .01em; text-transform: uppercase; text-wrap: balance; }
+.gw-matka .m99-market-board-name > button { display: block; width: 100%; color: inherit; text-align: left; font: inherit; letter-spacing: inherit; text-transform: inherit; overflow-wrap: anywhere; }
+.gw-matka .m99-market-board-name > button:hover { color: var(--mb-link-hover); }
+/* The whole card opens the market: the name's button stretches a layer over the card (one real link target, so
+   keyboard and screen readers keep a single "open market" control), and the card's other controls sit above it. */
+.gw-matka .m99-market-board-name > button::after { content: ''; position: absolute; z-index: 1; inset: 0; }
+.gw-matka .m99-market-board-card { cursor: pointer; }
+.gw-matka .m99-market-board-card:hover .m99-market-board-name > button { color: var(--mb-link-hover); }
+.gw-matka :is(.dep-icon, .dep-charts > button, .dep-view) { position: relative; z-index: 2; }
+.gw-matka .m99-market-board-card .m99-market-board-name > button:focus-visible { outline: none; }
+.gw-matka .m99-market-board-card:has(.m99-market-board-name > button:focus-visible) { outline: 2px solid var(--m99-link); outline-offset: 2px; }
+
+/* 3 · The board: a recessed band; two session rows on one column grid, and the gate spanning both. Sizes follow
+   the card's width (cqi), so a 280px card keeps every column. */
+.gw-matka .dep-board { container-type: inline-size; position: relative; margin: 12px -16px 0; padding: 12px 16px; --ui-radius: 0px; background: var(--dep-band); box-shadow: inset 0 1px 0 var(--dep-band-edge), inset 0 3px 4px -3px var(--dep-drop), inset 0 -1px 0 var(--dep-band-edge); }
+.gw-matka .dep-sched { --gap: clamp(6px, 2.6cqi, 8px); display: grid; grid-template-columns: clamp(34px, 14cqi, 40px) auto 1fr auto; grid-template-rows: 40px 40px; column-gap: var(--gap); align-items: center; --ui-radius: 0px; }
+.gw-matka .dep-board .dep-row .dep-mod { --cw: clamp(19px, 8.27cqi, 22px); --ch: 30px; --fs: 21px; }
+.gw-matka .dep-row { grid-column: 1 / 4; display: grid; grid-template-columns: subgrid; align-items: center; height: 100%; --ui-radius: 0px; }
+.gw-matka .dep-row.row-close { grid-row: 2; }
+.gw-matka .dep-sched::before { content: ''; grid-column: 1 / 4; grid-row: 2; align-self: start; height: 1px; margin-right: calc(var(--gap) * -1); background: var(--dep-rail); }
+.gw-matka .dep-sess { color: var(--m99-muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.gw-matka .dep-time { justify-self: end; padding-right: 2px; color: var(--m99-ink); font-size: clamp(14px, 5.64cqi, 15px); font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+.gw-matka .dep-time small { color: var(--m99-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.gw-matka .dep-row.is-done .dep-time { color: var(--m99-muted); font-weight: 500; }
+.gw-matka .dep-row.is-live .dep-sess { color: var(--m99-success); }
+/* The session taking entries now is the boarding row: a green wash fading across it, a light that passes along it
+   every few seconds, and its waiting flaps turning over one after another like a board looking for the result. */
+.gw-matka .dep-row.is-live { position: relative; isolation: isolate; }
+.gw-matka .dep-row.is-live::before { content: ''; position: absolute; z-index: -1; inset: 3px -6px 3px -10px; --ui-radius: 4px; border-radius: 4px; background: linear-gradient(90deg, color-mix(in oklab, var(--m99-success) 16%, transparent), color-mix(in oklab, var(--m99-success) 4%, transparent) 70%, transparent); }
+.gw-matka .dep-row.is-live::after { content: ''; position: absolute; z-index: 2; top: 3px; bottom: 3px; left: 0; width: 36%; border-radius: 4px; background: linear-gradient(90deg, transparent, var(--dep-sheen), transparent); pointer-events: none; transform: translateX(-120%); animation: m99-dep-sheen 3.6s ease-in-out infinite; }
+.gw-matka .dep-row.is-live .dep-mod > i.is-pending { animation: m99-dep-scan 5s ease-in-out infinite; }
+.gw-matka .dep-row.is-live .dep-mod > i.is-pending:nth-child(2) { animation-delay: .14s; }
+.gw-matka .dep-row.is-live .dep-mod > i.is-pending:nth-child(3) { animation-delay: .28s; }
+/* a session this market kind never runs (Starline's close, Jackpot's open and close): one short bar, all muted */
+.gw-matka .dep-row.is-off :is(.dep-sess, .dep-time) { color: color-mix(in oklab, var(--m99-muted) 60%, var(--m99-surface)); }
+.gw-matka .dep-off { width: 28px; height: 2px; --ui-radius: 1px; background: var(--dep-rail); }
+/* the gate: the jodi on a larger module, lit from behind, red once declared */
+.gw-matka .dep-gate { position: relative; grid-column: 4; grid-row: 1 / 3; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; margin: -12px 0; padding: 0 0 0 clamp(10px, 4.5cqi, 12px); background: radial-gradient(closest-side, var(--dep-spot), transparent) no-repeat 60% 58% / 120% 90%; }
+.gw-matka .dep-gate::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: var(--dep-rail); }
+.gw-matka .dep-gate-cap { color: var(--md-accent-ink); font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: .18em; text-transform: uppercase; }
+.gw-matka .dep-gate .dep-mod { --cw: clamp(26px, 12cqi, 32px); --ch: 46px; --fs: 33px; --ui-radius: 5px; }
+.gw-matka .dep-gate .dep-mod > i { --ui-radius: 3.5px; color: var(--md-accent-ink); font-weight: 800; text-shadow: 0 0 14px color-mix(in oklab, var(--md-accent-ink) 30%, transparent), 0 0 16px var(--dep-glow); }
+/* a jodi digit that lands while the page is open drops in and sends one red pulse out */
+.gw-matka .dep-gate .dep-mod > i[data-fresh] { animation: m99-dep-drop .5s cubic-bezier(.2, .8, .25, 1) both, m99-dep-land 1.2s ease-out .45s; }
+.gw-matka .dep-gate .dep-mod > i.is-pending { color: var(--m99-muted); font-weight: 400; text-shadow: none; }
+
+/* 4 · Footer: the two charts on the left, the market on the right with its arrow on a flap. */
+.gw-matka .dep-foot { display: flex; align-items: center; justify-content: space-between; height: 48px; margin: 0 0 0 -10px; }
+.gw-matka .dep-charts { display: flex; align-items: center; gap: 2px; }
+.gw-matka .dep-charts > button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; color: var(--m99-text); font-size: 12.5px; font-weight: 600; }
+.gw-matka .dep-charts > button svg { color: var(--m99-link); }
+.gw-matka .dep-charts > button:hover { color: var(--mb-link-hover); }
+.gw-matka .dep-charts > button:hover svg { color: currentColor; }
+.gw-matka .dep-view { display: inline-flex; align-items: center; gap: 9px; height: 36px; margin-left: auto; padding: 0 0 0 10px; color: var(--m99-ink); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.gw-matka .dep-view .dep-mod { --cw: 26px; --ch: 30px; }
+/* the action's flap is the brand red, the arrow white; it turns over once on hover */
+.gw-matka .dep-view .dep-mod { background: color-mix(in oklab, var(--m99-brand) 70%, black); }
+.gw-matka .dep-view .dep-mod > i { color: var(--mb-on-red); background: linear-gradient(var(--m99-brand) 50%, color-mix(in oklab, var(--m99-brand) 88%, black) 50%); }
+.gw-matka .dep-view .dep-mod > i::after { display: none; }
+.gw-matka .dep-view svg { display: block; width: 16px; height: 16px; }
+.gw-matka .dep-view:hover { color: var(--md-accent-ink); }
+.gw-matka .dep-view:hover .dep-mod > i { background: linear-gradient(var(--m99-brand-hover) 50%, color-mix(in oklab, var(--m99-brand-hover) 88%, black) 50%); animation: m99-dep-turn .42s cubic-bezier(.3, .7, .3, 1); }
+.gw-matka .m99-market-board-card button:focus-visible, .gw-matka .m99-market-board-table button:focus-visible { outline: 2px solid var(--m99-link); outline-offset: 2px; }
+
+/* The rules panel the info button opens: laid over the card, dropping in like a flap; it scrolls rather than clip
+   if a card is ever too short. */
+.gw-matka .m99-market-board-rules { position: absolute; inset: 0; z-index: 3; cursor: auto; display: flex; flex-direction: column; gap: 7px; padding: 9px 16px 8px; overflow-y: auto; background: var(--m99-surface); transform-origin: top; animation: m99-board-rules .18s ease-out; }
+.gw-matka .m99-market-board-rules > header { position: relative; display: flex; align-items: flex-start; gap: 8px; padding-bottom: 7px; }
+.gw-matka .m99-market-board-rules > header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--m99-border); }
+.gw-matka .m99-market-board-rules > header > div { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; min-width: 0; margin-right: auto; padding-top: 4px; }
+.gw-matka .m99-market-board-rules > header strong { color: var(--m99-ink); font-size: 15px; font-weight: 800; line-height: 1.15; text-transform: uppercase; overflow-wrap: anywhere; }
+.gw-matka .m99-market-board-rules > header span { color: var(--m99-muted); font-size: 10px; font-weight: 700; line-height: 1.2; letter-spacing: .09em; text-transform: uppercase; }
+.gw-matka .m99-market-board-rules > header button { display: grid; flex: 0 0 28px; width: 28px; height: 28px; margin: -2px -7px -4px 0; place-items: center; color: var(--m99-muted); }
+.gw-matka .m99-market-board-rules > header button:hover { color: var(--m99-ink); background: var(--m99-soft); }
+.gw-matka .m99-market-board-rules dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin: 0; }
+.gw-matka .m99-market-board-rules dl > div { min-width: 0; }
+.gw-matka .m99-market-board-rules dt { color: var(--m99-muted); font-size: 10px; font-weight: 700; line-height: 1.2; letter-spacing: .08em; text-transform: uppercase; }
+.gw-matka .m99-market-board-rules dd { margin: 1px 0 0; color: var(--m99-ink); font-size: 13px; font-weight: 600; line-height: 1.2; }
+.gw-matka .m99-market-board-rules table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.2; }
+.gw-matka .m99-market-board-rules caption { padding-bottom: 2px; color: var(--m99-ink); font-size: 10px; font-weight: 700; line-height: 1.2; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.gw-matka .m99-market-board-rules :is(th, td) { padding: 3px 0; border-top: 1px solid var(--m99-border); text-align: right; white-space: nowrap; --ui-radius: 0px; }
+.gw-matka .m99-market-board-rules thead th { padding: 0 0 2px; border-top: 0; color: var(--m99-muted); font-size: 10px; font-weight: 600; line-height: 1.2; }
+.gw-matka .m99-market-board-rules tbody th { color: var(--m99-ink); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.gw-matka .m99-market-board-rules tbody td { color: var(--m99-ink); font-weight: 650; }
+.gw-matka .m99-market-board-rules tbody td + td { padding-left: 12px; color: var(--m99-text); font-weight: 500; }
+
+/* Table view */
 .gw-matka .m99-market-board-table-wrap { border: 1px solid var(--m99-border); border-radius: var(--m99-radius); background: var(--m99-surface); }
 .gw-matka .m99-market-board-table { min-width: 860px; }
 .gw-matka .m99-market-board-table thead th { padding: 11px 12px; color: var(--m99-muted); background: var(--m99-sidebar); font-size: 10px; white-space: nowrap; }
@@ -65,7 +187,7 @@
 .gw-matka .m99-market-board-table tbody > tr:last-child > * { border-bottom: 0; }
 .gw-matka .m99-market-board-table-name { display: flex; flex-direction: column; align-items: flex-start; min-width: 135px; gap: 4px; }
 .gw-matka .m99-market-board-table-name > button { color: var(--m99-ink); text-align: left; font-size: 15px; font-weight: 700; line-height: 1.2; }
-.gw-matka .m99-market-board-table-name > button:hover { color: var(--m99-link); }
+.gw-matka .m99-market-board-table-name > button:hover { color: var(--mb-link-hover); }
 .gw-matka .m99-market-board-table-name > small { margin: 0; color: var(--m99-muted); text-transform: none; font-size: 10px; font-weight: 400; letter-spacing: 0; }
 .gw-matka .m99-market-board-table-result { color: var(--m99-ink); font-size: 19px; font-weight: 700; white-space: nowrap; }
 .gw-matka .m99-market-board-table-session { display: flex; flex-direction: column; gap: 4px; white-space: nowrap; }
@@ -74,23 +196,65 @@
 .gw-matka .m99-market-board-table-charts { flex-wrap: wrap; column-gap: 12px; row-gap: 1px; }
 .gw-matka .m99-market-board-table-charts > button { white-space: nowrap; min-height: 28px; }
 .gw-matka .m99-market-board-table-actions { display: flex; align-items: center; gap: 5px; }
+.gw-matka .m99-market-board-table .m99-market-board-favorite { flex-shrink: 0; width: 30px; height: 32px; color: var(--m99-muted); }
+.gw-matka .m99-market-board-table .m99-market-board-favorite:hover { color: var(--m99-ink); background: var(--m99-soft); }
+
+@keyframes m99-dep-lamp { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes m99-dep-drop { from { transform: perspective(200px) rotateX(-90deg); } to { transform: none; } }
+@keyframes m99-dep-turn { 0% { transform: none; } 45% { transform: perspective(160px) rotateX(-90deg); } 46% { transform: perspective(160px) rotateX(90deg); } 100% { transform: none; } }
+@keyframes m99-dep-enter { from { opacity: 0; transform: translateY(10px); } }
+@keyframes m99-dep-rail { to { background-position: -200% 0; } }
+@keyframes m99-dep-sheen { 0%, 55% { opacity: 0; transform: translateX(-60%); } 62% { opacity: 1; } 80% { opacity: 1; } 88%, 100% { opacity: 0; transform: translateX(240%); } }
+@keyframes m99-dep-scan { 0%, 84% { transform: none; } 88% { transform: perspective(160px) rotateX(-90deg); } 89% { transform: perspective(160px) rotateX(90deg); } 93%, 100% { transform: none; } }
+@keyframes m99-dep-land { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--md-accent-ink) 55%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }
+@keyframes m99-board-rules { from { opacity: 0; transform: perspective(900px) rotateX(-8deg) translateY(-6px); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 760px) {
   .gw-matka .m99-market-board-table-wrap { display: none; }
   .gw-matka .m99-market-board-grid.m99-mobile-market-grid { display: grid; }
   .gw-matka .m99-market-board-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 11px; }
-  .gw-matka .m99-market-board-result > strong { font-size: 31px; }
 }
+/* Phones: two cards a row. The card is the container for its own compact layout below. */
 @media (max-width: 580px) {
-  .gw-matka .m99-market-board-card { padding: 15px 15px 0; }
-  .gw-matka .m99-market-board-card::before { left: 15px; }
-  .gw-matka .m99-market-board-rules { padding: 13px 15px; }
-  .gw-matka .m99-market-board-name { font-size: 24px; }
-  .gw-matka .m99-market-board-result { margin-top: 12px; min-height: 88px; }
-  .gw-matka .m99-market-board-card-footer { margin-left: -15px; margin-right: -15px; padding-left: 15px; }
-  .gw-matka .m99-market-board-charts > button { font-size: 12px; }
-  .gw-matka .m99-market-board-view { padding-left: 10px; padding-right: 10px; font-size: 12px; }
+  .gw-matka .m99-market-board-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .gw-matka .m99-market-board-card { padding: 0 10px; }
+}
+.gw-matka .m99-market-board-card { container: dep-card / inline-size; }
+/* A narrow card (two a row on a phone): the jodi gate across the top, the Open and Close sessions side by side
+   beneath it, a smaller name, and icon-only actions whose names stay for screen readers. */
+@container dep-card (width < 240px) {
+  .gw-matka .dep-top { height: 40px; margin-right: -6px; }
+  .gw-matka .dep-remark { gap: 6px; font-size: 10px; letter-spacing: .1em; }
+  .gw-matka .dep-icon { flex-basis: 32px; width: 32px; height: 32px; }
+  .gw-matka .dep-icon svg { width: 16px; height: 16px; }
+  .gw-matka .m99-market-board-name { padding: 0; font-size: 17px; line-height: 20px; }
+  .gw-matka .dep-board { margin: 8px -10px 0; padding: 10px; }
+  .gw-matka .dep-sched { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; row-gap: 8px; column-gap: 0; }
+  .gw-matka .dep-sched::before { display: none; }
+  .gw-matka .dep-gate { grid-column: 1 / -1; grid-row: 1; flex-direction: row; gap: 10px; margin: 0; padding: 0 0 9px; background: none; }
+  .gw-matka .dep-gate::before { top: auto; bottom: 0; left: 0; right: 0; width: auto; height: 1px; }
+  .gw-matka .dep-gate .dep-mod { --cw: 28px; --ch: 38px; --fs: 27px; }
+  .gw-matka .dep-row, .gw-matka .dep-row.row-close { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; align-items: center; gap: 5px; height: auto; padding: 5px 0; }
+  .gw-matka .dep-row.row-close { grid-column: 2; box-shadow: inset 1px 0 0 var(--dep-rail); }
+  .gw-matka .dep-board .dep-row .dep-mod { --cw: 19px; --ch: 26px; --fs: 18px; }
+  .gw-matka .dep-time { padding: 0; font-size: 13px; }
+  .gw-matka .dep-row.is-live::before { inset: 0 3px; }
+  .gw-matka .dep-foot { height: 44px; margin: 0 -4px 0 -6px; }
+  .gw-matka .dep-charts > button { height: 32px; padding: 0 7px; }
+  .gw-matka .dep-charts > button svg { width: 17px; height: 17px; }
+  .gw-matka :is(.dep-charts > button > span, .dep-view > span:first-child) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .gw-matka .dep-view { padding: 0; }
+  .gw-matka .m99-market-board-rules { padding: 8px 10px; }
+  .gw-matka .m99-market-board-rules dl { grid-template-columns: 1fr; }
+  .gw-matka .m99-market-board-rules table { font-size: 11.5px; }
+  .gw-matka .m99-market-board-rules tbody td + td { padding-left: 6px; }
+  /* The card is tall and narrow here: size the pot by its width so it sits inside the card (owner 2026-11-02). */
+  .gw-matka .dep-pot { background-position: 50% 60%; background-size: 80% auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   .gw-matka .m99-market-board-card { transition: none; }
+  .gw-matka .m99-market-board-card:hover { transform: none; }
+  .gw-matka :is(.m99-market-board-card, .dep-lamp, .dep-row.is-live .dep-mod > i, .dep-mod > i[data-fresh], .dep-view:hover .dep-mod > i, .m99-market-board-rules) { animation: none !important; }
+  .gw-matka .m99-market-board-card::before { animation: none !important; }
+  .gw-matka .dep-row.is-live::after { display: none; }
 }

@@ -160,3 +160,43 @@ export const agentCreditAlerts = pgTable(
 	]
 );
 
+
+// CREDIT scheme on Deposit/Withdraw chips (migration 0019; docs/superpowers/specs/2026-11-02-credit-dw-chips-design.md).
+// One row per account per movement: a deposit or withdrawal writes the parent's row and the child's row under one
+// transfer_id. amount is signed from the account's side (+ chips in, - chips out); balance_before/after are that
+// account's chips (an agent's chip_balance, a player's wallets.cash, the whitelabel pool's available credit).
+export const chipMovementKindEnum = pgEnum('chip_movement_kind', [
+	'OPENING',
+	'DEPOSIT',
+	'WITHDRAW',
+	'CREDIT_REFERENCE',
+]);
+
+export const creditChipLedger = pgTable(
+	'credit_chip_ledger',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: varchar('tenant_id', { length: 128 }).notNull(),
+		transferId: uuid('transfer_id').notNull(),
+		accountType: creditEntityTypeEnum('account_type').notNull(),
+		accountId: varchar('account_id', { length: 128 }).notNull(),
+		counterpartyType: creditEntityTypeEnum('counterparty_type'),
+		counterpartyId: varchar('counterparty_id', { length: 128 }),
+		kind: chipMovementKindEnum('kind').notNull(),
+		amount: numeric('amount', { precision: 18, scale: 2 }).notNull(),
+		balanceBefore: numeric('balance_before', { precision: 18, scale: 2 }).notNull(),
+		balanceAfter: numeric('balance_after', { precision: 18, scale: 2 }).notNull(),
+		creditReferenceBefore: numeric('credit_reference_before', { precision: 18, scale: 2 }),
+		creditReferenceAfter: numeric('credit_reference_after', { precision: 18, scale: 2 }),
+		remark: text('remark'),
+		createdBy: varchar('created_by', { length: 128 }),
+		createdByType: varchar('created_by_type', { length: 32 }),
+		createdAt: timestamp('created_at', { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => [
+		index('credit_chip_ledger_account_idx').on(table.tenantId, table.accountType, table.accountId, table.createdAt),
+		index('credit_chip_ledger_transfer_idx').on(table.transferId),
+	]
+);

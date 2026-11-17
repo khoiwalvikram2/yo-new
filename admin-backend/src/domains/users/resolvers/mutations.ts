@@ -12,9 +12,13 @@ import { hashPassword } from '@/domains/common/auth.js'
 import { requirePermission } from '@src/domains/common/auth.js'
 import { ensureActorMayGrantPermissions, ensureMayUseRoleName } from '@/domains/rbac/services/rbacService.js'
 import { PlayerAuthService } from '@src/domains/players/services/PlayerAuthService.js'
-import { normalizeCreditLimit, resolveOwningAgentForCreate, refuseAgentCallerForAdminCreate } from '@src/domains/users/resolvers/createPlayerRules.js'
-import { bettingFlagsFromAgentDomains } from '@src/domains/players/resolvers/agentPlayerCreation.js'
+import { resolveOwningAgentForCreate, refuseAgentCallerForAdminCreate } from '@src/domains/users/resolvers/createPlayerRules.js'
+import { creatorActorOf, creditReferenceOf, depositOpeningChipsInTx, lockOpeningChipsParent, openingChipsOf, openingChipsRestrictedUplineRefusal } from '@src/domains/agents/services/openingChips.js'
+import { ChipRepo } from '@src/repos/agents/ChipRepo.js'
+import { isCreditPlayer as isCreditPlayerType } from '@shared/services/credit/isCreditPlayer.js'
+import { bettingFlagsFromAgentDomains, playerCreatedMessage } from '@src/domains/players/resolvers/agentPlayerCreation.js'
 import { loadPlayerDomains, PLAYER_DOMAINS } from '@shared/access/playerDomains.js'
+import { playerLimitFields, limitInputError } from '@src/domains/players/playerLimitsInput.js'
 // legacy in-memory usersStore removed
 
 /**
@@ -28,6 +32,48 @@ import { loadPlayerDomains, PLAYER_DOMAINS } from '@shared/access/playerDomains.
  */
 const playerAuthService = new PlayerAuthService()
 
+/**
+ * A manual cash movement on a player's wallet with the whitelabel pool it comes from or returns to, on the
+ * caller's transaction: a deposit debits the pool, a withdrawal releases to it (the 'default' tenant has no
+ * pool). Used by adjustWallet and by createPlayer's opening balance, so both write the same pool and ledger rows.
+ *
+ * MONEY-CRITICAL: the pool row is locked first and the wallet second, the order the deposit approvals use.
+ * adjustWalletDb refuses a withdrawal above the available balance under the wallet lock, and a missing wallet
+ * throws here, inside the transaction, so either refusal rolls the pool movement back. (A null wallet used to be
+ * reported only after the commit, leaving the pool debited or credited for nothing.)
+ */
+async function moveWalletCashWithPoolInTx(tx: any, tenant: string, playerId: number, amount: number, meta: Record<string, unknown>) {
+  if (tenant && tenant !== 'default') {
+    const { WhitelabelCreditService } = await import('@src/domains/common/services/WhitelabelCreditService.js')
+    const { WhitelabelCreditRepo } = await import('@src/repos/common/whitelabelCreditRepo.js')
+    const whitelabelCreditService = new WhitelabelCreditService(new WhitelabelCreditRepo())
+    if (amount > 0) {
+      await whitelabelCreditService.deductCredit(tenant, amount, `Direct wallet deposit for player ${playerId}`, tx)
+    } else if (amount < 0) {
+      await whitelabelCreditService.addCredit(tenant, Math.abs(amount), `Direct wallet withdrawal for player ${playerId}`, tx)
+    }
+  }
+  const wallet = await adjustWalletDb(playerId, amount, meta, tenant, tx)
+  if (!wallet) throw new Error('Wallet not found')
+  return wallet
+}
+
+/**
+ * Which kind of account an audited "user" is (SYS-14). Staff and players share the users table, and the
+ * users.security rows below (status, password reset, force logout, the admin sign-in) look the same for both, so
+ * the Audit Trail could not tell which page a row's resource opens. From now on the row records it in `after` as
+ * `accountKind`; older rows carry none and keep the Audit Trail's old rule. A player holds no role in this tenant and
+ * has a wallet (rbacRepo.isPlayerAccount); any other account is staff. Never throws: undefined leaves the key out.
+ */
+async function auditAccountKind(userId: number, tenant: string): Promise<'admin' | 'player' | undefined> {
+  try {
+    const { isPlayerAccount } = await import('@/repos/rbac/rbacRepo.js')
+    return (await isPlayerAccount(userId, tenant)) ? 'player' : 'admin'
+  } catch {
+    return undefined
+  }
+}
+
 const LoginInput = z.object({ email: z.string().email(), password: z.string().min(6) })
 const IdInput = z.object({ id: z.string().min(1) })
 const SetKycInput = z.object({ id: z.string().min(1), kyc: z.string().min(1) })
@@ -38,19 +84,14 @@ const SetStatusInput = z.object({ id: z.string().min(1), status: z.enum(['ACTIVE
 const MAX_FINANCIAL_AMOUNT = 1_000_000_000
 const PlayerLimitsInput = z.object({ input: z.object({
   userId: z.string().min(1),
-  dailyStakeLimit: z.number().max(MAX_FINANCIAL_AMOUNT).nullable().optional(),
-  weeklyStakeLimit: z.number().max(MAX_FINANCIAL_AMOUNT).nullable().optional(),
-  exposureCapOverride: z.number().max(MAX_FINANCIAL_AMOUNT).nullable().optional(),
-  cooldownSeconds: z.number().int().max(86400 * 365).nullable().optional(),
-  maxBetSports: z.number().max(MAX_FINANCIAL_AMOUNT).nullable().optional(),
-  maxBetCasino: z.number().max(MAX_FINANCIAL_AMOUNT).nullable().optional(),
-  maxBetMatka: z.number().max(MAX_FINANCIAL_AMOUNT).nullable().optional(),
+  ...playerLimitFields,
 }) })
 const AdjustWalletInput = z.object({
   userId: z.string().min(1),
   amount: z.number().min(-MAX_FINANCIAL_AMOUNT).max(MAX_FINANCIAL_AMOUNT),
   currency: z.string().min(3).max(3).optional(),
   applyBonus: z.boolean().optional(),
+  reason: z.string().max(500).nullable().optional(),
 })
 const UpsertRoleInput = z.object({ input: z.object({ name: z.string().min(1), permissions: z.array(z.object({ domain: z.string().min(1), actions: z.array(z.string().min(1)) })) }) })
 const AssignRoleInput = z.object({ userId: z.string().min(1), role: z.string().min(1) })
@@ -152,6 +193,8 @@ export const usersMutationResolvers = {
       const ok = await verifyPassword(password, user.passwordHash)
       if (!ok) {
         recordFailedLoginAttempt(ip, email)
+        // The lookup above spans every tenant's users, so this can be a player's account.
+        const accountKind = user.roles?.length ? 'admin' : await auditAccountKind(user.id, tenant)
         const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
         await recordAuditDb({
           tenant,
@@ -160,13 +203,15 @@ export const usersMutationResolvers = {
           action: 'login_failed',
           resourceType: 'user',
           resourceId: String(user.id),
-          after: { success: false, ipAddress: auditIp, userAgent: auditUserAgent },
+          after: { success: false, ipAddress: auditIp, userAgent: auditUserAgent, accountKind },
         }).catch(() => {})
         throw new Error('Invalid credentials')
       }
 
       if (!user.roles || user.roles.length === 0) {
         recordFailedLoginAttempt(ip, email)
+        // No role here: typically a player's credentials typed into the admin panel.
+        const accountKind = await auditAccountKind(user.id, tenant)
         const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
         await recordAuditDb({
           tenant,
@@ -175,7 +220,7 @@ export const usersMutationResolvers = {
           action: 'login_failed',
           resourceType: 'user',
           resourceId: String(user.id),
-          after: { success: false, ipAddress: auditIp, userAgent: auditUserAgent },
+          after: { success: false, ipAddress: auditIp, userAgent: auditUserAgent, accountKind },
         }).catch(() => {})
         throw new Error('Invalid credentials')
       }
@@ -208,7 +253,7 @@ export const usersMutationResolvers = {
             action: 'login_failed',
             resourceType: 'user',
             resourceId: String(user.id),
-            after: { success: false, ipAddress: auditIp, userAgent: auditUserAgent },
+            after: { success: false, ipAddress: auditIp, userAgent: auditUserAgent, accountKind: 'admin' },
           }).catch(() => {})
           throw new Error('Access denied: Invalid user or tenant configuration')
         }
@@ -222,15 +267,35 @@ export const usersMutationResolvers = {
             action: 'login_failed',
             resourceType: 'user',
             resourceId: String(user.id),
-            after: { success: false, ipAddress: auditIp, userAgent: auditUserAgent },
+            after: { success: false, ipAddress: auditIp, userAgent: auditUserAgent, accountKind: 'admin' },
           }).catch(() => {})
           recordFailedLoginAttempt(ip, email)
           throw new Error('Access denied: Whitelabel Admins must login via their own tenant domain')
         }
       }
 
+      // The columns buildAuthContext checks on every request. A deactivated or suspended admin was issued a token
+      // and could use it; the token now also carries users.token_version, so Logout, Force Logout and a password
+      // change end it (SYS-08).
+      const { readAdminSessionState } = await import('@/domains/common/auth.js')
+      const session = await readAdminSessionState(user.id)
+      if (!session || session.status !== 'active') {
+        recordFailedLoginAttempt(ip, email)
+        const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
+        await recordAuditDb({
+          tenant,
+          actorId: String(user.id),
+          domain: 'users.security',
+          action: 'login_failed',
+          resourceType: 'user',
+          resourceId: String(user.id),
+          after: { success: false, reason: 'inactive', ipAddress: auditIp, userAgent: auditUserAgent, accountKind: 'admin' },
+        }).catch(() => {})
+        throw new Error('This account is not active. Contact your administrator.')
+      }
+
       clearLoginAttempts(ip, email)
-      const token = signJwt({ sub: String(user.id), name: user.name, roles: user.roles })
+      const token = signJwt({ sub: String(user.id), name: user.name, roles: user.roles, v: session.tokenVersion })
       const permsPairs = await getUserPermissions(user.id, tenant)
       const permissions = aggregatePermissionPairs(permsPairs)
       const normalizedTenant = (tenant && typeof tenant === 'string') ? tenant.trim() : 'default'
@@ -243,10 +308,12 @@ export const usersMutationResolvers = {
         action: 'login',
         resourceType: 'user',
         resourceId: String(user.id),
-        after: { success: true, ipAddress: auditIp, userAgent: auditUserAgent },
+        after: { success: true, ipAddress: auditIp, userAgent: auditUserAgent, accountKind: 'admin' },
       }).catch(() => {})
 
-      return { token, user: { id: String(user.id), name: user.name }, roles: user.roles, permissions, tenant: normalizedTenant }
+      // requirePasswordReset: until the admin chooses a new password its session may only do that
+      // (buildAuthContext, guardAdminSurface). Returned so the sign-in page can ask for it straight away.
+      return { token, user: { id: String(user.id), name: user.name }, roles: user.roles, permissions, tenant: normalizedTenant, requirePasswordReset: session.requirePasswordReset }
     } catch (err: any) {
       throw err
     }
@@ -256,10 +323,18 @@ export const usersMutationResolvers = {
     if (!userId) {
       return { success: true, message: 'Not authenticated' }
     }
+    // An agent's sub is its uuid, so Number(sub) was NaN and nothing was bumped: Sign out answered "Logged out"
+    // while the token kept working until it expired. Moving agents.token_version on ends it, as suspend does.
+    if (ctx.user.type === 'agent' && ctx.user.agentId) {
+      const { AgentsRepo } = await import('@/repos/agents/AgentsRepo.js')
+      await new AgentsRepo().incrementTokenVersion(String(ctx.user.agentId))
+      return { success: true, message: 'Logged out' }
+    }
     const userIdNum = Number(userId)
-    const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default'
-    if (Number.isFinite(userIdNum)) {
-      await incrementTokenVersionDb(userIdNum, tenant)
+    if (Number.isSafeInteger(userIdNum) && userIdNum > 0) {
+      // By id: the id is the caller's own, from its session, and a Super Admin's row is not in ctx.tenant.
+      const { endAdminSessions } = await import('@/domains/common/auth.js')
+      await endAdminSessions(userIdNum)
     }
     return { success: true, message: 'Logged out' }
   },
@@ -288,6 +363,8 @@ export const usersMutationResolvers = {
     }
     const user = await updateUserDomainBetsDb(idNum, update, tenant)
     if (!user) throw new Error('User not found')
+    const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
+    recordAuditDb({ tenant, actorId: ctx?.user?.sub ? String(ctx.user.sub) : 'system', domain: 'players', action: 'set_domain_controls', resourceType: 'player', resourceId: String(idNum), after: update }).catch(() => {})
     return { success: true, message: 'Player visibility and betting permissions updated', user: { ...user, id: String(user.id), status: (user.status?.toUpperCase() || 'ACTIVE') } }
   },
   setUserBonusAllowed: async (_: any, args: any, ctx: any) => {
@@ -310,8 +387,21 @@ export const usersMutationResolvers = {
     }
     
     const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default'
+
+    // Credit players get no bonuses (spec 2026-11-02 decision 7). Their cash wallet holds their chips, which move only
+    // through Deposit / Withdraw by their direct upline; a bonus would add pool-funded money outside that chain.
+    // Turning bonuses off is always allowed.
+    if (p.data.allow) {
+      const target = await new ChipRepo().readPlayer(db, idNum, String(tenant))
+      if (target && isCreditPlayerType(target.playerType)) {
+        throw new Error('Credit players cannot receive bonuses: their chips move only through Deposit / Withdraw')
+      }
+    }
+
     const user = await setUserBonusAllowedDb(idNum, p.data.allow, tenant)
     if (!user) throw new Error('User not found')
+    const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
+    recordAuditDb({ tenant, actorId: ctx?.user?.sub ? String(ctx.user.sub) : 'system', domain: 'players', action: 'set_bonus_eligibility', resourceType: 'player', resourceId: String(idNum), after: { bonusAllowed: p.data.allow } }).catch(() => {})
     return { success: true, message: 'Bonus eligibility updated', user: { ...user, id: String(user.id), status: (user.status?.toUpperCase() || 'ACTIVE') } }
   },
   setUserVipTier: async (_: any, args: any, ctx: any) => {
@@ -332,7 +422,10 @@ export const usersMutationResolvers = {
       String(ctx?.user?.id || ctx?.user?.sub || 'admin'), 'VIP tier changed from player actions')
     if (!user) throw new Error(`User with id ${idNum} not found`)
 
-    return user
+    // The writer's row as the other user mutations hand theirs back: a string id and the PlayerStatus value (it was
+    // the row's lowercase 'active', so a reply selecting status failed "Enum PlayerStatus cannot represent value"),
+    // with the player's tenant for the VIP field resolvers (vipTierName, vipDepositAccess).
+    return { ...user, id: String(user.id), tenant, status: (user.status?.toUpperCase() || 'ACTIVE') as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' }
   },
   setUserStatus: async (_: any, args: any, ctx: any) => {
     requirePermission(ctx, 'players.profile', 'update')
@@ -355,7 +448,8 @@ export const usersMutationResolvers = {
       const { incrementTokenVersionDb } = await import('@/repos/users/usersRepo.js')
       await incrementTokenVersionDb(idNum, tenant)
     }
-    // Audit event
+    // Audit event. Support Admins uses this too, so the row says which kind of account it names.
+    const accountKind = await auditAccountKind(idNum, tenant)
     const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
     recordAuditDb({
       tenant,
@@ -364,8 +458,9 @@ export const usersMutationResolvers = {
       action: p.data.status === 'INACTIVE' ? 'deactivate_user' : p.data.status === 'ACTIVE' ? 'reactivate_user' : 'suspend_user',
       resourceType: 'user',
       resourceId: String(idNum),
-      before: { status: beforeStatus },
-      after: { status: p.data.status },
+      // On both sides: the account's kind is not part of the change ("Changed: status" in the trail's summary).
+      before: { status: beforeStatus, accountKind },
+      after: { status: p.data.status, accountKind },
     }).catch(() => {})
     
     // Format user for GraphQL (User resolver will handle vipTierName and access)
@@ -411,7 +506,8 @@ export const usersMutationResolvers = {
     const fullUser = await getUserDb(idNum, tenant)
     if (!fullUser) throw new Error('User not found')
     
-    // Audit event
+    // Audit event, naming the kind of account (a player or a support admin).
+    const accountKind = await auditAccountKind(idNum, tenant)
     const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
     recordAuditDb({
       tenant,
@@ -420,7 +516,7 @@ export const usersMutationResolvers = {
       action: p.data.require ? 'require_password_reset' : 'clear_password_reset',
       resourceType: 'user',
       resourceId: String(idNum),
-      after: { requirePasswordReset: p.data.require },
+      after: { requirePasswordReset: p.data.require, accountKind },
     }).catch(() => {})
     
     // Format user for GraphQL (User resolver will handle vipTierName and access)
@@ -470,7 +566,9 @@ export const usersMutationResolvers = {
 
     const user = await setWithdrawalLockDb(idNum, p.data.lock, tenant)
     if (!user) throw new Error('User not found')
-    
+    const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
+    recordAuditDb({ tenant, actorId: ctx?.user?.sub ? String(ctx.user.sub) : 'system', domain: 'players', action: 'set_withdrawal_lock', resourceType: 'player', resourceId: String(idNum), after: { withdrawalLock: p.data.lock } }).catch(() => {})
+
     // Create notification when withdrawal lock is enabled
     if (p.data.lock) {
       try {
@@ -525,6 +623,8 @@ export const usersMutationResolvers = {
     if (!updated) throw new Error('User not found')
     const user = await getUserDb(idNum, tenant)
     if (!user) throw new Error('User not found')
+    const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
+    recordAuditDb({ tenant, actorId: ctx?.user?.sub ? String(ctx.user.sub) : 'system', domain: 'players', action: 'update_remark', resourceType: 'player', resourceId: String(idNum), after: { remark: p.data.remark ?? null } }).catch(() => {})
     return {
       success: true,
       message: 'Remark updated',
@@ -541,9 +641,13 @@ export const usersMutationResolvers = {
     const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default'
     const actorId = ctx?.user?.sub ? String(ctx.user.sub) : 'system'
 
+    // The scoped increment changes nothing for another tenant's player; without this check the caller was
+    // still told "User sessions logged out" and an audit row was written for it.
+    if (!(await getUserDb(idNum, tenant))) throw new Error('User not found')
     await incrementTokenVersionDb(idNum, tenant)
     
-    // Audit event
+    // Audit event, naming the kind of account (a player or a support admin).
+    const accountKind = await auditAccountKind(idNum, tenant)
     const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
     recordAuditDb({
       tenant,
@@ -552,7 +656,7 @@ export const usersMutationResolvers = {
       action: 'force_logout',
       resourceType: 'user',
       resourceId: String(idNum),
-      after: { userId: idNum },
+      after: { userId: idNum, accountKind },
     }).catch(() => {})
     
     return { success: true, message: 'User sessions logged out' }
@@ -560,20 +664,33 @@ export const usersMutationResolvers = {
   upsertPlayerLimits: async (_: any, args: any, ctx: any) => {
     requirePermission(ctx, 'players.limits', 'update')
     const p = PlayerLimitsInput.safeParse(args)
-    if (!p.success) throw new Error('Invalid input')
+    if (!p.success) throw limitInputError(p.error)
     const { userId, dailyStakeLimit, weeklyStakeLimit, exposureCapOverride, cooldownSeconds, maxBetSports, maxBetCasino, maxBetMatka } = p.data.input
     const idNum = Number(userId)
     if (!Number.isFinite(idNum)) throw new Error('Invalid userId')
     await playerAuthService.validateAgentPlayerAccess(ctx, idNum, 'modify limits for')
     const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default'
+    // upsertPlayerLimitsDb refuses an id that is not a player of this tenant ("Player not found").
     const limits = await upsertPlayerLimitsDb(tenant, idNum, { dailyStakeLimit, weeklyStakeLimit, exposureCapOverride, cooldownSeconds, maxBetSports, maxBetCasino, maxBetMatka })
+    const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
+    recordAuditDb({
+      tenant,
+      actorId: ctx?.user?.sub ? String(ctx.user.sub) : 'system',
+      domain: 'players',
+      action: 'set_limits',
+      resourceType: 'player',
+      resourceId: String(idNum),
+      after: limits,
+    }).catch(() => {})
     return { success: true, message: 'Limits updated', limits }
   },
   adjustWallet: async (_: any, args: any, ctx: any) => { 
     requirePermission(ctx, 'players.wallet', 'update')
     ensureAgentCanMutate(ctx)
-    const p = AdjustWalletInput.safeParse(args); 
+    const p = AdjustWalletInput.safeParse(args);
     if (!p.success) throw new Error('Invalid input')
+    // A zero adjustment moves nothing but still wrote a ledger row of 0.
+    if (p.data.amount === 0) throw new Error('Amount must not be zero')
     // Validate currency if provided
     if (p.data.currency && !currencyService.isValidCurrency(p.data.currency)) {
       throw new Error(`Invalid currency: ${p.data.currency}`)
@@ -586,8 +703,8 @@ export const usersMutationResolvers = {
     // SHARING and COMMISSION agents were always refused. A CREDIT agent was not,
     // and a deposit below debits the WHITELABEL credit pool — so a credit agent
     // could mint cash for its players out of the whitelabel's pool, bypassing its
-    // own credit line. Credit agents fund players through the agent credit tools
-    // (allocateCreditToPlayer / depositCredit), which debit the agent's own line.
+    // own chips. Credit agents fund their players with Deposit chips
+    // (agents.depositChips), which debits the agent's own chips.
     if (ctx?.user?.type === 'agent') {
       const { AgentsRepo } = await import('@/repos/agents/AgentsRepo.js')
       const agentsRepo = new AgentsRepo()
@@ -599,11 +716,26 @@ export const usersMutationResolvers = {
       if (agent?.schemeType === 'COMMISSION') {
         throw new Error('Commission agents cannot adjust player balances')
       }
-      throw new Error('Agents cannot adjust player balances directly. Use the agent credit tools.')
+      throw new Error('Agents cannot adjust player balances directly. Use Deposit / Withdraw chips.')
     }
-    
+
     const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default'
-    
+
+    // A credit player's cash wallet holds its chips (spec 2026-11-02 §2), which move only through Deposit /
+    // Withdraw chips by its direct parent, with their credit_chip_ledger rows. A direct wallet adjustment here
+    // would mint or remove chips outside that ledger and outside the direct-parent rule.
+    // MONEY-CRITICAL: the player must exist in this tenant before any pool credit moves. An id from another
+    // tenant, or none at all, used to reach the pool movement below and only fail after it had committed.
+    const target = await new ChipRepo().readPlayer(db, idNum, String(tenant))
+    if (!target) throw new Error('Player not found')
+    if (isCreditPlayerType(target.playerType)) {
+      throw new Error("A credit player's chips move only through Deposit / Withdraw chips")
+    }
+
+    // The admin's reason goes on both ledger rows and on the audit row, which the adjustment dialog promises.
+    const reason = p.data.reason?.trim() ?? ''
+    if (!reason) throw new Error('A reason is required for a balance adjustment')
+
     // ENFORCE WHITELABEL CREDIT: When whitelabel admin adjusts any player's wallet (deposit/withdrawal),
     // whitelabel credit must be adjusted regardless of player type
     // Only enforce for whitelabels (not 'default' tenant)
@@ -627,41 +759,25 @@ export const usersMutationResolvers = {
       }
     }
     
-    // Get meta from context if available (reason, type, etc.)
-    const meta = ctx?.meta || { reason: 'admin_adjustment', type: 'admin_adjustment' }
-    
+    // meta.type stays 'admin_adjustment': reports and statements classify manual deposits/withdrawals by it.
+    const meta = { type: 'admin_adjustment', reason }
+
     // ENFORCE WHITELABEL CREDIT: Adjust whitelabel credit inside transaction for atomicity
-    const updated = await db.transaction(async (tx) => {
-      if (willAdjustWhitelabelCredit) {
-        const { WhitelabelCreditService } = await import('@src/domains/common/services/WhitelabelCreditService.js')
-        const { WhitelabelCreditRepo } = await import('@src/repos/common/whitelabelCreditRepo.js')
-        const whitelabelCreditService = new WhitelabelCreditService(new WhitelabelCreditRepo())
-        
-        if (isDeposit) {
-          // Deduct from whitelabel credit on deposit (for any player type)
-          await whitelabelCreditService.deductCredit(
-            tenant,
-            p.data.amount,
-            `Direct wallet deposit for player ${idNum}`,
-            tx // Pass transaction for atomicity
-          )
-        } else if (isWithdrawal) {
-          // Add back to whitelabel credit on withdrawal (for any player type)
-          await whitelabelCreditService.addCredit(
-            tenant,
-            Math.abs(p.data.amount), // Use absolute value for withdrawal amount
-            `Direct wallet withdrawal for player ${idNum}`,
-            tx // Pass transaction for atomicity
-          )
-        }
-      }
-      
-      // Now adjust wallet in same transaction
-      const walletResult = await adjustWalletDb(idNum, p.data.amount, meta, tenant, tx)
-      return walletResult
-    })
-    if (!updated) throw new Error('Wallet not found')
-    
+    const updated = await db.transaction((tx) => moveWalletCashWithPoolInTx(tx, tenant, idNum, p.data.amount, meta))
+
+    const balanceAfter = Number(updated.cash as any) || 0
+    const { recordAuditDb } = await import('@/repos/audit/auditRepo.js')
+    recordAuditDb({
+      tenant,
+      actorId: String(ctx?.user?.sub ?? 'system'),
+      domain: 'players',
+      action: p.data.amount > 0 ? 'manual_deposit' : 'manual_withdrawal',
+      resourceType: 'player',
+      resourceId: String(idNum),
+      before: { balance: Math.round((balanceAfter - p.data.amount) * 100) / 100 },
+      after: { amount: p.data.amount, reason, balance: balanceAfter, currency: updated.currency },
+    }).catch(() => {})
+
     // Process deposit bonus if admin opted in via applyBonus checkbox
     if (isDeposit && p.data.applyBonus === true) {
       setImmediate(async () => {
@@ -827,14 +943,18 @@ export const usersMutationResolvers = {
     const appConfig = await getAppConfigDb(tenant)
     const whitelabelBaseCurrency = appConfig?.baseCurrency || 'INR'
     
+    // Opening chips (spec 2026-11-02 §4.4): a deposit from the new credit player's parent (its agent, or the
+    // whitelabel pool for a WHITELABEL_CREDIT player), made on the creation transaction below.
+    const openingChips = openingChipsOf(input.openingChips)
+    if (openingChips > 0 && !isCreditPlayer) {
+      throw new Error('Opening chips can only be given to credit players')
+    }
+
     // ========== CREDIT PLAYER RESTRICTIONS (Backend Enforcement) ==========
     if (isCreditPlayer) {
-      // 1. Credit limit validation
-      // Both credit types accept a limit of 0 (credit can be assigned later). The
-      // agent's own create path always allowed 0 for AGENT_CREDIT; this path
-      // refused it, so an admin could never create an AGENT_CREDIT player
-      // without funding it up front.
-      input.creditLimit = normalizeCreditLimit(input.creditLimit)
+      // 1. The credit reference: the figure the player's Ref P/L is measured against. It gates nothing and
+      // moves no chips, so 0 (the create form's default) is as valid as any other value.
+      input.creditLimit = creditReferenceOf(input.creditLimit)
 
       // 2. Agent ID validation
       if (playerType === 'AGENT_CREDIT') {
@@ -857,68 +977,16 @@ export const usersMutationResolvers = {
         throw new Error(`Credit players must use the whitelabel's base currency (${whitelabelBaseCurrency})`)
       }
       
-      // 4. Initial balance must be 0 for credit players (they get credit, not balance)
+      // 4. Initial balance must be 0 for credit players: their chips arrive as a deposit (openingChips)
       if (input.initialBalance && input.initialBalance > 0) {
-        throw new Error('Credit players cannot have an initial balance. They receive credit limit instead.')
+        throw new Error('Credit players cannot have an initial balance. Give them opening chips instead.')
       }
-      
+
       // 5. Bonus is not allowed for credit players - ENFORCE regardless of input
       if (input.bonusAllowed === true) {
         throw new Error('Credit players are not eligible for bonuses')
       }
-      
-      // 6. For AGENT_CREDIT players, validate agent has sufficient available credit.
-      // An early, friendly refusal only: the binding check is repeated under the
-      // agent row's FOR UPDATE lock in the creation transaction below.
-      if (playerType === 'AGENT_CREDIT' && input.agentId) {
-        const { AgentsRepo } = await import('@/repos/agents/AgentsRepo')
-        const agentsRepo = new AgentsRepo()
-        const agentCreditData = await agentsRepo.getCreditFields(input.agentId)
-        if (!agentCreditData) {
-          throw new Error('Agent credit information not found')
-        }
-        
-        const requestedCreditLimit = Number(input.creditLimit)
-        const agentAvailableCredit = Number(agentCreditData.creditAvailable || 0)
-        
-        if (requestedCreditLimit > agentAvailableCredit) {
-          throw new Error(
-            `Insufficient credit available. Agent has ${agentAvailableCredit.toFixed(2)} available, but ${requestedCreditLimit.toFixed(2)} was requested. ` +
-            `(Agent credit limit: ${agentCreditData.creditLimit.toFixed(2)}, Used: ${agentCreditData.creditUsed.toFixed(2)})`
-          )
-        }
-      }
-      
-      // 7. For WHITELABEL_CREDIT players, validate whitelabel has sufficient available credit (BEFORE creating player)
-      if (playerType === 'WHITELABEL_CREDIT' && input.creditLimit) {
-        const isWhitelabel = tenant && tenant !== 'default'
-        if (isWhitelabel) {
-          const requestedCreditLimit = Number(input.creditLimit)
-          
-          // Validate credit limit is positive and finite
-          if (!Number.isFinite(requestedCreditLimit) || requestedCreditLimit <= 0) {
-            throw new Error(`Invalid credit limit: ${input.creditLimit}. Must be a positive number.`)
-          }
-
-          const { WhitelabelCreditService } = await import('@src/domains/common/services/WhitelabelCreditService.js')
-          const { WhitelabelCreditRepo } = await import('@src/repos/common/whitelabelCreditRepo.js')
-          const whitelabelCreditService = new WhitelabelCreditService(new WhitelabelCreditRepo())
-          
-          // Validate whitelabel exists
-          const whitelabelCredit = await whitelabelCreditService.getCreditAllocation(tenant)
-          if (!whitelabelCredit) {
-            throw new Error(`Whitelabel not found: ${tenant}`)
-          }
-          
-          // Validate whitelabel has enough credit available (BEFORE creating player)
-          const hasCredit = await whitelabelCreditService.validateCreditAvailable(tenant, requestedCreditLimit)
-          if (!hasCredit) {
-            throw new Error(
-              `Insufficient whitelabel credit. Available: ${whitelabelCredit.creditAvailable.toFixed(2)}, Requested: ${requestedCreditLimit.toFixed(2)}`
-            )
-          }
-        }
-      }
+      // Whether the parent has the opening chips is decided under its lock, in the creation transaction.
     }
     // ======================================================================
     
@@ -943,13 +1011,19 @@ export const usersMutationResolvers = {
     }
     // ======================================================================
     
-    const name: string = input.name
+    // Required here as on the agent path: a blank name was accepted and stored.
+    const name: string = typeof input.name === 'string' ? input.name.trim() : ''
+    if (!name) throw new Error('Name is required')
     const phone: string = input.phone
     const email: string | null = input.email || null
     // For credit players: always 0. For regular players: use input value
     // Note: This uses input playerType, not finalPlayerType (which is determined after referral processing)
     // This is correct because initialBalance should be based on what user requested, not what referral code changes
-    const initialBalance: number = isCreditPlayer ? 0 : (input.initialBalance ?? 0)
+    // The opening balance is a deposit made on the creation transaction below (pool debit and ledger rows).
+    const initialBalance: number = isCreditPlayer ? 0 : Number(input.initialBalance ?? 0)
+    if (!Number.isFinite(initialBalance) || initialBalance < 0 || initialBalance > MAX_FINANCIAL_AMOUNT) {
+      throw new Error('Initial balance must be zero or a positive amount')
+    }
     // For credit players: always use whitelabel base currency. For others: use input value or default
     const currency: string = isCreditPlayer ? whitelabelBaseCurrency : (input.currency || whitelabelBaseCurrency)
     const status: 'active' | 'inactive' | 'suspended' = (input.status?.toLowerCase?.() ?? 'active')
@@ -1046,11 +1120,13 @@ export const usersMutationResolvers = {
     const finalAgentId = agentIdFromReferral || ((playerType === 'AGENT_CREDIT' || playerType === 'SHARING_AGENT_PLAYER' || playerType === 'COMMISSION_AGENT_PLAYER') ? input.agentId : (playerType === 'WHITELABEL_CREDIT' ? null : null))
     const finalIsCreditPlayer = finalPlayerType === 'AGENT_CREDIT' || finalPlayerType === 'WHITELABEL_CREDIT'
 
-    // Additional validation after referral processing: ensure credit limit is valid for credit players.
-    // Both credit types accept 0 (see normalizeCreditLimit): an AGENT_CREDIT player
-    // with no line yet is valid, exactly as on the agent's own create path.
-    const creditLimitValue = finalIsCreditPlayer ? normalizeCreditLimit(input.creditLimit) : 0
+    // The credit reference, after referral processing (a referral never makes a credit player, but the final
+    // type is the one that counts). 0 is valid for both credit types.
+    const creditLimitValue = finalIsCreditPlayer ? creditReferenceOf(input.creditLimit) : 0
     if (finalIsCreditPlayer) input.creditLimit = creditLimitValue
+    if (openingChips > 0 && !finalIsCreditPlayer) {
+      throw new Error('Opening chips can only be given to credit players')
+    }
 
     // The owning agent, whichever route named it (input or referral code), must
     // belong to this tenant and be ACTIVE. Its allowedDomains cap the new
@@ -1059,48 +1135,40 @@ export const usersMutationResolvers = {
     const { AgentsRepo: OwningAgentsRepo } = await import('@/repos/agents/AgentsRepo.js')
     const owningAgentsRepo = new OwningAgentsRepo()
     let domainCap: ReturnType<typeof bettingFlagsFromAgentDomains> | null = null
+    let owningAgentName: string | null = null
     if (finalAgentId) {
       const owningAgent = await owningAgentsRepo.findByIdScoped(String(finalAgentId), tenant)
       if (!owningAgent) throw new Error('Agent not found')
       if (owningAgent.status !== 'ACTIVE') throw new Error(`Agent is not active. Status: ${owningAgent.status}`)
       domainCap = bettingFlagsFromAgentDomains(owningAgent.allowedDomains)
+      owningAgentName = owningAgent.username || owningAgent.id
     }
 
-    const isWhitelabelTenant = !!tenant && tenant !== 'default'
-    const { WhitelabelCreditService } = await import('@src/domains/common/services/WhitelabelCreditService.js')
-    const { WhitelabelCreditRepo } = await import('@src/repos/common/whitelabelCreditRepo.js')
-
-    // MONEY-CRITICAL: the credit a new credit player receives and the player row
-    // are one transaction. Before, the agent's credit was read with no lock,
-    // absolute used/available values were written, and that happened in its own
-    // transaction AFTER the player had already been committed — so two concurrent
-    // creates could both pass the check and over-allocate, and a failed deduction
-    // left a funded player behind. Now:
-    //   1. the agent row is locked FOR UPDATE and the limit is applied as a delta,
-    //      re-validated against the locked row (lockAndUpdateCredit throws if the
-    //      locked row lacks availability);
-    //   2. the player, its wallet and its agent_player_credits row are written on
-    //      the same transaction;
-    //   3. a WHITELABEL_CREDIT player's limit is deducted from the whitelabel pool
-    //      on the same transaction (deductCredit locks and re-checks too).
-    // Any failure rolls all of it back.
-    // The agent's ALLOCATION credit-ledger row is written in the same transaction, as the agent's
-    // own create path and every other allocation path do (plan W7). Currency is read before the lock.
-    const allocatesAgentCredit = finalPlayerType === 'AGENT_CREDIT' && !!finalAgentId && creditLimitValue > 0
-    const allocationLedger = allocatesAgentCredit
-      ? {
-          repo: new (await import('@/repos/agents/AgentCreditLedgerRepo.js')).AgentCreditLedgerRepo(),
-          currency: await (await import('@src/shared/whitelabelConfig.js')).getWhitelabelCurrency(tenant),
-        }
-      : null
+    // MONEY-CRITICAL: a credit player's opening chips and the player row are one transaction (spec 2026-11-02
+    // §4.4). Creating a credit player no longer allocates a limit from its agent or debits the whitelabel pool
+    // for it. Instead:
+    //   1. the parent whose chips fund the opening deposit (the player's agent, or the whitelabel pool) is
+    //      locked first, before the player's rows exist;
+    //   2. the player, its wallet and its agent_player_credits row are written on the same transaction;
+    //   3. the opening deposit runs with every rule of depositChips on that transaction, writing its
+    //      credit_chip_ledger rows and the player's wallet statement rows.
+    // A refusal (not enough chips, an agent that is not ACTIVE, a tenant with no pool) rolls all of it back.
+    const opensWithChips = finalIsCreditPlayer && openingChips > 0
+    const openingParentAgentId = finalPlayerType === 'AGENT_CREDIT' && finalAgentId ? String(finalAgentId) : null
+    // Owner decision 2026-11-04: an AGENT_CREDIT player's opening chips come out of its agent's own free chips, the
+    // admin acting for that agent (openingChipsUplineRefusal); chips still move one level, parent to child. An agent
+    // whose upline is suspended, blocked or inactive could not move them itself (owner decision 1), so the admin
+    // does not either: refused here, before anything is written.
+    if (opensWithChips && openingParentAgentId) {
+      const refusal = openingChipsRestrictedUplineRefusal(
+        owningAgentName ?? openingParentAgentId,
+        await owningAgentsRepo.findRestrictingAncestor(openingParentAgentId)
+      )
+      if (refusal) throw refusal
+    }
+    let openingTransferId: string | null = null
     const created = await db.transaction(async (tx) => {
-      let agentSnapshot: { creditLimit: number; creditUsed: number; creditAvailable: number; settlementBalance: number } | null = null
-      if (allocatesAgentCredit) {
-        agentSnapshot = await owningAgentsRepo.lockAndUpdateCredit(String(finalAgentId), {
-          creditUsedDelta: creditLimitValue,
-          requireAvailableForDelta: true,
-        }, tx)
-      }
+      if (opensWithChips) await lockOpeningChipsParent(tx, tenant, openingParentAgentId)
 
       const row = await createPlayerDb({
         tenant,
@@ -1121,15 +1189,16 @@ export const usersMutationResolvers = {
         riskType,
         vipTierId,
         vipActor: String(ctx?.user?.id || ctx?.user?.sub || 'admin'),
-        initialBalance,
         currency,
         // New credit player fields
         // Use referral-based playerType and agentId if available, otherwise use input values
         playerType: finalPlayerType,
         agentId: finalAgentId,
+        // credit_limit is the credit reference; credit_used and credit_available are retired with the
+        // credit-limit model (a credit player's chips are its wallet's cash), as migration 0019 left them.
         creditLimit: finalIsCreditPlayer ? creditLimitValue : null,
         creditUsed: finalIsCreditPlayer ? 0 : null,
-        creditAvailable: finalIsCreditPlayer ? creditLimitValue : null,
+        creditAvailable: finalIsCreditPlayer ? 0 : null,
         limits: {
           dailyStakeLimit: input.dailyStakeLimit ?? null,
           weeklyStakeLimit: input.weeklyStakeLimit ?? null,
@@ -1147,7 +1216,8 @@ export const usersMutationResolvers = {
       // The owning agent is finalAgentId (same agentId passed to createPlayerDb above).
       if (finalPlayerType === 'AGENT_CREDIT' && finalAgentId) {
         const { agentPlayerCredits } = await import('@shared/db/schema.js')
-        const apcLimit = String(creditLimitValue)
+        // The agent's per-player mirror has no figures on chips: the reference is kept, the rest is 0, as
+        // migration 0019 left every existing row.
         // Cast to any: drizzle cross-package table typing produces a spurious
         // PgTable<TableConfig> mismatch here (same as the vip_members inserts in this
         // file). Runtime behavior is unaffected.
@@ -1156,46 +1226,30 @@ export const usersMutationResolvers = {
           .values({
             agentId: finalAgentId,
             playerId: row.id,
-            creditLimit: apcLimit,
+            creditLimit: String(creditLimitValue),
             currentBalance: '0',
             openExposure: '0',
             creditUsed: '0',
-            creditAvailable: apcLimit,
+            creditAvailable: '0',
           })
           .onConflictDoNothing()
       }
 
-      if (allocationLedger && agentSnapshot) {
-        const adminId = String(ctx?.user?.id ?? '')
-        await allocationLedger.repo.recordTransaction({
-          tenantId: tenant,
-          fromEntityType: 'agent',
-          fromEntityId: String(finalAgentId),
-          toEntityType: 'player',
-          toEntityId: String(row.id),
-          transactionType: 'ALLOCATION',
-          amount: creditLimitValue,
-          currency: allocationLedger.currency,
-          balanceBefore: Math.max(0, Math.round((agentSnapshot.creditLimit - (agentSnapshot.creditUsed - creditLimitValue) + agentSnapshot.settlementBalance) * 100) / 100),
-          balanceAfter: agentSnapshot.creditAvailable,
-          reason: 'Credit allocation to player at creation (by an administrator)',
-          createdBy: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(adminId) ? adminId : undefined,
-          createdByType: 'admin',
-          metadata: { allocationType: 'player_creation' },
-        }, tx)
-      }
-
-      // ENFORCE WHITELABEL CREDIT: deduct the WHITELABEL_CREDIT player's limit from
-      // the whitelabel pool. Validated above for a friendly early error; deductCredit
-      // re-validates under its own FOR UPDATE lock on this transaction.
-      if (finalPlayerType === 'WHITELABEL_CREDIT' && creditLimitValue > 0 && isWhitelabelTenant) {
-        const whitelabelCreditService = new WhitelabelCreditService(new WhitelabelCreditRepo())
-        await whitelabelCreditService.deductCredit(
-          tenant,
-          creditLimitValue,
-          `WHITELABEL_CREDIT player created - Player ID: ${row.id}, Credit Limit: ${creditLimitValue}`,
+      if (opensWithChips) {
+        // The parent-to-player DEPOSIT (from the agent, or the pool), its credit_chip_ledger rows naming the admin
+        // as the actor (created_by / created_by_type).
+        const opening = await depositOpeningChipsInTx(
+          { tenant, accountType: 'PLAYER', accountId: row.id, amount: openingChips, actor: creatorActorOf(ctx) },
           tx
         )
+        openingTransferId = opening.transferId
+      }
+
+      // MONEY-CRITICAL: a cash player's opening balance is a manual deposit like adjustWallet's, on this
+      // transaction: the whitelabel pool is debited and both ledgers get their rows. It used to be written straight
+      // into the new wallet's cash, minting money outside the pool. Not enough pool credit refuses the creation.
+      if (!finalIsCreditPlayer && initialBalance > 0) {
+        await moveWalletCashWithPoolInTx(tx, tenant, Number(row.id), initialBalance, { type: 'admin_adjustment', reason: 'Opening balance at player creation' })
       }
 
       return row
@@ -1205,7 +1259,8 @@ export const usersMutationResolvers = {
     const { recordAuditDb } = await import('@src/repos/audit/auditRepo.js')
     recordAuditDb({
       tenant,
-      actorId: String(ctx?.user?.id ?? ctx?.user?.agentId ?? 'system'),
+      // The admin JWT carries `sub`; there is no `user.id`, so every admin creation was recorded as "system".
+      actorId: String(ctx?.user?.sub ?? ctx?.user?.agentId ?? 'system'),
       domain: 'players',
       action: 'create_player',
       resourceType: 'player',
@@ -1215,6 +1270,11 @@ export const usersMutationResolvers = {
         name: created.name,
         agentId: finalAgentId ?? null,
         playerType: finalPlayerType,
+        ...(!finalIsCreditPlayer && initialBalance > 0 ? { initialBalance } : {}),
+        // A credit player's credit reference and opening chips, as the agent path records them, with where the
+        // chips came from (its agent, or the whitelabel pool) and the credit_chip_ledger transfer that booked them.
+        ...(finalIsCreditPlayer ? { creditLimit: creditLimitValue, openingChips: opensWithChips ? openingChips : null } : {}),
+        ...(opensWithChips ? { openingChipsFrom: openingParentAgentId ?? 'whitelabel', openingChipsTransferId: openingTransferId } : {}),
       },
     }).catch(() => {})
 
@@ -1244,7 +1304,7 @@ export const usersMutationResolvers = {
       }).catch(() => {})
     }
 
-    return { success: true, message: `${finalIsCreditPlayer ? 'Credit' : 'Regular'} player created successfully`, user: { id: created.id, tenant, name, email: email || null, phone, username, vipTierId } }
+    return { success: true, message: playerCreatedMessage(finalPlayerType), user: { id: created.id, tenant, name, email: email || null, phone, username: created.username ?? username, vipTierId } }
   },
   changeAdminPassword: async (_: any, args: any, ctx: any) => {
     const p = z.object({ 
@@ -1290,7 +1350,10 @@ export const usersMutationResolvers = {
     const tenant = ctx?.tenant ?? ctx?.whitelabel?.id ?? 'default'
     // A self-change: `userIdNum` is `ctx.user.sub`, never an argument.
     await updateUserPasswordDb(userIdNum, newPasswordHash, null)
-    await incrementTokenVersionDb(userIdNum, tenant)
+    // End the admin's other sessions by id, as logout does: a Super Admin working inside a whitelabel has ctx.tenant
+    // set to that brand while its own row is in 'default', so a tenant-scoped bump changed nothing for it.
+    const { endAdminSessions } = await import('@/domains/common/auth.js')
+    await endAdminSessions(userIdNum)
 
     // Audit logging
     const actorId = String(userIdNum)

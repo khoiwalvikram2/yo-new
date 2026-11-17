@@ -367,6 +367,18 @@ describe('SportsAdvancedConfigPage', () => {
     assert.equal(feedback.toast.mock.calls.length, 0)
   })
 
+  test('a Min Stake above its Max Stake is refused on the field before the save (SPO-SETTINGS-MINMAX)', async () => {
+    renderPage()
+    await choose('Select Sport', 'Cricket')
+    await screen.findByRole('button', { name: 'Save Settings' })
+    setNumber(numberInput('Minimum Stake', { name: 'Exchange Markets', index: 0 }), '50000')
+    setNumber(numberInput('Maximum Stake', { name: 'Exchange Markets', index: 0 }), '10000')
+    save()
+    await screen.findByText('Exchange Min Stake cannot exceed the Max Stake (10000)')
+    assert.equal(numberInput('Minimum Stake', { name: 'Exchange Markets', index: 0 }).getAttribute('aria-invalid'), 'true')
+    assert.equal(named('UpsertSportSettings').length, 0, 'nothing reaches the server')
+  })
+
   test('a refused or thrown save toasts its message; Reset restores the loaded values and refetches', async () => {
     renderPage()
     await choose('Select Sport', 'Cricket')

@@ -16,39 +16,6 @@ function resolveSiteAssetUrl(value: string | null | undefined) {
   return value?.startsWith('/api/site-assets/') ? `${getApiBaseUrl().replace(/\/$/, '')}${value}` : value
 }
 
-// Upload file to backend (bypasses S3 CORS issues)
-export async function uploadDepositProof(file: File): Promise<{ success: boolean; data?: { key: string; url: string }; message?: string }> {
-  const formData = new FormData()
-  formData.append('file', file)
-
-  const token = typeof window !== 'undefined' ? window.localStorage.getItem('token') : null
-  
-  const headers: Record<string, string> = {}
-  if (token && !tokenService.isTokenExpired(token)) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-  
-  // Add tenant headers
-  if (typeof window !== 'undefined') {
-    const whitelabelId = getWhitelabelId()
-    const fromEnv = isWhitelabelIdFromEnv()
-    headers['x-tenant'] = whitelabelId
-    headers['x-whitelabel-id'] = whitelabelId
-    if (!fromEnv) {
-      headers['x-whitelabel'] = window.location.hostname
-    }
-  }
-
-  const response = await fetch(`${getApiBaseUrl()}/api/upload/deposit-proof`, {
-    method: 'POST',
-    body: formData,
-    headers,
-  })
-
-  const result = await response.json()
-  return result
-}
-
 export type GmagTestResult = {
   success: boolean
   message?: string
@@ -352,6 +319,15 @@ export type UserPaymentAccount = {
   bankName?: string | null; accountHolderName?: string | null; branch?: string | null
   upiId?: string | null; displayName?: string | null; qrUrl?: string | null
   minAmount?: number | null; maxAmount?: number | null; weight?: number | null; source?: string | null
+  // type 'crypto' only: a USDT wallet (accountNumber is the same address) and the whitelabel's rate
+  // (wallet currency per 1 USDT) and bonus percent (null = no bonus)
+  walletAddress?: string | null; network?: string | null; cryptoRate?: number | null; cryptoBonusPercent?: number | null
+}
+
+/** A deposit request as the player API returns it. The crypto fields are set on CRYPTO requests only. */
+export type UserDepositRequest = {
+  id: string; amount: number; status: string; createdAt: string; utr?: string | null; method?: string | null
+  cryptoAmount?: number | null; cryptoRate?: number | null; cryptoNetwork?: string | null; cryptoBonusAmount?: number | null
 }
 
 export async function getAdminAccounts() {
@@ -359,7 +335,7 @@ export async function getAdminAccounts() {
     graphqlRequest(
       `
         query AdminAccounts {
-          adminAccounts {
+          adminAccounts(includeCrypto: true) {
             meta { code message }
             data {
               id
@@ -376,6 +352,10 @@ export async function getAdminAccounts() {
               maxAmount
               weight
               source
+              walletAddress
+              network
+              cryptoRate
+              cryptoBonusPercent
             }
           }
         }
@@ -385,31 +365,20 @@ export async function getAdminAccounts() {
   ).then(response => ({ ...response, data: (response.data || []).map(account => ({ ...account, qrUrl: resolveSiteAssetUrl(account.qrUrl) })) }))
 }
 
-export async function getDepositProofUploadUrl(input: { fileName: string; contentType: string }) {
-  return mapResponse<any>(
-    graphqlRequest(
-      `
-        mutation GetDepositProofUploadUrl($fileName: String!, $contentType: String!) {
-          getDepositProofUploadUrl(fileName: $fileName, contentType: $contentType) {
-            meta { code message }
-            data { url key }
-          }
-        }
-      `,
-      input
-    ),
-    'getDepositProofUploadUrl'
-  )
-}
-
+/**
+ * A manual deposit request. `type` is the receiving account's type: 'bank', 'upi' or 'crypto'. For 'crypto'
+ * `txnRef` is the transaction hash (TxID), which the server requires, and the server quotes the USDT itself:
+ * `data[0]` carries its cryptoAmount and cryptoBonusAmount. `proofKey` is the payment screenshot as an image data
+ * URI (compressDepositProof in '@/lib/depositProof'); there is no separate upload.
+ */
 export async function createAdminDeposit(payload: { accountId: string; amount: number; txnRef?: string; proofKey?: string; type?: string }) {
-  return mapResponse<any>(
+  return mapResponse<UserDepositRequest[]>(
     graphqlRequest(
       `
         mutation CreateAdminDeposit($accountId: String!, $amount: Float!, $txnRef: String, $proofKey: String, $type: String) {
           createAdminDeposit(accountId: $accountId, amount: $amount, txnRef: $txnRef, proofKey: $proofKey, type: $type) {
             meta { code message }
-            data { id amount status createdAt utr method }
+            data { id amount status createdAt utr method cryptoAmount cryptoRate cryptoNetwork cryptoBonusAmount }
           }
         }
       `,
@@ -433,12 +402,56 @@ export async function createDeposit(payload: { amount: number }) {
   )
 }
 
+/** A WeLivePay checkout as the deposit page keeps it: the order, where to pay it, and the amount (added by the page). */
+export type WelivepayCheckout = { orderId: string; paymentLink: string; hostedUrl?: string | null; qrImage: string; amount: number }
+
+/**
+ * Starts a WeLivePay order. `paymentLink` is the hosted checkout when the gateway returns one, else its
+ * payment link; `qrImage` may be empty, a data URI, a URL or bare base64. A refusal (VIP limits, no mobile
+ * number, gateway switched off) comes back in meta.message with code 400 and no data.
+ */
+export async function createWelivepayDeposit(amount: number) {
+  return mapResponse<Omit<WelivepayCheckout, 'amount'> | null>(
+    graphqlRequest(
+      `
+        mutation CreateWelivepayDeposit($amount: Float!) {
+          createWelivepayDeposit(amount: $amount) {
+            meta { code message }
+            data { orderId paymentLink hostedUrl qrImage }
+          }
+        }
+      `,
+      { amount }
+    ),
+    'createWelivepayDeposit'
+  )
+}
+
+export type WelivepayOrderStatus = { orderId: string; status: string; amount: number }
+
+/**
+ * The player's own WeLivePay order: pending | success | expired | invalid. The server asks the gateway at
+ * most once a minute per order and credits a paid order itself, so polling is safe. Throws "Payment order
+ * not found" for an order that is not the player's.
+ */
+export async function getWelivepayDepositStatus(orderId: string): Promise<WelivepayOrderStatus> {
+  const data = await graphqlRequest<{ welivepayDepositStatus: WelivepayOrderStatus }>(
+    `
+      query WelivepayDepositStatus($orderId: String!) {
+        welivepayDepositStatus(orderId: $orderId) { orderId status amount }
+      }
+    `,
+    { orderId }
+  )
+  return data.welivepayDepositStatus
+}
+
 export async function getAdminDepositRequests(params: { start_date?: string; end_date?: string }) {
-  return mapResponse<any>(
+  return mapResponse<UserDepositRequest[]>(
     graphqlRequest(
       `
         query AdminDepositRequests($start: String, $end: String) {
-          adminDepositRequests(startDate: $start, endDate: $end) { meta { code message } data { id amount status createdAt utr method } }
+          adminDepositRequests(startDate: $start, endDate: $end) { meta { code message } data { id amount status createdAt utr method cryptoAmount cryptoRate cryptoNetwork cryptoBonusAmount } }
         }
       `,
       { start: params.start_date, end: params.end_date }

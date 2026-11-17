@@ -20,6 +20,7 @@ import {
   matkaPathFromOtherReport,
   matkaReportFilter,
   matkaRowKey,
+  matkaRowsLevel,
   matkaSearchPlaceholder,
   matkaTotalText,
   sortMatkaPage,
@@ -128,14 +129,18 @@ describe('matkaRiskReportModel', () => {
     assert.deepStrictEqual(matkaReportFilter(null, [], null, '2026-10-07'), filter)
   })
 
-  test('each level reads its own breakdown', () => {
+  test('each level reads the next level’s breakdown, and its rows are that level’s (F-REP-01)', () => {
     assert.equal(matkaLevelSource('all'), 'type')
-    assert.equal(matkaLevelSource('matkaType'), 'type')
-    assert.equal(matkaLevelSource('market'), 'market')
-    assert.equal(matkaLevelSource('session'), 'session')
-    assert.equal(matkaLevelSource('agent'), 'agent')
+    assert.equal(matkaLevelSource('matkaType'), 'market')
+    assert.equal(matkaLevelSource('market'), 'session')
+    assert.equal(matkaLevelSource('session'), 'agent')
+    assert.equal(matkaLevelSource('agent'), 'player')
     assert.equal(matkaLevelSource('player'), 'player')
     assert.equal(matkaLevelSource('sport'), null)
+    assert.deepStrictEqual(
+      ['all', 'matkaType', 'market', 'session', 'agent', 'player'].map(matkaRowsLevel),
+      ['matkaType', 'market', 'session', 'agent', 'player', 'player'],
+    )
   })
 
   test('a row opens the next level only when it carries that level id, as the legacy click did', () => {
@@ -145,7 +150,7 @@ describe('matkaRiskReportModel', () => {
       name: 'Kalyan',
     })
     assert.equal(matkaDrillTarget('all', row({ matkaType: null })), null)
-    // the type rows of the matkaType level carry no matkaId, so the legacy click did nothing there
+    // the matkaType level lists markets; a row without a market id opens nothing
     assert.equal(matkaDrillTarget('matkaType', row({ matkaType: 'Kalyan' })), null)
     assert.deepStrictEqual(matkaDrillTarget('matkaType', row({ matkaId: 12, marketName: 'Kalyan Day' })), {
       type: 'market',

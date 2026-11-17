@@ -49,6 +49,11 @@ function isValidTab(tab: string | null): tab is TabKey {
   return tab !== null && (VALID_TABS as readonly string[]).includes(tab);
 }
 
+/** A pending row's scheme, upper-cased: the row's own, else its agent's. */
+function pendingScheme(row: PendingSettlement): string {
+  return (row.schemeType || row.agent?.schemeType || '').toUpperCase();
+}
+
 export default function UnifiedSettlementPage() {
   return (
     <RBACGuard required={[{ domain: 'settlements.center', actions: ['view'] }]} bypassForAgents>
@@ -69,6 +74,11 @@ function UnifiedSettlementPageContent() {
   const roles = useAuthStore(s => s.roles) ?? [];
   const isAgent = !!agent;
   const isCommissionAgent = agent?.schemeType === 'COMMISSION';
+  // CREDIT left the settlement centre on 2026-11-02 (spec §6): a CREDIT account's chips move only by Deposit /
+  // Withdraw from its direct parent, and what it owes or is owed is its Ref P/L, on its Chips page. Only a
+  // SHARING agent has P/L settlements with its upline and its sub-agents.
+  const isCreditAgent = agent?.schemeType === 'CREDIT';
+  const isSharingAgent = agent?.schemeType === 'SHARING';
   const agentSchemeType = agent?.schemeType as 'SHARING' | 'CREDIT' | 'COMMISSION' | undefined;
   const isWhitelabelAdmin = !isAgent && roles.some((r: string) =>
     r === 'Whitelabel Admin' || r.toLowerCase() === 'whitelabel_admin' || r.toLowerCase().includes('whitelabel')
@@ -80,8 +90,8 @@ function UnifiedSettlementPageContent() {
   const [activeTab, setActiveTab] = useState(resolvedTab);
   // Admin: which agent's contributions to show on Contributions tab (agentId from pending list)
   const [selectedAgentIdForContributions, setSelectedAgentIdForContributions] = useState<string | null>(null);
-  // Admin: Pending Settlements sub-tab (Sharing | Credit | Commission)
-  const [pendingSubTab, setPendingSubTab] = useState<'sharing' | 'credit' | 'commission'>('sharing');
+  // Admin: Pending Settlements sub-tab (Sharing | Commission); CREDIT has no settlements any more.
+  const [pendingSubTab, setPendingSubTab] = useState<'sharing' | 'commission'>('sharing');
 
   // Redirect COMMISSION agents to Commission section — they manage earnings there, not P&L settlements
   useEffect(() => {
@@ -90,6 +100,13 @@ function UnifiedSettlementPageContent() {
     }
   }, [isAgent, isCommissionAgent, navigate]);
 
+  // Redirect CREDIT agents to their Chips page: their D / W, downline and Ref P/L live there, not here.
+  useEffect(() => {
+    if (isAgent && isCreditAgent) {
+      navigate('/agent/credit', { replace: true });
+    }
+  }, [isAgent, isCreditAgent, navigate]);
+
   useEffect(() => {
     const tab = searchParams.get('tab');
     setActiveTab(isValidTab(tab) ? tab : 'dashboard');
@@ -97,11 +114,11 @@ function UnifiedSettlementPageContent() {
 
   // Warm the two Pending chunks while the dashboard is visible; this makes no data request.
   useEffect(() => {
-    if (activeTab === 'dashboard' && !isCommissionAgent) {
+    if (activeTab === 'dashboard' && !isCommissionAgent && !isCreditAgent) {
       void loadPendingSettlements().catch(() => undefined);
       void loadPendingCommission().catch(() => undefined);
     }
-  }, [activeTab, isCommissionAgent]);
+  }, [activeTab, isCommissionAgent, isCreditAgent]);
 
   // Whitelabel admins: redirect away from Domain Breakdown and Contributions (tabs are hidden)
   useEffect(() => {
@@ -121,7 +138,7 @@ function UnifiedSettlementPageContent() {
       periodFrom,
       periodTo,
     },
-    skip: !isAgent || !agent?.id || (agent?.schemeType !== 'SHARING' && agent?.schemeType !== 'CREDIT'),
+    skip: !isAgent || !agent?.id || !isSharingAgent,
     fetchPolicy: 'cache-and-network',
   });
 
@@ -136,9 +153,9 @@ function UnifiedSettlementPageContent() {
   });
 
   // For parent agents: get sub-agents' pending settlements (needed only for pending tab)
-  const needSubAgentsPending = isAgent && !isCommissionAgent && activeTab === 'pending';
+  const needSubAgentsPending = isAgent && isSharingAgent && activeTab === 'pending';
   const { data: subAgentsPendingData, loading: subAgentsPendingLoading, error: subAgentsPendingError } = useQuery<{ subAgentsPendingSettlements: PendingSettlement[] }>(SUB_AGENTS_PENDING_SETTLEMENTS_QUERY, {
-    skip: !isAgent || isCommissionAgent || !needSubAgentsPending,
+    skip: !needSubAgentsPending,
     fetchPolicy: 'cache-and-network',
   });
   const subAgentsPending = subAgentsPendingData?.subAgentsPendingSettlements ?? [];
@@ -157,7 +174,7 @@ function UnifiedSettlementPageContent() {
   });
 
   // Get settlement history for agents (their own settlements - upline); needed only for history tab
-  const needAgentHistory = isAgent && agent?.id && (agent?.schemeType === 'SHARING' || agent?.schemeType === 'CREDIT') && activeTab === 'history';
+  const needAgentHistory = isAgent && agent?.id && isSharingAgent && activeTab === 'history';
   const { data: historyData, loading: historyLoading } = useQuery<{ agents: { agentSettlements: SettlementHistoryRow[] } }>(AGENT_SETTLEMENTS_QUERY, {
     variables: {
       agentId: agent?.id || '',
@@ -173,15 +190,16 @@ function UnifiedSettlementPageContent() {
   const periodTo365 = dayjs().format('YYYY-MM-DD');
   const { data: downlineHistoryData, loading: downlineHistoryLoading } = useQuery<{ agents: { downlineSettlementHistory: SettlementHistoryRow[] } }>(DOWNLINE_SETTLEMENT_HISTORY_QUERY, {
     variables: { periodFrom: periodFrom365, periodTo: periodTo365 },
-    skip: !isAgent || !agent?.id || (agent?.schemeType !== 'SHARING' && agent?.schemeType !== 'CREDIT') || activeTab !== 'history',
+    skip: !isAgent || !agent?.id || !isSharingAgent || activeTab !== 'history',
     fetchPolicy: 'cache-and-network',
   });
 
-  // Get settlement history for admins; needed only for history tab
+  // Get settlement history for admins; needed only for history tab. Every row of the 365-day window: the table
+  // pages, searches and filters them here, so a cap (it was the newest 100) hid older payouts from all three. The
+  // server builds every row of the window either way; a limit only trimmed the answer.
   const needAdminHistory = !isAgent && activeTab === 'history';
   const { data: adminHistoryData, loading: adminHistoryLoading } = useQuery<{ allSettlementHistory: SettlementHistoryRow[] }>(ALL_SETTLEMENT_HISTORY_QUERY, {
     variables: {
-      limit: 100,
       fromDate: dayjs().subtract(365, 'day').format('YYYY-MM-DD'),
       toDate: dayjs().format('YYYY-MM-DD'),
     },
@@ -190,14 +208,15 @@ function UnifiedSettlementPageContent() {
   });
 
   const settlement = summaryData?.agents?.settlementSummary;
-  const allPendingSettlements = pendingData?.enhancedPendingSettlements || [];
-  // Admin: filter by selected sub-tab (Sharing / Credit / Commission)
+  // A CREDIT row is never listed (pending, breakdown or contributions), even from a server that still sends one:
+  // a CREDIT agent is not settled by settleAgent any more, it moves chips.
+  const allPendingSettlements = useMemo(() => (pendingData?.enhancedPendingSettlements || []).filter(row => pendingScheme(row) !== 'CREDIT'), [pendingData]);
+  // Admin: filter by selected sub-tab (Sharing / Commission)
   const pendingSettlements =
     !isAgent && pendingSubTab
       ? allPendingSettlements.filter(s => {
-          const scheme = (s.schemeType || s.agent?.schemeType || '').toUpperCase();
+          const scheme = pendingScheme(s);
           if (pendingSubTab === 'sharing') return scheme === 'SHARING';
-          if (pendingSubTab === 'credit') return scheme === 'CREDIT';
           if (pendingSubTab === 'commission') return scheme === 'COMMISSION';
           return true;
         })
@@ -228,6 +247,7 @@ function UnifiedSettlementPageContent() {
   const pendingTabError = isAgent ? subAgentsPendingError : pendingError;
 
   if (isAgent && isCommissionAgent) return <Page maxWidth="wide" className={styles.page}><LoadingState label="Redirecting to Commission…" /></Page>;
+  if (isAgent && isCreditAgent) return <Page maxWidth="wide" className={styles.page}><LoadingState label="Redirecting to Chips…" /></Page>;
   const tabOptions: TabItem<TabKey>[] = [
     { value: 'dashboard', label: 'Dashboard', icon: <IconChartPie size={16} /> },
     { value: 'pending', label: 'Pending', icon: <IconClock size={16} /> },
@@ -240,7 +260,7 @@ function UnifiedSettlementPageContent() {
   const selectedContribution = isAgent ? settlement : selectedAgentIdForContributions ? allPendingSettlements.find(row => row.agentId === selectedAgentIdForContributions) : undefined;
   return <Page maxWidth="wide" className={styles.page}>
     <PageHeader title={isAgent ? 'Settlement Center' : 'Settlement Management'}
-      sub={isAgent ? 'View and manage your profit & loss settlements' : 'Manage agent settlements, commission payouts, and player credit adjustments'}
+      sub={isAgent ? 'View and manage your profit & loss settlements' : 'Manage agent settlements and commission payouts'}
       actions={<div className={styles.tools}><Button icon={<IconRefresh size={17} />} loading={refreshing} onClick={() => { void handleRefresh().catch(() => undefined); }}>Refresh</Button>
         {isAgent && settlement && settlement.settlementDue !== 0 && <Button onClick={() => { setActiveTab('pending'); navigate('/settlement?tab=pending', { replace: true }); }}>Request Settlement</Button>}
       </div>} />
@@ -261,7 +281,7 @@ function UnifiedSettlementPageContent() {
       </div>}
       {/* the dashboard tab draws its own placeholder figures, so only the list tabs swap for the skeleton */}
       {activeTab === 'pending' ? <div className={styles.stack}>
-            {!isAgent && <SegmentedControl value={pendingSubTab} onChange={setPendingSubTab} label="Pending settlements sub-tabs" options={[{ value: 'sharing', label: 'Sharing' }, { value: 'credit', label: 'Credit' }, { value: 'commission', label: 'Commission' }]} />}
+            {!isAgent && <SegmentedControl value={pendingSubTab} onChange={setPendingSubTab} label="Pending settlements sub-tabs" options={[{ value: 'sharing', label: 'Sharing' }, { value: 'commission', label: 'Commission' }]} />}
             <Suspense fallback={<SettlementTabSkeleton />}>{pendingSubTab === 'commission' ? <PendingCommissionSection /> : pendingTabError ? <Notice tone="error" title="Failed to load pending settlements" action={<Button size="sm" onClick={() => { void handleRefresh().catch(() => undefined); }}>Retry</Button>}>{pendingTabError.message}</Notice> : ((!isAgent && pendingLoading && !pendingData) || (isAgent && subAgentsPendingLoading && !subAgentsPendingData)) ? <SettlementTabSkeleton /> : <PendingSettlementsSection isAgent={isAgent} agentSchemeType={agentSchemeType} settlement={settlement} pendingSettlements={pendingSettlements} refetchPendingSettlements={refetchPendingSettlements} subAgentsPending={subAgentsPending} subAgentsPendingLoading={subAgentsPendingLoading} />}</Suspense>
           </div>
         : activeTabLoading && activeTab !== 'dashboard' ? <SettlementTabSkeleton /> : <Suspense fallback={<SettlementTabSkeleton />}>

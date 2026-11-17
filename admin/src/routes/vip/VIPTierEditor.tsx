@@ -116,7 +116,7 @@ function VIPTierForm({ tier }: { tier?: VIPTier }) {
               ...(['min', 'max', 'daily', 'monthly'] as const).map(key => ({ term: ({ min: 'Minimum', max: 'Maximum', daily: 'Daily limit', monthly: 'Monthly limit' })[key],
                 value: form.values.depositPolicy?.[key] == null ? 'Use site limits' : formatAmount(convertFromWhitelabelCurrency(form.values.depositPolicy[key]!)) })),
               { term: 'Receiving accounts', value: accountIds == null ? 'Unchanged (set in Payment Methods)'
-                : accounts.filter(account => accountIds.includes(account.id)).map(account => account.label).join(', ') || 'None: no bank transfer or UPI' },
+                : accounts.filter(account => accountIds.includes(account.id)).map(account => account.label).join(', ') || 'None: no bank transfer, UPI or crypto' },
             ]} />
           </Card>
           <Card title={`Benefits (${form.values.benefits.length})`} headingLevel={3} tools={<Button size="sm" onClick={() => setStep(1)}>Edit Benefits</Button>}>

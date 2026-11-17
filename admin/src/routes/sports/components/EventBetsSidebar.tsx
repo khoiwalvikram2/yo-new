@@ -723,27 +723,9 @@ export function EventBetsSidebar({
     });
   }, [processedBets, voidInvalidFilter, statusFilter, sideFilter]);
 
-  // Refetch when search changes (debounced)
-  // NOTE: Don't pass tenant - let backend derive it from context
-  useEffect(() => {
-    if (!refetch) return;
-    
-    const timeoutId = setTimeout(() => {
-      refetch({
-        variables: {
-          query: {
-            eventId: eventId || undefined,
-            statuses: ['matched', 'unmatched'],
-            search: playerSearch.trim() || undefined,
-            limit: BETS_PER_PAGE,
-            offset: 0,
-          },
-        },
-      });
-    }, 300); // Debounce search by 300ms
-
-    return () => clearTimeout(timeoutId);
-  }, [playerSearch, eventId, refetch]);
+  // A search or event change is read by the query above: its variables carry both, so Apollo sends the request.
+  // A timed refetch here sent a second, identical one 300ms later on every change (and on mount), and passed
+  // refetch({ variables }) for refetch(variables), which Apollo warns about (invariant 28) (B004).
 
   // Get unique user IDs for fetching attributions (from filtered list)
   const uniqueUserIds = useMemo(() => {

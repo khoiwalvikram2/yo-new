@@ -25,6 +25,8 @@ import {
   CASINO_STUCK_MINUTES,
   ONLINE_WINDOW_MINS,
   STALE_SPORTS_HOURS,
+  chipMoveWhere,
+  creditWalletOf,
   inTenant,
   isPlayer,
   istMidnight,
@@ -75,8 +77,10 @@ interface DrillContext {
 interface DrillSpec {
   title: string
   subtitle: (c: DrillContext) => string
-  columns: DrillColumn[]
-  source: (c: DrillContext) => SQL
+  /** Fixed, or chosen by the arg (an open book adds an Exposure column). */
+  columns: DrillColumn[] | ((c: DrillContext) => DrillColumn[])
+  /** Async when part of the list is computed outside SQL (the commission engine's root-agent figures). */
+  source: (c: DrillContext) => SQL | Promise<SQL>
   /** Over the source's alias `q`. */
   order: SQL
   page?: string
@@ -116,9 +120,10 @@ const periodText = (c: DrillContext) => {
 }
 
 /** A bank account as "BANK · HDFC · ••1234" and a UPI id as "UPI · name@bank". */
+// A withdrawal's own account is shown even when the player deleted it, marked Deleted.
 const PAYOUT = (p: string) => sql.raw(`CONCAT_WS(' · ', ${p}.method::text, ${p}.bank_name,
   CASE WHEN ${p}.method::text = 'BANK' AND ${p}.account_number IS NOT NULL THEN '••' || RIGHT(${p}.account_number, 4) ELSE ${p}.account_number END,
-  ${p}.ifsc_code)`)
+  ${p}.ifsc_code, CASE WHEN ${p}.deleted_at IS NOT NULL THEN 'Deleted' END)`)
 
 /** The arg's value after a prefix, or null. */
 const after = (arg: string, prefix: string) => (arg.startsWith(prefix) ? arg.slice(prefix.length) : null)
@@ -180,7 +185,13 @@ interface BetFilter {
   matkaOverdue?: Date
 }
 
-/** Bets with what they were on, one shape across products, narrowed by `f` inside each product's branch. */
+/**
+ * Bets with what they were on, one shape across products, narrowed by `f` inside each product's branch.
+ * `stake` is the money staked; `exposure` is what an open bet puts at risk, as the exposure figures
+ * count it: a sports bet's liability, a matka bet's potential payout, a casino round's stake. (`stake`
+ * held the sports liability and the matka stake, so a matka exposure list added up to its stakes, not
+ * to the figure it opened from.)
+ */
 function labelledBets(c: DrillContext, f: BetFilter): SQL {
   const has = (p: 'sports' | 'casino' | 'matka') => !f.products || f.products.includes(p)
   const when = (alias: string) => sql.join([
@@ -193,7 +204,8 @@ function labelledBets(c: DrillContext, f: BetFilter): SQL {
     branches.push(sql`
       SELECT 'sports:' || b.id AS row_id, b.user_id, 'Sports' AS product,
         CONCAT_WS(' · ', e.name, mk.name, rn.name, b.side::text) AS detail,
-        COALESCE(b.liability::numeric, b.stake::numeric, 0) AS stake, b.status::text AS status, b.created_at AS placed,
+        COALESCE(b.stake::numeric, 0) AS stake, COALESCE(b.liability::numeric, b.stake::numeric, 0) AS exposure,
+        b.status::text AS status, b.created_at AS placed,
         CASE WHEN b.status::text IN ('won', 'lost', 'settled') THEN (${sql.raw(sportsPlayerProfitSql('b'))}) ELSE NULL END AS player_pl
       FROM sports_bets b
       LEFT JOIN sports_events e ON e.id = b.event_id
@@ -208,7 +220,7 @@ function labelledBets(c: DrillContext, f: BetFilter): SQL {
   if (has('casino') && !f.sportKey && !f.eventId && !f.draw && !f.sportsStatus) {
     branches.push(sql`
       SELECT 'casino:' || cb.id AS row_id, cb.user_id, 'Casino' AS product, CONCAT_WS(' · ', cb.game_name, cb.vendor_name, cb.game_round_id) AS detail,
-        COALESCE(cb.stake::numeric, 0) AS stake, cb.status::text AS status, cb.created_at AS placed,
+        COALESCE(cb.stake::numeric, 0) AS stake, COALESCE(cb.stake::numeric, 0) AS exposure, cb.status::text AS status, cb.created_at AS placed,
         CASE WHEN cb.status::text IN ('won', 'lost') THEN COALESCE(cb.payout, cb.win_amount, 0)::numeric - COALESCE(cb.stake::numeric, 0) ELSE NULL END AS player_pl
       FROM casino_bets cb
       WHERE ${inTenant(sql`cb.tenant`, c.scope.tenant)} AND ${when('cb')} ${f.open ? sql`AND cb.status::text IN ${OPEN_OTHER}` : sql``}`)
@@ -217,7 +229,7 @@ function labelledBets(c: DrillContext, f: BetFilter): SQL {
     branches.push(sql`
       SELECT 'matka:' || m.id AS row_id, m.user_id, 'Matka' AS product,
         CONCAT_WS(' · ', m.market_name, m.market_session, m.bid_type, m.bet_numbers, TO_CHAR(m.run_date, 'DD Mon')) AS detail,
-        COALESCE(m.bet_amount::numeric, 0) AS stake, m.status::text AS status, m.created_at AS placed,
+        COALESCE(m.bet_amount::numeric, 0) AS stake, COALESCE(m.potential_win::numeric, 0) AS exposure, m.status::text AS status, m.created_at AS placed,
         CASE WHEN m.status::text = 'won' THEN COALESCE(m.actual_win::numeric, 0) - COALESCE(m.bet_amount::numeric, 0)
              WHEN m.status::text = 'lost' THEN -COALESCE(m.bet_amount::numeric, 0) ELSE NULL END AS player_pl
       FROM matka_bets m
@@ -228,10 +240,10 @@ function labelledBets(c: DrillContext, f: BetFilter): SQL {
   }
   if (branches.length === 0) {
     branches.push(sql`SELECT NULL::text AS row_id, NULL::int AS user_id, NULL::text AS product, NULL::text AS detail, NULL::numeric AS stake,
-      NULL::text AS status, NULL::timestamptz AS placed, NULL::numeric AS player_pl WHERE FALSE`)
+      NULL::numeric AS exposure, NULL::text AS status, NULL::timestamptz AS placed, NULL::numeric AS player_pl WHERE FALSE`)
   }
   return sql`
-    SELECT x.row_id, ${PLAYER}, x.product, x.detail, x.stake, x.status, x.placed, x.player_pl
+    SELECT x.row_id, ${PLAYER}, x.product, x.detail, x.stake, x.exposure, x.status, x.placed, x.player_pl
     FROM (${sql.join(branches, sql` UNION ALL `)}) x
     JOIN users u ON u.id = x.user_id ${AGENT_OF}`
 }
@@ -245,6 +257,23 @@ const BET_COLUMNS: DrillColumn[] = [
   { key: 'player_pl', label: 'Player P/L', kind: 'money' },
   { key: 'placed', label: 'Placed', kind: 'datetime' },
 ]
+
+/** An open book (Exposure, Active bets, a sport, matka, an event or a draw): the Exposure column adds up to the figure. */
+const OPEN_BOOK_COLUMNS: DrillColumn[] = [
+  ...PLAYER_SHORT,
+  { key: 'product', label: 'Product', kind: 'text' },
+  { key: 'detail', label: 'On', kind: 'text' },
+  { key: 'stake', label: 'Stake', kind: 'money' },
+  { key: 'exposure', label: 'Exposure', kind: 'money' },
+  { key: 'status', label: 'Status', kind: 'status' },
+  { key: 'placed', label: 'Placed', kind: 'datetime' },
+]
+
+/** The args that open an open book whose figure is money at risk. */
+function isOpenBookArg(arg: string): boolean {
+  return arg === 'open' || arg === 'exposure' || arg === 'product:matka'
+    || arg.startsWith('sport:') || arg.startsWith('event:') || arg.startsWith('draw:')
+}
 
 /** The bets an arg asks for: the period's, the open book (or part of it), or those awaiting settlement. */
 function betFilter(c: DrillContext): BetFilter {
@@ -308,6 +337,18 @@ function playerWhere(c: DrillContext): SQL {
   return sql`TRUE`
 }
 
+/** The `agents` kind's arg: a scheme, and whether every status counts ("COMMISSION:all") or only ACTIVE. */
+function agentsArg(arg: string): { scheme: string | null; everyStatus: boolean } {
+  const [scheme, which] = arg.split(':')
+  return { scheme: scheme || null, everyStatus: which === 'all' }
+}
+
+function agentsWhere(arg: string): SQL {
+  const { scheme, everyStatus } = agentsArg(arg)
+  if (!scheme) return sql``
+  return everyStatus ? sql`AND a.scheme_type::text = ${scheme}` : sql`AND a.scheme_type::text = ${scheme} AND a.status = 'ACTIVE'`
+}
+
 const SPECS: Record<string, DrillSpec> = {
   pending_deposits: {
     title: 'Pending deposit requests',
@@ -363,7 +404,7 @@ const SPECS: Record<string, DrillSpec> = {
       SELECT p.id::text AS row_id, ${PLAYER}, p.method::text AS method, p.account_holder_name AS holder, ${PAYOUT('p')} AS account,
         p.created_at AS submitted
       FROM user_payout_accounts p JOIN users u ON u.id = p.user_id ${AGENT_OF}
-      WHERE ${inTenant(sql`p.tenant`, c.scope.tenant)} AND p.approval_status::text = 'PENDING'`,
+      WHERE ${inTenant(sql`p.tenant`, c.scope.tenant)} AND p.approval_status::text = 'PENDING' AND p.deleted_at IS NULL`,
     order: sql`q.submitted ASC`,
   },
   deposits: {
@@ -546,8 +587,11 @@ const SPECS: Record<string, DrillSpec> = {
   },
   bets: {
     title: 'Bets',
-    subtitle: (c) => BET_TITLES[c.arg] ? 'Now' : c.arg ? 'Open now' : `${periodText(c)} · newest first`,
-    columns: BET_COLUMNS,
+    subtitle: (c) => {
+      const when = BET_TITLES[c.arg] ? 'Now' : c.arg ? 'Open now' : `${periodText(c)} · newest first`
+      return isOpenBookArg(c.arg) ? `${when} · exposure is a sports bet's liability, a matka bet's potential payout, a casino round's stake` : when
+    },
+    columns: (c) => isOpenBookArg(c.arg) ? OPEN_BOOK_COLUMNS : BET_COLUMNS,
     source: (c) => labelledBets(c, betFilter(c)),
     order: sql`q.placed DESC`,
     page: '/bets',
@@ -564,13 +608,16 @@ const SPECS: Record<string, DrillSpec> = {
     source: (c) => sql`
       SELECT w.id::text AS row_id, ${PLAYER}, w.cash, w.bonus, w.exposure
       FROM wallets w JOIN users u ON u.id = w.user_id ${AGENT_OF}
-      WHERE ${inTenant(sql`w.tenant`, c.scope.tenant)} AND ${isPlayer(sql`u`)} AND (w.cash <> 0 OR w.bonus <> 0 OR w.exposure <> 0)`,
+      WHERE ${inTenant(sql`w.tenant`, c.scope.tenant)} AND ${isPlayer(sql`u`)} AND (w.cash <> 0 OR w.bonus <> 0 OR w.exposure <> 0)
+        -- cash players only, matching the card: a credit player's wallets.cash is chips (the Chips with Players figure)
+        AND u.player_type::text IN ('REGULAR', 'SHARING_AGENT_PLAYER', 'COMMISSION_AGENT_PLAYER')`,
     order: sql`q.cash DESC`,
   },
   bonus_awards: {
     title: 'Bonus given',
     subtitle: (c) => `${periodText(c)} · cancelled awards left out`,
-    page: '/bonuses',
+    // The awards list ("Bonus cards"), where these rows are managed; /bonuses lists the campaigns.
+    page: '/bonus-awards',
     columns: [
       ...PLAYER_SHORT,
       { key: 'type', label: 'Type', kind: 'text' },
@@ -587,28 +634,36 @@ const SPECS: Record<string, DrillSpec> = {
         AND b.status::text <> 'cancelled'`,
     order: sql`q.awarded DESC`,
   },
+  // arg: a scheme lists its ACTIVE agents (the Operations "· Active" figures); "<SCHEME>:all" lists
+  // every agent of the scheme, whatever its status (the Agents tab's "Agents by scheme" counts).
   agents: {
     title: 'Agents',
-    subtitle: (c) => c.arg ? `${c.arg.charAt(0)}${c.arg.slice(1).toLowerCase()} agents, active` : 'Every agent',
+    subtitle: (c) => {
+      const { scheme, everyStatus } = agentsArg(c.arg)
+      if (!scheme) return 'Every agent'
+      return `${scheme.charAt(0)}${scheme.slice(1).toLowerCase()} agents, ${everyStatus ? 'every status' : 'active'}`
+    },
     columns: [
       { key: 'agent', label: 'Agent', kind: 'agent' },
       { key: 'scheme', label: 'Scheme', kind: 'text' },
       { key: 'status', label: 'Status', kind: 'status' },
       { key: 'parent', label: 'Parent', kind: 'text' },
       { key: 'players', label: 'Own players', kind: 'count' },
-      { key: 'credit_limit', label: 'Credit limit', kind: 'money' },
-      { key: 'credit_used', label: 'Credit used', kind: 'money' },
+      // CREDIT agents only: the credit reference and the agent's own chips (empty for other schemes).
+      { key: 'credit_reference', label: 'Credit ref', kind: 'money' },
+      { key: 'chips', label: 'Chips', kind: 'money' },
       { key: 'created', label: 'Created', kind: 'datetime' },
     ],
     source: (c) => sql`
       SELECT a.id::text AS row_id, NULL::int AS player_id, a.id::text AS agent_id, ac.username AS agent, INITCAP(a.scheme_type::text) AS scheme,
         a.status, pc.username AS parent, (SELECT COUNT(*)::int FROM users u WHERE u.agent_id = a.id) AS players,
-        a.credit_limit, a.credit_used, a.created_at AS created, CONCAT_WS(' ', ac.username, a.phone) AS search_text
+        CASE WHEN a.scheme_type::text = 'CREDIT' THEN a.credit_limit END AS credit_reference,
+        CASE WHEN a.scheme_type::text = 'CREDIT' THEN a.chip_balance END AS chips,
+        a.created_at AS created, CONCAT_WS(' ', ac.username, a.phone) AS search_text
       FROM agents a
       LEFT JOIN LATERAL (SELECT x.username FROM agent_credentials x WHERE x.agent_id = a.id LIMIT 1) ac ON TRUE
       LEFT JOIN LATERAL (SELECT x.username FROM agent_credentials x WHERE x.agent_id = a.parent_agent_id LIMIT 1) pc ON TRUE
-      WHERE ${inTenant(sql`a.tenant_id`, c.scope.tenant)}
-        ${c.arg ? sql`AND a.scheme_type::text = ${c.arg} AND a.status = 'ACTIVE'` : sql``}`,
+      WHERE ${inTenant(sql`a.tenant_id`, c.scope.tenant)} ${agentsWhere(c.arg)}`,
     order: sql`q.players DESC, q.agent ASC`,
   },
   agent_players: {
@@ -645,21 +700,31 @@ const SPECS: Record<string, DrillSpec> = {
       { key: 'to_name', label: 'To', kind: 'text' },
       { key: 'type', label: 'Type', kind: 'text' },
       { key: 'amount', label: 'Amount', kind: 'money' },
-      { key: 'reason', label: 'Reason', kind: 'text' },
+      { key: 'reason', label: 'Remark', kind: 'text' },
     ],
+    // One row per transfer: its parent's credit_chip_ledger row (chipMoveWhere), whose account is the parent
+    // and whose counterparty is the child. A deposit runs parent → child, a withdrawal child → parent. The
+    // row links to the child.
     source: (c) => {
-      const entity = (type: string, id: string) => sql.raw(`CASE ${type}::text
-        WHEN 'player' THEN (SELECT x.username FROM users x WHERE x.id::text = ${id})
+      const name = (type: string, id: string) => sql.raw(`CASE ${type}::text
+        WHEN 'player' THEN (SELECT x.username FROM users x WHERE x.id::text = ${id} AND x.tenant = l.tenant_id)
         WHEN 'agent' THEN (SELECT x.username FROM agent_credentials x WHERE x.agent_id::text = ${id} LIMIT 1)
         ELSE 'Whitelabel' END`)
+      const parent = name('l.account_type', 'l.account_id')
+      const child = name('l.counterparty_type', 'l.counterparty_id')
+      const deposit = sql`l.kind::text = 'DEPOSIT'`
       return sql`
-        SELECT l.id::text AS row_id, NULL::int AS player_id, NULL::text AS agent_id, l.created_at AS at,
-          ${entity('l.from_entity_type', 'l.from_entity_id')} AS from_name, ${entity('l.to_entity_type', 'l.to_entity_id')} AS to_name,
-          INITCAP(REPLACE(l.transaction_type::text, '_', ' ')) AS type, ABS(l.amount) AS amount, l.reason,
-          CONCAT_WS(' ', ${entity('l.from_entity_type', 'l.from_entity_id')}, ${entity('l.to_entity_type', 'l.to_entity_id')}) AS search_text
-        FROM agent_credit_ledger l
+        SELECT l.id::text AS row_id,
+          CASE WHEN l.counterparty_type::text = 'player' THEN l.counterparty_id::int END AS player_id,
+          CASE WHEN l.counterparty_type::text = 'agent' THEN l.counterparty_id END AS agent_id,
+          l.created_at AS at,
+          CASE WHEN ${deposit} THEN ${parent} ELSE ${child} END AS from_name,
+          CASE WHEN ${deposit} THEN ${child} ELSE ${parent} END AS to_name,
+          INITCAP(l.kind::text) AS type, ABS(l.amount) AS amount, l.remark AS reason,
+          CONCAT_WS(' ', ${parent}, ${child}, l.remark) AS search_text
+        FROM credit_chip_ledger l
         WHERE ${inTenant(sql`l.tenant_id`, c.scope.tenant)} AND l.created_at >= ${c.from} AND l.created_at <= ${c.to}
-          AND ${chipWhere(c.arg)}`
+          AND ${chipMoveWhere(c.arg)}`
     },
     order: sql`q.at DESC`,
   },
@@ -683,24 +748,32 @@ const SPECS: Record<string, DrillSpec> = {
       WHERE ${inTenant(sql`t.tenant`, c.scope.tenant)} AND t.created_at >= ${c.from} AND t.created_at <= ${c.to}`,
     order: sql`q.at DESC`,
   },
+  // The Chips with Players figure: Σ available over these rows equals it. Figures are ChipService's
+  // playerChipFigures (balance = the chip wallet's cash; available = balance - exposure; Ref P/L = balance -
+  // credit reference), in SQL so the list can page, search and sort.
   credit_players: {
     title: 'Credit players',
-    subtitle: () => 'Now · credit limit, used and available chips',
+    subtitle: () => 'Now · credit reference, chips, exposure and Ref P/L',
     columns: [
       ...PLAYER_COLUMNS,
-      { key: 'credit_limit', label: 'Limit', kind: 'money' },
-      { key: 'credit_used', label: 'Used', kind: 'money' },
-      { key: 'credit_available', label: 'Available', kind: 'money' },
+      { key: 'credit_reference', label: 'Credit ref', kind: 'money' },
+      { key: 'balance', label: 'Balance', kind: 'money' },
+      { key: 'exposure', label: 'Exposure', kind: 'money' },
+      { key: 'available', label: 'Available', kind: 'money' },
+      { key: 'ref_pnl', label: 'Ref P/L', kind: 'money' },
     ],
     source: (c) => sql`
-      SELECT u.id::text AS row_id, ${PLAYER}, u.credit_limit, u.credit_used, u.credit_available
-      FROM users u ${AGENT_OF}
+      SELECT u.id::text AS row_id, ${PLAYER}, COALESCE(u.credit_limit, 0) AS credit_reference,
+        COALESCE(w.cash, 0) AS balance, COALESCE(w.exposure, 0) AS exposure,
+        COALESCE(w.cash, 0) - COALESCE(w.exposure, 0) AS available,
+        COALESCE(w.cash, 0) - COALESCE(u.credit_limit, 0) AS ref_pnl
+      FROM users u ${AGENT_OF} ${creditWalletOf(sql`u`, sql`w`)}
       WHERE ${inTenant(sql`u.tenant`, c.scope.tenant)} AND ${isPlayer(sql`u`)} AND u.player_type::text IN ${CREDIT_TYPES}`,
-    order: sql`q.credit_available DESC`,
+    order: sql`q.available DESC`,
   },
 }
 
-/** The chip-movement args, with dashboardOperationsService's chipsAggregate predicates. */
+/** The chip-movement args (dashboardOperationsService.chipMoveWhere has their predicates). */
 const CHIP_TITLES: Record<string, string> = {
   wl_in: 'chips deposited by the whitelabel',
   agent_in: 'chips deposited by agents',
@@ -711,33 +784,103 @@ const CHIP_TITLES: Record<string, string> = {
   to_agents: 'chips given to agents',
 }
 
-function chipWhere(arg: string): SQL {
-  const up = sql`l.balance_after > l.balance_before`
-  const down = sql`l.balance_after < l.balance_before`
-  const adjusting = sql`l.transaction_type::text IN ('ADJUSTMENT', 'CREDIT_LIMIT_ADJUSTMENT')`
-  const notSettle = sql`COALESCE(l.metadata->>'adjustmentType', l.meta->>'adjustmentType', '') <> 'SETTLE'`
-  const wlIn = sql`(l.from_entity_type::text = 'whitelabel' AND l.to_entity_type::text = 'player'
-    AND (l.transaction_type::text = 'DEPOSIT' OR (${adjusting} AND ${up})) AND ${notSettle})`
-  const agentIn = sql`(l.from_entity_type::text = 'agent' AND l.to_entity_type::text = 'player' AND l.transaction_type::text IN ('DEPOSIT', 'ALLOCATION'))`
-  const wlOut = sql`((l.from_entity_type::text = 'player' AND l.to_entity_type::text = 'whitelabel' AND l.transaction_type::text = 'WITHDRAWAL')
-    OR (l.from_entity_type::text = 'whitelabel' AND l.to_entity_type::text = 'player' AND ${adjusting} AND ${down} AND ${notSettle}))`
-  const agentOut = sql`(l.from_entity_type::text = 'player' AND l.to_entity_type::text = 'agent' AND l.transaction_type::text = 'WITHDRAWAL')`
-  const toAgents = sql`(l.from_entity_type::text = 'whitelabel' AND l.to_entity_type::text = 'agent'
-    AND (l.transaction_type::text IN ('DEPOSIT', 'ALLOCATION') OR (${adjusting} AND ${up})))`
-  switch (arg) {
-    case 'wl_in': return wlIn
-    case 'agent_in': return agentIn
-    case 'in': return sql`(${wlIn} OR ${agentIn})`
-    case 'wl_out': return wlOut
-    case 'agent_out': return agentOut
-    case 'out': return sql`(${wlOut} OR ${agentOut})`
-    case 'to_agents': return toAgents
-    default: return sql`TRUE`
-  }
-}
-
 // The Turnover card: the same rows as GGR by player, largest stake first, so they add up to the card.
 SPECS.turnover_players = { ...SPECS.ggr_players, title: 'Turnover by player', order: sql`q.staked DESC` }
+
+/* ---- revenue parts: Gross Revenue = GGR + agent commission; Net GGR = GGR - commission - bonus paid ---- */
+
+/*
+ * The Gross Revenue and Net GGR cards opened "GGR by player", whose rows add up to GGR only
+ * (DAS-KPI-DRILL-GGR). These kinds list every part of the card with its sign, so the Amount column adds
+ * up to the figure: GGR by player (ggr_players' rows), each top-level agent's commission (the commission
+ * engine's figure computeWhitelabelGrossCommission adds up), and each bonus award paid out (a completed
+ * award, as getBonusKPIs' totalRedeemed counts it, in the whitelabel's base currency). A tenant of
+ * undefined (director core mode) takes every whitelabel, as the core-mode KPIs do.
+ */
+const PART_COLUMNS: DrillColumn[] = [
+  { key: 'part', label: 'Part', kind: 'text' },
+  { key: 'username', label: 'Player', kind: 'player' },
+  { key: 'agent', label: 'Agent', kind: 'agent' },
+  { key: 'amount', label: 'Amount', kind: 'money' },
+]
+
+const NO_PARTS = sql`SELECT NULL::text AS row_id, NULL::int AS player_id, NULL::text AS username, NULL::text AS agent,
+  NULL::text AS agent_id, NULL::text AS part, NULL::numeric AS amount, NULL::text AS search_text WHERE FALSE`
+
+function ggrPartRows(c: DrillContext): SQL {
+  return sql`
+    SELECT 'ggr:' || u.id AS row_id, u.id AS player_id, u.username, ac.username AS agent, u.agent_id::text AS agent_id,
+      'GGR' AS part, g.ggr AS amount, CONCAT_WS(' ', u.username, u.name, u.phone, ac.username) AS search_text
+    FROM (SELECT x.user_id, SUM(x.house) AS ggr FROM (${allBets(c.scope, c.from, c.to)}) x WHERE x.settled AND x.cash GROUP BY x.user_id) g
+    JOIN users u ON u.id = g.user_id ${AGENT_OF}`
+}
+
+/** The whitelabels a part is computed for, each with the base currency its KPIs use. */
+async function partTenants(c: DrillContext): Promise<Array<{ tenant: string; currency: string }>> {
+  const { getWhitelabelBaseCurrency } = await import('@/services/dashboardService.js')
+  const tenants = c.scope.tenant
+    ? [c.scope.tenant]
+    : (await (await import('@src/repos/common/whitelabelRepo.js')).listWhitelabelsDb()).map((row) => row.id)
+  return Promise.all(tenants.map(async (tenant) => ({ tenant, currency: await getWhitelabelBaseCurrency(tenant).catch(() => 'INR') })))
+}
+
+async function commissionPartRows(c: DrillContext, sign: 1 | -1): Promise<SQL> {
+  const { computeWhitelabelGrossCommissionByRootAgent } = await import('@/services/dashboardService.js')
+  // A top-level agent with no commission adds nothing to the card, so it is no part of it (a quiet day
+  // listed every root agent at 0.00).
+  const parts = (await Promise.all((await partTenants(c)).map(({ tenant, currency }) =>
+    computeWhitelabelGrossCommissionByRootAgent(tenant, c.from, c.to, currency).catch(() => []))))
+    .flat().filter((part) => Number.isFinite(part.amount) && part.amount !== 0)
+  if (parts.length === 0) return NO_PARTS
+  const values = sql.join(parts.map((part) => sql`(${part.agentId}::text, ${part.amount}::numeric)`), sql`, `)
+  return sql`
+    SELECT 'commission:' || v.agent_id AS row_id, NULL::int AS player_id, NULL::text AS username, ac.username AS agent,
+      v.agent_id AS agent_id, 'Agent commission' AS part, ${sign}::numeric * v.amount AS amount,
+      CONCAT_WS(' ', ac.username, 'commission') AS search_text
+    FROM (VALUES ${values}) AS v(agent_id, amount)
+    LEFT JOIN LATERAL (SELECT x.username FROM agent_credentials x WHERE x.agent_id::text = v.agent_id LIMIT 1) ac ON TRUE`
+}
+
+async function bonusPartRows(c: DrillContext, sign: 1 | -1): Promise<SQL> {
+  const branches = (await partTenants(c)).map(({ tenant, currency }) => sql`
+    SELECT 'bonus:' || b.id AS row_id, u.id AS player_id, u.username, ac.username AS agent, u.agent_id::text AS agent_id,
+      'Bonus paid' AS part, ${sign}::numeric * COALESCE(b.amount::numeric, 0) AS amount,
+      CONCAT_WS(' ', u.username, u.name, u.phone, ac.username, 'bonus') AS search_text
+    FROM bonus_awards b JOIN bonus_campaigns bc ON bc.id = b.campaign_id JOIN users u ON u.id = b.user_id ${AGENT_OF}
+    WHERE bc.tenant = ${tenant} AND b.status::text = 'completed' AND b.currency = ${currency}
+      AND b.awarded_at >= ${c.from} AND b.awarded_at <= ${c.to}`)
+  return branches.length ? sql.join(branches, sql` UNION ALL `) : NO_PARTS
+}
+
+SPECS.gross_revenue = {
+  title: 'Gross revenue',
+  subtitle: (c) => `${periodText(c)} · GGR by player plus each top-level agent's commission; the amounts add up to the card`,
+  columns: PART_COLUMNS,
+  source: async (c) => sql`${ggrPartRows(c)} UNION ALL ${await commissionPartRows(c, 1)}`,
+  order: sql`ABS(q.amount) DESC`,
+}
+SPECS.net_ggr = {
+  title: 'Net GGR',
+  subtitle: (c) => `${periodText(c)} · GGR by player, less each top-level agent's commission and each bonus paid; the amounts add up to the card`,
+  columns: PART_COLUMNS,
+  source: async (c) => sql`${ggrPartRows(c)} UNION ALL ${await commissionPartRows(c, -1)} UNION ALL ${await bonusPartRows(c, -1)}`,
+  order: sql`ABS(q.amount) DESC`,
+}
+SPECS.agent_commission = {
+  title: 'Agent commission',
+  subtitle: (c) => `${periodText(c)} · each top-level agent's commission, as the Gross Revenue card adds it`,
+  columns: PART_COLUMNS,
+  source: (c) => commissionPartRows(c, 1),
+  order: sql`ABS(q.amount) DESC`,
+}
+SPECS.bonus_paid = {
+  title: 'Bonus paid',
+  subtitle: (c) => `${periodText(c)} · completed bonus awards, as the Net GGR card takes them off`,
+  columns: PART_COLUMNS,
+  source: (c) => bonusPartRows(c, 1),
+  order: sql`ABS(q.amount) DESC`,
+  page: '/bonus-awards',
+}
 
 export const DRILL_KINDS = Object.keys(SPECS)
 
@@ -785,7 +928,8 @@ export async function getDashboardDrilldown(
   const offset = Math.max(0, Number(input.offset) || 0)
   const term = (input.search ?? '').trim().slice(0, 80)
   const filter = term ? sql`WHERE q.search_text ILIKE ${`%${term.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`}` : sql``
-  const source = spec.source(c)
+  const source = await spec.source(c)
+  const columns = typeof spec.columns === 'function' ? spec.columns(c) : spec.columns
 
   const [found, counted] = await Promise.all([
     db.execute(sql`SELECT * FROM (${source}) q ${filter} ORDER BY ${spec.order}, q.row_id LIMIT ${limit} OFFSET ${offset}`),
@@ -796,10 +940,10 @@ export async function getDashboardDrilldown(
     kind: input.kind,
     title: input.kind === 'bets' && BET_TITLES[c.arg] ? BET_TITLES[c.arg] : spec.title,
     subtitle: spec.subtitle(c),
-    columns: spec.columns,
+    columns,
     rows: rows.map((r) => ({
       id: String(r.row_id ?? ''),
-      cells: spec.columns.map((col) => cell(r[col.key], col.kind)),
+      cells: columns.map((col) => cell(r[col.key], col.kind)),
       playerId: r.player_id === null || r.player_id === undefined ? null : Number(r.player_id),
       agentId: r.agent_id === null || r.agent_id === undefined ? null : String(r.agent_id),
     })),

@@ -4,7 +4,7 @@ import { Card } from '@/ui/components/Card'
 import { DescriptionList } from '@/ui/components/DescriptionList'
 import { StatusPill } from '@/ui/components/StatusPill'
 import type { FormApi } from '@/ui/form/useForm'
-import type { AgentEditorValues, AgentParentOption } from '../agentEditorModel'
+import { givesOpeningChips, tallyIsOn, type AgentEditorValues, type AgentParentOption } from '../agentEditorModel'
 import { PARENT_AGENT_QUERY } from './agentEditorQueries'
 import styles from '../AgentEditor.module.css'
 
@@ -26,8 +26,9 @@ export default function Review({ form }: { form: FormApi<AgentEditorValues> }) {
       { term: 'Parent Agent', value: parentLoading ? 'Loading…' : parent?.username || (parentAgentId === agent?.id ? agent?.username : parentAgentId || 'Root') },
       { term: 'Hierarchy Level', value: values.levelIndex ? `L${values.levelIndex} ${levelNames[values.levelIndex - 1] || ''}` : '—' },
       ...values.allowedDomains.map((domain) => ({ term: `${domain[0].toUpperCase() + domain.slice(1)} ${schemeType === 'COMMISSION' ? 'Commission' : 'Share Rate'}`, value: `${Number(values[key][domain] || 0).toFixed(2)}%` })),
-      ...(schemeType === 'CREDIT' && values.creditLimit != null ? [{ term: 'Credit Limit', value: Number(values.creditLimit).toFixed(2) }] : []),
-      ...(schemeType === 'COMMISSION' ? [{ term: 'Cross-Domain Tally', value: values.tallyEnabled ? `ON: ${values.tallyDomains.join(', ')}` : 'OFF' }] : []),
+      ...(schemeType === 'CREDIT' && values.creditLimit != null ? [{ term: 'Credit Reference', value: Number(values.creditLimit).toFixed(2) }] : []),
+      ...(givesOpeningChips(values, agent) && values.openingChips != null && values.openingChips > 0 ? [{ term: 'Opening Chips', value: Number(values.openingChips).toFixed(2) }] : []),
+      ...(schemeType === 'COMMISSION' ? [{ term: 'Cross-Domain Tally', value: tallyIsOn(values.tallyEnabled, values.tallyDomains) ? `ON: ${values.tallyDomains.join(', ')}` : 'OFF' }] : []),
     ]} />
   </div></Card>
 }

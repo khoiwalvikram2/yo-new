@@ -658,26 +658,6 @@
   font-size: 12px;
 }
 
-.previewStates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-top: 10px;
-  font-size: 12px;
-}
-
-.previewStates > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.previewDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
 .previewNote {
   color: var(--ink-3);
   font-size: 12px;
@@ -908,3 +888,9 @@
 :global(html:not([data-skin='classic'])) .sectionForm .saveActions {
   border-radius: var(--ui-radius);
 }
+.presetSwatches { display: inline-flex; gap: 4px; margin-top: 6px; }
+.presetSwatches i { width: 18px; height: 18px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 12%); }
+.iconStyleOption { display: grid; gap: 8px; }
+.iconPreview { display: inline-flex; gap: 8px; }
+.iconPreview img { width: 40px; height: 40px; object-fit: contain; }
+.previewLink { display: block; margin-top: 10px; font-size: 12px; font-weight: 600; }

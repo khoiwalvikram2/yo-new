@@ -1,6 +1,6 @@
 import { db } from '@src/db/client.js'
 import { depositRequests, withdrawalRequests, userPayoutAccounts } from '@shared/db/schema.js'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 
 const percent = (part: number, total: number) => total > 0 ? Math.round(part / total * 100) : 0
 
@@ -31,13 +31,14 @@ export async function readWithdrawalRequestStats(tenant: string) {
   return { ...stats, completionRate: percent(stats.completed, stats.totalRequests), failureRate: percent(stats.failed, stats.totalRequests) }
 }
 
+/** Accounts the player deleted are kept only for the auto-approval count; the cards, like the list, leave them out. */
 export async function readPayoutAccountStats(tenant: string) {
   const [row] = await db.select({
     total: sql<number>`count(*)::int`,
     pending: sql<number>`count(*) filter (where coalesce(${userPayoutAccounts.approvalStatus}, 'PENDING') = 'PENDING')::int`,
     approved: sql<number>`count(*) filter (where ${userPayoutAccounts.approvalStatus} = 'APPROVED')::int`,
     rejected: sql<number>`count(*) filter (where ${userPayoutAccounts.approvalStatus} = 'REJECTED')::int`,
-  }).from(userPayoutAccounts).where(eq(userPayoutAccounts.tenant, tenant))
+  }).from(userPayoutAccounts).where(and(eq(userPayoutAccounts.tenant, tenant), isNull(userPayoutAccounts.deletedAt)))
   const stats = { total: Number(row?.total ?? 0), pending: Number(row?.pending ?? 0), approved: Number(row?.approved ?? 0), rejected: Number(row?.rejected ?? 0) }
   return { ...stats, approvalRate: percent(stats.approved, stats.total), rejectionRate: percent(stats.rejected, stats.total) }
 }

@@ -85,14 +85,6 @@ export type PlayerActivityRow = PlayerActivityData & {
   rangeWithdrawalCount: number
 }
 
-/** One domain's KPI totals (sportsKPIs, casinoKPIs, matkaKPIs). */
-export interface PlayerActivityKpis {
-  totalStakes?: number | string | null
-  totalPayouts?: number | string | null
-  grossGamingRevenue?: number | string | null
-  betCount?: number | string | null
-}
-
 export interface PlayerActivityTotals {
   totalBets: number
   totalStakes: number
@@ -359,22 +351,17 @@ export function filterPlayerActivity(
 }
 
 /**
- * The KPI row. Bets and stakes are the three domains' KPI totals (every domain, whatever the tab);
- * the player count is the rows left after the search.
+ * The KPI row: the players listed (the tab's breakdowns, then the search), their bets and stakes summed
+ * from their rows, and the bets per player. The bets and stakes were the three domains' KPI totals
+ * whatever the tab, divided by the listed players (Avg 124,833 bets per player for one matka player:
+ * F-REP-16).
  */
 export function playerActivityTotals(
-  kpis: {
-    sports?: PlayerActivityKpis | null
-    casino?: PlayerActivityKpis | null
-    matka?: PlayerActivityKpis | null
-  },
-  filteredCount: number,
+  rows: readonly Pick<PlayerActivityData, 'totalBets' | 'totalStakes'>[],
 ): PlayerActivityTotals {
-  const { sports: s, casino: c, matka: m } = kpis
-  const totalBets = (Number(s?.betCount) || 0) + (Number(c?.betCount) || 0) + (Number(m?.betCount) || 0)
-  const totalStakes =
-    (Number(s?.totalStakes) || 0) + (Number(c?.totalStakes) || 0) + (Number(m?.totalStakes) || 0)
-  const totalPlayers = filteredCount
+  const totalBets = rows.reduce((sum, row) => sum + (Number(row.totalBets) || 0), 0)
+  const totalStakes = rows.reduce((sum, row) => sum + (Number(row.totalStakes) || 0), 0)
+  const totalPlayers = rows.length
   const avgBetsPerPlayer = totalPlayers > 0 ? totalBets / totalPlayers : 0
   return { totalBets, totalStakes, totalPlayers, avgBetsPerPlayer }
 }

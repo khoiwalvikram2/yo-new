@@ -12,16 +12,17 @@ import { AgentsRepo } from '../../../repos/agents/AgentsRepo.js'
 import { CommissionPayoutsRepo } from '../../../repos/settlements/CommissionPayoutsRepo.js'
 import { CommissionCycleService } from '../../agents/services/CommissionCycleService.js'
 import { deriveAgentPermissions } from '../../agents/services/AgentPermissionsService.js'
-import { db } from '../../../db/client.js'
 import {
   settlementsMutationResolvers,
   agentMaySettle,
   requireSettleAgentPermission,
 } from '../resolvers/mutations.js'
 import { settlementsQueryResolvers, requireSettlementRead } from '../resolvers/queries.js'
+import { CREDIT_MOVES_AS_CHIPS } from '../schemeIsolation.js'
 
 const T = 't1'
-// Credit hierarchy: P → C → G, plus an unrelated root O.
+// Credit hierarchy: P → C → G, plus an unrelated root O. CREDIT moves chips by Deposit / Withdraw since
+// 2026-11-02, so settling any of them is refused once the caller is past every gate.
 const P = '11111111-1111-4111-8111-111111111111'
 const C = '22222222-2222-4222-8222-222222222222'
 const G = '33333333-3333-4333-8333-333333333333'
@@ -95,13 +96,11 @@ before(() => {
   originals.listChildren = AgentsRepo.prototype.listChildren
   originals.getPayoutForCycle = CommissionPayoutsRepo.prototype.getPayoutForCycle
   originals.listCyclesForAgent = CommissionCycleService.prototype.listCyclesForAgent
-  originals.select = (db as any).select
 
   ;(AgentsRepo.prototype as any).findById = async (id: string) => AGENTS.get(id) ?? null
   ;(AgentsRepo.prototype as any).getCreditFields = async (id: string) => {
+    // The retired CREDIT settlement balance: nothing may read it any more.
     creditFieldCalls.push(id)
-    // A zero balance makes executeSettleAgent stop with "Cannot settle CREDIT
-    // agent with zero …" — proof the caller got past every gate, with no write.
     return {
       creditLimit: 1000, creditUsed: 0, creditAvailable: 1000, creditAlertThreshold: 80,
       settlementBalance: 0, settlementBalanceSports: 0, settlementBalanceCasino: 0, settlementBalanceMatka: 0,
@@ -126,7 +125,6 @@ after(() => {
   AgentsRepo.prototype.listChildren = originals.listChildren
   CommissionPayoutsRepo.prototype.getPayoutForCycle = originals.getPayoutForCycle
   CommissionCycleService.prototype.listCyclesForAgent = originals.listCyclesForAgent
-  ;(db as any).select = originals.select
 })
 
 beforeEach(() => {
@@ -163,11 +161,12 @@ describe('settleAgent: agents settle direct children only', () => {
     assert.throws(() => requireSettleAgentPermission(anonymousCtx), /Unauthorized/)
   })
 
-  it('agent settles its direct child: passes every gate and reaches the balance read', async () => {
+  it('agent settles its direct child: passes every gate, then a CREDIT child is refused as chips', async () => {
     const result = await settle(C, agentCtx(P))
     assert.equal(result.success, false)
-    assert.match(result.message, /zero/i, `expected the zero-balance stop, got: ${result.message}`)
-    assert.deepEqual(creditFieldCalls, [C])
+    assert.equal(result.message, CREDIT_MOVES_AS_CHIPS)
+    assert.equal(result.settlement, null)
+    assert.deepEqual(creditFieldCalls, [], 'the retired settlement balance is never read')
   })
 
   it('agent settling itself is refused before any balance is read', async () => {
@@ -190,17 +189,18 @@ describe('settleAgent: agents settle direct children only', () => {
     assert.deepEqual(creditFieldCalls, [])
   })
 
-  it('bulkSettleAgents holds an agent to the same rule: only the direct child reaches the balance read', async () => {
+  it('bulkSettleAgents settles no CREDIT agent and reads no balance', async () => {
     const result = await (settlementsMutationResolvers as any).bulkSettleAgents(null, { agentIds: [P, C, G, O] }, agentCtx(P))
     assert.equal(result.settledCount, 0)
     assert.equal(result.failedCount, 4)
-    assert.deepEqual(creditFieldCalls, [C])
+    assert.deepEqual(creditFieldCalls, [])
   })
 
-  it('an admin with finance write settles any agent of the tenant (gate unchanged)', async () => {
+  it('an admin with finance write gets past the gate, and a CREDIT agent is refused as chips', async () => {
     const result = await settle(G, adminCtx([{ domain: 'finance', actions: ['write'] }]))
-    assert.match(result.message, /zero/i)
-    assert.deepEqual(creditFieldCalls, [G])
+    assert.equal(result.success, false)
+    assert.equal(result.message, CREDIT_MOVES_AS_CHIPS)
+    assert.deepEqual(creditFieldCalls, [])
   })
 })
 
@@ -253,25 +253,26 @@ describe('payCommission: the direct-child check comes before any payout figure',
   })
 })
 
-describe('adjustPlayerCredit: whitelabel credit players are admin-only', () => {
-  it('an agent is refused for a WHITELABEL_CREDIT player', async () => {
-    const wlPlayer = {
-      id: 501, tenant: T, playerType: 'WHITELABEL_CREDIT', agentId: null, name: 'WL Player', username: 'wlp',
-      creditLimit: '100', creditUsed: '0', settlementBalance: '0',
-    }
-    // The resolver's only read before the decision is the player lookup.
-    ;(db as any).select = () => ({ from: () => ({ where: () => ({ limit: async () => [wlPlayer] }) }) })
+describe("the credit-limit model's player credit operations are gone (spec 2026-11-02 §6)", () => {
+  it('adjustPlayerCredit and playerCreditAdjustments are no longer in the settlement maps', () => {
+    // A credit player's chips move only by Deposit / Withdraw from its direct parent (ChipService).
+    assert.equal((settlementsMutationResolvers as any).adjustPlayerCredit, undefined)
+    assert.equal((settlementsQueryResolvers as any).playerCreditAdjustments, undefined)
+  })
+})
+
+describe('the settlement centre leaves CREDIT out', () => {
+  it('a CREDIT agent gets empty pending lists, with no further read', async () => {
+    const originalList = AgentsRepo.prototype.list
+    ;(AgentsRepo.prototype as any).list = async (tenant: string) => [...AGENTS.values()].filter((a) => a.tenantId === tenant)
     try {
-      const result = await (settlementsMutationResolvers as any).adjustPlayerCredit(
-        null,
-        { input: { playerId: '501', adjustmentType: 'LIMIT_CHANGE', amount: 5000, notes: 'raise' } },
-        agentCtx(P),
-      )
-      assert.equal(result.success, false)
-      assert.match(result.message, /Only an admin/)
-      assert.equal(result.adjustment, null)
+      const ctx = agentCtx(P)
+      assert.deepEqual(await (settlementsQueryResolvers as any).pendingSettlements(null, {}, ctx), [])
+      assert.deepEqual(await (settlementsQueryResolvers as any).enhancedPendingSettlements(null, {}, ctx), [])
+      assert.deepEqual(await (settlementsQueryResolvers as any).subAgentsPendingSettlements(null, {}, ctx), [])
+      assert.deepEqual(creditFieldCalls, [])
     } finally {
-      ;(db as any).select = originals.select
+      AgentsRepo.prototype.list = originalList
     }
   })
 })
@@ -306,7 +307,7 @@ describe('settlement reads need a session and the right permission', () => {
   })
 
   it('the other ungated reads now refuse an anonymous caller', async () => {
-    for (const name of ['agentSettlementTransactions', 'commissionPayouts', 'playerCreditAdjustments', 'commissionCycleReadiness', 'commissionCyclesForAgent']) {
+    for (const name of ['agentSettlementTransactions', 'commissionPayouts', 'commissionCycleReadiness', 'commissionCyclesForAgent']) {
       await assert.rejects(
         (settlementsQueryResolvers as any)[name](null, { agentId: CC, cycleFrom: '2025-03-03', cycleTo: '2025-03-10' }, anonymousCtx),
         /Unauthorized/,
@@ -373,5 +374,103 @@ describe('commissionAdjustments passes the caller tenant to the repo', () => {
     } finally {
       CommissionAdjustmentsRepo.prototype.listByAgent = original
     }
+  })
+})
+
+describe('SCO-09: the settlement reads that needed only a session', () => {
+  // Measured 2026-11-03 against the live roles before gating: every role that opens the agent profile holds
+  // settlements.center:view, and grandwinn-com/Finance Manager opens the settlement centre (whose Pay dialog reads the
+  // commission cycles) holding settlements.center:view and no commission read. Its grants, as the role carries them:
+  const FINANCE_MANAGER = [
+    { domain: 'credit.management', actions: ['view'] },
+    { domain: 'payments.deposits', actions: ['view', 'approve', 'reject'] },
+    { domain: 'settlements.center', actions: ['view'] },
+  ]
+  const JACKPOTS_ONLY = [{ domain: 'jackpots', actions: ['read'] }]
+  const UNKNOWN = 'abababab-abab-4bab-8bab-abababababab'
+  let txReads = 0
+  const txOriginals: Record<string, any> = {}
+
+  before(async () => {
+    const { AgentSettlementTransactionsRepo } = await import('../../../repos/settlements/AgentSettlementTransactionsRepo.js')
+    txOriginals.repo = AgentSettlementTransactionsRepo
+    txOriginals.list = AgentSettlementTransactionsRepo.prototype.list
+    txOriginals.summary = AgentSettlementTransactionsRepo.prototype.summary
+    ;(AgentSettlementTransactionsRepo.prototype as any).list = async () => { txReads++; return [] }
+    ;(AgentSettlementTransactionsRepo.prototype as any).summary = async () => ({ total: 0, totalPaid: 0, totalReceived: 0, net: 0 })
+  })
+  after(() => {
+    txOriginals.repo.prototype.list = txOriginals.list
+    txOriginals.repo.prototype.summary = txOriginals.summary
+  })
+  beforeEach(() => { txReads = 0 })
+
+  const transactions = (ctx: any, args: Record<string, unknown> = {}) => (settlementsQueryResolvers as any).agentSettlementTransactions(null, args, ctx)
+  const transactionsPage = (ctx: any) => (settlementsQueryResolvers as any).agentSettlementTransactionsPage(null, { limit: 5 }, ctx)
+  const cycles = (ctx: any, agentId = CP) => (settlementsQueryResolvers as any).commissionCyclesForAgent(null, { agentId }, ctx)
+  const readiness = (ctx: any, agentId = UNKNOWN) =>
+    (settlementsQueryResolvers as any).commissionCycleReadiness(null, { agentId, cycleFrom: '2026-09-28', cycleTo: '2026-10-05' }, ctx)
+
+  it('agentSettlementTransactions(Page): an admin needs settlements.center:view, and a refused one reads nothing', async () => {
+    await assert.rejects(transactions(anonymousCtx), /Unauthorized/)
+    await assert.rejects(transactions(adminCtx(JACKPOTS_ONLY)), /Forbidden: insufficient permissions to view settlements \(settlements\.center:view\)/)
+    await assert.rejects(transactionsPage(adminCtx(JACKPOTS_ONLY)), /Forbidden/)
+    // A commission read is not the settlement centre's read.
+    await assert.rejects(transactions(adminCtx([{ domain: 'settlements.commission', actions: ['view'] }])), /Forbidden/)
+    assert.equal(txReads, 0, 'the transactions were read for a refused caller')
+  })
+
+  it('agentSettlementTransactions(Page): the settlement centre readers still list them', async () => {
+    for (const perms of [FINANCE_MANAGER, [{ domain: 'finance', actions: ['read'] }], [{ domain: 'all', actions: ['*'] }]]) {
+      assert.deepEqual(await transactions(adminCtx(perms)), [])
+    }
+    const page = await transactionsPage(adminCtx(FINANCE_MANAGER))
+    assert.deepEqual(page.items, [])
+    assert.equal(txReads, 4)
+  })
+
+  it('agentSettlementTransactions: the agent branch is unchanged (its own rows; a commission agent is refused)', async () => {
+    assert.deepEqual(await transactions(agentCtx(P)), [])
+    assert.equal(txReads, 1)
+    await assert.rejects(transactions(agentCtx(CP)), /Commission agents cannot access settlement transactions/)
+    await assert.rejects(transactions(agentCtx(P), { agentId: O }), /Forbidden: cannot access this agent's settlement data/)
+  })
+
+  it('commissionCyclesForAgent: an admin needs a commission read or the settlement centre read', async () => {
+    await assert.rejects(cycles(anonymousCtx), /Unauthorized/)
+    await assert.rejects(cycles(adminCtx(JACKPOTS_ONLY)), /Forbidden: insufficient permissions to view commission/)
+    await assert.rejects(cycles(adminCtx([])), /Forbidden/)
+    for (const perms of [
+      [{ domain: 'settlements.commission', actions: ['view'] }],
+      [{ domain: 'agents.commission', actions: ['view'] }],
+      FINANCE_MANAGER,
+      [{ domain: 'finance', actions: ['read'] }],
+      [{ domain: 'all', actions: ['*'] }],
+    ]) {
+      assert.equal((await cycles(adminCtx(perms))).length, 1, JSON.stringify(perms))
+    }
+  })
+
+  it('commissionCyclesForAgent: an agent principal without an agent id is refused; an agent keeps its subtree', async () => {
+    await assert.rejects(cycles({ ...agentCtx(CP), user: { sub: CP, type: 'agent', roles: [] } }), /Forbidden/)
+    assert.equal((await cycles(agentCtx(CP), CC)).length, 1)
+    assert.deepEqual(await cycles(agentCtx(CC), CS), [])
+  })
+
+  it('commissionCycleReadiness: an admin needs a commission read or the settlement centre read', async () => {
+    await assert.rejects(readiness(anonymousCtx), /Unauthorized/)
+    await assert.rejects(readiness(adminCtx(JACKPOTS_ONLY)), /Forbidden: insufficient permissions to view commission/)
+    // Past the gate, an agent outside the tenant answers "not ready" before any figure is read.
+    for (const perms of [[{ domain: 'agents.commission', actions: ['view'] }], FINANCE_MANAGER, [{ domain: 'all', actions: ['*'] }]]) {
+      const out = await readiness(adminCtx(perms))
+      assert.equal(out.ready, false)
+      assert.equal(out.payableAmount, 0)
+    }
+    assert.equal((await readiness(adminCtx(FINANCE_MANAGER), XT)).ready, false)
+  })
+
+  it("commissionCycleReadiness: an agent is still held to itself and its direct children", async () => {
+    const out = await readiness(agentCtx(CC), CP)
+    assert.deepEqual(out.reasons, ['Unauthorized'])
   })
 })

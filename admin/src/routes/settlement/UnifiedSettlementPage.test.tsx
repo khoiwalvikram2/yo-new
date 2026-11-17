@@ -24,14 +24,16 @@ vi.mock('./components/SubAgentContributionsSection', () => ({ SubAgentContributi
 beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-10T08:00:00Z')); mock.calls = []; mock.pendingLoading = false; mock.pendingCold = false; mock.pendingError = undefined; mock.refresh.mockClear(); useAuthStore.setState({ user: { id: 'admin1', name: 'Admin' }, agent: undefined, roles: [], permissions: [{ domain: 'settlements.center', actions: ['view'] }] }); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 function PathProbe() { return <span>{useLocation().pathname + useLocation().search}</span>; }
-function mount(tab = 'dashboard') { return render(<MemoryRouter initialEntries={[`/settlement?tab=${tab}`]}><Routes><Route path="/settlement" element={<><UnifiedSettlementPage /><PathProbe /></>} /><Route path="/commission/overview" element={<h1>Commission destination</h1>} /></Routes></MemoryRouter>); }
+function mount(tab = 'dashboard') { return render(<MemoryRouter initialEntries={[`/settlement?tab=${tab}`]}><Routes><Route path="/settlement" element={<><UnifiedSettlementPage /><PathProbe /></>} /><Route path="/commission/overview" element={<h1>Commission destination</h1>} /><Route path="/agent/credit" element={<h1>Chips destination</h1>} /></Routes></MemoryRouter>); }
 function setAgent(scheme: string) { useAuthStore.setState({ user: undefined, agent: { id: 'root1', tenantId: 'wl1', username: 'Root Partner', phone: null, schemeType: scheme, allowedDomains: ['sports'], status: 'ACTIVE', parentAgentId: null, levelIndex: 1, tallyEnabled: false, tallyDomains: [], createdAt: '2026-01-01' }, roles: [], permissions: [] }); }
 test('admin gets all five labelled tabs and only dashboard query enabled on initial view', async () => {
   mount('invalid'); assert.ok(await screen.findByText('Admin dashboard content')); assert.equal(screen.getAllByRole('tab').length, 5); assert.ok(screen.getByRole('tabpanel', { name: 'Dashboard' }));
   assert.equal(mock.calls.find(call => call.name === 'SettlementDashboard')?.options.skip, false); assert.equal(mock.calls.find(call => call.name === 'EnhancedPendingSettlements')?.options.skip, true);
 });
-test('sharing/credit/commission pending schemes keep exact client filter and deferred pending query', async () => {
-  mount('pending'); assert.ok(await screen.findByText('sharing1')); fireEvent.click(screen.getByRole('button', { name: 'Credit' })); assert.ok(await screen.findByText('credit1')); fireEvent.click(screen.getByRole('button', { name: 'Commission' })); assert.ok(await screen.findByText('Commission pending content'));
+test('sharing/commission pending schemes keep exact client filter and deferred pending query; CREDIT has no sub-tab and no row', async () => {
+  // CREDIT left the settlement centre (spec 2026-11-02 §6): even a server that still sends a CREDIT row does not get it listed.
+  mount('pending'); assert.ok(await screen.findByText('sharing1')); assert.equal(screen.queryByRole('button', { name: 'Credit' }), null); assert.equal(screen.queryByText(/credit1/), null);
+  fireEvent.click(screen.getByRole('button', { name: 'Commission' })); assert.ok(await screen.findByText('Commission pending content'));
   assert.equal(mock.calls.find(call => call.name === 'EnhancedPendingSettlements')?.options.skip, false); assert.equal(mock.calls.find(call => call.name === 'SettlementDashboard')?.options.skip, true);
 });
 test('whitelabel admins keep restricted tab set and hidden-tab URL redirect', async () => {
@@ -43,17 +45,27 @@ test('agent summary and upline/downline history retain original periods, IDs and
   assert.deepEqual(mock.calls.find(call => call.name === 'AgentSettlements')?.options.variables, { agentId: 'root1', periodFrom: '2025-10-10', periodTo: '2026-10-10' });
   assert.equal(mock.calls.find(call => call.name === 'DownlineSettlementHistory')?.options.skip, false); assert.equal(mock.calls.find(call => call.name === 'AllSettlementHistory')?.options.skip, true);
 });
-test('credit agent Request Settlement updates canonical URL and enables only the existing pending query', async () => {
-  setAgent('CREDIT'); mount(); assert.ok(await screen.findByText('Agent dashboard content')); fireEvent.click(screen.getByRole('button', { name: 'Request Settlement' })); assert.ok(await screen.findByText('Sub-agent pending content')); assert.ok(screen.getByText('/settlement?tab=pending')); assert.equal(mock.calls.filter(call => call.name === 'SubAgentsPendingSettlements').at(-1)?.options.skip, false);
+test('sharing agent Request Settlement updates canonical URL and enables only the existing pending query', async () => {
+  setAgent('SHARING'); mount(); assert.ok(await screen.findByText('Agent dashboard content')); fireEvent.click(screen.getByRole('button', { name: 'Request Settlement' })); assert.ok(await screen.findByText('Sub-agent pending content')); assert.ok(screen.getByText('/settlement?tab=pending')); assert.equal(mock.calls.filter(call => call.name === 'SubAgentsPendingSettlements').at(-1)?.options.skip, false);
+});
+test('a CREDIT agent is sent to its Chips page and reads no settlement data', async () => {
+  // A CREDIT agent settles nothing here since 2026-11-02: its chips, downline and Ref P/L are on its Chips page.
+  setAgent('CREDIT'); mount('pending'); assert.ok(await screen.findByRole('heading', { name: 'Chips destination' }));
+  for (const name of ['SettlementSummary', 'SubAgentsPendingSettlements', 'AgentSettlements', 'DownlineSettlementHistory', 'EnhancedPendingSettlements', 'SettlementDashboard', 'AllSettlementHistory']) {
+    assert.ok(mock.calls.filter(call => call.name === name).every(call => call.options.skip === true), `${name} stays skipped`);
+  }
+  assert.equal(screen.queryByRole('button', { name: 'Request Settlement' }), null);
 });
 test('commission agents retain their original redirect without rendering settlement actions', async () => {
   setAgent('COMMISSION'); mount('pending'); assert.ok(await screen.findByRole('heading', { name: 'Commission destination' })); assert.equal(screen.queryByRole('button', { name: 'Request Settlement' }), null);
 });
 test('admin contribution selection passes the real selected pending row and can be cleared', async () => {
-  mount('contributions'); assert.ok(await screen.findByText('No selected contributions')); fireEvent.change(screen.getByRole('combobox', { name: 'View contributions for:' }), { target: { value: 'credit1' } }); assert.ok(await screen.findByText('credit1')); fireEvent.change(screen.getByRole('combobox', { name: 'View contributions for:' }), { target: { value: '' } }); assert.ok(await screen.findByText('No selected contributions'));
+  mount('contributions'); assert.ok(await screen.findByText('No selected contributions')); assert.equal(screen.queryByRole('option', { name: 'Credit Partner' }), null);
+  fireEvent.change(screen.getByRole('combobox', { name: 'View contributions for:' }), { target: { value: 'sharing1' } }); assert.ok(await screen.findByText('sharing1')); fireEvent.change(screen.getByRole('combobox', { name: 'View contributions for:' }), { target: { value: '' } }); assert.ok(await screen.findByText('No selected contributions'));
 });
-test('admin history retains original 100-row/date shape and tab navigation replace behavior', async () => {
-  mount('history'); assert.ok(await screen.findByText('History content')); assert.deepEqual(mock.calls.find(call => call.name === 'AllSettlementHistory')?.options.variables, { limit: 100, fromDate: '2025-10-10', toDate: '2026-10-10' }); fireEvent.click(screen.getByRole('tab', { name: 'Dashboard' })); await waitFor(() => assert.ok(screen.getByText('/settlement?tab=dashboard')));
+test('admin history reads the whole 365-day window (no row cap, AGE-13) and keeps tab navigation replace behavior', async () => {
+  // A cap of 100 hid every older payout in the window from the table, its search and its filters.
+  mount('history'); assert.ok(await screen.findByText('History content')); assert.deepEqual(mock.calls.find(call => call.name === 'AllSettlementHistory')?.options.variables, { fromDate: '2025-10-10', toDate: '2026-10-10' }); fireEvent.click(screen.getByRole('tab', { name: 'Dashboard' })); await waitFor(() => assert.ok(screen.getByText('/settlement?tab=dashboard')));
 });
 
 test('Pending opens its controls immediately while the selected scheme is still loading', async () => {
@@ -63,8 +75,7 @@ test('Pending opens its controls immediately while the selected scheme is still 
   assert.ok(screen.getByRole('button', { name: 'Sharing' }));
   assert.ok(screen.getByRole('button', { name: 'Commission' }));
   assert.deepEqual(mock.calls.filter(call => call.name === 'EnhancedPendingSettlements').at(-1)?.options.variables, { schemeType: 'SHARING' });
-  fireEvent.click(screen.getByRole('button', { name: 'Credit' }));
-  assert.deepEqual(mock.calls.filter(call => call.name === 'EnhancedPendingSettlements').at(-1)?.options.variables, { schemeType: 'CREDIT' });
+  assert.equal(screen.queryByRole('button', { name: 'Credit' }), null);
   fireEvent.click(screen.getByRole('button', { name: 'Commission' }));
   assert.equal(mock.calls.filter(call => call.name === 'EnhancedPendingSettlements').at(-1)?.options.skip, true);
   assert.ok(await screen.findByText('Commission pending content'));
@@ -73,8 +84,9 @@ test('Pending opens its controls immediately while the selected scheme is still 
 test('cached pending rows stay visible during a background refresh', async () => {
   mount('pending'); await screen.findByText('sharing1');
   mock.pendingLoading = true;
-  fireEvent.click(screen.getByRole('button', { name: 'Credit' }));
-  assert.ok(await screen.findByText('credit1'));
+  fireEvent.click(screen.getByRole('button', { name: 'Commission' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Sharing' }));
+  assert.ok(await screen.findByText('sharing1'));
   assert.equal(screen.queryByText('Loading settlement data...'), null);
 });
 

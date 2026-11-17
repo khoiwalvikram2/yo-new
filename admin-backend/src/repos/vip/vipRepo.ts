@@ -15,7 +15,8 @@ async function applyTierAccountAccess(tx: any, tenant: string, tierId: string, a
     .where(eq(whitelabelPaymentMethods.tenant, tenant)).for('update').limit(1)
   const banks: any[] = Array.isArray(payments?.bankDetails) ? payments.bankDetails : []
   const upis: any[] = Array.isArray(payments?.upiDetails) ? payments.upiDetails : []
-  const known = new Set([...banks, ...upis].map(account => account?.id).filter(Boolean))
+  const cryptos: any[] = Array.isArray(payments?.cryptoDetails) ? payments.cryptoDetails : []
+  const known = new Set([...banks, ...upis, ...cryptos].map(account => account?.id).filter(Boolean))
   if (accountIds.some(id => !known.has(id))) throw new Error('A selected receiving account no longer exists. Reload the page and try again.')
   if (!payments) return
   const others: string[] = (await tx.select({ id: vipTiersTable.id }).from(vipTiersTable)
@@ -30,6 +31,7 @@ async function applyTierAccountAccess(tx: any, tenant: string, tierId: string, a
   await tx.update(whitelabelPaymentMethods).set({
     bankDetails: Array.isArray(payments.bankDetails) ? apply(banks) : payments.bankDetails,
     upiDetails: Array.isArray(payments.upiDetails) ? apply(upis) : payments.upiDetails,
+    cryptoDetails: Array.isArray(payments.cryptoDetails) ? apply(cryptos) : payments.cryptoDetails,
   }).where(eq(whitelabelPaymentMethods.id, payments.id))
 }
 
@@ -139,7 +141,7 @@ export async function deleteVipTierDb(id: string, tenant: string) {
   if (payments) {
     const strip = (list: unknown) => Array.isArray(list) ? list.map((account: any) =>
       Array.isArray(account?.vipTierIds) ? { ...account, vipTierIds: account.vipTierIds.filter((tierId: string) => tierId !== id) } : account) : list
-    await tx.update(whitelabelPaymentMethods).set({ bankDetails: strip(payments.bankDetails), upiDetails: strip(payments.upiDetails) })
+    await tx.update(whitelabelPaymentMethods).set({ bankDetails: strip(payments.bankDetails), upiDetails: strip(payments.upiDetails), cryptoDetails: strip(payments.cryptoDetails) })
       .where(eq(whitelabelPaymentMethods.id, payments.id))
   }
   await tx.delete(vipTierBenefitsTable).where(eq(vipTierBenefitsTable.tierId, id))

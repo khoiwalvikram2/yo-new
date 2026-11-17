@@ -52,6 +52,8 @@ type User {
   settlementBalanceCasino: Float
   settlementBalanceMatka: Float
   remark: String
+  """Credit players only (AGENT_CREDIT, WHITELABEL_CREDIT): chip figures, resolved in batch for lists; null otherwise."""
+  chips: ChipAccount
 }
 
 # Minimal agent info for player list view
@@ -170,9 +172,11 @@ type AuthPayload {
   roles: [String!]!
   permissions: [Permission!]!
   tenant: String
+  # True when an operator chose Reset Password: the session may only change the password, so sign-in asks for it.
+  requirePasswordReset: Boolean
 }
 
-type UserBasic { 
+type UserBasic {
   id: ID!
   tenant: String
   name: String!
@@ -219,7 +223,8 @@ input CreatePlayerInput {
   # Credit player fields
   playerType: PlayerType
   agentId: ID # Required for AGENT_CREDIT players
-  creditLimit: Float # Required for credit players
+  creditLimit: Float # Credit players: the credit reference (a reference figure; it gates nothing)
+  openingChips: Float # Credit players: chips deposited at creation from the player's agent, or the whitelabel pool
 }
 
 type CreatePlayerPayload {

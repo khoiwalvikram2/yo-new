@@ -29,6 +29,12 @@ function requireSnapshotHealthView(ctx: any): void {
   if (!hasPermission(ctx.permissions ?? [], 'reporting.snapshot-health', 'view')) {
     throw new Error('Forbidden: reporting.snapshot-health view required');
   }
+  // Super Admin only, as the page's superAdminRoute is. Every whitelabel role holds the view above
+  // through the flat reporting:read grant, and some of these reads (pg-boss jobs and schedules, the
+  // scheduler's events) cover the whole platform.
+  if (!hasPermission(ctx.permissions ?? [], 'all', '*')) {
+    throw new Error('Forbidden: snapshot health is only available to Super Admin');
+  }
   // Snapshot health is only for Super Admin in core mode; reject whitelabel mode
   if (ctx?.directorMode === 'whitelabel') {
     throw new Error('Forbidden: snapshot health is only available in core mode');

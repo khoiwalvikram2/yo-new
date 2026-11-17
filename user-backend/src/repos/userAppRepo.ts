@@ -1,11 +1,15 @@
-import { isWelivepayAllowedForUser } from '../config/env.js'
-import { getVipDepositContext, allowedReceivingAccounts, lockVipPlayer, assertVipDepositAllowed } from '@shared/vip/depositAccess.js'
+import { playerThemeSetting } from '../services/playerThemeSetting.js'
+import { isCryptoDepositAllowedForUser, isWelivepayAllowedForUser } from '../config/env.js'
+import { getVipDepositContext, allowedReceivingAccounts, lockVipPlayer, assertVipDepositAllowed, gatewayDepositLimits, type VipDatabase } from '@shared/vip/depositAccess.js'
+import { CRYPTO_COIN, cryptoAmountFor, cryptoBonusFor, cryptoTxHashError, normalizeCryptoTxHash, parseCryptoBonusPercent, parseCryptoRate } from '@shared/utils/cryptoDeposit.js'
 import { intersectDepositLimits } from '@shared/vip/depositPolicy.js'
 import { loadPlayerDomains } from '@shared/access/playerDomains.js'
 import { DateTime } from 'luxon'
 import { settledSportsBetProfit } from '../domains/userApp/services/sportsBetDisplay.js'
 import { sportsEventIdentifier } from '../domains/userApp/services/sportsEventIdentifier.js'
-import { and, asc, desc, eq, ne, gte, lte, ilike, inArray, or, isNull, isNotNull, sql, sum } from 'drizzle-orm'
+import { DEPOSIT_PROOF_INLINE } from '../domains/userApp/services/depositProof.js'
+import { displayableAsset } from '@shared/utils/dataUri.js'
+import { and, asc, desc, eq, ne, gte, lte, ilike, inArray, or, isNull, isNotNull, sql, sum, getTableColumns } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import {
   ledgerEntries,
@@ -107,8 +111,12 @@ export async function getUserDetail(userId: number, tenant: string) {
   }
 }
 
-/** Map ledger meta.type / row.type and amount to user-facing transaction type for statements */
-function getTransactionTypeFromMeta(metaType: string | undefined, ledgerType: string, amount: number): string {
+/**
+ * Map ledger meta.type / row.type and amount to user-facing transaction type for statements.
+ * statementPageRepo's walletType SQL labels the same rows for the Wallet type filter, so the two must give the
+ * same label (exported for userAppRepo.transactionType.test.ts).
+ */
+export function getTransactionTypeFromMeta(metaType: string | undefined, ledgerType: string, amount: number): string {
   const raw = String(metaType ?? '').trim().toLowerCase()
   // Admin adjustments should show as Manual Deposit / Manual Withdrawal based on direction
   if (raw === 'admin_adjustment') {
@@ -116,6 +124,8 @@ function getTransactionTypeFromMeta(metaType: string | undefined, ledgerType: st
   }
   const typeMap: Record<string, string> = {
     matka_bet: 'Matka Stake', matka_win: 'Matka Settlement', matka_refund: 'Matka Refund', matka_result_reversal: 'Matka Result Reversal',
+    // Credit players' Deposit/Withdraw chips from their upline (statementPageRepo labels them the same way).
+    chip_deposit: 'Chip Deposit', chip_withdraw: 'Chip Withdrawal',
     deposit: 'Deposit',
     withdrawal: 'Withdrawal',
     withdrawal_pending: 'Withdrawal',
@@ -127,6 +137,7 @@ function getTransactionTypeFromMeta(metaType: string | undefined, ledgerType: st
     bonus_to_cash: 'Bonus to Cash',
     bonus_forfeit: 'Bonus Forfeit',
     bonus_switch_debit: 'Bonus Switch',
+    crypto_deposit_bonus: 'Crypto Deposit Bonus',
     referral_earning: 'Referral Earning',
     referral_balance_to_cash: 'Referral to Cash',
     referral_balance_backfill: 'Referral',
@@ -535,10 +546,10 @@ export async function getAppSettings(tenant: string, userId?: number) {
     
     // Add whitelabel branding data if available (even without config)
     if (whitelabel) {
-      // Convert S3 keys to full URLs for logo and favicon
-      const logoUrl = await convertS3KeyToUrl(whitelabel.logoUrl)
-      const faviconUrl = await convertS3KeyToUrl(whitelabel.faviconUrl)
-      
+      // Data URIs and external URLs as stored; a legacy S3 key reads as null (no logo rather than a broken one)
+      const logoUrl = displayableAsset(whitelabel.logoUrl)
+      const faviconUrl = displayableAsset(whitelabel.faviconUrl)
+
     entries.push(
       { key: 'primaryDomain', value: whitelabel.domain },
       { key: 'logoUrl', value: logoUrl },
@@ -621,10 +632,10 @@ export async function getAppSettings(tenant: string, userId?: number) {
 
   // Add whitelabel branding data if available
   if (whitelabel) {
-    // Convert S3 keys to full URLs for logo and favicon
-    const logoUrl = await convertS3KeyToUrl(whitelabel.logoUrl)
-    const faviconUrl = await convertS3KeyToUrl(whitelabel.faviconUrl)
-    
+    // Data URIs and external URLs as stored; a legacy S3 key reads as null (no logo rather than a broken one)
+    const logoUrl = displayableAsset(whitelabel.logoUrl)
+    const faviconUrl = displayableAsset(whitelabel.faviconUrl)
+
     entries.push(
       { key: 'primaryDomain', value: whitelabel.domain },
       { key: 'logoUrl', value: logoUrl },
@@ -632,15 +643,21 @@ export async function getAppSettings(tenant: string, userId?: number) {
     )
   }
 
-  // Add banner images from app_config
+  // Add banner images from app_config (null entries are dropped below, so the app shows no banner)
   if (cfg?.preLoginBannerUrl) {
-    const preLoginBannerUrl = await convertS3KeyToUrl(cfg.preLoginBannerUrl)
+    const preLoginBannerUrl = displayableAsset(cfg.preLoginBannerUrl)
     entries.push({ key: 'preLoginBannerUrl', value: preLoginBannerUrl })
   }
   if (cfg?.postLoginBannerUrl) {
-    const postLoginBannerUrl = await convertS3KeyToUrl(cfg.postLoginBannerUrl)
+    const postLoginBannerUrl = displayableAsset(cfg.postLoginBannerUrl)
     entries.push({ key: 'postLoginBannerUrl', value: postLoginBannerUrl })
   }
+
+  // The player theme (App Configuration → Branding & Theme). Absent = the Matchbook default.
+  // The public settings payload must never fail because of the theme.
+  let playerTheme: ReturnType<typeof playerThemeSetting> = null
+  try { playerTheme = playerThemeSetting(cfg?.playerTheme, tenant) } catch { playerTheme = null }
+  if (playerTheme) entries.push({ key: 'playerTheme', value: JSON.stringify(playerTheme) })
 
   // Add theme from app_config (not whitelabel)
   if (cfg?.theme) {
@@ -709,14 +726,28 @@ export async function getAppSettings(tenant: string, userId?: number) {
   return withPlayerVisibility(entries.filter((e) => e.value !== null && e.value !== undefined))
 }
 
-export async function getWhitelabelAccounts(tenant: string, userId?: number | null) {
+/**
+ * Receiving accounts a player may deposit to now. USDT wallets (type 'crypto') are opt-in: a client that
+ * does not know the type would show a wallet as a bank account, so only clients that ask get them.
+ */
+export async function getWhitelabelAccounts(tenant: string, userId?: number | null, opts: { includeCrypto?: boolean } = {}) {
   if (!userId) return []
   const context = await getVipDepositContext(db, tenant, userId).catch(error => {
     if (String(error?.message).includes('credit-agent')) return null
     throw error
   })
   if (!context) return []
-  const accounts: any[] = allowedReceivingAccounts(context).map(account => ({
+  // TEMP test gate: CRYPTO_DEPOSIT_ALLOWED_USER_IDS restricts crypto wallets to specific players (unset = all).
+  const includeCrypto = opts.includeCrypto === true && isCryptoDepositAllowedForUser(userId)
+  const cryptoRate = parseCryptoRate(context.payments?.cryptoRate)
+  const cryptoBonusPercent = parseCryptoBonusPercent(context.payments?.cryptoBonusPercent)
+  const accounts: any[] = allowedReceivingAccounts(context).filter(account => account.type !== 'crypto' || includeCrypto).map(account => account.type === 'crypto' ? {
+    id: String(account.id), type: 'crypto',
+    accountNumber: account.walletAddress, walletAddress: account.walletAddress, network: account.network || null,
+    displayName: account.displayName || `${CRYPTO_COIN} (${account.network})`, qrKey: account.qrKey || null,
+    qrUrl: null, cryptoRate, cryptoBonusPercent, minAmount: account.limits.min, maxAmount: account.limits.max,
+    weight: account.weight ?? 0, enabled: true,
+  } : {
     id: String(account.id), type: account.type,
     accountNumber: account.type === 'upi' ? account.upiId || account.vpa : account.accountNumber || account.accountNo,
     ifscCode: account.ifsc, bankName: account.bankName, branch: account.branch,
@@ -724,14 +755,12 @@ export async function getWhitelabelAccounts(tenant: string, userId?: number | nu
     displayName: account.displayName || account.bankName || 'UPI', qrKey: account.qrKey || null,
     qrUrl: account.qrUrl || null, minAmount: account.limits.min, maxAmount: account.limits.max,
     weight: account.weight ?? 0, enabled: true,
-  }))
+  })
   if (isWelivepayAllowedForUser(userId) && context.policy.enabled && context.policy.methods.includes('GATEWAY') && context.user.status === 'active') {
     const [gateway] = await db.select().from(whitelabelPgSettings).where(eq(whitelabelPgSettings.tenant, tenant)).limit(1)
-    if (gateway?.enabled && gateway.secretSiteKeyEncrypted) {
-      const limits = intersectDepositLimits([context.baseLimits, {
-        min: gateway.minDeposit == null ? 10 : Number(gateway.minDeposit),
-        max: gateway.maxDeposit == null ? null : Number(gateway.maxDeposit),
-      }])
+    // WeLivePay collects INR only: a gateway offered on another currency's site would refuse every deposit.
+    if (gateway?.enabled && gateway.secretSiteKeyEncrypted && await getWhitelabelCurrency(tenant) === 'INR') {
+      const limits = intersectDepositLimits([context.baseLimits, gatewayDepositLimits(gateway)])
       if (limits.available) accounts.push({ id: 'gateway-WELIVEPAY', type: 'gateway', displayName: gateway.displayName,
         minAmount: limits.min, maxAmount: limits.max, weight: 0, enabled: true })
     }
@@ -739,11 +768,48 @@ export async function getWhitelabelAccounts(tenant: string, userId?: number | nu
   return accounts.sort((a, b) => (b.weight || 0) - (a.weight || 0))
 }
 
+/**
+ * Does an edit change where a payout account's money goes? Compared ignoring case and surrounding spaces, so
+ * re-saving the same details (or changing only the label) is not a change.
+ */
+export function payoutDestinationChanged(
+  current: Pick<PayoutAccountRow, 'method' | 'accountNumber' | 'ifscCode' | 'bankName' | 'accountHolderName'>,
+  next: { method: 'BANK' | 'UPI'; accountNumber: string; ifscCode?: string | null; bankName?: string | null; accountHolderName: string },
+): boolean {
+  const same = (a: string | null | undefined, b: string | null | undefined) => (a ?? '').trim().toUpperCase() === (b ?? '').trim().toUpperCase()
+  return current.method !== next.method
+    || !same(current.accountNumber, next.accountNumber)
+    || !same(current.ifscCode, next.ifscCode)
+    || !same(current.bankName, next.bankName)
+    || !same(current.accountHolderName, next.accountHolderName)
+}
+
+/**
+ * Refuses while a withdrawal to the account is still being paid (PENDING or PROCESSING). A withdrawal stores only
+ * the account id, so changing or deleting the account under it would change where, or whether, the admin can pay it.
+ * Call it inside the transaction that holds the account row FOR UPDATE.
+ */
+async function assertNoWithdrawalInFlight(executor: Pick<typeof db, 'select'>, accountId: number, tenant: string, action: 'changed' | 'deleted') {
+  const [inFlight] = await executor
+    .select({ id: withdrawalRequests.id })
+    .from(withdrawalRequests)
+    .where(and(
+      eq(withdrawalRequests.payoutAccountId, accountId),
+      eq(withdrawalRequests.tenant, tenant),
+      inArray(withdrawalRequests.status, ['PENDING', 'PROCESSING']),
+    ))
+    .limit(1)
+  if (inFlight) {
+    throw new Error(`This account has a withdrawal in progress. It can be ${action} once that withdrawal is completed or cancelled.`)
+  }
+}
+
+/** The player's live payout accounts. A deleted account (deleted_at set) is kept only to count toward auto-approval. */
 export async function listPayoutAccounts(userId: number, tenant: string): Promise<PayoutAccountRow[]> {
   return db
     .select()
     .from(userPayoutAccounts)
-    .where(and(eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant)))
+    .where(and(eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant), isNull(userPayoutAccounts.deletedAt)))
     .orderBy(desc(userPayoutAccounts.isPrimary), desc(userPayoutAccounts.createdAt))
 }
 
@@ -786,47 +852,79 @@ export async function createOrUpdatePayoutAccount(params: {
     }
   }
   if (accountId) {
-    const updated = await db
-      .update(userPayoutAccounts)
-      .set({
+    // MONEY-CRITICAL: an approved account is where withdrawals are paid, and createWithdrawalRequest trusts its
+    // approval_status. An edit that changes where the money goes (method, number, IFSC, bank or holder) used to
+    // keep the old APPROVED status, so a player could rewrite a reviewed account to a never-reviewed destination
+    // and withdraw to it. Such an edit now goes back to admin review; a label-only edit keeps its status.
+    //
+    // The read, the in-flight check and the write share one transaction holding the account row FOR UPDATE. A
+    // withdrawal being created holds the same row FOR SHARE until its request is stored (createWithdrawalRequest),
+    // so this edit either waits for that request and then finds it in flight, or lands first and the withdrawal
+    // then sees the account back in review.
+    const row = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(userPayoutAccounts)
+        .where(and(eq(userPayoutAccounts.id, accountId), eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant), isNull(userPayoutAccounts.deletedAt)))
+        .for('update')
+        .limit(1)
+      // A deleted account is gone for the player: it cannot be edited back to life.
+      if (!current) throw new Error('Payout account not found')
+      const destinationChanged = payoutDestinationChanged(current, params)
+      if (destinationChanged) {
+        // A withdrawal stores only the account id, so a request still being paid would follow the new details.
+        await assertNoWithdrawalInFlight(tx, accountId, tenant, 'changed')
+      }
+      const updated = await tx
+        .update(userPayoutAccounts)
+        .set({
+          method: params.method,
+          accountNumber: params.accountNumber,
+          ifscCode: params.ifscCode ?? null,
+          bankName: params.bankName ?? null,
+          accountHolderName: params.accountHolderName,
+          label: params.label ?? null,
+          ...(destinationChanged ? { approvalStatus: 'PENDING' as const, approvedBy: null, approvedAt: null, rejectionReason: null } : {}),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(userPayoutAccounts.id, accountId), eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant)))
+        .returning()
+      return updated[0]
+    })
+    if (row) {
+      await applyPrimaryIfAllowed(row)
+    }
+    return row!
+  }
+  // A player's first two accounts are approved without review. Count and insert under a per-player lock, so parallel
+  // requests cannot each count fewer than two and all be approved unreviewed. Every account the player ever added
+  // counts, deleted ones included (deletePayoutAccount only marks the row): deleting an account and adding another
+  // destination must not get the new one approved unreviewed (FIN-05, owner 2026-11-04).
+  const row = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`payout-account-create:${tenant}:${userId}`}, 0))`)
+    const existingCount = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userPayoutAccounts)
+      .where(and(eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant)))
+    const currentCount = existingCount[0]?.count ?? 0
+    const approvalStatus = currentCount < 2 ? 'APPROVED' : 'PENDING'
+    const inserted = await tx
+      .insert(userPayoutAccounts)
+      .values({
+        tenant,
+        userId,
         method: params.method,
         accountNumber: params.accountNumber,
         ifscCode: params.ifscCode ?? null,
         bankName: params.bankName ?? null,
         accountHolderName: params.accountHolderName,
         label: params.label ?? null,
-        updatedAt: new Date(),
+        isPrimary: Boolean(setPrimary),
+        approvalStatus,
       })
-      .where(and(eq(userPayoutAccounts.id, accountId), eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant)))
       .returning()
-    const row = updated[0]
-    if (row) {
-      await applyPrimaryIfAllowed(row)
-    }
-    return row!
-  }
-  const existingCount = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(userPayoutAccounts)
-    .where(and(eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant)))
-  const currentCount = existingCount[0]?.count ?? 0
-  const approvalStatus = currentCount < 2 ? 'APPROVED' : 'PENDING'
-  const inserted = await db
-    .insert(userPayoutAccounts)
-    .values({
-      tenant,
-      userId,
-      method: params.method,
-      accountNumber: params.accountNumber,
-      ifscCode: params.ifscCode ?? null,
-      bankName: params.bankName ?? null,
-      accountHolderName: params.accountHolderName,
-      label: params.label ?? null,
-      isPrimary: Boolean(setPrimary),
-      approvalStatus,
-    })
-    .returning()
-  const row = inserted[0]
+    return inserted[0]
+  })
   if (row) {
     await applyPrimaryIfAllowed(row)
   }
@@ -834,10 +932,25 @@ export async function createOrUpdatePayoutAccount(params: {
 }
 
 export async function deletePayoutAccount(accountId: number, userId: number, tenant: string) {
-  await db.delete(userPayoutAccounts).where(and(eq(userPayoutAccounts.id, accountId), eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant)))
+  // A soft delete (FIN-05, owner 2026-11-04): the row stays, marked deleted_at, so it still counts toward the
+  // "first two accounts are approved without review" rule and past withdrawals keep their destination. It leaves
+  // every list and stops being primary (the one-primary index then never sees it).
+  //
+  // A withdrawal still being paid follows its account by id, so the delete is refused while one is in flight. Lock
+  // the row first: a withdrawal being created holds it FOR SHARE until its request is stored, so the check below
+  // either sees that request or the withdrawal finds the account gone.
+  await db.transaction(async (tx) => {
+    const where = and(eq(userPayoutAccounts.id, accountId), eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant), isNull(userPayoutAccounts.deletedAt))
+    const [account] = await tx.select({ id: userPayoutAccounts.id }).from(userPayoutAccounts).where(where).for('update').limit(1)
+    if (!account) return
+    await assertNoWithdrawalInFlight(tx, accountId, tenant, 'deleted')
+    const now = new Date()
+    await tx.update(userPayoutAccounts).set({ deletedAt: now, isPrimary: false, updatedAt: now }).where(where)
+  })
 }
 
 export async function setPrimaryPayoutAccount(accountId: number, userId: number, tenant: string) {
+  // A deleted account is not offered and cannot become primary.
   const accRows = await db
     .select()
     .from(userPayoutAccounts)
@@ -846,6 +959,7 @@ export async function setPrimaryPayoutAccount(accountId: number, userId: number,
         eq(userPayoutAccounts.id, accountId),
         eq(userPayoutAccounts.userId, userId),
         eq(userPayoutAccounts.tenant, tenant),
+        isNull(userPayoutAccounts.deletedAt),
       ),
     )
     .limit(1)
@@ -870,22 +984,76 @@ export async function setPrimaryPayoutAccount(accountId: number, userId: number,
   await db
     .update(userPayoutAccounts)
     .set({ isPrimary: true })
-    .where(and(eq(userPayoutAccounts.id, accountId), eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant)))
+    .where(and(eq(userPayoutAccounts.id, accountId), eq(userPayoutAccounts.userId, userId), eq(userPayoutAccounts.tenant, tenant), isNull(userPayoutAccounts.deletedAt)))
 }
+
+const CRYPTO_UNAVAILABLE = 'Crypto deposits are not available right now. Please choose another method.'
+const CRYPTO_TXID_TAKEN = 'This transaction hash has already been submitted. Check your deposit history or contact support.'
+
+/**
+ * What a deposit of `amount` to one of the whitelabel's USDT wallets costs, at the rate in force now.
+ * Always computed here, inside the player's VIP lock: the USDT a request expects is never taken from the
+ * client, and the rate and bonus it was promised are frozen on the request.
+ */
+async function quoteCryptoDeposit(tx: VipDatabase, tenant: string, accountId: string, amount: number, txHash: string) {
+  const [payments] = await tx.select().from(whitelabelPaymentMethods).where(eq(whitelabelPaymentMethods.tenant, tenant)).limit(1)
+  const rate = parseCryptoRate(payments?.cryptoRate)
+  const wallets: any[] = Array.isArray(payments?.cryptoDetails) ? payments.cryptoDetails as any[] : []
+  const wallet = wallets.find((w) => String(w?.id) === accountId && w?.enabled !== false && w?.walletAddress)
+  if (rate === null || !wallet) throw new Error(CRYPTO_UNAVAILABLE)
+  const [taken] = await tx.select({ id: depositRequests.id }).from(depositRequests).where(and(
+    isNotNull(depositRequests.cryptoAmount),
+    sql`lower(btrim(${depositRequests.utr})) = lower(${txHash})`,
+    inArray(depositRequests.status, ['PENDING', 'APPROVED']),
+  )).limit(1)
+  if (taken) throw new Error(CRYPTO_TXID_TAKEN)
+  const cryptoAmount = cryptoAmountFor(amount, rate)
+  if (cryptoAmount === null) throw new Error('Amount must be greater than zero')
+  // The whitelabel's bonus is promised now, like the rate: a later change never alters this request.
+  const cryptoBonusPercent = parseCryptoBonusPercent(payments?.cryptoBonusPercent)
+  return {
+    cryptoAmount,
+    cryptoRate: rate,
+    cryptoNetwork: wallet.network ? String(wallet.network) : null,
+    cryptoBonusPercent,
+    cryptoBonusAmount: cryptoBonusFor(amount, cryptoBonusPercent),
+  }
+}
+
+/** Whether `error` is the unique index that allows one live crypto request per transaction hash. */
+function isCryptoTxHashConflict(error: unknown): boolean {
+  const pgError = (error as { cause?: { code?: string; constraint?: string } } | null)?.cause ?? (error as { code?: string; constraint?: string } | null)
+  return pgError?.code === '23505' && pgError?.constraint === 'deposit_requests_crypto_txid_unique'
+}
+
+// The created request goes back without proof_data: the player's screenshot (up to 2 MB) is not read back.
+const { proofData: _createdProofData, ...depositRequestCreatedColumns } = getTableColumns(depositRequests)
 
 export async function createDepositRequest(params: {
   userId: number
   tenant: string
   amount: number
-  method: 'BANK_TRANSFER' | 'UPI'
+  method: 'BANK_TRANSFER' | 'UPI' | 'CRYPTO'
   accountId?: string | null
   utr?: string | null
   referenceId?: string | null
+  /** 'inline' with proofData, or a sentinel ('manual', 'proof-missing'); see domains/userApp/services/depositProof.ts */
   proofKey?: string | null
-}): Promise<DepositRequestRow> {
+  /** The screenshot as a checked base64 image data URI (parseDepositProof). */
+  proofData?: string | null
+}): Promise<Omit<DepositRequestRow, 'proofData'>> {
   const amount = Number(params.amount)
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error('Amount must be greater than zero')
+  }
+  const isCrypto = params.method === 'CRYPTO'
+  // A crypto transfer can only be checked on-chain by its hash, so a screenshot alone is not enough.
+  const txHash = isCrypto ? normalizeCryptoTxHash(params.utr) : null
+  if (isCrypto) {
+    // TEMP test gate: a player outside CRYPTO_DEPOSIT_ALLOWED_USER_IDS cannot deposit to a wallet by calling this directly either.
+    if (!isCryptoDepositAllowedForUser(params.userId)) throw new Error(CRYPTO_UNAVAILABLE)
+    const hashError = cryptoTxHashError(txHash)
+    if (hashError) throw new Error(hashError)
   }
 
   const user = await findUserById(params.userId, params.tenant)
@@ -908,6 +1076,8 @@ export async function createDepositRequest(params: {
 
   const inserted = await db.transaction(async tx => {
     await lockVipPlayer(tx, params.tenant, params.userId)
+    // Quoted first, so a missing rate or a switched-off wallet reads as such, not as a VIP tier refusal.
+    const quote = isCrypto ? await quoteCryptoDeposit(tx, params.tenant, String(params.accountId), amount, txHash!) : null
     const snapshot = await assertVipDepositAllowed(tx, params.tenant, params.userId, {
       method: params.method, amount, accountId: params.accountId,
     })
@@ -919,13 +1089,24 @@ export async function createDepositRequest(params: {
       method: params.method,
       receivingAccountId: params.accountId,
       vipPolicySnapshot: snapshot,
-      utr: params.utr ?? null,
-      referenceId: params.referenceId ?? null,
-      proofKey: params.proofKey ?? 'inline',
+      utr: isCrypto ? txHash : params.utr ?? null,
+      referenceId: isCrypto ? txHash : params.referenceId ?? null,
+      // A screenshot lives in proof_data; without one, 'inline' would claim a file that is not there.
+      proofKey: params.proofData ? DEPOSIT_PROOF_INLINE : params.proofKey ?? 'proof-missing',
+      proofData: params.proofData ?? null,
       currency: 'INR',
       status: 'PENDING',
+      cryptoAmount: quote ? String(quote.cryptoAmount) : null,
+      cryptoRate: quote ? String(quote.cryptoRate) : null,
+      cryptoNetwork: quote?.cryptoNetwork ?? null,
+      cryptoBonusPercent: quote?.cryptoBonusAmount ? String(quote.cryptoBonusPercent) : null,
+      cryptoBonusAmount: quote?.cryptoBonusAmount ? String(quote.cryptoBonusAmount) : null,
     })
-    .returning()
+    .returning(depositRequestCreatedColumns)
+  }).catch((error: unknown) => {
+    // Two submissions of one hash can race past the check in quoteCryptoDeposit; the index decides.
+    if (isCrypto && isCryptoTxHashConflict(error)) throw new Error(CRYPTO_TXID_TAKEN)
+    throw error
   })
 
   // Create admin notification for Tasks (filtered by whitelabel/agent)
@@ -962,24 +1143,6 @@ export async function createDepositRequest(params: {
   return inserted[0]
 }
 
-export async function listDepositRequests(params: {
-  userId?: number
-  tenant: string
-  start?: Date
-  end?: Date
-}): Promise<DepositRequestRow[]> {
-  const conditions = [eq(depositRequests.tenant, params.tenant)]
-  if (params.userId) conditions.push(eq(depositRequests.userId, params.userId))
-  if (params.start) conditions.push(gte(depositRequests.createdAt, params.start))
-  if (params.end) conditions.push(lte(depositRequests.createdAt, params.end))
-
-  return db
-    .select()
-    .from(depositRequests)
-    .where(and(...conditions))
-    .orderBy(desc(depositRequests.createdAt))
-}
-
 export type DepositHistoryItem = {
   id: string
   amount: number
@@ -989,6 +1152,11 @@ export type DepositHistoryItem = {
   method: string
   provider: string | null
   expiresAt: string | null
+  /** CRYPTO only: the quote the request was made at, and the bonus paid on approval */
+  cryptoAmount: number | null
+  cryptoRate: number | null
+  cryptoNetwork: string | null
+  cryptoBonusAmount: number | null
 }
 
 const WELIVEPAY_STATUS_MAP: Record<string, string> = {
@@ -1029,7 +1197,12 @@ export async function listUserDepositHistory(params: {
   if (params.end) woConds.push(lte(welivepayOrders.createdAt, params.end))
 
   const [manual, gateway] = await Promise.all([
-    db.select().from(depositRequests).where(and(...drConds)),
+    // Only what the history shows: proof_data holds each screenshot inline (up to 2 MB) and is never read here.
+    db.select({
+      id: depositRequests.id, amount: depositRequests.amount, status: depositRequests.status, createdAt: depositRequests.createdAt,
+      utr: depositRequests.utr, method: depositRequests.method, cryptoAmount: depositRequests.cryptoAmount,
+      cryptoRate: depositRequests.cryptoRate, cryptoNetwork: depositRequests.cryptoNetwork, cryptoBonusAmount: depositRequests.cryptoBonusAmount,
+    }).from(depositRequests).where(and(...drConds)),
     db.select().from(welivepayOrders).where(and(...woConds)),
   ])
 
@@ -1043,6 +1216,10 @@ export async function listUserDepositHistory(params: {
       method: row.method,
       provider: null as string | null,
       expiresAt: null as string | null,
+      cryptoAmount: row.cryptoAmount != null ? Number(row.cryptoAmount) : null,
+      cryptoRate: row.cryptoRate != null ? Number(row.cryptoRate) : null,
+      cryptoNetwork: row.cryptoNetwork ?? null,
+      cryptoBonusAmount: row.cryptoBonusAmount != null ? Number(row.cryptoBonusAmount) : null,
     })),
     ...gateway.map((row) => {
       const createdMs = row.createdAt ? new Date(row.createdAt).getTime() : Date.now()
@@ -1061,6 +1238,10 @@ export async function listUserDepositHistory(params: {
         provider: 'WELIVEPAY' as string | null,
         // expiresAt only meaningful while still genuinely pending (UI can show a countdown).
         expiresAt: row.status === 'pending' && !isExpiredPending ? new Date(expiryMs).toISOString() : null,
+        cryptoAmount: null,
+        cryptoRate: null,
+        cryptoNetwork: null,
+        cryptoBonusAmount: null,
       }
     }),
   ]
@@ -1362,10 +1543,11 @@ export async function createWithdrawalRequest(params: {
   }
 
   const payoutAccountId = Number(params.accountId)
+  // A deleted account (deleted_at set) is never paid to: it reads as not found.
   const payoutAccount = await db
     .select()
     .from(userPayoutAccounts)
-    .where(and(eq(userPayoutAccounts.id, payoutAccountId), eq(userPayoutAccounts.userId, params.userId), eq(userPayoutAccounts.tenant, params.tenant)))
+    .where(and(eq(userPayoutAccounts.id, payoutAccountId), eq(userPayoutAccounts.userId, params.userId), eq(userPayoutAccounts.tenant, params.tenant), isNull(userPayoutAccounts.deletedAt)))
     .limit(1)
 
   const accountRow = payoutAccount[0]
@@ -1428,57 +1610,82 @@ export async function createWithdrawalRequest(params: {
   const ledgerBefore = availableBalance
   const ledgerAfter = Math.max(0, availableBalance - amount)
 
-  // Update wallet first
-  // The sufficiency check happened far above, before the daily-limit count and
-  // the payout-account lookup, with no transaction and no row lock. Two
-  // withdrawal requests arriving together both passed it and both debited, so
-  // a player could withdraw more than they held and drive the wallet negative.
-  //
-  // The subtraction itself was already atomic; what was missing was the
-  // condition. Re-asserting it in the WHERE means the loser matches no row.
-  const debited = await db
-    .update(wallets)
-    .set({ cash: sql`${wallets.cash} - ${amount}` })
-    .where(
-      and(
-        eq(wallets.id, wallet.id),
-        eq(wallets.tenant, params.tenant),
-        sql`${wallets.cash} >= ${amount}`
+  // MONEY-CRITICAL (FIN-05): the account was read above without a lock, and an edit that lands between that read
+  // and the insert below would turn a reviewed account into a new, unreviewed destination while this request points
+  // at it. So the debit, its ledger row and the request are stored in one transaction that first locks the account
+  // FOR SHARE and checks it again. An edit or a delete of the account locks the row FOR UPDATE before its in-flight
+  // check, so it either waits for this request and then sees it, or has already committed and is seen here.
+  const inserted = await db.transaction(async (tx) => {
+    const [lockedAccount] = await tx
+      .select()
+      .from(userPayoutAccounts)
+      .where(and(eq(userPayoutAccounts.id, payoutAccountId), eq(userPayoutAccounts.userId, params.userId), eq(userPayoutAccounts.tenant, params.tenant), isNull(userPayoutAccounts.deletedAt)))
+      .for('share')
+      .limit(1)
+    if (!lockedAccount) {
+      throw new Error('Payout account not found')
+    }
+    if (lockedAccount.approvalStatus !== 'APPROVED') {
+      throw new Error('This account is not yet approved for withdrawals. Please wait for admin approval.')
+    }
+    if (payoutDestinationChanged(accountRow, lockedAccount)) {
+      throw new Error('This account was just changed. Please check its details and try again.')
+    }
+
+    // Update wallet first
+    // The sufficiency check happened far above, before the daily-limit count and
+    // the payout-account lookup, with no transaction and no row lock. Two
+    // withdrawal requests arriving together both passed it and both debited, so
+    // a player could withdraw more than they held and drive the wallet negative.
+    //
+    // The subtraction itself was already atomic; what was missing was the
+    // condition. Re-asserting it in the WHERE means the loser matches no row.
+    const debited = await tx
+      .update(wallets)
+      .set({ cash: sql`${wallets.cash} - ${amount}` })
+      .where(
+        and(
+          eq(wallets.id, wallet.id),
+          eq(wallets.tenant, params.tenant),
+          sql`${wallets.cash} >= ${amount}`
+        )
       )
-    )
-    .returning({ id: wallets.id })
-  if (debited.length === 0) {
-    throw new Error('Insufficient wallet balance')
-  }
+      .returning({ id: wallets.id })
+    if (debited.length === 0) {
+      throw new Error('Insufficient wallet balance')
+    }
 
-  // Create ledger entry with balance information
-  const ledgerTxnId = await logLedgerEvent({
-    walletId: wallet.id,
-    tenant: params.tenant,
-    amount: -Math.abs(amount),
-    type: 'withdrawal_pending',
-    meta: { payoutAccountId, method: accountRow.method, currency },
-    balanceBefore: String(balanceBefore),
-    balanceAfter: String(balanceAfter),
-  })
-
-  // Create withdrawal request first so we can set referenceId on wallet_ledger
-  const inserted = await db
-    .insert(withdrawalRequests)
-    .values({
-      tenant: params.tenant,
-      userId: params.userId,
+    // Create ledger entry with balance information
+    const ledgerTxnId = await logLedgerEvent({
       walletId: wallet.id,
-      payoutAccountId,
-      amount: String(amount),
-      status: 'PENDING',
-      currency,
-      ledgerTxnId: ledgerTxnId,
+      tenant: params.tenant,
+      amount: -Math.abs(amount),
+      type: 'withdrawal_pending',
+      meta: { payoutAccountId, method: accountRow.method, currency },
       balanceBefore: String(balanceBefore),
       balanceAfter: String(balanceAfter),
-    })
-    .returning()
+    }, tx)
 
+    // Create withdrawal request first so we can set referenceId on wallet_ledger
+    return tx
+      .insert(withdrawalRequests)
+      .values({
+        tenant: params.tenant,
+        userId: params.userId,
+        walletId: wallet.id,
+        payoutAccountId,
+        amount: String(amount),
+        status: 'PENDING',
+        currency,
+        ledgerTxnId: ledgerTxnId,
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+      })
+      .returning()
+  })
+
+  // Outside the transaction on purpose: createWalletLedgerEntry swallows its own errors, and a failed statement
+  // inside the transaction would turn its COMMIT into a silent rollback of the request just reported as stored.
   await createWalletLedgerEntry(db, {
     tenant: params.tenant,
     walletId: wallet.id,
@@ -1709,32 +1916,6 @@ export async function updateWithdrawalStatus(params: {
   return row
 }
 
-async function convertS3KeyToUrl(key: string | null | undefined): Promise<string | null> {
-  if (!key) return null
-  
-  // Already a usable URL or data URI
-  if (key.startsWith('http://') || key.startsWith('https://') || key.startsWith('data:')) {
-    return key
-  }
-  
-  try {
-    // Try to get presigned URL from S3 service
-    const { generatePresignedGetUrl, getS3ObjectUrl } = await import('../services/storage/s3.js')
-    try {
-      const presigned = await generatePresignedGetUrl(key, 7 * 24 * 3600) // 7 days
-      if (presigned) {
-        return presigned
-      }
-    } catch (presignError) {
-      // Silently fall back to public URL
-    }
-    // Fallback to public URL construction (may not work if bucket is private)
-    return getS3ObjectUrl(key)
-  } catch (err) {
-    return key
-  }
-}
-
 export async function listAdvertisements(tenant: string) {
   const rows = await db
     .select()
@@ -1747,9 +1928,9 @@ export async function listAdvertisements(tenant: string) {
     .orderBy(asc(advertisements.order), desc(advertisements.createdAt))
     .limit(50)
   
-  // Convert image URLs from S3 keys to full URLs
-  const results = await Promise.all(rows.map(async (r) => {
-    const imageUrl = await convertS3KeyToUrl(r.imageUrl)
+  // Images are data URIs (or external URLs); an ad whose image is a legacy S3 key has nothing to show and is left out
+  const results = rows.map((r) => {
+    const imageUrl = displayableAsset(r.imageUrl)
     // Only return ads with valid image URLs
     if (!imageUrl) return null
     return {
@@ -1762,8 +1943,8 @@ export async function listAdvertisements(tenant: string) {
       order: r.order,
       deviceType: r.deviceType,
     }
-  }))
-  
+  })
+
   // Filter out null results (ads without valid images)
   return results.filter((r): r is NonNullable<typeof r> => r !== null)
 }
@@ -1995,27 +2176,6 @@ export async function getCasinoGamesList(params: {
   })), { total, page, hasMore: offset + limit < total })
 }
 
-// Helper to convert S3 keys to presigned URLs for category icons
-async function convertIconToUrl(iconData: string | null): Promise<string | null> {
-  if (!iconData) return null
-  
-  // Already a usable URL or data URI (base64)
-  if (iconData.startsWith('http://') || iconData.startsWith('https://') || iconData.startsWith('data:')) {
-    return iconData
-  }
-  
-  try {
-    const { generatePresignedGetUrl, getS3ObjectUrl } = await import('../services/storage/s3.js')
-    try {
-      const presigned = await generatePresignedGetUrl(iconData, 7 * 24 * 3600) // 7 days
-      if (presigned) return presigned
-    } catch {}
-    return getS3ObjectUrl(iconData)
-  } catch (err) {
-    return iconData
-  }
-}
-
 export async function getCasinoCategoriesList(params: { tenant: string; liveOnly?: boolean; slotsOnly?: boolean }): Promise<Array<{ name: string; type: string | null; slug: string | null; subtitle: string | null; order: number | null; iconData: string | null }>> {
   // Lounge is a homepage collection, rather than a casino/slots navigation tab.
   const conditions = [eq(casinoCategories.tenantId, params.tenant), eq(casinoCategories.isActive, true), ne(casinoCategories.type, 'lounge')]
@@ -2030,21 +2190,17 @@ export async function getCasinoCategoriesList(params: { tenant: string; liveOnly
     .where(and(...conditions))
     .orderBy(casinoCategories.order, casinoCategories.id)
   
-  // Convert S3 keys to presigned URLs for icons
-  const results = await Promise.all(
-    rows
-      .filter((r) => r.name)
-      .map(async (r) => ({
-        name: r.name!,
-        type: r.type,
-        slug: r.slug,
-        subtitle: r.subtitle,
-        order: r.order,
-        iconData: await convertIconToUrl(r.iconData),
-      }))
-  )
-  
-  return results
+  // Icons are data URIs (or external URLs); a legacy S3 key reads as null and the tab shows no icon
+  return rows
+    .filter((r) => r.name)
+    .map((r) => ({
+      name: r.name!,
+      type: r.type,
+      slug: r.slug,
+      subtitle: r.subtitle,
+      order: r.order,
+      iconData: displayableAsset(r.iconData),
+    }))
 }
 
 export async function getCasinoProvidersList(tenant: string): Promise<Array<{ name: string; slug: string | null }>> {

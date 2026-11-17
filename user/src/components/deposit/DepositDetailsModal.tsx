@@ -5,6 +5,7 @@ import { useState, useRef } from 'react'
 import html2canvas from 'html2canvas'
 import { useAuth } from '@/lib/auth'
 import { useLogo } from '@/hooks/useAppSettings'
+import { CRYPTO_COIN, cryptoDepositInfo, cryptoNetworkLabel, formatUsdt } from '@/lib/cryptoDeposit'
 
 interface DepositDetailsModalProps {
   deposit: any
@@ -14,6 +15,7 @@ interface DepositDetailsModalProps {
 
 export function DepositDetailsModal({ deposit, isOpen, onClose }: DepositDetailsModalProps) {
   const [copied, setCopied] = useState(false)
+  const [hashCopied, setHashCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const slipRef = useRef<HTMLDivElement>(null)
   const { user } = useAuth()
@@ -227,9 +229,20 @@ export function DepositDetailsModal({ deposit, isOpen, onClose }: DepositDetails
 
   const dateStr = formatDate(depositDate)
   const generatedDateStr = formatDate(new Date())
-  const paymentMethod = String(deposit?.method ?? '').trim()
+  // Crypto only: what the server quoted when the request was made (USDT, rate, network) and the
+  // bonus paid into the cash wallet on approval
+  const crypto = cryptoDepositInfo(deposit)
+  const txHash = crypto ? String(deposit?.utr ?? '').trim() : ''
+  const paymentMethod = crypto
+    ? (crypto.network ? `${CRYPTO_COIN} (${crypto.network})` : CRYPTO_COIN)
+    : String(deposit?.method ?? '').trim()
     || String(deposit?.paymentMethod ?? '').trim()
     || (deposit?.type === 'upi' ? 'UPI' : deposit?.type === 'bank' ? 'Bank Transfer' : deposit?.type === 'wallet' ? 'Wallet' : 'N/A')
+  const copyHash = () => {
+    navigator.clipboard.writeText(txHash)
+    setHashCopied(true)
+    setTimeout(() => setHashCopied(false), 2000)
+  }
 
   // Get theme colors for slip
   const themeColors = getThemeColors()
@@ -385,6 +398,24 @@ export function DepositDetailsModal({ deposit, isOpen, onClose }: DepositDetails
                   {paymentMethod}
                 </span>
               </div>
+              {crypto && crypto.usdt !== null && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', paddingBottom: '12px', borderTop: `1px solid ${isDark ? '#334155' : '#f3f4f6'}` }}>
+                  <span style={{ color: themeColors.subtle, fontWeight: '500' }}>{CRYPTO_COIN} Amount</span>
+                  <span style={{ color: isDark ? '#f3f4f6' : '#111827', fontWeight: '600' }}>{formatUsdt(crypto.usdt)}</span>
+                </div>
+              )}
+              {crypto && crypto.bonus > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', paddingBottom: '12px', borderTop: `1px solid ${isDark ? '#334155' : '#f3f4f6'}` }}>
+                  <span style={{ color: themeColors.subtle, fontWeight: '500' }}>Crypto Bonus</span>
+                  <span style={{ color: isDark ? '#f3f4f6' : '#111827', fontWeight: '600' }}>+{formatAmount(crypto.bonus)}</span>
+                </div>
+              )}
+              {txHash && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', paddingTop: '12px', paddingBottom: '12px', borderTop: `1px solid ${isDark ? '#334155' : '#f3f4f6'}` }}>
+                  <span style={{ color: themeColors.subtle, fontWeight: '500', whiteSpace: 'nowrap' }}>Transaction Hash</span>
+                  <span style={{ color: isDark ? '#f3f4f6' : '#111827', fontFamily: 'monospace', fontWeight: '600', wordBreak: 'break-all', textAlign: 'right' }}>{txHash}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -512,6 +543,56 @@ export function DepositDetailsModal({ deposit, isOpen, onClose }: DepositDetails
                 </div>
               </div>
             </div>
+
+            {/* Crypto: what was sent, on which network, the bonus and the hash it can be checked by */}
+            {crypto && (
+              <div className="dep-detail-section">
+                <h3>Crypto Transfer</h3>
+
+                <div className="dep-detail-list">
+                  {crypto.network && (
+                    <div className="dep-detail-row">
+                      <span className="dep-detail-label">Network</span>
+                      <span className="dep-detail-value">{cryptoNetworkLabel(crypto.network)}</span>
+                    </div>
+                  )}
+                  {crypto.usdt !== null && (
+                    <div className="dep-detail-row">
+                      <span className="dep-detail-label">{CRYPTO_COIN} Amount</span>
+                      <span className="dep-detail-value">{formatUsdt(crypto.usdt)}</span>
+                    </div>
+                  )}
+                  {crypto.rate !== null && (
+                    <div className="dep-detail-row">
+                      <span className="dep-detail-label">Rate</span>
+                      <span className="dep-detail-value">1 {CRYPTO_COIN} = {formatAmount(crypto.rate)}</span>
+                    </div>
+                  )}
+                  {crypto.bonus > 0 && (
+                    <div className="dep-detail-row">
+                      <span className="dep-detail-label">Crypto Bonus</span>
+                      <span className="dep-detail-value is-bonus">+{formatAmount(crypto.bonus)}</span>
+                    </div>
+                  )}
+                  {txHash && (
+                    <div className="dep-detail-row">
+                      <span className="dep-detail-label">Transaction Hash</span>
+                      <div className="dep-detail-value">
+                        <span className="is-mono">{txHash}</span>
+                        <button
+                          type="button"
+                          aria-label={hashCopied ? 'Transaction hash copied' : 'Copy transaction hash'}
+                          onClick={copyHash}
+                          className={`dep-copy-icon${hashCopied ? ' is-copied' : ''}`}
+                        >
+                          {hashCopied ? <CheckCircle2 /> : <Copy />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Payment Details */}
             {(deposit?.transactionId || deposit?.referenceId || deposit?.paymentId || deposit?.upiTransactionId) && (

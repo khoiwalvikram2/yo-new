@@ -25,12 +25,12 @@ button.nova-theme-toggle:has(> .nova-theme-track) { width: auto; height: auto; m
   width: 60px;
   height: 30px;
   padding: 0 2px;
-  border: 1px solid #4A4D53;
+  border: 1px solid var(--mb-chrome-line-3);
   border-radius: var(--ui-radius);
-  background: #383B41;
+  background: var(--mb-chrome-field);
   transition: border-color .15s, background-color .15s;
 }
-button.nova-theme-toggle:hover .nova-theme-track { border-color: #6A6D73; background: #43464C; }
+button.nova-theme-toggle:hover .nova-theme-track { border-color: var(--mb-chrome-line-5); background: var(--mb-chrome-field-hover); }
 .nova-theme-track svg { position: relative; z-index: 1; justify-self: center; width: 14px; height: 14px; color: #AEB0B6; transition: color .2s; }
 .nova-theme-knob {
   position: absolute;
@@ -46,7 +46,7 @@ button.nova-theme-toggle:hover .nova-theme-track { border-color: #6A6D73; backgr
 /* Light: knob on the sun (amber). Dark: knob slides onto the moon (charcoal). */
 button.nova-theme-toggle[aria-pressed='false'] .nova-theme-track svg:first-child { color: #D98A00; }
 button.nova-theme-toggle[aria-pressed='true'] .nova-theme-knob { transform: translateX(28px); }
-button.nova-theme-toggle[aria-pressed='true'] .nova-theme-track svg:nth-child(2) { color: #2B2F35; }
+button.nova-theme-toggle[aria-pressed='true'] .nova-theme-track svg:nth-child(2) { color: var(--mb-chrome); }
 button.nova-theme-toggle:focus-visible { outline: 2px solid #3BA7F0; outline-offset: 1px; border-radius: var(--ui-radius); }
 @media (prefers-reduced-motion: reduce) {
   .nova-theme-knob, .nova-theme-track svg { transition: none; }

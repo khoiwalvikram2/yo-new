@@ -167,3 +167,19 @@ test('row menu copies the bet ID with a toast and opens the player profile', asy
     Reflect.deleteProperty(navigator, 'clipboard');
   }
 });
+/* B004: the bets query's variables carry the event and the search, so Apollo reads each change itself. A timed
+   refetch({ variables }) also ran 300ms after every change (and after mount): a second request each time, and
+   Apollo's invariant 28 warning, since refetch takes the variables themselves. */
+test('an event or search change is read through the query variables alone, with no timed refetch', async () => {
+  const view = mount();
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 400)); });
+  const lastVariables = () => mock.queries.filter(item => item.name === 'EventBets').at(-1)?.options.variables;
+  await settle();
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search event bets' }), { target: { value: ' vfy ' } });
+  await settle();
+  assert.deepEqual(lastVariables(), { query: { eventId: 'e1', statuses: ['matched', 'unmatched'], search: 'vfy', limit: 100, offset: 0 } });
+  view.rerender(<MemoryRouter><EventBetsSidebar isCollapsed={false} setIsCollapsed={vi.fn()} eventId="e2" mobileMode showSportsHierarchy /></MemoryRouter>);
+  await settle();
+  assert.deepEqual(lastVariables(), { query: { eventId: 'e2', statuses: ['matched', 'unmatched'], search: 'vfy', limit: 100, offset: 0 } });
+  assert.equal(mock.refetch.mock.calls.length, 0, 'a second, timed request went out');
+});

@@ -272,11 +272,13 @@
    The admin in the player panel's look: charcoal chrome, red for the action and the current place, flat
    white panels, Roboto Condensed. Values come from user/src/styles/matchbook-tokens.css (--mb-*).
 
-   It is ON by default. <html data-skin="classic"> brings back the indigo look above: index.html sets
-   it when localStorage 'admin-skin' is 'classic'. Every selector here starts with
+   It is the only look: the classic switch (localStorage 'admin-skin' = 'classic' set <html
+   data-skin="classic"> and brought back the indigo look above) was removed on 2026-11-04, and nothing
+   sets data-skin now, so these blocks always apply. Every selector here still starts with
    :root:not([data-skin="classic"]) so it outranks the blocks above (0,1,0); the descendant form covers
    portalled regions that carry their own data-theme (Popover copies the trigger region's theme).
-   Module CSS that needs more than tokens uses :global(html:not([data-skin='classic'])) .class.
+   Module CSS that needs more than tokens uses :global(html:not([data-skin='classic'])) .class, which
+   likewise always matches.
    --------------------------------------------------------------------------------------------- */
 :root:not([data-skin="classic"]) {
   --r-card: var(--ui-radius);

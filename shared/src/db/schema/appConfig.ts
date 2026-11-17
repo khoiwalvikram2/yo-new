@@ -1,3 +1,4 @@
+import type { PlayerTheme } from '../../theme/playerTheme.js'
 import { pgTable, varchar, timestamp, jsonb, boolean, numeric, integer, text } from 'drizzle-orm/pg-core'
 
 export type SocialLinks = {
@@ -211,6 +212,13 @@ export const appConfigs = pgTable('app_configs', {
 
 	// theme colors
 	theme: jsonb('theme').$type<WhitelabelTheme>(),
+
+	// player panel theme (presets, key colours, sport icon style); null = the Matchbook default
+	playerTheme: jsonb('player_theme').$type<PlayerTheme>(),
+
+	// Currency Management page's currency list (migration 0020); used only on the platform row, through
+	// admin-backend/src/services/currencyStore.ts. null until the first change.
+	currencies: jsonb('currencies').$type<Record<string, unknown>>(),
 
 	// sports global configuration
 	sportsGlobalConfig: jsonb('sports_global_config').$type<SportsGlobalConfig>(),

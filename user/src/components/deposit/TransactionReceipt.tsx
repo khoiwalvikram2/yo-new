@@ -1,10 +1,14 @@
-import { CheckCircle2, Clock, Copy, Download, Home, X, RefreshCw, Receipt, Calendar, CreditCard, Hash, Timer } from 'lucide-react'
+import { CheckCircle2, Clock, Coins, Copy, Download, Gift, Home, X, RefreshCw, Receipt, Calendar, CreditCard, Hash, Timer } from 'lucide-react'
 import { formatAmount, getDefaultLocale } from '@/lib/currency'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import ConfettiBurst from '@/components/animations/ConfettiBurst'
 import html2canvas from 'html2canvas'
 import { getAdminDepositRequests } from '@/lib/api/user'
+import { CRYPTO_COIN, cryptoNetworkLabel, formatUsdt } from '@/lib/cryptoDeposit'
 import ModalSurface from '../modals/ModalSurface'
+
+// The downloadable receipt is built as an HTML string: a pasted reference must stay text.
+const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
 interface TransactionReceiptProps {
   transaction: {
@@ -12,9 +16,14 @@ interface TransactionReceiptProps {
     amount: number
     status: 'success' | 'pending' | 'failed'
     method: string
+    /** The UTR / reference; for a crypto deposit, the transaction hash */
     reference?: string
     timestamp: string
     expectedSettlement?: string
+    /** Crypto deposits only, as the server quoted them: the USDT to receive, its network and the bonus paid on approval */
+    cryptoAmount?: number | null
+    cryptoNetwork?: string | null
+    cryptoBonusAmount?: number | null
   }
   onClose: () => void
   onGoHome?: () => void
@@ -29,6 +38,11 @@ export function TransactionReceipt({ transaction, onClose, onGoHome, onStatusCha
   const [isPolling, setIsPolling] = useState(false)
   const receiptRef = useRef<HTMLDivElement>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const cryptoAmount = transaction.cryptoAmount != null && Number.isFinite(Number(transaction.cryptoAmount)) ? Number(transaction.cryptoAmount) : null
+  const isCrypto = cryptoAmount !== null
+  const cryptoNetwork = isCrypto ? cryptoNetworkLabel(transaction.cryptoNetwork) : ''
+  const cryptoBonus = isCrypto && Number(transaction.cryptoBonusAmount) > 0 ? Number(transaction.cryptoBonusAmount) : null
+  const referenceLabel = isCrypto ? 'Transaction Hash' : 'Reference'
 
   // Poll for status updates when pending
   const checkStatus = useCallback(async () => {
@@ -212,20 +226,40 @@ export function TransactionReceipt({ transaction, onClose, onGoHome, onStatusCha
           <!-- Transaction ID -->
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #334155;">
             <span style="color: #94a3b8; font-size: 12px;">Transaction ID</span>
-            <span style="color: white; font-size: 12px; font-family: monospace;">${transaction.id || 'N/A'}</span>
+            <span style="color: white; font-size: 12px; font-family: monospace;">${escapeHtml(transaction.id || 'N/A')}</span>
           </div>
-          
+
           <!-- Payment Method -->
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #334155;">
             <span style="color: #94a3b8; font-size: 12px;">Payment Method</span>
-            <span style="color: white; font-size: 12px; font-weight: 500;">${transaction.method}</span>
+            <span style="color: white; font-size: 12px; font-weight: 500;">${escapeHtml(transaction.method)}</span>
           </div>
-          
+
+          ${cryptoAmount !== null ? `
+          <!-- Crypto: the USDT the server quoted, its network and the bonus -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #334155;">
+            <span style="color: #94a3b8; font-size: 12px;">${CRYPTO_COIN} Amount</span>
+            <span style="color: white; font-size: 12px; font-weight: 500;">${escapeHtml(formatUsdt(cryptoAmount))}</span>
+          </div>
+          ${cryptoNetwork ? `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #334155;">
+            <span style="color: #94a3b8; font-size: 12px;">Network</span>
+            <span style="color: white; font-size: 12px; font-weight: 500;">${escapeHtml(cryptoNetwork)}</span>
+          </div>
+          ` : ''}
+          ${cryptoBonus !== null ? `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #334155;">
+            <span style="color: #94a3b8; font-size: 12px;">Crypto Bonus</span>
+            <span style="color: #10b981; font-size: 12px; font-weight: 500;">+${escapeHtml(formatAmount(cryptoBonus))} on approval</span>
+          </div>
+          ` : ''}
+          ` : ''}
+
           ${transaction.reference ? `
           <!-- Reference -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #334155;">
-            <span style="color: #94a3b8; font-size: 12px;">Reference</span>
-            <span style="color: white; font-size: 12px; font-family: monospace;">${transaction.reference}</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #334155;">
+            <span style="color: #94a3b8; font-size: 12px; white-space: nowrap;">${referenceLabel}</span>
+            <span style="color: white; font-size: 12px; font-family: monospace; word-break: break-all; text-align: right;">${escapeHtml(transaction.reference)}</span>
           </div>
           ` : ''}
           
@@ -355,14 +389,43 @@ export function TransactionReceipt({ transaction, onClose, onGoHome, onStatusCha
                 </div>
               </div>
 
+              {/* Crypto: the USDT the server quoted (not the page's preview), its network and the bonus */}
+              {cryptoAmount !== null && (
+                <div className="dep-receipt-row">
+                  <div className="dep-receipt-icon">
+                    <Coins />
+                  </div>
+                  <div className="dep-receipt-text">
+                    <p className="dep-receipt-label">{CRYPTO_COIN} Amount</p>
+                    <p className="dep-receipt-value">
+                      {formatUsdt(cryptoAmount)}{cryptoNetwork ? ` · ${cryptoNetwork}` : ''}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {cryptoBonus !== null && (
+                <div className="dep-receipt-row">
+                  <div className="dep-receipt-icon">
+                    <Gift />
+                  </div>
+                  <div className="dep-receipt-text">
+                    <p className="dep-receipt-label">Crypto Bonus</p>
+                    <p className="dep-receipt-value is-bonus">
+                      +{formatAmount(cryptoBonus)} on approval
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {transaction.reference && (
                 <div className="dep-receipt-row">
                   <div className="dep-receipt-icon">
                     <Receipt />
                   </div>
                   <div className="dep-receipt-text">
-                    <p className="dep-receipt-label">Reference</p>
-                    <p className="dep-receipt-value is-mono">
+                    <p className="dep-receipt-label">{referenceLabel}</p>
+                    <p className={`dep-receipt-value is-mono${isCrypto ? ' is-wrap' : ''}`}>
                       {transaction.reference}
                     </p>
                   </div>

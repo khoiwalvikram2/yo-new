@@ -19,14 +19,21 @@
   --mb-field: #FFFFFF;
   --mb-disabled-bg: #E2E3E3;
   --mb-disabled-fg: #8D8C92;
-  --mb-bar: #43444A;
-  --mb-bar-2: #2B2F35;
+  --mb-bar: var(--mb-chrome-2);
+  --mb-bar-2: var(--mb-chrome);
   --mb-bar-text: #FFFFFF;
   --mb-bar-muted: #C9CBD1;
   --mb-red: #C51A1B;
-  --mb-red-hover: #A81516;
+  --mb-red-hover: var(--mb-brand-deep);
+  /* Text and icons on the brand colour (buttons, active tabs, badges). The same in both modes; a theme switches it to
+     dark ink when its action colour is too bright for white. */
+  --mb-on-red: #FFFFFF;
   --mb-red-text: #C51A1B;
   --mb-link: #1B6FAE;
+  /* Text links turn sky blue on hover (owner 2026-11-02), 4.5:1 on the light panels. The footer, sports rail and
+     utility rail stay dark in both themes, so they take the light sky that reads on dark chrome. */
+  --mb-link-hover: #0272AE;
+  --mb-link-hover-on-chrome: #86D6FD;
   --mb-green: #0B8040;
   --mb-amber: #A15C00;
   --mb-error: #C4271C;
@@ -41,8 +48,8 @@
   --mb-blue-ink: #17598C;
   --mb-neutral-ink: #53555B;
   --mb-focus: #1B6FAE;
-  --mb-focus-border: #2B2F35;
-  --mb-focus-ring: rgb(43 47 53 / 12%);
+  --mb-focus-border: var(--mb-chrome);
+  --mb-focus-ring: color-mix(in srgb, var(--mb-chrome) 12%, transparent);
   --mb-green-line: #BFE3CD;
   --mb-amber-line: #F2D9AE;
   --mb-red-line: #F1C4C0;
@@ -58,6 +65,69 @@
   /* Text on the charcoal chrome (topbar, sidebar, rail, section bars), the same in both themes. */
   --mb-chrome-link: #7CC4F5;
   --mb-chrome-red: #FF6A6B;
+  /* The theme's brand shades and chrome (shared/src/theme/playerTheme.ts derives them from the action and chrome
+     colours). The same in both themes; everything brand red or charcoal points here. */
+  --mb-brand-deep: #A81516;
+  --mb-brand-press: #A01516;
+  --mb-brand-bright: #D8282A;
+  --mb-chrome: #2B2F35;
+  --mb-chrome-2: #43444A;
+  --mb-chrome-3: #53555B;
+  --mb-chrome-soft: #30333A;
+  --mb-chrome-deep: #24272C;
+  --mb-chrome-line: #3A3D43;
+  --mb-chrome-line-2: #4F5057;
+  /* More brand shades, each the exact colour its rule used to write (the theme derives them from the action colour).
+     top* are gradient tops under white text, low/edge the bottom and border, accent a marker or glow, lift/glow hover
+     and avatar fills, night/dusk/ember/active/lobby/motion the deep ends. */
+  --mb-brand-top: #D42324;
+  --mb-brand-top-acct: #D22322;
+  --mb-brand-top-action: #D02223;
+  --mb-brand-top-hot: #E0282B;
+  --mb-brand-top-hover: #BE1D1E;
+  --mb-brand-low: #AE1516;
+  --mb-brand-edge: #B21718;
+  --mb-brand-accent: #E5252A;
+  --mb-brand-lift: #E0262A;
+  --mb-brand-lift-2: #E2282C;
+  --mb-brand-glow: #F0353A;
+  --mb-brand-hover-fill: #D21F20;
+  --mb-brand-active: #A91317;
+  --mb-brand-night: #9E1112;
+  --mb-brand-dusk: #8E1011;
+  --mb-brand-ember: #7A0D0E;
+  --mb-brand-lobby: #9E1516;
+  --mb-brand-motion: #B31620;
+  --mb-brand-top-matka: #D42A2B;
+  --mb-brand-matka-edge: #B6191B;
+  /* Deep shades for overlays and shadows (casino lobby, Matka buttons), and the pale wash of the active sport pill. */
+  --mb-brand-shade: #820E0F;
+  --mb-brand-shadow: #8C0E0F;
+  --mb-brand-shadow-2: #960F10;
+  --mb-brand-wash: #F6E7E7;
+  /* The active mobile tab: a lifted red that stays readable on the chrome. */
+  --mb-nav-active: #FF5A5B;
+  /* More charcoal steps (derived from the chrome colour): field/field-hover are header controls, edge/foot/ticker the
+     dark bottom borders and bars, band/rule/tile the footer, sunk/well/base/panel dark wells and gradient ends,
+     hero-* the home hero gradient, line-3..5 lighter chrome borders. */
+  --mb-chrome-field: #383B41;
+  --mb-chrome-field-hover: #43464C;
+  --mb-chrome-edge: #1F2226;
+  --mb-chrome-foot: #202328;
+  --mb-chrome-ticker: #1A1C20;
+  --mb-chrome-band: #33373D;
+  --mb-chrome-sunk: #23262B;
+  --mb-chrome-rule: #3E4248;
+  --mb-chrome-tile: #3A3E44;
+  --mb-chrome-well: #1B1E22;
+  --mb-chrome-base: #1B1D21;
+  --mb-chrome-hero-top: #262A30;
+  --mb-chrome-hero-low: #15171B;
+  --mb-chrome-hero-end: #121417;
+  --mb-chrome-panel: #1F2227;
+  --mb-chrome-line-3: #4A4D53;
+  --mb-chrome-line-4: #62656B;
+  --mb-chrome-line-5: #6A6D73;
   /* Drawers (rail panels, profile sheet) and their rows. Dark lifts the drawer off the page and sinks its rows. */
   --mb-drawer: #FFFFFF;
   --mb-drawer-row: #FFFFFF;
@@ -79,14 +149,15 @@ html.dark {
   --mb-field: #17191C;
   --mb-disabled-bg: #2C2F34;
   --mb-disabled-fg: #7D8087;
-  --mb-bar: #30333A;
-  --mb-bar-2: #24272C;
+  --mb-bar: var(--mb-chrome-soft);
+  --mb-bar-2: var(--mb-chrome-deep);
   --mb-bar-text: #FFFFFF;
   --mb-bar-muted: #B9BCC3;
   --mb-red: #C51A1B;
-  --mb-red-hover: #D8282A;
+  --mb-red-hover: var(--mb-brand-bright);
   --mb-red-text: #FF6A6B;
   --mb-link: #5DB1F0;
+  --mb-link-hover: #38BDF8;
   --mb-green: #3FD08A;
   --mb-amber: #F0B44C;
   --mb-error: #FF6B61;
@@ -147,9 +218,9 @@ html .nova-shell-matchbook .nova-panel,
   --border: var(--mb-line);
   --text: var(--mb-text);
   --subtle: var(--mb-muted);
-  --nova-accent: #C51A1B;
-  --brand-primary: #C51A1B;
-  --brand-primary-dark: #A01516;
+  --nova-accent: var(--mb-red);
+  --brand-primary: var(--mb-red);
+  --brand-primary-dark: var(--mb-brand-press);
   --ds-color-slate-50: var(--mb-ink);
   --ds-color-slate-100: var(--mb-text);
   --ds-color-slate-150: var(--mb-muted);
@@ -190,3 +261,7 @@ html.dark :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .no
 html.dark :is(.nova-shell-matchbook > .nova-workspace, .nova-shell-matchbook .nova-panel, .nova-modal-layer, .nova-profile-dialog, .nova-search-dialog) :is(.text-\[color\:var\(--brand-primary\)\], .text-\[var\(--brand-primary\)\]) { color: var(--mb-red-text); }
 /* The focused field's label turns brand red on the pages (index.css); modals keep it ink (nova-modals.css). */
 html.dark .nova-shell-matchbook > .nova-workspace :is(.form-field:has(.field:focus-within) > label, .field:focus-within .field__label) { color: var(--mb-red-text); }
+
+/* Colourful sport icons (App Configuration → Sports Icons) keep their own colours. The single-colour set is tinted
+   with filters in several places (tab bars, section heads, the event nameplate); !important outranks all of them. */
+img.mb-sport-icon-colorful { filter: none !important; opacity: 1 !important; }

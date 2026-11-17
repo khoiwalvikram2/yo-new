@@ -10,6 +10,9 @@ import { users } from '@shared/db/schema.js'
 import { and, eq } from 'drizzle-orm'
 import { gapLog } from './gapCasinoLog.js'
 import { assertPlayerAgentAllowsBetting } from '../userApp/services/agentBettingGate.js'
+import { isCreditPlayer } from '@shared/services/credit/isCreditPlayer.js'
+import { getCasinoGameByExternalId } from '../../repos/casinoGameRepo.js'
+import { CasinoGameAccessError, checkCasinoGameAccess } from './casinoGameAccess.js'
 
 const GAP_LOGIN_TIMEOUT_MS = 10_000
 const LOG_PREFIX = '[GapCasinoLaunch]'
@@ -61,7 +64,17 @@ export async function getGapCasinoRedirectUrl(params: GapLaunchParams): Promise<
   // player the reason up front.
   await assertPlayerAgentAllowsBetting(db, { userId: params.userId, tenant: params.tenant }, 'casino')
   await assertPlayerDomainBetting(db, params.tenant, params.userId, 'casino')
-  
+  // The whitelabel's per-game rules (betting switched off, the day's win cap, premium, VIP
+  // tiers). Every debit checks them again; refusing here tells the player why up front.
+  const game = await getCasinoGameByExternalId(params.gameId, db)
+  if (game) {
+    const refusal = await checkCasinoGameAccess(db, { tenant: params.tenant, userId: params.userId, gameId: game.id })
+    if (refusal) {
+      gdbg('GameAccessRejected', { reason: refusal.reason })
+      throw new CasinoGameAccessError(refusal.reason, refusal.message)
+    }
+  }
+
   // Fetch wallet details
   const currency = await getWhitelabelCurrency(params.tenant)
   const wallet = await ensureWallet(params.userId, params.tenant, currency)
@@ -73,7 +86,12 @@ export async function getGapCasinoRedirectUrl(params: GapLaunchParams): Promise<
   // Determine wallet type and balance from user selection or fallback (referralBonus is casino-only)
   let walletType: 'bonus' | 'cash' | 'referralBonus'
   let balance: number
-  if (params.walletType === 'referralBonus') {
+  if (isCreditPlayer(userRow.playerType)) {
+    // Credit players (AGENT_CREDIT / WHITELABEL_CREDIT) play with their chips, held in cash.
+    // They have no bonus or referral-bonus funds, whatever wallet the launch asked for.
+    walletType = 'cash'
+    balance = Math.max(0, cash - exposure)
+  } else if (params.walletType === 'referralBonus') {
     walletType = 'referralBonus'
     balance = Math.max(0, referralBonus)
   } else if (params.walletType === 'bonus') {

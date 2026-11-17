@@ -15,6 +15,8 @@ export interface MatkaLiveKpis {
   payouts: number
   ggr: number
   rtp: number
+  /** What the open bets pay if they all win. Optional: a snapshot cached before it existed has none. */
+  potentialPayouts?: number
   activePlayers: number
 }
 
@@ -48,6 +50,8 @@ export interface MatkaEntityStat {
   wagered: number
   payouts: number
   ggr: number
+  /** What this matka's open bets pay if they all win, as MatkaLiveKpis.potentialPayouts. Optional: an older cached snapshot has none. */
+  potentialPayouts?: number
   bets: number
 }
 
@@ -56,6 +60,8 @@ export interface MatkaSessionStat {
   wagered: number
   payouts: number
   ggr: number
+  /** What this session's open bets pay if they all win, as MatkaLiveKpis.potentialPayouts. Optional: an older cached snapshot has none. */
+  potentialPayouts?: number
   bets: number
 }
 
@@ -80,6 +86,15 @@ export interface MatkaSelectionStat {
   bets: number
 }
 
+/** Every open selection's figures summed (bySelection keeps only the riskiest 200). */
+export interface MatkaSelectionTotals {
+  selections: number
+  wagered: number
+  payouts: number
+  exposure: number
+  bets: number
+}
+
 export interface MatkaLiveBreakdown {
   byType: MatkaTypeStat[]
   byMarket: MatkaMarketStat[]
@@ -88,6 +103,8 @@ export interface MatkaLiveBreakdown {
   bySession: MatkaSessionStat[]
   byDigit: MatkaDigitStat[]
   bySelection: MatkaSelectionStat[]
+  /** Optional: a snapshot cached before it existed has none. */
+  selectionTotals?: MatkaSelectionTotals
 }
 
 export interface MatkaLiveDashboard {
@@ -158,6 +175,7 @@ async function readDashboard(scope: LiveScope): Promise<MatkaLiveDashboard> {
         payouts: 0,
         ggr: 0,
         rtp: 0,
+        potentialPayouts: 0,
         activePlayers: 0,
       },
       breakdown: {
@@ -168,6 +186,7 @@ async function readDashboard(scope: LiveScope): Promise<MatkaLiveDashboard> {
         bySession: [],
         byDigit: [],
         bySelection: [],
+        selectionTotals: { selections: 0, wagered: 0, payouts: 0, exposure: 0, bets: 0 },
       },
     }
   }

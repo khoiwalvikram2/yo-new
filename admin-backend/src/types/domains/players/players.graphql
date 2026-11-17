@@ -345,58 +345,6 @@ type PlayerCommLog {
   metadata: String
 }
 
-# Credit player statement (Query.playerCreditStatement). Amounts use the
-# player's P&L sign (positive = player won), the sign of settlement_balance.
-# Money rows (BET_SETTLED, SETTLEMENT) carry balanceAfter; informational rows
-# (LIMIT_CHANGE, CREDIT_USED_CHANGE, ALLOCATION) do not move the balance.
-type PlayerCreditStatement {
-  playerId: ID!
-  playerType: String!
-  dateFrom: String!
-  dateTo: String!
-  summary: CreditStatementSummary!
-  openingBalance: Float!
-  closingBalance: Float!
-  totals: CreditStatementTotals!
-  rows: [CreditStatementRow!]!
-  totalRows: Int!
-  limit: Int!
-  offset: Int!
-}
-
-type CreditStatementSummary {
-  creditLimit: Float!
-  creditUsed: Float!
-  creditAvailable: Float!
-  settlementBalance: Float!
-  settlementBalanceSports: Float!
-  settlementBalanceCasino: Float!
-  settlementBalanceMatka: Float!
-}
-
-type CreditStatementTotals {
-  totalWon: Float!
-  totalLost: Float!
-  netResult: Float!
-  settlementsTotal: Float!
-  settlementCount: Int!
-  betCount: Int!
-}
-
-type CreditStatementRow {
-  id: ID!
-  type: String!
-  occurredAt: String!
-  domain: String
-  reference: String
-  details: String
-  amount: Float!
-  affectsBalance: Boolean!
-  balanceAfter: Float
-  valueBefore: Float
-  valueAfter: Float
-}
-
 input PlayerBetsFilter {
   search: String
   product: String
@@ -545,7 +493,8 @@ input CreatePlayerForAgentInput {
   # New fields for role-based player creation
   playerType: PlayerType
   agentId: ID # Target agent ID (self or sub-agent)
-  creditLimit: Float # Required for credit players
+  creditLimit: Float # Credit players: the credit reference (a reference figure; it gates nothing)
+  openingChips: Float # Credit players created for yourself: chips deposited at creation from your own chips
   bonusAllowed: Boolean # Default false for credit players
   # Stake/limit fields (optional; applied on create via createPlayerDb limits)
   maxBetSports: Float

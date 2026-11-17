@@ -83,6 +83,8 @@ export function BundleSelector({
   })
 
   const [executeapplyBundle, { loading: applying }] = useMutation(SAVE_BONUS_CAMPAIGN_GAMES, {
+    // The selector reports the outcome itself; the global mutation toast said it twice (MAR-06).
+    context: { skipNotification: true },
     onCompleted: (data) => {
       if (data.saveBonusCampaignGames.success) {
         notification.success({
